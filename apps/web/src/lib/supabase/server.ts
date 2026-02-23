@@ -1,8 +1,9 @@
 import { createServerClient } from "@template/supabase";
+import type { SupabaseClient, Database } from "@template/supabase";
 import { cookies } from "next/headers";
 
 // Call inside Server Components, Route Handlers, and Server Actions
-export async function createClient() {
+export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
 
   return createServerClient({

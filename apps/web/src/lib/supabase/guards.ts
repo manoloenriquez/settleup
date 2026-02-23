@@ -16,7 +16,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "./server";
-import type { Profile } from "@template/supabase";
+import type { Profile, User } from "@template/supabase";
 
 // ---------------------------------------------------------------------------
 // Low-level: return null on failure — no side-effects
@@ -26,7 +26,7 @@ import type { Profile } from "@template/supabase";
  * Returns the currently authenticated Supabase User, or null.
  * Always calls getUser() (validates JWT server-side) — never use getSession().
  */
-export async function getSessionUser() {
+export async function getSessionUser(): Promise<User | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -70,7 +70,7 @@ export async function getProfile(): Promise<Profile | null> {
  *   ...
  * }
  */
-export async function requireAuth() {
+export async function requireAuth(): Promise<User> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   return user;
@@ -90,7 +90,7 @@ export async function requireAuth() {
  *   ...
  * }
  */
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<{ user: User; profile: Profile }> {
   const supabase = await createClient();
 
   const {
@@ -144,7 +144,7 @@ class AuthError extends Error {
  *   }
  * }
  */
-export async function assertAuth() {
+export async function assertAuth(): Promise<User> {
   const user = await getSessionUser();
   if (!user) throw new AuthError("Authentication required.", "UNAUTHENTICATED");
   return user;
@@ -168,7 +168,7 @@ export async function assertAuth() {
  *   }
  * }
  */
-export async function assertAdmin() {
+export async function assertAdmin(): Promise<{ user: User; profile: Profile }> {
   const supabase = await createClient();
 
   const {

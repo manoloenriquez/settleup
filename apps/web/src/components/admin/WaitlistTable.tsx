@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { adminApproveWaitlist } from "@/app/actions/waitlist";
@@ -49,7 +50,7 @@ function ApproveButton({ id, approved }: { id: string; approved: boolean }) {
   );
 }
 
-export function WaitlistTable({ entries }: { entries: Waitlist[] }) {
+export function WaitlistTable({ entries }: { entries: Waitlist[] }): React.ReactElement {
   if (entries.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white py-12 text-center">

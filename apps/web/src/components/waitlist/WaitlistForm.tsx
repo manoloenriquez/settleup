@@ -27,7 +27,7 @@ function SuccessState() {
   );
 }
 
-export function WaitlistForm() {
+export function WaitlistForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);

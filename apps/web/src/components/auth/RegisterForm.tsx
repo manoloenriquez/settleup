@@ -31,7 +31,7 @@ function ConfirmEmailState() {
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   // True when signup succeeded but email confirmation is required

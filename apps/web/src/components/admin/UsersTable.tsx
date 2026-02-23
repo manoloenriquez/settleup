@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { adminSetRole } from "@/app/actions/profile";
@@ -66,7 +67,7 @@ export function UsersTable({
 }: {
   users: Profile[];
   currentUserId: string;
-}) {
+}): React.ReactElement {
   if (users.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white py-12 text-center">

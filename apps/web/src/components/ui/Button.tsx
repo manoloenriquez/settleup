@@ -27,7 +27,7 @@ export function Button({
   children,
   disabled,
   ...props
-}: ButtonProps) {
+}: ButtonProps): React.ReactElement {
   return (
     <button
       disabled={disabled ?? isLoading}
