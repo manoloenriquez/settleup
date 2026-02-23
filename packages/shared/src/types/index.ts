@@ -58,9 +58,11 @@ export type GroupOverviewPayload = {
     payer_display_name: string | null;
     gcash_name: string | null;
     gcash_number: string | null;
+    gcash_qr_url: string | null;
     bank_name: string | null;
     bank_account_name: string | null;
     bank_account_number: string | null;
+    bank_qr_url: string | null;
     notes: string | null;
   } | null;
   error?: string;

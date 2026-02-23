@@ -95,6 +95,13 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                 <CopyButton text={pp.gcash_number} label="Copy" className="ml-auto" />
               </div>
             )}
+            {pp.gcash_qr_url && (
+              <img
+                src={pp.gcash_qr_url}
+                alt="GCash QR"
+                className="mt-2 h-48 w-48 object-contain rounded border"
+              />
+            )}
             {pp.bank_name && pp.bank_account_number && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-500">{pp.bank_name}:</span>
@@ -102,6 +109,13 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                 {pp.bank_account_name && <span className="text-slate-400">({pp.bank_account_name})</span>}
                 <CopyButton text={pp.bank_account_number} label="Copy" className="ml-auto" />
               </div>
+            )}
+            {pp.bank_qr_url && (
+              <img
+                src={pp.bank_qr_url}
+                alt="Bank QR"
+                className="mt-2 h-48 w-48 object-contain rounded border"
+              />
             )}
             {pp.notes && <p className="text-xs text-slate-400 italic">{pp.notes}</p>}
           </div>
