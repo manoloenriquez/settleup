@@ -2,7 +2,7 @@
 // App metadata
 // ---------------------------------------------------------------------------
 
-export const APP_NAME = "Prototype Template" as const;
+export const APP_NAME = "SettleUp Lite" as const;
 export const APP_VERSION = "0.1.0" as const;
 
 // ---------------------------------------------------------------------------
@@ -18,6 +18,8 @@ export const ROUTES = {
   DASHBOARD: "/dashboard",
   ADMIN: "/admin",
   SETTINGS: "/settings",
+  GROUPS: "/groups",
+  GROUP_NEW: "/groups/new",
 } as const;
 
 export type Route = (typeof ROUTES)[keyof typeof ROUTES];

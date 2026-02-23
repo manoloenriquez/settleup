@@ -1,7 +1,91 @@
-# Prototype Template
+# SettleUp Lite
 
-Production-ready SaaS monorepo starter.
-**Next.js 15 · Expo 52 · Supabase · Turborepo · pnpm**
+Group expense tracker — split bills with friends, no login required for friends.
+**Next.js 15 · Expo 54 · Supabase · Turborepo · pnpm**
+
+---
+
+## Features
+
+- Create expense groups and add members
+- Add expenses (form or natural-language chat input)
+- Equal split with correct remainder distribution
+- Token-based shareable friend links — friends see their balance without logging in (`/p/<token>`)
+- GCash + bank payment profile with QR image upload
+- Mark paid / undo last payment
+- Groupchat-ready copy message format
+- Mobile app (Expo) with group list, balances, and expense entry
+
+---
+
+## SettleUp Lite — Setup Notes
+
+### Apply the migration
+
+```bash
+pnpm supabase start
+pnpm supabase db push       # or: pnpm supabase db reset
+```
+
+### Regenerate TypeScript types (after any schema change)
+
+```bash
+pnpm supabase gen types typescript --local \
+  > packages/supabase/src/database.types.ts
+```
+
+### Run tests
+
+```bash
+pnpm --filter @template/shared test
+# or from root:
+pnpm test
+```
+
+### Dev seed data
+
+Sign in to the web app, navigate to any group, and click **Load Demo Data** (visible in `development` only). Creates a demo group "Barkada Trip 2025" with 7 members and 3 expenses.
+
+### Friend links
+
+Every group member gets a unique 10-character Base62 share token. Their personal link is:
+
+```
+https://<your-domain>/p/<share_token>
+```
+
+No authentication required — served by the `get_friend_view` Postgres RPC (SECURITY DEFINER, callable with anon key).
+
+### Copy message format
+
+```
+FINAL AMOUNTS TO PAY (TO [PAYER_NAME])
+[Name 1] — ₱x,xxx.xx
+[Name 2] — ₱x,xxx.xx
+TOTAL: ₱xx,xxx.xx
+```
+
+Individual:
+```
+Hi [Name]! You owe ₱x,xxx.xx for [Group Name].
+Pay via GCash: [number] ([name])
+Or bank: [bank] [acct]
+Link: /p/[token]
+```
+
+---
+
+## Next Improvements
+
+- OCR expense parsing (photo of receipt → auto-fill)
+- Unequal splits (custom amounts or percentages)
+- Multi-payer support
+- Payment reminders (push notifications / SMS)
+- Analytics dashboard (total spent per member, per category)
+- Share token rotation (invalidate old links)
+- Group invite codes for co-owners
+
+---
 
 ---
 

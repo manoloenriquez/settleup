@@ -3,16 +3,19 @@ import { APP_NAME, ROUTES } from "@template/shared";
 
 const features = [
   {
-    title: "Auth out of the box",
-    description: "Email/password authentication powered by Supabase — no config required.",
+    title: "Group expense splitting",
+    description:
+      "Add expenses to a group and split them equally or by custom shares — no spreadsheets required.",
   },
   {
-    title: "Type-safe end to end",
-    description: "Database types flow from Supabase through shared packages to your UI.",
+    title: "Real-time balances",
+    description:
+      "See exactly who owes what at a glance. Balances update instantly as expenses and payments are recorded.",
   },
   {
-    title: "Admin dashboard",
-    description: "Manage users and waitlist entries with role-based access control.",
+    title: "Shareable links",
+    description:
+      "Generate a private link to share your balance summary with friends — no account needed on their end.",
   },
 ];
 
@@ -31,10 +34,10 @@ export default function LandingPage() {
               Sign in
             </Link>
             <Link
-              href={ROUTES.WAITLIST}
+              href={ROUTES.REGISTER}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
             >
-              Join waitlist
+              Get started
             </Link>
           </div>
         </nav>
@@ -42,24 +45,21 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="mx-auto max-w-3xl px-6 py-28 text-center">
-        <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 mb-6">
-          Now in early access
-        </span>
         <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-          Ship your SaaS
+          Split expenses.
           <br />
-          <span className="text-indigo-600">faster than ever</span>
+          <span className="text-indigo-600">Track balances. Settle up.</span>
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-slate-600">
-          A production-ready monorepo starter with auth, database, shared types, and an admin panel
-          — all wired up and ready to go.
+          The easiest way to split group expenses with friends, track who owes what, and settle up
+          without the awkward math.
         </p>
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
-            href={ROUTES.WAITLIST}
+            href={ROUTES.REGISTER}
             className="w-full sm:w-auto rounded-lg bg-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
           >
-            Join the waitlist
+            Create a free account
           </Link>
           <Link
             href={ROUTES.LOGIN}
@@ -74,7 +74,7 @@ export default function LandingPage() {
       <section className="border-t border-slate-100 bg-slate-50">
         <div className="mx-auto max-w-5xl px-6 py-20">
           <h2 className="text-center text-sm font-semibold uppercase tracking-widest text-slate-500 mb-12">
-            Everything you need to launch
+            Everything you need to split fairly
           </h2>
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             {features.map((f) => (
@@ -92,13 +92,15 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="mx-auto max-w-3xl px-6 py-24 text-center">
-        <h2 className="text-3xl font-bold text-slate-900">Ready to build?</h2>
-        <p className="mt-4 text-slate-600">Join the waitlist and be the first to get access.</p>
+        <h2 className="text-3xl font-bold text-slate-900">Ready to settle up?</h2>
+        <p className="mt-4 text-slate-600">
+          Create a free account and start splitting expenses with your group in minutes.
+        </p>
         <Link
-          href={ROUTES.WAITLIST}
+          href={ROUTES.REGISTER}
           className="mt-8 inline-block rounded-lg bg-indigo-600 px-8 py-3.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
         >
-          Get early access
+          Create a free account
         </Link>
       </section>
 

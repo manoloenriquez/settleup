@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_ROUTES = ["/dashboard", "/admin"];
+const PROTECTED_ROUTES = ["/dashboard", "/admin", "/groups"];
 const AUTH_ROUTES = ["/login", "/register"];
 
 export async function middleware(request: NextRequest) {
@@ -42,11 +42,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated user hitting an auth route → dashboard
+  // Authenticated user hitting an auth route or "/" → groups
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
-  if (user && isAuthRoute) {
+  if (user && (isAuthRoute || pathname === "/")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/groups";
     return NextResponse.redirect(url);
   }
 

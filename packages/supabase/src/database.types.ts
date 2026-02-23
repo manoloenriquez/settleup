@@ -1,5 +1,5 @@
 /**
- * Hand-written to match supabase/migrations/20240101000000_init.sql.
+ * Hand-written to match supabase/migrations/*.sql.
  *
  * Regenerate after schema changes:
  *   pnpm supabase gen types typescript --local \
@@ -88,10 +88,260 @@ export type Database = {
     };
     CompositeTypes: Record<string, never>;
   };
+  settleup: {
+    Tables: {
+      groups: {
+        Row: {
+          id: string;
+          name: string;
+          owner_user_id: string | null;
+          invite_code: string;
+          is_archived: boolean;
+          share_token: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          owner_user_id?: string | null;
+          invite_code?: string;
+          is_archived?: boolean;
+          share_token?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          owner_user_id?: string | null;
+          invite_code?: string;
+          is_archived?: boolean;
+          share_token?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "groups_owner_user_id_fkey";
+            columns: ["owner_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      group_members: {
+        Row: {
+          id: string;
+          group_id: string;
+          display_name: string;
+          slug: string;
+          share_token: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          display_name: string;
+          slug: string;
+          share_token: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          display_name?: string;
+          slug?: string;
+          share_token?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      expenses: {
+        Row: {
+          id: string;
+          group_id: string;
+          item_name: string;
+          amount_cents: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          item_name: string;
+          amount_cents: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          item_name?: string;
+          amount_cents?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expenses_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      expense_participants: {
+        Row: {
+          expense_id: string;
+          member_id: string;
+          share_cents: number;
+        };
+        Insert: {
+          expense_id: string;
+          member_id: string;
+          share_cents: number;
+        };
+        Update: {
+          expense_id?: string;
+          member_id?: string;
+          share_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_participants_expense_id_fkey";
+            columns: ["expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expense_participants_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "group_members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payments: {
+        Row: {
+          id: string;
+          group_id: string;
+          member_id: string;
+          amount_cents: number;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          member_id: string;
+          amount_cents: number;
+          status?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          member_id?: string;
+          amount_cents?: number;
+          status?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payments_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "group_members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_profiles: {
+        Row: {
+          group_id: string;
+          payer_display_name: string | null;
+          gcash_name: string | null;
+          gcash_number: string | null;
+          bank_name: string | null;
+          bank_account_name: string | null;
+          bank_account_number: string | null;
+          notes: string | null;
+          gcash_qr_url: string | null;
+          bank_qr_url: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          group_id: string;
+          payer_display_name?: string | null;
+          gcash_name?: string | null;
+          gcash_number?: string | null;
+          bank_name?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          notes?: string | null;
+          gcash_qr_url?: string | null;
+          bank_qr_url?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          group_id?: string;
+          payer_display_name?: string | null;
+          gcash_name?: string | null;
+          gcash_number?: string | null;
+          bank_name?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          notes?: string | null;
+          gcash_qr_url?: string | null;
+          bank_qr_url?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payment_profiles_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: true;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      get_friend_view: {
+        Args: { p_share_token: string };
+        Returns: Json;
+      };
+      get_group_overview: {
+        Args: { p_share_token: string };
+        Returns: Json;
+      };
+    };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
 };
 
 // ---------------------------------------------------------------------------
-// Convenience helpers — use these instead of Database["public"]["Tables"][T]
+// Convenience helpers — public schema
 // ---------------------------------------------------------------------------
 
 export type Tables<T extends keyof Database["public"]["Tables"]> =
@@ -107,7 +357,20 @@ export type Enums<T extends keyof Database["public"]["Enums"]> =
   Database["public"]["Enums"][T];
 
 // ---------------------------------------------------------------------------
-// Named row types — import these directly in application code
+// Convenience helpers — settleup schema
+// ---------------------------------------------------------------------------
+
+export type SettleUpTables<T extends keyof Database["settleup"]["Tables"]> =
+  Database["settleup"]["Tables"][T]["Row"];
+
+export type SettleUpTablesInsert<T extends keyof Database["settleup"]["Tables"]> =
+  Database["settleup"]["Tables"][T]["Insert"];
+
+export type SettleUpTablesUpdate<T extends keyof Database["settleup"]["Tables"]> =
+  Database["settleup"]["Tables"][T]["Update"];
+
+// ---------------------------------------------------------------------------
+// Named row types — public schema
 // ---------------------------------------------------------------------------
 
 export type Profile = Tables<"profiles">;
@@ -119,3 +382,31 @@ export type WaitlistInsert = TablesInsert<"waitlist">;
 export type WaitlistUpdate = TablesUpdate<"waitlist">;
 
 export type UserRole = Enums<"user_role">;
+
+// ---------------------------------------------------------------------------
+// Named row types — settleup schema
+// ---------------------------------------------------------------------------
+
+export type Group = SettleUpTables<"groups">;
+export type GroupInsert = SettleUpTablesInsert<"groups">;
+export type GroupUpdate = SettleUpTablesUpdate<"groups">;
+
+export type GroupMember = SettleUpTables<"group_members">;
+export type GroupMemberInsert = SettleUpTablesInsert<"group_members">;
+export type GroupMemberUpdate = SettleUpTablesUpdate<"group_members">;
+
+export type Expense = SettleUpTables<"expenses">;
+export type ExpenseInsert = SettleUpTablesInsert<"expenses">;
+export type ExpenseUpdate = SettleUpTablesUpdate<"expenses">;
+
+export type ExpenseParticipant = SettleUpTables<"expense_participants">;
+export type ExpenseParticipantInsert = SettleUpTablesInsert<"expense_participants">;
+export type ExpenseParticipantUpdate = SettleUpTablesUpdate<"expense_participants">;
+
+export type Payment = SettleUpTables<"payments">;
+export type PaymentInsert = SettleUpTablesInsert<"payments">;
+export type PaymentUpdate = SettleUpTablesUpdate<"payments">;
+
+export type PaymentProfile = SettleUpTables<"payment_profiles">;
+export type PaymentProfileInsert = SettleUpTablesInsert<"payment_profiles">;
+export type PaymentProfileUpdate = SettleUpTablesUpdate<"payment_profiles">;

@@ -4,6 +4,7 @@ import { APP_NAME, ROUTES } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { signOut } from "@/app/actions/auth";
 
+
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const profile = await cachedProfile();
   if (!profile) redirect(ROUTES.LOGIN);
@@ -28,6 +29,13 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
               Dashboard
+            </Link>
+
+            <Link
+              href={ROUTES.GROUPS}
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Groups
             </Link>
 
             {/* Admin link — visible to admins only */}

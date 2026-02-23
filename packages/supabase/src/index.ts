@@ -2,6 +2,7 @@
 export { createBrowserClient } from "./browser";
 export { createServerClient, type CookieAdapter } from "./server";
 export { createMobileClient } from "./mobile";
+export { createAnonClient } from "./anon";
 
 // Database type helpers
 export type {
@@ -22,4 +23,22 @@ export type {
   WaitlistInsert,
   WaitlistUpdate,
   UserRole,
+  Group,
+  GroupInsert,
+  GroupUpdate,
+  GroupMember,
+  GroupMemberInsert,
+  GroupMemberUpdate,
+  Expense,
+  ExpenseInsert,
+  ExpenseUpdate,
+  ExpenseParticipant,
+  ExpenseParticipantInsert,
+  ExpenseParticipantUpdate,
+  Payment,
+  PaymentInsert,
+  PaymentUpdate,
+  PaymentProfile,
+  PaymentProfileInsert,
+  PaymentProfileUpdate,
 } from "./database.types";
