@@ -5,7 +5,7 @@ import { RegisterForm } from "@/components/auth/RegisterForm";
 
 export const metadata: Metadata = { title: "Create Account" };
 
-export default function RegisterPage() {
+export default function RegisterPage(): React.ReactElement {
   return (
     <div className="w-full max-w-md">
       {/* Header */}

@@ -45,13 +45,6 @@ export type MemberBalance = {
   is_paid: boolean;
 };
 
-export type ParsedExpense = {
-  itemName: string;
-  amountCents: number | null;
-  participantNames: string[];
-  raw: string;
-};
-
 export type GroupOverviewPayload = {
   group: { id: string; name: string };
   members: { member_id: string; display_name: string; owed_cents: number }[];

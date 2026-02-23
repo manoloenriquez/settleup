@@ -7,7 +7,8 @@ import type { ApiResponse, MemberBalance } from "@template/shared";
 export async function getGroupBalances(groupId: string): Promise<ApiResponse<MemberBalance[]>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     const { data: members, error: membersError } = await db
       .from("group_members")

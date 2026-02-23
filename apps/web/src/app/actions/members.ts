@@ -16,7 +16,8 @@ export async function addMember(input: unknown): Promise<ApiResponse<GroupMember
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     // Verify ownership
     const { data: group, error: groupError } = await db
@@ -66,7 +67,8 @@ export async function addMembersBatch(input: unknown): Promise<ApiResponse<Group
     }
 
     const { group_id, display_names } = parsed.data;
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     // Verify ownership (RLS handles auth, this confirms group exists for this user)
     const { data: group, error: groupError } = await db
@@ -106,7 +108,8 @@ export async function addMembersBatch(input: unknown): Promise<ApiResponse<Group
 export async function listMembers(groupId: string): Promise<ApiResponse<GroupMember[]>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { data, error } = await db
       .from("group_members")
       .select("*")
@@ -124,7 +127,8 @@ export async function listMembers(groupId: string): Promise<ApiResponse<GroupMem
 export async function deleteMember(memberId: string): Promise<ApiResponse<void>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { error } = await db.from("group_members").delete().eq("id", memberId);
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };

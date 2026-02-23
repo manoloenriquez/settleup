@@ -19,7 +19,8 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
 
     const { group_id, item_name, amount_cents, notes, participant_ids } = parsed.data;
 
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     // Insert expense
     const { data: expense, error: expenseError } = await db
@@ -67,7 +68,8 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
     }
 
     const { group_id, items } = parsed.data;
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const inserted: Expense[] = [];
 
     for (const item of items) {
@@ -123,7 +125,8 @@ export async function listExpenses(
 ): Promise<ApiResponse<ExpenseWithParticipants[]>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     const { data: expenses, error } = await db
       .from("expenses")
@@ -146,7 +149,8 @@ export async function listExpenses(
 export async function deleteExpense(expenseId: string): Promise<ApiResponse<void>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { error } = await db.from("expenses").delete().eq("id", expenseId);
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };

@@ -13,7 +13,8 @@ export async function getPaymentProfile(
 ): Promise<ApiResponse<PaymentProfile | null>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { data, error } = await db
       .from("payment_profiles")
       .select("*")
@@ -39,7 +40,8 @@ export async function upsertPaymentProfile(
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { data, error } = await db
       .from("payment_profiles")
       .upsert({ ...parsed.data, updated_at: new Date().toISOString() })
@@ -74,7 +76,8 @@ export async function uploadQRImageAction(
 
     // Update the payment_profiles URL field
     const field = type === "gcash" ? "gcash_qr_url" : "bank_qr_url";
-    const db = await createSettleUpDb();
+    const settleUpSupabase = await createSettleUpDb();
+    const db = settleUpSupabase.schema("settleup");
     const { error } = await db
       .from("payment_profiles")
       .upsert({ group_id: groupId, [field]: publicUrl, updated_at: new Date().toISOString() });

@@ -5,7 +5,7 @@ import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
 
 export const metadata: Metadata = { title: "Join the Waitlist" };
 
-export default function WaitlistPage() {
+export default function WaitlistPage(): React.ReactElement {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-4">
       {/* Back link */}

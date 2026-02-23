@@ -12,7 +12,8 @@ export async function markPaid(
 ): Promise<ApiResponse<Payment>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     const { data, error } = await db
       .from("payments")
@@ -31,7 +32,8 @@ export async function markPaid(
 export async function undoLastPayment(memberId: string): Promise<ApiResponse<void>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     // Find most recent payment for member
     const { data: latest, error: fetchError } = await db

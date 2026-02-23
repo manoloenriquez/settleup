@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { createGroup } from "@/app/actions/groups";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -13,7 +12,6 @@ const initialState: ApiResponse<Group> = { data: null, error: null } as unknown 
 export function CreateGroupForm(): React.ReactElement {
   const [state, formAction] = useActionState(createGroup, initialState);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
 
   // createGroup redirects on success, so we only handle error state
   return (

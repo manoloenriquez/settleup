@@ -16,7 +16,8 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { data, error } = await db
       .from("groups")
       .insert({ name: parsed.data.name, owner_user_id: user.id })
@@ -35,7 +36,8 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
 export async function listGroups(): Promise<ApiResponse<Group[]>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { data, error } = await db
       .from("groups")
       .select("*")
@@ -53,7 +55,8 @@ export async function listGroups(): Promise<ApiResponse<Group[]>> {
 export async function archiveGroup(groupId: string): Promise<ApiResponse<void>> {
   try {
     await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
     const { error } = await db
       .from("groups")
       .update({ is_archived: true })

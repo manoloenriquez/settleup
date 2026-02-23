@@ -38,7 +38,7 @@ function buildMessage(
 function buildGroupMessage(
   balances: MemberBalance[],
   payerName: string,
-  groupName: string,
+  _groupName: string,
 ): string {
   const pending = balances.filter((b) => !b.is_paid);
   const total = pending.reduce((sum, b) => sum + b.owed_cents, 0);

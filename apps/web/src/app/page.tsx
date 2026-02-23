@@ -19,7 +19,7 @@ const features = [
   },
 ];
 
-export default function LandingPage() {
+export default function LandingPage(): React.ReactElement {
   return (
     <div className="min-h-screen bg-white">
       {/* Nav */}

@@ -4,6 +4,9 @@ export { createServerClient, type CookieAdapter } from "./server";
 export { createMobileClient } from "./mobile";
 export { createAnonClient } from "./anon";
 
+// Supabase client type (re-exported so consumers don't need @supabase/supabase-js directly)
+export type { SupabaseClient } from "@supabase/supabase-js";
+
 // Database type helpers
 export type {
   Database,

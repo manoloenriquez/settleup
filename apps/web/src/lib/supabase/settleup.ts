@@ -1,7 +1,6 @@
 import { createClient } from "./server";
 
-/** Returns a schema-scoped Supabase DB client for all settleup tables. */
+/** Returns a Supabase server client for use with settleup schema tables. */
 export async function createSettleUpDb() {
-  const supabase = await createClient();
-  return supabase.schema("settleup");
+  return createClient();
 }

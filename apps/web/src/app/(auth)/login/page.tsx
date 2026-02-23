@@ -5,7 +5,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = { title: "Sign In" };
 
-export default function LoginPage() {
+export default function LoginPage(): React.ReactElement {
   return (
     <div className="w-full max-w-md">
       {/* Header */}

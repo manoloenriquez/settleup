@@ -13,7 +13,8 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
 
   try {
     const user = await assertAuth();
-    const db = await createSettleUpDb();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
 
     // Create group
     const { data: group, error: groupError } = await db
