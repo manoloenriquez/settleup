@@ -5,7 +5,7 @@ import { cachedProfile } from "@/lib/supabase/queries";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
+export default async function DashboardPage(): Promise<React.ReactElement> {
   // cachedProfile() is already called in the layout — no extra DB round-trip.
   const profile = await cachedProfile();
   if (!profile) redirect(ROUTES.LOGIN);

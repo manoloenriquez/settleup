@@ -4,7 +4,7 @@ import { ROUTES } from "@template/shared";
 
 // Redirect to dashboard if the user is already signed in.
 // Middleware handles this too — this is defence in depth.
-export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
   const user = await getSessionUser();
   if (user) redirect(ROUTES.DASHBOARD);
 

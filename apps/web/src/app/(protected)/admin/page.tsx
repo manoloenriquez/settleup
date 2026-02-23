@@ -7,7 +7,7 @@ import { UsersTable } from "@/components/admin/UsersTable";
 
 export const metadata: Metadata = { title: "Admin" };
 
-export default async function AdminPage() {
+export default async function AdminPage(): Promise<React.ReactElement> {
   // requireAdmin() redirects to /login or /dashboard if unauthorized.
   const { profile } = await requireAdmin();
 

@@ -5,7 +5,7 @@ import { cachedProfile } from "@/lib/supabase/queries";
 import { signOut } from "@/app/actions/auth";
 
 
-export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
+export default async function ProtectedLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
   const profile = await cachedProfile();
   if (!profile) redirect(ROUTES.LOGIN);
 
