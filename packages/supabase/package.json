@@ -1,0 +1,24 @@
+{
+  "name": "@template/supabase",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts",
+    "./server": "./src/server.ts",
+    "./mobile": "./src/mobile.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.97.0",
+    "@supabase/ssr": "^0.8.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
