@@ -86,3 +86,19 @@ export type FriendViewPayload = {
   expenses: { item_name: string; share_cents: number; created_at: string }[];
   error?: string;
 };
+
+// Mirrors Database["settleup"]["Tables"]["groups"]["Row"] + computed stats.
+// Fields must be kept in sync with database.types.ts if the schema changes.
+export type GroupWithStats = {
+  id: string;
+  name: string;
+  owner_user_id: string | null;
+  invite_code: string;
+  is_archived: boolean;
+  share_token: string;
+  created_at: string;
+  // Computed
+  member_count: number;
+  pending_count: number;
+  total_owed_cents: number;
+};

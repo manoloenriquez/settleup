@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { listGroups } from "@/app/actions/groups";
-import { GroupCard } from "@/components/groups/GroupCard";
+import { listGroupsWithStats } from "@/app/actions/groups";
+import { GroupListItem } from "@/components/groups/GroupListItem";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@template/shared";
 
 export default async function GroupsPage(): Promise<React.ReactElement> {
-  const result = await listGroups();
+  const result = await listGroupsWithStats();
 
   return (
     <div className="flex flex-col gap-6">
@@ -30,9 +30,9 @@ export default async function GroupsPage(): Promise<React.ReactElement> {
       )}
 
       {result.data && result.data.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-2">
           {result.data.map((group) => (
-            <GroupCard key={group.id} group={group} />
+            <GroupListItem key={group.id} group={group} />
           ))}
         </div>
       )}
