@@ -4,20 +4,23 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { addExpenseSchema, addExpensesBatchSchema, equalSplit } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
-import type { Expense, ExpenseParticipant } from "@template/supabase";
+import type { Expense, ExpenseParticipant, ExpensePayer } from "@template/supabase";
 
-export type ExpenseWithParticipants = Expense & { participants: ExpenseParticipant[] };
+export type ExpenseWithParticipants = Expense & {
+  participants: ExpenseParticipant[];
+  payers: ExpensePayer[];
+};
 
 export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> {
   try {
-    await assertAuth();
+    const user = await assertAuth();
 
     const parsed = addExpenseSchema.safeParse(input);
     if (!parsed.success) {
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { group_id, item_name, amount_cents, notes, participant_ids } = parsed.data;
+    const { group_id, item_name, amount_cents, notes, participant_ids, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -25,7 +28,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
     // Insert expense
     const { data: expense, error: expenseError } = await db
       .from("expenses")
-      .insert({ group_id, item_name, amount_cents, notes })
+      .insert({ group_id, item_name, amount_cents, notes, created_by_user_id: user.id })
       .select()
       .single();
 
@@ -51,6 +54,21 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       return { data: null, error: participantError.message };
     }
 
+    // Insert expense payers
+    const payerRows = payers.map((p) => ({
+      expense_id: expense.id,
+      member_id: p.member_id,
+      paid_cents: p.paid_cents,
+    }));
+
+    const { error: payerError } = await db
+      .from("expense_payers")
+      .insert(payerRows);
+
+    if (payerError) {
+      return { data: null, error: payerError.message };
+    }
+
     return { data: expense, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
@@ -60,7 +78,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
 
 export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expense[]>> {
   try {
-    await assertAuth();
+    const user = await assertAuth();
 
     const parsed = addExpensesBatchSchema.safeParse(input);
     if (!parsed.success) {
@@ -75,7 +93,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
     for (const item of items) {
       const { data: expense, error: expenseError } = await db
         .from("expenses")
-        .insert({ group_id, item_name: item.item_name, amount_cents: item.amount_cents, notes: item.notes })
+        .insert({ group_id, item_name: item.item_name, amount_cents: item.amount_cents, notes: item.notes, created_by_user_id: user.id })
         .select()
         .single();
 
@@ -110,6 +128,21 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
         return { data: null, error: participantError.message };
       }
 
+      // Insert expense payers
+      const payerRows = item.payers.map((p) => ({
+        expense_id: expense.id,
+        member_id: p.member_id,
+        paid_cents: p.paid_cents,
+      }));
+
+      const { error: payerError } = await db
+        .from("expense_payers")
+        .insert(payerRows);
+
+      if (payerError) {
+        return { data: null, error: payerError.message };
+      }
+
       inserted.push(expense);
     }
 
@@ -130,7 +163,7 @@ export async function listExpenses(
 
     const { data: expenses, error } = await db
       .from("expenses")
-      .select("*, participants:expense_participants(*)")
+      .select("*, participants:expense_participants(*), payers:expense_payers(*)")
       .eq("group_id", groupId)
       .order("created_at", { ascending: false });
 

@@ -2,8 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
+import { createClient } from "@/lib/supabase/server";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
-import { createGroupSchema } from "@template/shared";
+import { createGroupSchema, generateSlug } from "@template/shared";
+import { generateShareToken } from "@/lib/tokens";
 import type { ApiResponse, GroupWithStats } from "@template/shared";
 import type { Group } from "@template/supabase";
 
@@ -25,6 +27,26 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
       .single();
 
     if (error || !data) return { data: null, error: error?.message ?? "Failed to create group." };
+
+    // Auto-link owner as first group member
+    const publicClient = await createClient();
+    const { data: profile } = await publicClient
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+
+    const ownerName = profile?.full_name || user.email?.split("@")[0] || "Me";
+    const slug = generateSlug(ownerName, []);
+    const share_token = generateShareToken();
+
+    await db.from("group_members").insert({
+      group_id: data.id,
+      display_name: ownerName,
+      slug,
+      share_token,
+      user_id: user.id,
+    });
 
     redirect(`/groups/${data.id}`);
   } catch (e) {
@@ -109,47 +131,60 @@ export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[
 
     const memberIds = members.map((m) => m.id);
 
-    // 3. Parallel: fetch expense_participants shares + payments
-    const [sharesResult, paymentsResult] = await Promise.all([
+    // 3. Parallel: fetch all 4 sources for balance calculation
+    const [sharesResult, payersResult, paymentsFromResult, paymentsToResult] = await Promise.all([
       db
         .from("expense_participants")
         .select("member_id, share_cents")
         .in("member_id", memberIds),
       db
-        .from("payments")
-        .select("member_id, amount_cents")
+        .from("expense_payers")
+        .select("member_id, paid_cents")
         .in("member_id", memberIds),
+      db
+        .from("payments")
+        .select("from_member_id, amount_cents")
+        .in("from_member_id", memberIds),
+      db
+        .from("payments")
+        .select("to_member_id, amount_cents")
+        .in("to_member_id", memberIds),
     ]);
 
     if (sharesResult.error) return { data: null, error: sharesResult.error.message };
-    if (paymentsResult.error) return { data: null, error: paymentsResult.error.message };
+    if (payersResult.error) return { data: null, error: payersResult.error.message };
+    if (paymentsFromResult.error) return { data: null, error: paymentsFromResult.error.message };
+    if (paymentsToResult.error) return { data: null, error: paymentsToResult.error.message };
 
-    // 4. Aggregate in memory
-    // Map: memberId -> groupId
+    // 4. Aggregate in memory: net = paid_as_payer - shares + received - sent
     const memberToGroup = new Map<string, string>();
     for (const m of members) {
       memberToGroup.set(m.id, m.group_id);
     }
 
-    // Map: groupId -> { totalShares, totalPaid }
-    type GroupAgg = { totalShares: number; totalPaid: number };
-    const groupAgg = new Map<string, GroupAgg>();
-    for (const gId of groupIds) {
-      groupAgg.set(gId, { totalShares: 0, totalPaid: 0 });
+    type MemberAgg = { paidAsPayer: number; shares: number; received: number; sent: number };
+    const memberNet = new Map<string, MemberAgg>();
+    for (const m of members) {
+      memberNet.set(m.id, { paidAsPayer: 0, shares: 0, received: 0, sent: 0 });
     }
 
-    for (const sp of sharesResult.data ?? []) {
-      const gId = memberToGroup.get(sp.member_id);
-      if (!gId) continue;
-      const agg = groupAgg.get(gId);
-      if (agg) agg.totalShares += sp.share_cents;
+    for (const row of payersResult.data ?? []) {
+      const ma = memberNet.get(row.member_id);
+      if (ma) ma.paidAsPayer += row.paid_cents;
     }
-
-    for (const pay of paymentsResult.data ?? []) {
-      const gId = memberToGroup.get(pay.member_id);
-      if (!gId) continue;
-      const agg = groupAgg.get(gId);
-      if (agg) agg.totalPaid += pay.amount_cents;
+    for (const row of sharesResult.data ?? []) {
+      const ma = memberNet.get(row.member_id);
+      if (ma) ma.shares += row.share_cents;
+    }
+    for (const row of paymentsToResult.data ?? []) {
+      if (!row.to_member_id) continue;
+      const ma = memberNet.get(row.to_member_id);
+      if (ma) ma.received += row.amount_cents;
+    }
+    for (const row of paymentsFromResult.data ?? []) {
+      if (!row.from_member_id) continue;
+      const ma = memberNet.get(row.from_member_id);
+      if (ma) ma.sent += row.amount_cents;
     }
 
     // Map: groupId -> member count
@@ -158,40 +193,29 @@ export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[
       memberCountByGroup.set(m.group_id, (memberCountByGroup.get(m.group_id) ?? 0) + 1);
     }
 
-    // Build per-member owed amounts to count pending members
-    // Map: memberId -> { shares, paid }
-    type MemberAgg = { shares: number; paid: number };
-    const memberOwed = new Map<string, MemberAgg>();
-    for (const m of members) {
-      memberOwed.set(m.id, { shares: 0, paid: 0 });
-    }
-    for (const sp of sharesResult.data ?? []) {
-      const ma = memberOwed.get(sp.member_id);
-      if (ma) ma.shares += sp.share_cents;
-    }
-    for (const pay of paymentsResult.data ?? []) {
-      const ma = memberOwed.get(pay.member_id);
-      if (ma) ma.paid += pay.amount_cents;
+    // pending_count per group: members with negative net (they owe money)
+    const pendingCountByGroup = new Map<string, number>();
+    const groupTotalOwed = new Map<string, number>();
+    for (const gId of groupIds) {
+      groupTotalOwed.set(gId, 0);
     }
 
-    // pending_count per group: members where shares > paid
-    const pendingCountByGroup = new Map<string, number>();
     for (const m of members) {
-      const ma = memberOwed.get(m.id);
-      if (ma && ma.shares > ma.paid) {
+      const ma = memberNet.get(m.id);
+      if (!ma) continue;
+      const net = ma.paidAsPayer - ma.shares + ma.received - ma.sent;
+      if (net < 0) {
         pendingCountByGroup.set(m.group_id, (pendingCountByGroup.get(m.group_id) ?? 0) + 1);
+        groupTotalOwed.set(m.group_id, (groupTotalOwed.get(m.group_id) ?? 0) + (-net));
       }
     }
 
-    const result: GroupWithStats[] = groups.map((g) => {
-      const agg = groupAgg.get(g.id) ?? { totalShares: 0, totalPaid: 0 };
-      return {
-        ...g,
-        member_count: memberCountByGroup.get(g.id) ?? 0,
-        pending_count: pendingCountByGroup.get(g.id) ?? 0,
-        total_owed_cents: Math.max(0, agg.totalShares - agg.totalPaid),
-      };
-    });
+    const result: GroupWithStats[] = groups.map((g) => ({
+      ...g,
+      member_count: memberCountByGroup.get(g.id) ?? 0,
+      pending_count: pendingCountByGroup.get(g.id) ?? 0,
+      total_owed_cents: groupTotalOwed.get(g.id) ?? 0,
+    }));
 
     return { data: result, error: null };
   } catch (e) {

@@ -2,11 +2,12 @@
 
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { markPaid, undoLastPayment } from "@/app/actions/payments";
+import { recordPayment, undoLastPayment } from "@/app/actions/payments";
 import { deleteMember } from "@/app/actions/members";
-import { formatCents } from "@template/shared";
+import { formatCents, parsePHPAmount } from "@template/shared";
 import { CopyButton } from "./CopyButton";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type { GroupMember } from "@template/supabase";
 import type { MemberBalance } from "@template/shared";
 
@@ -26,13 +27,24 @@ function buildMessage(
   paymentText: string,
   link: string,
 ): string {
-  return [
-    `Hi ${member.display_name}! You owe ${formatCents(balance.owed_cents)} for ${groupName}.`,
-    paymentText,
-    `Link: ${link}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  if (balance.net_cents < 0) {
+    return [
+      `Hi ${member.display_name}! You owe ${formatCents(-balance.net_cents)} for ${groupName}.`,
+      paymentText,
+      `Link: ${link}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (balance.net_cents > 0) {
+    return [
+      `Hi ${member.display_name}! You are owed ${formatCents(balance.net_cents)} for ${groupName}.`,
+      `Link: ${link}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  return `Hi ${member.display_name}! You're all settled for ${groupName}.`;
 }
 
 function buildGroupMessage(
@@ -40,11 +52,11 @@ function buildGroupMessage(
   payerName: string,
   _groupName: string,
 ): string {
-  const pending = balances.filter((b) => !b.is_paid);
-  const total = pending.reduce((sum, b) => sum + b.owed_cents, 0);
+  const owing = balances.filter((b) => b.net_cents < 0);
+  const total = owing.reduce((sum, b) => sum + -b.net_cents, 0);
   const lines = [
     `FINAL AMOUNTS TO PAY (TO ${payerName || "PAYER"})`,
-    ...pending.map((b) => `${b.display_name} — ${formatCents(b.owed_cents)}`),
+    ...owing.map((b) => `${b.display_name} — ${formatCents(-b.net_cents)}`),
     `TOTAL: ${formatCents(total)}`,
   ];
   return lines.join("\n");
@@ -60,14 +72,42 @@ export function BalanceSummary({
 }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [fromMemberId, setFromMemberId] = useState("");
+  const [toMemberId, setToMemberId] = useState("");
+  const [paymentAmountStr, setPaymentAmountStr] = useState("");
   const router = useRouter();
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
-  function handleMarkPaid(balance: MemberBalance) {
+  function handleRecordPayment() {
+    setPaymentError(null);
+    const amount_cents = parsePHPAmount(paymentAmountStr);
+    if (!fromMemberId || !toMemberId || !amount_cents || amount_cents <= 0) {
+      setPaymentError("Please fill in all fields with valid values.");
+      return;
+    }
+    if (fromMemberId === toMemberId) {
+      setPaymentError("Cannot pay yourself.");
+      return;
+    }
     startTransition(async () => {
-      await markPaid(balance.member_id, groupId, balance.owed_cents);
-      router.refresh();
+      const result = await recordPayment({
+        group_id: groupId,
+        from_member_id: fromMemberId,
+        to_member_id: toMemberId,
+        amount_cents,
+      });
+      if (result.error) {
+        setPaymentError(result.error);
+      } else {
+        setShowPaymentForm(false);
+        setFromMemberId("");
+        setToMemberId("");
+        setPaymentAmountStr("");
+        router.refresh();
+      }
     });
   }
 
@@ -104,10 +144,73 @@ export function BalanceSummary({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-700">Balances</h3>
-        <CopyButton text={groupMessage} label="Copy All" />
+        <div className="flex gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowPaymentForm(!showPaymentForm)}
+          >
+            {showPaymentForm ? "Cancel" : "Record Payment"}
+          </Button>
+          <CopyButton text={groupMessage} label="Copy All" />
+        </div>
       </div>
 
       {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+
+      {/* Payment form */}
+      {showPaymentForm && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 flex flex-col gap-3">
+          <p className="text-sm font-semibold text-indigo-800">Record a payment</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+              <select
+                value={fromMemberId}
+                onChange={(e) => setFromMemberId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Select member</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+              <select
+                value={toMemberId}
+                onChange={(e) => setToMemberId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Select member</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <Input
+            label="Amount (₱)"
+            value={paymentAmountStr}
+            onChange={(e) => setPaymentAmountStr(e.target.value)}
+            placeholder="e.g. 1500.00"
+          />
+          {paymentError && <p className="text-sm text-red-600">{paymentError}</p>}
+          <Button
+            variant="primary"
+            size="sm"
+            isLoading={isPending}
+            onClick={handleRecordPayment}
+          >
+            Submit Payment
+          </Button>
+        </div>
+      )}
 
       {balances.length === 0 && (
         <p className="text-sm text-slate-400">No members yet.</p>
@@ -119,6 +222,10 @@ export function BalanceSummary({
         const link = `${origin}/p/${member.share_token}`;
         const message = buildMessage(member, balance, groupName, paymentProfileText, link);
 
+        const isSettled = balance.net_cents === 0;
+        const isOwed = balance.net_cents > 0;
+        const owes = balance.net_cents < 0;
+
         return (
           <div
             key={balance.member_id}
@@ -128,40 +235,43 @@ export function BalanceSummary({
               <p className="font-medium text-slate-900 truncate">{balance.display_name}</p>
               <p
                 className={`text-sm font-semibold ${
-                  balance.is_paid ? "text-green-600" : "text-red-500"
+                  isSettled
+                    ? "text-green-600"
+                    : isOwed
+                      ? "text-green-600"
+                      : "text-red-500"
                 }`}
               >
-                {balance.is_paid ? "Paid ✓" : formatCents(balance.owed_cents)}
+                {isSettled
+                  ? "Settled ✓"
+                  : isOwed
+                    ? `is owed ${formatCents(balance.net_cents)}`
+                    : `owes ${formatCents(-balance.net_cents)}`}
               </p>
             </div>
 
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                balance.is_paid ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                isSettled
+                  ? "bg-green-100 text-green-700"
+                  : isOwed
+                    ? "bg-green-100 text-green-700"
+                    : "bg-amber-100 text-amber-700"
               }`}
             >
-              {balance.is_paid ? "Paid" : "Pending"}
+              {isSettled ? "Settled" : isOwed ? "Owed" : "Pending"}
             </span>
 
-            {!balance.is_paid && (
+            {owes && (
               <Button
-                variant="primary"
+                variant="ghost"
                 size="sm"
                 isLoading={isPending}
-                onClick={() => handleMarkPaid(balance)}
+                onClick={() => handleUndo(balance)}
               >
-                Mark Paid
+                Undo
               </Button>
             )}
-
-            <Button
-              variant="ghost"
-              size="sm"
-              isLoading={isPending}
-              onClick={() => handleUndo(balance)}
-            >
-              Undo
-            </Button>
 
             <CopyButton text={link} label="Copy Link" />
             <CopyButton text={message} label="Copy Msg" />

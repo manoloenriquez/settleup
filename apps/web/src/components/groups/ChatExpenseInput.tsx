@@ -50,12 +50,19 @@ export function ChatExpenseInput({ groupId, members }: Props): React.ReactElemen
       return;
     }
 
+    const defaultPayerId = members[0]?.id;
+    if (!defaultPayerId) {
+      setError("No members available to be payer.");
+      return;
+    }
+
     startTransition(async () => {
       const result = await addExpense({
         group_id: groupId,
         item_name: parsed.itemName,
         amount_cents: parsed.amountCents!,
         participant_ids: resolvedIds,
+        payers: [{ member_id: defaultPayerId, paid_cents: parsed.amountCents! }],
       });
       if (result.error) {
         setError(result.error);

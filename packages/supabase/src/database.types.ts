@@ -135,6 +135,7 @@ export type Database = {
           display_name: string;
           slug: string;
           share_token: string;
+          user_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -143,6 +144,7 @@ export type Database = {
           display_name: string;
           slug: string;
           share_token: string;
+          user_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -151,6 +153,7 @@ export type Database = {
           display_name?: string;
           slug?: string;
           share_token?: string;
+          user_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -170,6 +173,7 @@ export type Database = {
           item_name: string;
           amount_cents: number;
           notes: string | null;
+          created_by_user_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -178,6 +182,7 @@ export type Database = {
           item_name: string;
           amount_cents: number;
           notes?: string | null;
+          created_by_user_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -186,6 +191,7 @@ export type Database = {
           item_name?: string;
           amount_cents?: number;
           notes?: string | null;
+          created_by_user_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -231,6 +237,39 @@ export type Database = {
           },
         ];
       };
+      expense_payers: {
+        Row: {
+          expense_id: string;
+          member_id: string;
+          paid_cents: number;
+        };
+        Insert: {
+          expense_id: string;
+          member_id: string;
+          paid_cents: number;
+        };
+        Update: {
+          expense_id?: string;
+          member_id?: string;
+          paid_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_payers_expense_id_fkey";
+            columns: ["expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expense_payers_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "group_members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payments: {
         Row: {
           id: string;
@@ -238,6 +277,9 @@ export type Database = {
           member_id: string;
           amount_cents: number;
           status: string;
+          from_member_id: string | null;
+          to_member_id: string | null;
+          created_by_user_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -246,6 +288,9 @@ export type Database = {
           member_id: string;
           amount_cents: number;
           status?: string;
+          from_member_id?: string | null;
+          to_member_id?: string | null;
+          created_by_user_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -254,6 +299,9 @@ export type Database = {
           member_id?: string;
           amount_cents?: number;
           status?: string;
+          from_member_id?: string | null;
+          to_member_id?: string | null;
+          created_by_user_id?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -334,6 +382,10 @@ export type Database = {
         Args: { p_share_token: string };
         Returns: Json;
       };
+      get_member_balances: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -402,6 +454,10 @@ export type ExpenseUpdate = SettleUpTablesUpdate<"expenses">;
 export type ExpenseParticipant = SettleUpTables<"expense_participants">;
 export type ExpenseParticipantInsert = SettleUpTablesInsert<"expense_participants">;
 export type ExpenseParticipantUpdate = SettleUpTablesUpdate<"expense_participants">;
+
+export type ExpensePayer = SettleUpTables<"expense_payers">;
+export type ExpensePayerInsert = SettleUpTablesInsert<"expense_payers">;
+export type ExpensePayerUpdate = SettleUpTablesUpdate<"expense_payers">;
 
 export type Payment = SettleUpTables<"payments">;
 export type PaymentInsert = SettleUpTablesInsert<"payments">;

@@ -70,6 +70,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
     display_name: b.display_name,
     slug: b.slug,
     share_token: b.share_token,
+    user_id: b.user_id,
     group_id: groupId,
     created_at: "",
   }));

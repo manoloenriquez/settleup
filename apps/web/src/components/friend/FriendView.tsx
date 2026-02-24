@@ -9,8 +9,11 @@ type Props = {
 
 function buildMessage(payload: FriendViewPayload, link: string): string {
   const pp = payload.payment_profile;
+  const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
   const lines: string[] = [
-    `Hi ${payload.member.display_name}! You owe ${formatCents(payload.owed_cents)} for ${payload.group.name}.`,
+    owedAmount > 0
+      ? `Hi ${payload.member.display_name}! You owe ${formatCents(owedAmount)} for ${payload.group.name}.`
+      : `Hi ${payload.member.display_name}! You're all settled for ${payload.group.name}.`,
   ];
 
   if (pp?.gcash_number) {
@@ -30,7 +33,9 @@ function buildMessage(payload: FriendViewPayload, link: string): string {
 export function FriendView({ payload, shareLink }: Props): React.ReactElement {
   const pp = payload.payment_profile;
   const message = buildMessage(payload, shareLink);
-  const isPaid = payload.owed_cents === 0;
+  const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
+  const isPaid = owedAmount === 0;
+  const isOwed = (payload.net_cents ?? 0) > 0;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
@@ -42,12 +47,20 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
             Hi {payload.member.display_name}!
           </h1>
           <p
-            className={`mt-3 text-4xl font-extrabold ${isPaid ? "text-green-600" : "text-red-500"}`}
+            className={`mt-3 text-4xl font-extrabold ${
+              isPaid ? "text-green-600" : isOwed ? "text-green-600" : "text-red-500"
+            }`}
           >
-            {isPaid ? "Fully Paid!" : formatCents(payload.owed_cents)}
+            {isPaid
+              ? "All Settled!"
+              : isOwed
+                ? `+${formatCents(payload.net_cents ?? 0)}`
+                : formatCents(owedAmount)}
           </p>
           {!isPaid && (
-            <p className="mt-1 text-sm text-slate-500">remaining balance</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {isOwed ? "others owe you" : "remaining balance"}
+            </p>
           )}
         </div>
 

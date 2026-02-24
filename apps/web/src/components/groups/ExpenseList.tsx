@@ -48,6 +48,19 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
             <p className="text-sm font-semibold text-slate-600">
               {formatCents(expense.amount_cents)}
             </p>
+            {expense.payers && expense.payers.length > 0 && (
+              <p className="mt-1 text-xs text-indigo-500">
+                Paid by{" "}
+                {expense.payers
+                  .map((p) => {
+                    const name = memberMap.get(p.member_id) ?? p.member_id;
+                    return expense.payers.length > 1
+                      ? `${name} (${formatCents(p.paid_cents)})`
+                      : name;
+                  })
+                  .join(", ")}
+              </p>
+            )}
             <p className="mt-1 text-xs text-slate-400">
               {expense.participants.map((p) => {
                 const name = memberMap.get(p.member_id) ?? p.member_id;

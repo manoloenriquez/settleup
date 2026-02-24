@@ -10,21 +10,30 @@ import type { GroupMember } from "@template/supabase";
 
 type SplitMode = "equal" | "custom";
 
+type PayerState = {
+  memberId: string;
+  amountStr: string;
+};
+
 type ItemState = {
   itemName: string;
   amountStr: string;
   selectedIds: string[];
   splitMode: SplitMode;
   customAmounts: Record<string, string>; // memberId → "₱ string"
+  payers: PayerState[];
+  splitPayer: boolean;
 };
 
-function makeEmptyItem(allMemberIds: string[], previousSelectedIds?: string[]): ItemState {
+function makeEmptyItem(allMemberIds: string[], firstMemberId: string, previousSelectedIds?: string[]): ItemState {
   return {
     itemName: "",
     amountStr: "",
     selectedIds: previousSelectedIds ?? allMemberIds,
     splitMode: "equal",
     customAmounts: {},
+    payers: [{ memberId: firstMemberId, amountStr: "" }],
+    splitPayer: false,
   };
 }
 
@@ -35,7 +44,8 @@ type Props = {
 
 export function AddExpenseForm({ groupId, members }: Props): React.ReactElement {
   const allMemberIds = members.map((m) => m.id);
-  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds)]);
+  const firstMemberId = members[0]?.id ?? "";
+  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId)]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -62,7 +72,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
   function addItem() {
     setItems((prev) => {
       const last = prev[prev.length - 1];
-      return [...prev, makeEmptyItem(allMemberIds, last?.selectedIds)];
+      return [...prev, makeEmptyItem(allMemberIds, firstMemberId, last?.selectedIds)];
     });
   }
 
@@ -77,13 +87,26 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
     }, 0);
   }
 
+  function getPayerSum(item: ItemState): number {
+    return item.payers.reduce((sum, p) => {
+      const v = parsePHPAmount(p.amountStr) ?? 0;
+      return sum + v;
+    }, 0);
+  }
+
   function isItemValid(item: ItemState): boolean {
     const amountCents = parsePHPAmount(item.amountStr) ?? 0;
     if (!item.itemName.trim() || amountCents === 0) return false;
     if (item.selectedIds.length === 0) return false;
     if (item.splitMode === "custom") {
-      return getCustomSum(item) === amountCents;
+      if (getCustomSum(item) !== amountCents) return false;
     }
+    // Single payer: auto-synced, always valid. Multi-payer: must sum to total.
+    if (item.splitPayer) {
+      if (getPayerSum(item) !== amountCents) return false;
+    }
+    if (item.payers.length === 0) return false;
+    if (item.payers.some((p) => !p.memberId)) return false;
     return true;
   }
 
@@ -95,12 +118,23 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
 
     const batchItems = items.map((item) => {
       const amount_cents = parsePHPAmount(item.amountStr)!;
+      // Build payers array
+      const payers = item.splitPayer
+        ? item.payers
+            .filter((p) => p.memberId)
+            .map((p) => ({
+              member_id: p.memberId,
+              paid_cents: parsePHPAmount(p.amountStr) ?? 0,
+            }))
+        : [{ member_id: item.payers[0]!.memberId, paid_cents: amount_cents }];
+
       if (item.splitMode === "equal") {
         return {
           item_name: item.itemName.trim(),
           amount_cents,
           split_mode: "equal" as const,
           participant_ids: item.selectedIds,
+          payers,
         };
       }
       return {
@@ -112,6 +146,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
           member_id: id,
           share_cents: parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0,
         })),
+        payers,
       };
     });
 
@@ -120,7 +155,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
       if (result.error) {
         setError(result.error);
       } else {
-        setItems([makeEmptyItem(allMemberIds)]);
+        setItems([makeEmptyItem(allMemberIds, firstMemberId)]);
         router.refresh();
       }
     });
@@ -210,6 +245,118 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                   {mode}
                 </button>
               ))}
+            </div>
+
+            {/* Paid by */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-slate-700">Paid by</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (item.splitPayer) {
+                      // Collapse back to single payer
+                      updateItem(index, {
+                        splitPayer: false,
+                        payers: [item.payers[0] ?? { memberId: firstMemberId, amountStr: "" }],
+                      });
+                    } else {
+                      updateItem(index, { splitPayer: true });
+                    }
+                  }}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {item.splitPayer ? "Single payer" : "Split payment"}
+                </button>
+              </div>
+
+              {!item.splitPayer ? (
+                <select
+                  value={item.payers[0]?.memberId ?? ""}
+                  onChange={(e) =>
+                    updateItem(index, {
+                      payers: [{ memberId: e.target.value, amountStr: "" }],
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.display_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {item.payers.map((payer, pi) => (
+                    <div key={pi} className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <select
+                          value={payer.memberId}
+                          onChange={(e) => {
+                            const newPayers = [...item.payers];
+                            newPayers[pi] = { ...payer, memberId: e.target.value };
+                            updateItem(index, { payers: newPayers });
+                          }}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                        >
+                          <option value="">Select member</option>
+                          {members.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.display_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-28">
+                        <Input
+                          label="Amount"
+                          value={payer.amountStr}
+                          onChange={(e) => {
+                            const newPayers = [...item.payers];
+                            newPayers[pi] = { ...payer, amountStr: e.target.value };
+                            updateItem(index, { payers: newPayers });
+                          }}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      {item.payers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPayers = item.payers.filter((_, j) => j !== pi);
+                            updateItem(index, { payers: newPayers });
+                          }}
+                          className="text-red-500 hover:text-red-700 text-sm pb-2"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateItem(index, {
+                        payers: [...item.payers, { memberId: "", amountStr: "" }],
+                      })
+                    }
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium self-start"
+                  >
+                    + Add payer
+                  </button>
+                  {amountCents > 0 && (
+                    <p
+                      className={`text-xs font-medium ${
+                        getPayerSum(item) !== amountCents ? "text-red-600" : "text-slate-500"
+                      }`}
+                    >
+                      {formatCents(getPayerSum(item))} of {formatCents(amountCents)} assigned
+                      {getPayerSum(item) !== amountCents ? " — amounts must match total" : " ✓"}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Custom split inputs */}

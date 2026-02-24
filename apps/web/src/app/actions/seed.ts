@@ -27,7 +27,7 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
       return { data: null, error: groupError?.message ?? "Failed to create group." };
     }
 
-    // Create 7 members
+    // Create 7 members — Manolo is linked to the current user
     const memberNames = ["Manolo", "Yao", "Alvaro", "Dustin", "Mikee", "John", "Jane"];
     const slugs: string[] = [];
     const memberRows = memberNames.map((name) => {
@@ -38,6 +38,7 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
         display_name: name,
         slug,
         share_token: generateShareToken(),
+        user_id: name === "Manolo" ? user.id : null,
       };
     });
 
@@ -51,51 +52,55 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
     }
 
     const byName = new Map(members.map((m) => [m.display_name, m.id]));
+    const manoloId = byName.get("Manolo")!;
+
+    // Helper to insert expense + participants + payer (Manolo pays all)
+    async function insertExpense(
+      itemName: string,
+      amountCents: number,
+      participantIds: string[],
+    ): Promise<void> {
+      const sortedIds = [...participantIds].sort();
+      const { data: exp, error: expError } = await db
+        .from("expenses")
+        .insert({
+          group_id: group.id,
+          item_name: itemName,
+          amount_cents: amountCents,
+          created_by_user_id: user.id,
+        })
+        .select()
+        .single();
+      if (expError || !exp) throw new Error(expError?.message ?? `${itemName} failed`);
+
+      const shares = equalSplit(amountCents, sortedIds.length);
+      await db.from("expense_participants").insert(
+        sortedIds.map((id, i) => ({ expense_id: exp.id, member_id: id, share_cents: shares[i]! })),
+      );
+
+      // Manolo is the payer for all seeded expenses
+      await db.from("expense_payers").insert({
+        expense_id: exp.id,
+        member_id: manoloId,
+        paid_cents: amountCents,
+      });
+    }
 
     // Expense 1: Wahunori ₱8,703.39 split 7-way
-    const allIds = members.map((m) => m.id).sort();
-    const { data: exp1, error: exp1Error } = await db
-      .from("expenses")
-      .insert({ group_id: group.id, item_name: "Wahunori", amount_cents: 870339 })
-      .select()
-      .single();
-    if (exp1Error || !exp1) return { data: null, error: exp1Error?.message ?? "exp1 failed" };
-    const shares1 = equalSplit(870339, 7);
-    await db.from("expense_participants").insert(
-      allIds.map((id, i) => ({ expense_id: exp1.id, member_id: id, share_cents: shares1[i]! })),
-    );
+    const allIds = members.map((m) => m.id);
+    await insertExpense("Wahunori", 870339, allIds);
 
     // Expense 2: Green Pepper ₱2,717.00 split 4-way (Manolo, Yao, Alvaro, Dustin)
     const ids2 = (["Manolo", "Yao", "Alvaro", "Dustin"] as const)
       .map((n) => byName.get(n)!)
-      .filter(Boolean)
-      .sort();
-    const { data: exp2, error: exp2Error } = await db
-      .from("expenses")
-      .insert({ group_id: group.id, item_name: "Green Pepper", amount_cents: 271700 })
-      .select()
-      .single();
-    if (exp2Error || !exp2) return { data: null, error: exp2Error?.message ?? "exp2 failed" };
-    const shares2 = equalSplit(271700, ids2.length);
-    await db.from("expense_participants").insert(
-      ids2.map((id, i) => ({ expense_id: exp2.id, member_id: id, share_cents: shares2[i]! })),
-    );
+      .filter(Boolean);
+    await insertExpense("Green Pepper", 271700, ids2);
 
     // Expense 3: Eastwing/Raion ₱8,299.98 split 3-way (Manolo, Yao, Alvaro)
     const ids3 = (["Manolo", "Yao", "Alvaro"] as const)
       .map((n) => byName.get(n)!)
-      .filter(Boolean)
-      .sort();
-    const { data: exp3, error: exp3Error } = await db
-      .from("expenses")
-      .insert({ group_id: group.id, item_name: "Eastwing/Raion", amount_cents: 829998 })
-      .select()
-      .single();
-    if (exp3Error || !exp3) return { data: null, error: exp3Error?.message ?? "exp3 failed" };
-    const shares3 = equalSplit(829998, ids3.length);
-    await db.from("expense_participants").insert(
-      ids3.map((id, i) => ({ expense_id: exp3.id, member_id: id, share_cents: shares3[i]! })),
-    );
+      .filter(Boolean);
+    await insertExpense("Eastwing/Raion", 829998, ids3);
 
     return { data: { groupId: group.id }, error: null };
   } catch (e) {

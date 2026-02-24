@@ -58,13 +58,30 @@ export const addMemberSchema = z.object({
   display_name: z.string().trim().min(1, "Name is required").max(80),
 });
 
-export const addExpenseSchema = z.object({
-  group_id: z.string().uuid(),
-  item_name: z.string().trim().min(1, "Item name is required").max(200),
-  amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
-  notes: z.string().optional(),
-  participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
+export const payerSchema = z.object({
+  member_id: z.string().uuid(),
+  paid_cents: z.number().int().positive("Payer amount must be positive"),
 });
+
+export const addExpenseSchema = z
+  .object({
+    group_id: z.string().uuid(),
+    item_name: z.string().trim().min(1, "Item name is required").max(200),
+    amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
+    notes: z.string().optional(),
+    participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
+    payers: z.array(payerSchema).min(1, "At least one payer required"),
+  })
+  .superRefine((val, ctx) => {
+    const payerSum = val.payers.reduce((sum, p) => sum + p.paid_cents, 0);
+    if (payerSum !== val.amount_cents) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Payer total (${payerSum}) must equal amount (${val.amount_cents})`,
+        path: ["payers"],
+      });
+    }
+  });
 
 export const addMembersBatchSchema = z.object({
   group_id: z.string().uuid(),
@@ -82,6 +99,7 @@ const expenseItemSchema = z.object({
       z.object({ member_id: z.string().uuid(), share_cents: z.number().int() }),
     )
     .optional(),
+  payers: z.array(payerSchema).min(1, "At least one payer required"),
 });
 
 export const addExpensesBatchSchema = z
@@ -109,7 +127,28 @@ export const addExpensesBatchSchema = z
           });
         }
       }
+      // Validate payer sum matches expense amount
+      const payerSum = item.payers.reduce((acc, p) => acc + p.paid_cents, 0);
+      if (payerSum !== item.amount_cents) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Item ${i + 1}: payer total (${payerSum}) must equal amount_cents (${item.amount_cents})`,
+          path: ["items", i, "payers"],
+        });
+      }
     });
+  });
+
+export const recordPaymentSchema = z
+  .object({
+    group_id: z.string().uuid(),
+    from_member_id: z.string().uuid(),
+    to_member_id: z.string().uuid(),
+    amount_cents: z.number().int().positive("Amount must be positive"),
+  })
+  .refine((val) => val.from_member_id !== val.to_member_id, {
+    message: "Cannot pay yourself",
+    path: ["to_member_id"],
   });
 
 export const upsertPaymentProfileSchema = z.object({
@@ -127,6 +166,8 @@ export type AddMemberInput = z.infer<typeof addMemberSchema>;
 export type AddMembersBatchInput = z.infer<typeof addMembersBatchSchema>;
 export type AddExpenseInput = z.infer<typeof addExpenseSchema>;
 export type AddExpensesBatchInput = z.infer<typeof addExpensesBatchSchema>;
+export type PayerInput = z.infer<typeof payerSchema>;
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UpsertPaymentProfileInput = z.infer<typeof upsertPaymentProfileSchema>;
 
 // ---------------------------------------------------------------------------

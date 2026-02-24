@@ -13,10 +13,18 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   const lines: string[] = [`GROUP SUMMARY — ${payload.group.name}`, "", "WHO OWES:"];
 
   for (const m of payload.members) {
-    lines.push(m.owed_cents === 0 ? `${m.display_name} — Paid ✓` : `${m.display_name} — ${formatCents(m.owed_cents)}`);
+    const net = m.net_cents ?? 0;
+    const owed = m.owed_cents ?? Math.max(0, -net);
+    if (net === 0) {
+      lines.push(`${m.display_name} — Settled ✓`);
+    } else if (net > 0) {
+      lines.push(`${m.display_name} — is owed ${formatCents(net)}`);
+    } else {
+      lines.push(`${m.display_name} — owes ${formatCents(owed)}`);
+    }
   }
 
-  const totalOwed = payload.members.reduce((sum, m) => sum + m.owed_cents, 0);
+  const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   lines.push("", `Total outstanding: ${formatCents(totalOwed)}`);
 
   if (pp) {
@@ -42,7 +50,7 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
 
 export function GroupOverview({ payload }: Props): React.ReactElement {
   const pp = payload.payment_profile;
-  const totalOwed = payload.members.reduce((sum, m) => sum + m.owed_cents, 0);
+  const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   const summaryText = buildSummaryText(payload);
 
   return (
@@ -61,16 +69,22 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-6">
           <h2 className="font-semibold text-slate-700 mb-3">Who owes</h2>
           <div className="flex flex-col gap-2">
-            {payload.members.map((m) => (
-              <div key={m.member_id} className="flex items-center justify-between text-sm">
-                <span className="text-slate-700">{m.display_name}</span>
-                {m.owed_cents === 0 ? (
-                  <span className="font-medium text-green-600">Paid ✓</span>
-                ) : (
-                  <span className="font-semibold text-red-500">{formatCents(m.owed_cents)}</span>
-                )}
-              </div>
-            ))}
+            {payload.members.map((m) => {
+              const net = m.net_cents ?? 0;
+              const owed = m.owed_cents ?? Math.max(0, -net);
+              return (
+                <div key={m.member_id} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-700">{m.display_name}</span>
+                  {net === 0 ? (
+                    <span className="font-medium text-green-600">Settled ✓</span>
+                  ) : net > 0 ? (
+                    <span className="font-medium text-green-600">is owed {formatCents(net)}</span>
+                  ) : (
+                    <span className="font-semibold text-red-500">owes {formatCents(owed)}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {totalOwed > 0 && (
             <div className="mt-4 border-t border-slate-100 pt-3 flex justify-between text-sm">

@@ -2,22 +2,34 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { recordPaymentSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Payment } from "@template/supabase";
 
-export async function markPaid(
-  memberId: string,
-  groupId: string,
-  amountCents: number,
-): Promise<ApiResponse<Payment>> {
+export async function recordPayment(input: unknown): Promise<ApiResponse<Payment>> {
   try {
-    await assertAuth();
+    const user = await assertAuth();
+
+    const parsed = recordPaymentSchema.safeParse(input);
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+
+    const { group_id, from_member_id, to_member_id, amount_cents } = parsed.data;
+
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
     const { data, error } = await db
       .from("payments")
-      .insert({ member_id: memberId, group_id: groupId, amount_cents: amountCents })
+      .insert({
+        group_id,
+        member_id: from_member_id, // deprecated column, still required
+        amount_cents,
+        from_member_id,
+        to_member_id,
+        created_by_user_id: user.id,
+      })
       .select()
       .single();
 
@@ -29,17 +41,17 @@ export async function markPaid(
   }
 }
 
-export async function undoLastPayment(memberId: string): Promise<ApiResponse<void>> {
+export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse<void>> {
   try {
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    // Find most recent payment for member
+    // Find most recent payment from this member
     const { data: latest, error: fetchError } = await db
       .from("payments")
       .select("id")
-      .eq("member_id", memberId)
+      .eq("from_member_id", fromMemberId)
       .order("created_at", { ascending: false })
       .limit(1)
       .single();

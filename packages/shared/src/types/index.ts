@@ -41,13 +41,15 @@ export type MemberBalance = {
   display_name: string;
   slug: string;
   share_token: string;
+  user_id: string | null;
+  net_cents: number;
   owed_cents: number;
   is_paid: boolean;
 };
 
 export type GroupOverviewPayload = {
   group: { id: string; name: string };
-  members: { member_id: string; display_name: string; owed_cents: number }[];
+  members: { member_id: string; display_name: string; net_cents: number; owed_cents: number }[];
   expenses: {
     item_name: string;
     amount_cents: number;
@@ -71,6 +73,7 @@ export type GroupOverviewPayload = {
 export type FriendViewPayload = {
   group: { id: string; name: string };
   member: { id: string; display_name: string };
+  net_cents: number;
   owed_cents: number;
   payment_profile: {
     payer_display_name: string | null;
