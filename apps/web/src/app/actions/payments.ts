@@ -24,7 +24,6 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
       .from("payments")
       .insert({
         group_id,
-        member_id: from_member_id, // deprecated column, still required
         amount_cents,
         from_member_id,
         to_member_id,

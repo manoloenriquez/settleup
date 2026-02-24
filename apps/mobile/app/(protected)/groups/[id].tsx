@@ -33,7 +33,10 @@ export default function GroupDetailScreen(): React.ReactElement {
       db.from("groups").select("name").eq("id", id).single(),
       db.from("group_members").select("*").eq("group_id", id).order("created_at"),
       db.from("expense_participants").select("member_id, share_cents"),
-      db.from("payments").select("member_id, amount_cents"),
+      db
+        .from("payments")
+        .select("from_member_id, to_member_id, amount_cents")
+        .eq("group_id", id as string),
     ]);
 
     if (groupRes.error) Alert.alert("Error", groupRes.error.message);
@@ -54,15 +57,25 @@ export default function GroupDetailScreen(): React.ReactElement {
         sharesMap.set(row.member_id, (sharesMap.get(row.member_id) ?? 0) + row.share_cents);
       }
     }
-    const paidMap = new Map<string, number>();
+    const paidFromMap = new Map<string, number>();
+    const paidToMap = new Map<string, number>();
     for (const row of paymentsRes.data ?? []) {
-      if (memberIds.has(row.member_id)) {
-        paidMap.set(row.member_id, (paidMap.get(row.member_id) ?? 0) + row.amount_cents);
+      if (row.from_member_id && memberIds.has(row.from_member_id)) {
+        paidFromMap.set(
+          row.from_member_id,
+          (paidFromMap.get(row.from_member_id) ?? 0) + row.amount_cents,
+        );
+      }
+      if (row.to_member_id && memberIds.has(row.to_member_id)) {
+        paidToMap.set(row.to_member_id, (paidToMap.get(row.to_member_id) ?? 0) + row.amount_cents);
       }
     }
 
     const withBalances: MemberWithBalance[] = memberList.map((m) => {
-      const owed = Math.max(0, (sharesMap.get(m.id) ?? 0) - (paidMap.get(m.id) ?? 0));
+      const owed = Math.max(
+        0,
+        (sharesMap.get(m.id) ?? 0) - (paidFromMap.get(m.id) ?? 0) + (paidToMap.get(m.id) ?? 0),
+      );
       return { ...m, owed_cents: owed, is_paid: owed === 0 };
     });
 
@@ -97,12 +110,7 @@ export default function GroupDetailScreen(): React.ReactElement {
               <View style={styles.memberCard}>
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberName}>{item.display_name}</Text>
-                  <Text
-                    style={[
-                      styles.memberAmount,
-                      item.is_paid ? styles.paid : styles.owed,
-                    ]}
-                  >
+                  <Text style={[styles.memberAmount, item.is_paid ? styles.paid : styles.owed]}>
                     {item.is_paid ? "Paid ✓" : formatCents(item.owed_cents)}
                   </Text>
                 </View>

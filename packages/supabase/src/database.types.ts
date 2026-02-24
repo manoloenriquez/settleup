@@ -274,7 +274,6 @@ export type Database = {
         Row: {
           id: string;
           group_id: string;
-          member_id: string;
           amount_cents: number;
           status: string;
           from_member_id: string | null;
@@ -285,7 +284,6 @@ export type Database = {
         Insert: {
           id?: string;
           group_id: string;
-          member_id: string;
           amount_cents: number;
           status?: string;
           from_member_id?: string | null;
@@ -296,7 +294,6 @@ export type Database = {
         Update: {
           id?: string;
           group_id?: string;
-          member_id?: string;
           amount_cents?: number;
           status?: string;
           from_member_id?: string | null;
@@ -310,13 +307,6 @@ export type Database = {
             columns: ["group_id"];
             isOneToOne: false;
             referencedRelation: "groups";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "payments_member_id_fkey";
-            columns: ["member_id"];
-            isOneToOne: false;
-            referencedRelation: "group_members";
             referencedColumns: ["id"];
           },
         ];
@@ -405,8 +395,7 @@ export type TablesInsert<T extends keyof Database["public"]["Tables"]> =
 export type TablesUpdate<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Update"];
 
-export type Enums<T extends keyof Database["public"]["Enums"]> =
-  Database["public"]["Enums"][T];
+export type Enums<T extends keyof Database["public"]["Enums"]> = Database["public"]["Enums"][T];
 
 // ---------------------------------------------------------------------------
 // Convenience helpers — settleup schema
