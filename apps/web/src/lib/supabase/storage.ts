@@ -8,18 +8,18 @@ const BUCKET = "payment-qr";
  * Returns the public URL of the uploaded image.
  *
  * @param supabase - An authenticated Supabase client
- * @param groupId  - The group this QR image belongs to
+ * @param userId   - The user who owns this QR image (used as folder prefix)
  * @param type     - 'gcash' or 'bank'
  * @param file     - The image File object
  */
 export async function uploadQRImage(
   supabase: SupabaseClient,
-  groupId: string,
+  userId: string,
   type: "gcash" | "bank",
   file: File,
 ): Promise<string> {
   const ext = file.name.split(".").pop() ?? "png";
-  const key = `${groupId}/${type}-${randomUUID()}.${ext}`;
+  const key = `${userId}/${type}-${randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage.from(BUCKET).upload(key, file, {
     contentType: file.type,

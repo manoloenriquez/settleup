@@ -4,7 +4,13 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import type { ApiResponse, MemberBalance } from "@template/shared";
 
-export async function getGroupBalances(groupId: string): Promise<ApiResponse<MemberBalance[]>> {
+/**
+ * Fetches members + balances in a single action with parallelised DB queries.
+ * Replaces the separate listMembers + getGroupBalances calls on the group detail page.
+ */
+export async function getMembersWithBalances(
+  groupId: string,
+): Promise<ApiResponse<MemberBalance[]>> {
   try {
     await assertAuth();
     const supabase = await createSettleUpDb();
@@ -21,29 +27,28 @@ export async function getGroupBalances(groupId: string): Promise<ApiResponse<Mem
 
     const memberIds = members.map((m) => m.id);
 
-    // Sum expense shares per member
-    const { data: shareData, error: shareError } = await db
-      .from("expense_participants")
-      .select("member_id, share_cents")
-      .in("member_id", memberIds);
+    // Parallelise shares + payments — they are independent of each other
+    const [shareResult, paymentResult] = await Promise.all([
+      db
+        .from("expense_participants")
+        .select("member_id, share_cents")
+        .in("member_id", memberIds),
+      db
+        .from("payments")
+        .select("member_id, amount_cents")
+        .in("member_id", memberIds),
+    ]);
 
-    if (shareError) return { data: null, error: shareError.message };
+    if (shareResult.error) return { data: null, error: shareResult.error.message };
+    if (paymentResult.error) return { data: null, error: paymentResult.error.message };
 
-    // Sum payments per member
-    const { data: paymentData, error: paymentError } = await db
-      .from("payments")
-      .select("member_id, amount_cents")
-      .in("member_id", memberIds);
-
-    if (paymentError) return { data: null, error: paymentError.message };
-
-    // Aggregate
     const sharesMap = new Map<string, number>();
-    for (const row of shareData ?? []) {
+    for (const row of shareResult.data ?? []) {
       sharesMap.set(row.member_id, (sharesMap.get(row.member_id) ?? 0) + row.share_cents);
     }
+
     const paidMap = new Map<string, number>();
-    for (const row of paymentData ?? []) {
+    for (const row of paymentResult.data ?? []) {
       paidMap.set(row.member_id, (paidMap.get(row.member_id) ?? 0) + row.amount_cents);
     }
 

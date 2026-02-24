@@ -113,7 +113,6 @@ export const addExpensesBatchSchema = z
   });
 
 export const upsertPaymentProfileSchema = z.object({
-  group_id: z.string().uuid(),
   payer_display_name: z.string().optional(),
   gcash_name: z.string().optional(),
   gcash_number: z.string().optional(),

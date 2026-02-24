@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { listMembers } from "@/app/actions/members";
 import { listExpenses } from "@/app/actions/expenses";
-import { getGroupBalances } from "@/app/actions/balances";
+import { getMembersWithBalances } from "@/app/actions/balances";
 import { getPaymentProfile } from "@/app/actions/payment-profiles";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { AddMemberForm } from "@/components/groups/AddMemberForm";
@@ -58,16 +57,23 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
   if (!group) notFound();
 
-  const [membersResult, expensesResult, balancesResult, profileResult] = await Promise.all([
-    listMembers(groupId),
+  const [balancesResult, expensesResult, profileResult] = await Promise.all([
+    getMembersWithBalances(groupId),
     listExpenses(groupId),
-    getGroupBalances(groupId),
-    getPaymentProfile(groupId),
+    getPaymentProfile(),
   ]);
 
-  const members = membersResult.data ?? [];
-  const expenses = expensesResult.data ?? [];
   const balances = balancesResult.data ?? [];
+  // Derive member list from balances so we don't need a separate listMembers call
+  const members = balances.map((b) => ({
+    id: b.member_id,
+    display_name: b.display_name,
+    slug: b.slug,
+    share_token: b.share_token,
+    group_id: groupId,
+    created_at: "",
+  }));
+  const expenses = expensesResult.data ?? [];
   const profile = profileResult.data ?? null;
   const paymentProfileText = buildPaymentProfileText(profile);
 
@@ -91,7 +97,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         </div>
         <div className="flex gap-2">
           {isDev && <SeedButton />}
-          <Link href={`/groups/${groupId}/settings`}>
+          <Link href="/account/payment">
             <Button variant="secondary" size="sm">
               Payment Settings
             </Button>

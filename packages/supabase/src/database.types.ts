@@ -273,52 +273,52 @@ export type Database = {
           },
         ];
       };
-      payment_profiles: {
+      user_payment_profiles: {
         Row: {
-          group_id: string;
+          user_id: string;
           payer_display_name: string | null;
           gcash_name: string | null;
           gcash_number: string | null;
+          gcash_qr_url: string | null;
           bank_name: string | null;
           bank_account_name: string | null;
           bank_account_number: string | null;
-          notes: string | null;
-          gcash_qr_url: string | null;
           bank_qr_url: string | null;
+          notes: string | null;
           updated_at: string;
         };
         Insert: {
-          group_id: string;
+          user_id: string;
           payer_display_name?: string | null;
           gcash_name?: string | null;
           gcash_number?: string | null;
+          gcash_qr_url?: string | null;
           bank_name?: string | null;
           bank_account_name?: string | null;
           bank_account_number?: string | null;
-          notes?: string | null;
-          gcash_qr_url?: string | null;
           bank_qr_url?: string | null;
+          notes?: string | null;
           updated_at?: string;
         };
         Update: {
-          group_id?: string;
+          user_id?: string;
           payer_display_name?: string | null;
           gcash_name?: string | null;
           gcash_number?: string | null;
+          gcash_qr_url?: string | null;
           bank_name?: string | null;
           bank_account_name?: string | null;
           bank_account_number?: string | null;
-          notes?: string | null;
-          gcash_qr_url?: string | null;
           bank_qr_url?: string | null;
+          notes?: string | null;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "payment_profiles_group_id_fkey";
-            columns: ["group_id"];
+            foreignKeyName: "user_payment_profiles_user_id_fkey";
+            columns: ["user_id"];
             isOneToOne: true;
-            referencedRelation: "groups";
+            referencedRelation: "users";
             referencedColumns: ["id"];
           },
         ];
@@ -407,6 +407,6 @@ export type Payment = SettleUpTables<"payments">;
 export type PaymentInsert = SettleUpTablesInsert<"payments">;
 export type PaymentUpdate = SettleUpTablesUpdate<"payments">;
 
-export type PaymentProfile = SettleUpTables<"payment_profiles">;
-export type PaymentProfileInsert = SettleUpTablesInsert<"payment_profiles">;
-export type PaymentProfileUpdate = SettleUpTablesUpdate<"payment_profiles">;
+export type UserPaymentProfile = SettleUpTables<"user_payment_profiles">;
+export type UserPaymentProfileInsert = SettleUpTablesInsert<"user_payment_profiles">;
+export type UserPaymentProfileUpdate = SettleUpTablesUpdate<"user_payment_profiles">;

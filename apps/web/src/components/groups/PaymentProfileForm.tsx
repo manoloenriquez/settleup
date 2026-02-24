@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { upsertPaymentProfile, uploadQRImageAction } from "@/app/actions/payment-profiles";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import type { PaymentProfile } from "@template/supabase";
+import type { UserPaymentProfile } from "@template/supabase";
 
 type Props = {
-  groupId: string;
-  initial: PaymentProfile | null;
+  initial: UserPaymentProfile | null;
 };
 
-export function PaymentProfileForm({ groupId, initial }: Props): React.ReactElement {
+export function PaymentProfileForm({ initial }: Props): React.ReactElement {
   const [form, setForm] = useState({
     payer_display_name: initial?.payer_display_name ?? "",
     gcash_name: initial?.gcash_name ?? "",
@@ -36,7 +35,7 @@ export function PaymentProfileForm({ groupId, initial }: Props): React.ReactElem
     setError(null);
     setSuccess(false);
     startTransition(async () => {
-      const result = await upsertPaymentProfile({ group_id: groupId, ...form });
+      const result = await upsertPaymentProfile(form);
       if (result.error) {
         setError(result.error);
       } else {
@@ -53,7 +52,7 @@ export function PaymentProfileForm({ groupId, initial }: Props): React.ReactElem
       const fd = new FormData();
       fd.append("file", file);
       startTransition(async () => {
-        const result = await uploadQRImageAction(groupId, type, fd);
+        const result = await uploadQRImageAction(type, fd);
         if (result.error) setError(result.error);
         else router.refresh();
       });

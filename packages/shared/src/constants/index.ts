@@ -20,6 +20,7 @@ export const ROUTES = {
   SETTINGS: "/settings",
   GROUPS: "/groups",
   GROUP_NEW: "/groups/new",
+  PAYMENT_SETTINGS: "/account/payment",
 } as const;
 
 export type Route = (typeof ROUTES)[keyof typeof ROUTES];

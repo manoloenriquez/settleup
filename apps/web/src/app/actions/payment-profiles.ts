@@ -6,19 +6,17 @@ import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { upsertPaymentProfileSchema } from "@template/shared";
 import { uploadQRImage } from "@/lib/supabase/storage";
 import type { ApiResponse } from "@template/shared";
-import type { PaymentProfile } from "@template/supabase";
+import type { UserPaymentProfile } from "@template/supabase";
 
-export async function getPaymentProfile(
-  groupId: string,
-): Promise<ApiResponse<PaymentProfile | null>> {
+export async function getPaymentProfile(): Promise<ApiResponse<UserPaymentProfile | null>> {
   try {
-    await assertAuth();
+    const user = await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { data, error } = await db
-      .from("payment_profiles")
+      .from("user_payment_profiles")
       .select("*")
-      .eq("group_id", groupId)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (error) return { data: null, error: error.message };
@@ -31,9 +29,9 @@ export async function getPaymentProfile(
 
 export async function upsertPaymentProfile(
   input: unknown,
-): Promise<ApiResponse<PaymentProfile>> {
+): Promise<ApiResponse<UserPaymentProfile>> {
   try {
-    await assertAuth();
+    const user = await assertAuth();
 
     const parsed = upsertPaymentProfileSchema.safeParse(input);
     if (!parsed.success) {
@@ -43,8 +41,8 @@ export async function upsertPaymentProfile(
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { data, error } = await db
-      .from("payment_profiles")
-      .upsert({ ...parsed.data, updated_at: new Date().toISOString() })
+      .from("user_payment_profiles")
+      .upsert({ ...parsed.data, user_id: user.id, updated_at: new Date().toISOString() })
       .select()
       .single();
 
@@ -59,12 +57,11 @@ export async function upsertPaymentProfile(
 }
 
 export async function uploadQRImageAction(
-  groupId: string,
   type: "gcash" | "bank",
   formData: FormData,
 ): Promise<ApiResponse<string>> {
   try {
-    await assertAuth();
+    const user = await assertAuth();
 
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -72,15 +69,15 @@ export async function uploadQRImageAction(
     }
 
     const supabase = await createClient();
-    const publicUrl = await uploadQRImage(supabase, groupId, type, file);
+    const publicUrl = await uploadQRImage(supabase, user.id, type, file);
 
-    // Update the payment_profiles URL field
+    // Update the user_payment_profiles URL field
     const field = type === "gcash" ? "gcash_qr_url" : "bank_qr_url";
     const settleUpSupabase = await createSettleUpDb();
     const db = settleUpSupabase.schema("settleup");
     const { error } = await db
-      .from("payment_profiles")
-      .upsert({ group_id: groupId, [field]: publicUrl, updated_at: new Date().toISOString() });
+      .from("user_payment_profiles")
+      .upsert({ user_id: user.id, [field]: publicUrl, updated_at: new Date().toISOString() });
 
     if (error) return { data: null, error: error.message };
     return { data: publicUrl, error: null };

@@ -41,7 +41,7 @@ export type {
   Payment,
   PaymentInsert,
   PaymentUpdate,
-  PaymentProfile,
-  PaymentProfileInsert,
-  PaymentProfileUpdate,
+  UserPaymentProfile,
+  UserPaymentProfileInsert,
+  UserPaymentProfileUpdate,
 } from "./database.types";
