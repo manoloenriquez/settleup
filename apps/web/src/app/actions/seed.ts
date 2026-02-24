@@ -26,6 +26,7 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
     if (groupError || !group) {
       return { data: null, error: groupError?.message ?? "Failed to create group." };
     }
+    const groupId = group.id;
 
     // Create 7 members — Manolo is linked to the current user
     const memberNames = ["Manolo", "Yao", "Alvaro", "Dustin", "Mikee", "John", "Jane"];
@@ -34,7 +35,7 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
       const slug = generateSlug(name, slugs);
       slugs.push(slug);
       return {
-        group_id: group.id,
+        group_id: groupId,
         display_name: name,
         slug,
         share_token: generateShareToken(),
@@ -64,7 +65,7 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
       const { data: exp, error: expError } = await db
         .from("expenses")
         .insert({
-          group_id: group.id,
+          group_id: groupId,
           item_name: itemName,
           amount_cents: amountCents,
           created_by_user_id: user.id,
@@ -102,7 +103,7 @@ export async function seedDemoData(): Promise<ApiResponse<{ groupId: string }>> 
       .filter(Boolean);
     await insertExpense("Eastwing/Raion", 829998, ids3);
 
-    return { data: { groupId: group.id }, error: null };
+    return { data: { groupId }, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     throw e;
