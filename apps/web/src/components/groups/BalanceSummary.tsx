@@ -4,12 +4,12 @@ import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { recordPayment, undoLastPayment } from "@/app/actions/payments";
 import { deleteMember } from "@/app/actions/members";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { formatCents, parsePHPAmount, simplifyDebts } from "@template/shared";
 import { CopyButton } from "./CopyButton";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { GroupMember } from "@template/supabase";
-import type { MemberBalance } from "@template/shared";
+import type { MemberBalance, SimplifiedDebt } from "@template/shared";
 
 type Props = {
   members: GroupMember[];
@@ -26,10 +26,16 @@ function buildMessage(
   groupName: string,
   paymentText: string,
   link: string,
+  debtsFrom: SimplifiedDebt[],
+  debtsTo: SimplifiedDebt[],
 ): string {
   if (balance.net_cents < 0) {
+    const debtLines = debtsFrom.map(
+      (d) => `  → ${formatCents(d.amount_cents)} to ${d.to_display_name}`,
+    );
     return [
       `Hi ${member.display_name}! You owe ${formatCents(-balance.net_cents)} for ${groupName}.`,
+      ...(debtLines.length > 0 ? debtLines : []),
       paymentText,
       `Link: ${link}`,
     ]
@@ -37,8 +43,12 @@ function buildMessage(
       .join("\n");
   }
   if (balance.net_cents > 0) {
+    const owedLines = debtsTo.map(
+      (d) => `  ← ${formatCents(d.amount_cents)} from ${d.from_display_name}`,
+    );
     return [
       `Hi ${member.display_name}! You are owed ${formatCents(balance.net_cents)} for ${groupName}.`,
+      ...(owedLines.length > 0 ? owedLines : []),
       `Link: ${link}`,
     ]
       .filter(Boolean)
@@ -49,14 +59,15 @@ function buildMessage(
 
 function buildGroupMessage(
   balances: MemberBalance[],
-  payerName: string,
-  _groupName: string,
+  debts: SimplifiedDebt[],
 ): string {
-  const owing = balances.filter((b) => b.net_cents < 0);
-  const total = owing.reduce((sum, b) => sum + -b.net_cents, 0);
+  const total = debts.reduce((sum, d) => sum + d.amount_cents, 0);
   const lines = [
-    `FINAL AMOUNTS TO PAY (TO ${payerName || "PAYER"})`,
-    ...owing.map((b) => `${b.display_name} — ${formatCents(-b.net_cents)}`),
+    "SIMPLIFIED DEBTS",
+    ...debts.map(
+      (d) => `${d.from_display_name} → ${d.to_display_name}: ${formatCents(d.amount_cents)}`,
+    ),
+    ...(debts.length === 0 ? ["All settled!"] : []),
     `TOTAL: ${formatCents(total)}`,
   ];
   return lines.join("\n");
@@ -80,6 +91,19 @@ export function BalanceSummary({
   const router = useRouter();
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
+
+  // Compute simplified pairwise debts
+  const debts = simplifyDebts(balances);
+  const debtsFromMap = new Map<string, SimplifiedDebt[]>();
+  const debtsToMap = new Map<string, SimplifiedDebt[]>();
+  for (const d of debts) {
+    const fromList = debtsFromMap.get(d.from_member_id) ?? [];
+    fromList.push(d);
+    debtsFromMap.set(d.from_member_id, fromList);
+    const toList = debtsToMap.get(d.to_member_id) ?? [];
+    toList.push(d);
+    debtsToMap.set(d.to_member_id, toList);
+  }
 
   function handleRecordPayment() {
     setPaymentError(null);
@@ -137,8 +161,7 @@ export function BalanceSummary({
     });
   }
 
-  const payerName = paymentProfileText.split("\n")[0] ?? "";
-  const groupMessage = buildGroupMessage(balances, payerName, groupName);
+  const groupMessage = buildGroupMessage(balances, debts);
 
   return (
     <div className="flex flex-col gap-4">
@@ -220,7 +243,9 @@ export function BalanceSummary({
         const member = memberMap.get(balance.member_id);
         if (!member) return null;
         const link = `${origin}/p/${member.share_token}`;
-        const message = buildMessage(member, balance, groupName, paymentProfileText, link);
+        const memberDebtsFrom = debtsFromMap.get(balance.member_id) ?? [];
+        const memberDebtsTo = debtsToMap.get(balance.member_id) ?? [];
+        const message = buildMessage(member, balance, groupName, paymentProfileText, link, memberDebtsFrom, memberDebtsTo);
 
         const isSettled = balance.net_cents === 0;
         const isOwed = balance.net_cents > 0;
@@ -233,21 +258,19 @@ export function BalanceSummary({
           >
             <div className="flex-1 min-w-0">
               <p className="font-medium text-slate-900 truncate">{balance.display_name}</p>
-              <p
-                className={`text-sm font-semibold ${
-                  isSettled
-                    ? "text-green-600"
-                    : isOwed
-                      ? "text-green-600"
-                      : "text-red-500"
-                }`}
-              >
-                {isSettled
-                  ? "Settled ✓"
-                  : isOwed
-                    ? `is owed ${formatCents(balance.net_cents)}`
-                    : `owes ${formatCents(-balance.net_cents)}`}
-              </p>
+              {isSettled && (
+                <p className="text-sm font-semibold text-green-600">Settled ✓</p>
+              )}
+              {owes && memberDebtsFrom.map((d) => (
+                <p key={d.to_member_id} className="text-sm font-semibold text-red-500">
+                  owes {formatCents(d.amount_cents)} to {d.to_display_name}
+                </p>
+              ))}
+              {isOwed && memberDebtsTo.map((d) => (
+                <p key={d.from_member_id} className="text-sm font-semibold text-green-600">
+                  owed {formatCents(d.amount_cents)} by {d.from_display_name}
+                </p>
+              ))}
             </div>
 
             <span

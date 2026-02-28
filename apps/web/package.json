@@ -11,14 +11,16 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.8.0",
     "@template/shared": "workspace:*",
     "@template/supabase": "workspace:*",
     "@template/ui": "workspace:*",
-    "@supabase/ssr": "^0.8.0",
-    "zod": "^4.0.0",
+    "lucide-react": "^0.575.0",
     "next": "^15.2.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sonner": "^2.0.7",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

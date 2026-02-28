@@ -36,6 +36,14 @@ export type DeepPartial<T> = T extends object
 // SettleUp Lite domain types
 // ---------------------------------------------------------------------------
 
+export type SimplifiedDebt = {
+  from_member_id: string;
+  from_display_name: string;
+  to_member_id: string;
+  to_display_name: string;
+  amount_cents: number;
+};
+
 export type MemberBalance = {
   member_id: string;
   display_name: string;
