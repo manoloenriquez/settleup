@@ -1,7 +1,8 @@
 "use server";
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
-import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import type { ApiResponse, MemberBalance } from "@template/shared";
 
 type RpcMemberRow = {
@@ -20,7 +21,7 @@ export async function getMembersWithBalances(
   groupId: string,
 ): Promise<ApiResponse<MemberBalance[]>> {
   try {
-    await assertAuth();
+    await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 

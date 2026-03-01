@@ -372,6 +372,10 @@ export type Database = {
         Args: { p_share_token: string };
         Returns: Json;
       };
+      get_groups_with_stats: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       get_member_balances: {
         Args: { p_group_id: string };
         Returns: Json;

@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { LucideIcon } from "lucide-react";
 
 const variants = {
   primary: "bg-indigo-600 text-white border-transparent hover:bg-indigo-700",
@@ -17,6 +18,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   variant?: keyof typeof variants;
   size?: keyof typeof sizes;
   isLoading?: boolean;
+  leftIcon?: LucideIcon;
+  rightIcon?: LucideIcon;
 }
 
 export function Button({
@@ -26,8 +29,12 @@ export function Button({
   className = "",
   children,
   disabled,
+  leftIcon: LeftIcon,
+  rightIcon: RightIcon,
   ...props
 }: ButtonProps): React.ReactElement {
+  const iconSize = size === "sm" ? 14 : size === "lg" ? 18 : 16;
+
   return (
     <button
       disabled={disabled ?? isLoading}
@@ -50,7 +57,11 @@ export function Button({
           Loading…
         </span>
       ) : (
-        children
+        <span className="flex items-center gap-1.5">
+          {LeftIcon && <LeftIcon size={iconSize} />}
+          {children}
+          {RightIcon && <RightIcon size={iconSize} />}
+        </span>
       )}
     </button>
   );

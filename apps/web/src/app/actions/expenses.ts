@@ -2,6 +2,7 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { addExpenseSchema, addExpensesBatchSchema, equalSplit } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Expense, ExpenseParticipant, ExpensePayer } from "@template/supabase";
@@ -157,7 +158,7 @@ export async function listExpenses(
   groupId: string,
 ): Promise<ApiResponse<ExpenseWithParticipants[]>> {
   try {
-    await assertAuth();
+    await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 

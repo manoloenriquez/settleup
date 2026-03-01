@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { Copy } from "lucide-react";
 
 type Props = {
   text: string;
@@ -10,21 +11,18 @@ type Props = {
 };
 
 export function CopyButton({ text, label = "Copy", className }: Props): React.ReactElement {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
+  async function handleCopy(): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast.success("Copied to clipboard");
     } catch {
-      // clipboard not available — silently fail
+      toast.error("Failed to copy");
     }
   }
 
   return (
-    <Button variant="secondary" size="sm" onClick={handleCopy} className={className}>
-      {copied ? "Copied!" : label}
+    <Button variant="secondary" size="sm" leftIcon={Copy} onClick={handleCopy} className={className}>
+      {label}
     </Button>
   );
 }

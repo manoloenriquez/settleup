@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { upsertPaymentProfileSchema } from "@template/shared";
 import { uploadQRImage } from "@/lib/supabase/storage";
 import type { ApiResponse } from "@template/shared";
@@ -10,7 +11,7 @@ import type { UserPaymentProfile } from "@template/supabase";
 
 export async function getPaymentProfile(): Promise<ApiResponse<UserPaymentProfile | null>> {
   try {
-    const user = await assertAuth();
+    const user = await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { data, error } = await db

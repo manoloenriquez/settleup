@@ -2,17 +2,20 @@ import Link from "next/link";
 import { listGroupsWithStats } from "@/app/actions/groups";
 import { GroupListItem } from "@/components/groups/GroupListItem";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Card } from "@/components/ui/Card";
 import { ROUTES } from "@template/shared";
+import { Plus, Users } from "lucide-react";
 
 export default async function GroupsPage(): Promise<React.ReactElement> {
   const result = await listGroupsWithStats();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">Your Groups</h1>
         <Link href={ROUTES.GROUP_NEW}>
-          <Button>New Group</Button>
+          <Button leftIcon={Plus}>New Group</Button>
         </Link>
       </div>
 
@@ -21,12 +24,18 @@ export default async function GroupsPage(): Promise<React.ReactElement> {
       )}
 
       {result.data && result.data.length === 0 && (
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <p className="text-slate-500">No groups yet. Create your first group.</p>
-          <Link href={ROUTES.GROUP_NEW}>
-            <Button>Create Group</Button>
-          </Link>
-        </div>
+        <Card>
+          <EmptyState
+            icon={Users}
+            title="No groups yet"
+            description="Create your first group to start splitting expenses."
+            action={
+              <Link href={ROUTES.GROUP_NEW}>
+                <Button leftIcon={Plus} size="sm">Create Group</Button>
+              </Link>
+            }
+          />
+        </Card>
       )}
 
       {result.data && result.data.length > 0 && (
