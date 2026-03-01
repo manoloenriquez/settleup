@@ -42,3 +42,12 @@
 @utility animate-scale-in {
   animation: scaleIn 0.15s ease-out;
 }
+
+@keyframes pulseAi {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@utility animate-pulse-ai {
+  animation: pulseAi 1.5s ease-in-out infinite;
+}

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
@@ -11,15 +10,13 @@ import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { AddMemberForm } from "@/components/groups/AddMemberForm";
-import { AddExpenseForm } from "@/components/groups/AddExpenseForm";
-import { ChatExpenseInput } from "@/components/groups/ChatExpenseInput";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { GroupDetailTabs } from "@/components/groups/GroupDetailTabs";
-import { Button } from "@/components/ui/Button";
+import { GroupHeader } from "@/components/groups/GroupHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SeedButton } from "@/components/groups/SeedButton";
 import { CopyButton } from "@/components/groups/CopyButton";
-import { ArrowLeft, CreditCard, Share2 } from "lucide-react";
+import { Share2 } from "lucide-react";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -91,32 +88,17 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const host = headersList.get("host") ?? "localhost:3000";
   const protocol = host.startsWith("localhost") ? "http" : "https";
   const origin = `${protocol}://${host}`;
-
   const isDev = process.env.NODE_ENV === "development";
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      {/* Group header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link
-            href="/groups"
-            className="text-sm text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"
-          >
-            <ArrowLeft size={14} />
-            Groups
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900 mt-1">{group.name}</h1>
-        </div>
-        <div className="flex gap-2">
-          {isDev && <SeedButton />}
-          <Link href="/account/payment">
-            <Button variant="secondary" size="sm" leftIcon={CreditCard}>
-              Payment Settings
-            </Button>
-          </Link>
-        </div>
-      </div>
+      {/* Group header with CTAs */}
+      <GroupHeader
+        groupId={groupId}
+        groupName={group.name}
+        memberCount={members.length}
+        members={members}
+      />
 
       {/* Share group overview */}
       <Card>
@@ -132,15 +114,18 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
               </p>
             </div>
           </div>
-          <CopyButton text={`${origin}/g/${group.share_token}`} label="Copy Link" />
+          <div className="flex gap-2">
+            {isDev && <SeedButton />}
+            <CopyButton text={`${origin}/g/${group.share_token}`} label="Copy Link" />
+          </div>
         </CardContent>
       </Card>
 
-      {/* Tabbed content */}
+      {/* Tabbed content (Balances + Expenses only) */}
       <GroupDetailTabs
         balancesContent={
           <div className="flex flex-col gap-6">
-            <DebtSummary debts={debts} />
+            <DebtSummary debts={debts} groupId={groupId} />
             <BalanceSummary
               members={members}
               balances={balances}
@@ -159,18 +144,6 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         }
         expensesContent={
           <ExpenseList expenses={expenses} members={members} />
-        }
-        addExpenseContent={
-          <div className="flex flex-col gap-6">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-3">Form</h3>
-              <AddExpenseForm groupId={groupId} members={members} />
-            </div>
-            <div className="border-t border-slate-100 pt-4">
-              <h3 className="text-sm font-semibold text-slate-700 mb-3">Chat / Quick Input</h3>
-              <ChatExpenseInput groupId={groupId} members={members} />
-            </div>
-          </div>
         }
       />
     </div>

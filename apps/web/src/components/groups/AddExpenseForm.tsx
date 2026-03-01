@@ -8,6 +8,7 @@ import { parsePHPAmount, formatCents, equalSplit } from "@template/shared";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { SplitModeToggle } from "./SplitModeToggle";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
 
@@ -276,20 +277,14 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                 {/* Split mode toggle */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-slate-700">Split:</span>
-                  {(["equal", "custom"] as SplitMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => updateItem(index, { splitMode: mode, customAmounts: {} })}
-                      className={`rounded-full px-3 py-1 text-sm font-medium border transition-colors capitalize ${
-                        item.splitMode === mode
-                          ? "bg-slate-800 text-white border-slate-800"
-                          : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      {mode}
-                    </button>
-                  ))}
+                  <SplitModeToggle
+                    value={item.splitMode}
+                    onChange={(mode) => {
+                      if (mode === "smart") return; // smart not supported in detailed form
+                      updateItem(index, { splitMode: mode, customAmounts: {} });
+                    }}
+                    showSmart={false}
+                  />
                 </div>
 
                 {/* Multi-payer toggle */}

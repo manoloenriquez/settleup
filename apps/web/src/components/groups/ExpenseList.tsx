@@ -8,7 +8,7 @@ import { formatCents } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
-import { Search, CreditCard, Users, Trash2, Receipt } from "lucide-react";
+import { Search, CreditCard, Users, Trash2, Receipt, Clock } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
@@ -16,6 +16,21 @@ type Props = {
   expenses: ExpenseWithParticipants[];
   members: GroupMember[];
 };
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const date = new Date(dateStr).getTime();
+  const diff = now - date;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+}
 
 export function ExpenseList({ expenses, members }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
@@ -72,57 +87,62 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
         />
       )}
 
-      {filtered.map((expense) => (
-        <div
-          key={expense.id}
-          className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-slate-900 truncate">
-                {expense.item_name}
-              </p>
-              {expense.amount_cents < 0 && (
-                <Badge variant="success">Credit</Badge>
-              )}
-              <span className="ml-auto text-sm font-bold text-slate-900 whitespace-nowrap">
-                {formatCents(expense.amount_cents)}
-              </span>
-            </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-              {expense.payers && expense.payers.length > 0 && (
-                <span className="flex items-center gap-1">
-                  <CreditCard size={12} />
-                  {expense.payers
-                    .map((p) => {
-                      const name = memberMap.get(p.member_id) ?? p.member_id;
-                      return expense.payers.length > 1
-                        ? `${name} (${formatCents(p.paid_cents)})`
-                        : name;
-                    })
-                    .join(", ")}
-                </span>
-              )}
-              <span className="flex items-center gap-1">
-                <Users size={12} />
-                {expense.participants.length} people
-              </span>
-              <span>
-                {new Date(expense.created_at).toLocaleDateString("en-PH")}
-              </span>
+      {filtered.map((expense) => {
+        const payerNames = expense.payers
+          .map((p) => {
+            const name = memberMap.get(p.member_id) ?? "Unknown";
+            return expense.payers.length > 1
+              ? `${name} (${formatCents(p.paid_cents)})`
+              : name;
+          })
+          .join(", ");
+
+        return (
+          <div
+            key={expense.id}
+            className="rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-medium text-slate-900 truncate">
+                    {expense.item_name}
+                  </p>
+                  {expense.amount_cents < 0 && (
+                    <Badge variant="success">Credit</Badge>
+                  )}
+                </div>
+                <p className="text-lg font-bold text-slate-900">
+                  {formatCents(expense.amount_cents)}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <CreditCard size={12} />
+                    {payerNames}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Users size={12} />
+                    {expense.participants.length} people
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock size={12} />
+                    {relativeTime(expense.created_at)}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => setDeleteTarget(expense.id)}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                title="Delete expense"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
           </div>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => setDeleteTarget(expense.id)}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-            title="Delete expense"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Delete confirmation dialog */}
       <Dialog
