@@ -5,7 +5,7 @@ import { listExpenses } from "@/app/actions/expenses";
 import { getMembersWithBalances } from "@/app/actions/balances";
 import { getPaymentProfile } from "@/app/actions/payment-profiles";
 import { getGroupActivity } from "@/app/actions/activity";
-import { simplifyDebts } from "@template/shared";
+import { simplifyDebts, formatCents } from "@template/shared";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
@@ -83,6 +83,8 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const activities = activityResult.data ?? [];
   const paymentProfileText = buildPaymentProfileText(profile);
   const debts = simplifyDebts(balances);
+  const pendingMembers = balances.filter((b) => b.net_cents < 0).length;
+  const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "localhost:3000";
@@ -117,6 +119,19 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
           <div className="flex gap-2">
             {isDev && <SeedButton />}
             <CopyButton text={`${origin}/g/${group.share_token}`} label="Copy Link" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Total Outstanding</p>
+            <p className="mt-1 text-xl font-bold text-amber-900">{formatCents(totalOutstandingCents)}</p>
+          </div>
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Members Pending</p>
+            <p className="mt-1 text-xl font-bold text-indigo-900">{pendingMembers}</p>
           </div>
         </CardContent>
       </Card>

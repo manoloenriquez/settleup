@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import { createMobileClient } from "@template/supabase";
 import type { Group } from "@template/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function GroupsScreen(): React.ReactElement {
   const { session } = useAuth();
@@ -22,8 +22,6 @@ export default function GroupsScreen(): React.ReactElement {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [showForm, setShowForm] = useState(false);
-
-  const supabase = createMobileClient();
 
   const fetchGroups = useCallback(async () => {
     if (!session) return;

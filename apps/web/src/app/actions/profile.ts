@@ -4,6 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { assertAuth, assertAdmin, AuthError } from "@/lib/supabase/guards";
 import type { ApiResponse } from "@template/shared";
 import type { Profile, ProfileUpdate, UserRole } from "@template/supabase";
+import { z } from "zod";
+
+const adminSetRoleSchema = z.object({
+  targetUserId: z.string().uuid("Invalid user ID."),
+  newRole: z.enum(["user", "admin"]),
+});
 
 export async function getMyProfile(): Promise<ApiResponse<Profile>> {
   try {
@@ -55,13 +61,16 @@ export async function adminSetRole(
   newRole: UserRole,
 ): Promise<ApiResponse<void>> {
   try {
+    const parsed = adminSetRoleSchema.safeParse({ targetUserId, newRole });
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
     await assertAdmin(); // throws if not admin
     const supabase = await createClient();
 
     const { error } = await supabase
       .from("profiles")
-      .update({ role: newRole })
-      .eq("id", targetUserId);
+      .update({ role: parsed.data.newRole })
+      .eq("id", parsed.data.targetUserId);
 
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };

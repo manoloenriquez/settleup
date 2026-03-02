@@ -63,6 +63,7 @@ import { createServerClient, type CookieAdapter } from "@template/supabase";
 ## Server Actions
 
 - Validate all inputs with Zod before touching the DB.
+- Validate all path/query identifiers (`groupId`, `memberId`, etc.) with `z.string().uuid()`.
 - Return typed `ApiResponse<T>` from `@template/shared/types`.
 - Never throw—always return `{ data: null, error: "message" }` on failure.
 
@@ -80,6 +81,16 @@ export async function signIn(formData: FormData): Promise<ApiResponse<void>> {
   return { data: undefined, error: null };
 }
 ```
+
+## Upload Safety
+
+- Validate uploaded file MIME type and size server-side before any storage call.
+- Never trust client-side `accept` attributes as a security boundary.
+
+## RPC Safety (Supabase)
+
+- Any `SECURITY DEFINER` RPC callable by app users must enforce ownership inside SQL (for example, `owner_user_id = auth.uid()` for private group data).
+- Public RPCs (`anon` executable) must be token-scoped and return only the minimum fields needed by the view.
 
 ## Git
 

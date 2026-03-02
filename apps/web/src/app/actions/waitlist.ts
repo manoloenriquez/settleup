@@ -9,6 +9,7 @@ import { z } from "zod";
 const joinSchema = z.object({
   email: z.string().trim().email("Invalid email address").toLowerCase(),
 });
+const waitlistIdSchema = z.string().uuid("Invalid waitlist entry ID.");
 
 // Anyone — including unauthenticated visitors — can submit the waitlist form.
 export async function joinWaitlist(
@@ -58,13 +59,16 @@ export async function adminListWaitlist(): Promise<ApiResponse<Waitlist[]>> {
 
 export async function adminApproveWaitlist(id: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = waitlistIdSchema.safeParse(id);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid waitlist entry ID." };
+
     const { user } = await assertAdmin();
     const supabase = await createClient();
 
     const { error } = await supabase
       .from("waitlist")
       .update({ approved: true, approved_by: user.id })
-      .eq("id", id);
+      .eq("id", parsed.data);
 
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };
@@ -76,10 +80,13 @@ export async function adminApproveWaitlist(id: string): Promise<ApiResponse<void
 
 export async function adminDeleteWaitlistEntry(id: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = waitlistIdSchema.safeParse(id);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid waitlist entry ID." };
+
     await assertAdmin();
     const supabase = await createClient();
 
-    const { error } = await supabase.from("waitlist").delete().eq("id", id);
+    const { error } = await supabase.from("waitlist").delete().eq("id", parsed.data);
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };
   } catch (e) {

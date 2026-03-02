@@ -8,6 +8,11 @@ import { upsertPaymentProfileSchema } from "@template/shared";
 import { uploadQRImage } from "@/lib/supabase/storage";
 import type { ApiResponse } from "@template/shared";
 import type { UserPaymentProfile } from "@template/supabase";
+import { z } from "zod";
+
+const uploadTypeSchema = z.enum(["gcash", "bank"]);
+const QR_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_QR_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 export async function getPaymentProfile(): Promise<ApiResponse<UserPaymentProfile | null>> {
   try {
@@ -62,18 +67,27 @@ export async function uploadQRImageAction(
   formData: FormData,
 ): Promise<ApiResponse<string>> {
   try {
+    const parsedType = uploadTypeSchema.safeParse(type);
+    if (!parsedType.success) return { data: null, error: "Invalid upload type." };
+
     const user = await assertAuth();
 
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return { data: null, error: "No file provided." };
     }
+    if (!QR_ALLOWED_MIME_TYPES.has(file.type)) {
+      return { data: null, error: "Unsupported file type. Use JPEG, PNG, or WebP." };
+    }
+    if (file.size > MAX_QR_FILE_SIZE_BYTES) {
+      return { data: null, error: `File too large. Max ${MAX_QR_FILE_SIZE_BYTES / 1024 / 1024}MB.` };
+    }
 
     const supabase = await createClient();
-    const publicUrl = await uploadQRImage(supabase, user.id, type, file);
+    const publicUrl = await uploadQRImage(supabase, user.id, parsedType.data, file);
 
     // Update the user_payment_profiles URL field
-    const field = type === "gcash" ? "gcash_qr_url" : "bank_qr_url";
+    const field = parsedType.data === "gcash" ? "gcash_qr_url" : "bank_qr_url";
     const settleUpSupabase = await createSettleUpDb();
     const db = settleUpSupabase.schema("settleup");
     const { error } = await db
@@ -84,7 +98,7 @@ export async function uploadQRImageAction(
     return { data: publicUrl, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    if (e instanceof Error) return { data: null, error: e.message };
+    if (e instanceof Error) return { data: null, error: "Failed to upload QR image." };
     throw e;
   }
 }

@@ -4,6 +4,9 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
 import type { ApiResponse } from "@template/shared";
+import { z } from "zod";
+
+const groupIdSchema = z.string().uuid("Invalid group ID.");
 
 export type ActivityItem = {
   id: string;
@@ -23,6 +26,9 @@ export async function getGroupActivity(
   groupId: string,
 ): Promise<ApiResponse<ActivityItem[]>> {
   try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
     await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -32,17 +38,17 @@ export async function getGroupActivity(
       db
         .from("group_members")
         .select("id, display_name")
-        .eq("group_id", groupId),
+        .eq("group_id", parsed.data),
       db
         .from("expenses")
         .select("id, item_name, amount_cents, created_at, payers:expense_payers(member_id), participants:expense_participants(member_id)")
-        .eq("group_id", groupId)
+        .eq("group_id", parsed.data)
         .order("created_at", { ascending: false })
         .limit(50),
       db
         .from("payments")
         .select("id, amount_cents, from_member_id, to_member_id, created_at")
-        .eq("group_id", groupId)
+        .eq("group_id", parsed.data)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);

@@ -6,6 +6,9 @@ import { cachedAuth } from "@/lib/supabase/queries";
 import { addExpenseSchema, addExpensesBatchSchema, equalSplit } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Expense, ExpenseParticipant, ExpensePayer } from "@template/supabase";
+import { z } from "zod";
+
+const idSchema = z.string().uuid("Invalid ID.");
 
 export type ExpenseWithParticipants = Expense & {
   participants: ExpenseParticipant[];
@@ -158,6 +161,9 @@ export async function listExpenses(
   groupId: string,
 ): Promise<ApiResponse<ExpenseWithParticipants[]>> {
   try {
+    const parsed = idSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
     await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -165,7 +171,7 @@ export async function listExpenses(
     const { data: expenses, error } = await db
       .from("expenses")
       .select("*, participants:expense_participants(*), payers:expense_payers(*)")
-      .eq("group_id", groupId)
+      .eq("group_id", parsed.data)
       .order("created_at", { ascending: false });
 
     if (error) return { data: null, error: error.message };
@@ -182,10 +188,13 @@ export async function listExpenses(
 
 export async function deleteExpense(expenseId: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = idSchema.safeParse(expenseId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid expense ID." };
+
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
-    const { error } = await db.from("expenses").delete().eq("id", expenseId);
+    const { error } = await db.from("expenses").delete().eq("id", parsed.data);
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };
   } catch (e) {

@@ -8,6 +8,9 @@ import { createGroupSchema, generateSlug } from "@template/shared";
 import { generateShareToken } from "@/lib/tokens";
 import type { ApiResponse, GroupWithStats } from "@template/shared";
 import type { Group } from "@template/supabase";
+import { z } from "zod";
+
+const groupIdSchema = z.string().uuid("Invalid group ID.");
 
 export async function createGroup(_: unknown, formData: FormData): Promise<ApiResponse<Group>> {
   try {
@@ -40,13 +43,19 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
     const slug = generateSlug(ownerName, []);
     const share_token = generateShareToken();
 
-    await db.from("group_members").insert({
+    const { error: memberInsertError } = await db.from("group_members").insert({
       group_id: data.id,
       display_name: ownerName,
       slug,
       share_token,
       user_id: user.id,
     });
+
+    if (memberInsertError) {
+      // Best effort rollback to avoid leaving an ownerless group.
+      await db.from("groups").delete().eq("id", data.id);
+      return { data: null, error: "Failed to initialize group owner." };
+    }
 
     redirect(`/groups/${data.id}`);
   } catch (e) {
@@ -76,13 +85,16 @@ export async function listGroups(): Promise<ApiResponse<Group[]>> {
 
 export async function archiveGroup(groupId: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { error } = await db
       .from("groups")
       .update({ is_archived: true })
-      .eq("id", groupId);
+      .eq("id", parsed.data);
 
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };
@@ -112,10 +124,13 @@ export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[
 
 export async function deleteGroup(groupId: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
-    const { error } = await db.from("groups").delete().eq("id", groupId);
+    const { error } = await db.from("groups").delete().eq("id", parsed.data);
 
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };

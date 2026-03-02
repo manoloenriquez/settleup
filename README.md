@@ -48,7 +48,7 @@ Sign in to the web app, navigate to any group, and click **Load Demo Data** (vis
 
 ### Friend links
 
-Every group member gets a unique 10-character Base62 share token. Their personal link is:
+Every group member gets a unique Base62 share token (22 chars for newly created members). Their personal link is:
 
 ```
 https://<your-domain>/p/<share_token>
@@ -79,7 +79,7 @@ Link: /p/[token]
 
 - OCR expense parsing (photo of receipt → auto-fill)
 - Unequal splits (custom amounts or percentages)
-- Multi-payer support
+- Share-link rate limiting and token rotation UX
 - Payment reminders (push notifications / SMS)
 - Analytics dashboard (total spent per member, per category)
 - Share token rotation (invalidate old links)
@@ -193,7 +193,7 @@ pnpm supabase gen types typescript --local \
 .
 ├── apps/
 │   ├── web/               Next.js 15 (App Router)
-│   └── mobile/            Expo 52 (React Native)
+│   └── mobile/            Expo 54 (React Native)
 ├── packages/
 │   ├── ui/                Shared web UI components
 │   ├── shared/            Types, Zod schemas, constants

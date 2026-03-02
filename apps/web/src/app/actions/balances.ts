@@ -4,6 +4,9 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
 import type { ApiResponse, MemberBalance } from "@template/shared";
+import { z } from "zod";
+
+const groupIdSchema = z.string().uuid("Invalid group ID.");
 
 type RpcMemberRow = {
   member_id: string;
@@ -21,12 +24,15 @@ export async function getMembersWithBalances(
   groupId: string,
 ): Promise<ApiResponse<MemberBalance[]>> {
   try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
     await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
     const { data, error } = await db.rpc("get_member_balances", {
-      p_group_id: groupId,
+      p_group_id: parsed.data,
     });
 
     if (error) return { data: null, error: error.message };

@@ -5,6 +5,9 @@ import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { recordPaymentSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Payment } from "@template/supabase";
+import { z } from "zod";
+
+const memberIdSchema = z.string().uuid("Invalid member ID.");
 
 export async function recordPayment(input: unknown): Promise<ApiResponse<Payment>> {
   try {
@@ -42,6 +45,9 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
 
 export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = memberIdSchema.safeParse(fromMemberId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid member ID." };
+
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -50,7 +56,7 @@ export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse
     const { data: latest, error: fetchError } = await db
       .from("payments")
       .select("id")
-      .eq("from_member_id", fromMemberId)
+      .eq("from_member_id", parsed.data)
       .order("created_at", { ascending: false })
       .limit(1)
       .single();

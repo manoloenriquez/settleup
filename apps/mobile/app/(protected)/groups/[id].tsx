@@ -9,16 +9,15 @@ import {
   Alert,
 } from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
-import { createMobileClient } from "@template/supabase";
 import { formatCents } from "@template/shared";
 import type { GroupMember } from "@template/supabase";
+import { supabase } from "@/lib/supabase";
 
 type MemberWithBalance = GroupMember & { owed_cents: number; is_paid: boolean };
 
 export default function GroupDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const supabase = createMobileClient();
 
   const [groupName, setGroupName] = useState("");
   const [members, setMembers] = useState<MemberWithBalance[]>([]);

@@ -6,6 +6,9 @@ import { addMemberSchema, addMembersBatchSchema, generateSlug } from "@template/
 import { generateShareToken } from "@/lib/tokens";
 import type { ApiResponse } from "@template/shared";
 import type { GroupMember } from "@template/supabase";
+import { z } from "zod";
+
+const idSchema = z.string().uuid("Invalid ID.");
 
 export async function addMember(input: unknown): Promise<ApiResponse<GroupMember>> {
   try {
@@ -107,13 +110,16 @@ export async function addMembersBatch(input: unknown): Promise<ApiResponse<Group
 
 export async function listMembers(groupId: string): Promise<ApiResponse<GroupMember[]>> {
   try {
+    const parsed = idSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { data, error } = await db
       .from("group_members")
       .select("*")
-      .eq("group_id", groupId)
+      .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
     if (error) return { data: null, error: error.message };
@@ -126,10 +132,13 @@ export async function listMembers(groupId: string): Promise<ApiResponse<GroupMem
 
 export async function deleteMember(memberId: string): Promise<ApiResponse<void>> {
   try {
+    const parsed = idSchema.safeParse(memberId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid member ID." };
+
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
-    const { error } = await db.from("group_members").delete().eq("id", memberId);
+    const { error } = await db.from("group_members").delete().eq("id", parsed.data);
     if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };
   } catch (e) {

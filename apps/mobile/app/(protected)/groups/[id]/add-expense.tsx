@@ -11,15 +11,14 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import { createMobileClient } from "@template/supabase";
 import { parsePHPAmount, equalSplit } from "@template/shared";
 import type { GroupMember } from "@template/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function AddExpenseScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
   const router = useRouter();
-  const supabase = createMobileClient();
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
