@@ -25,18 +25,15 @@ Local API:    http://localhost:54321
 Create a new migration:
 
 ```bash
-pnpm supabase migration new <name>
-# e.g.: pnpm supabase migration new add_posts_table
+# Manual (preferred — use exact timestamp)
+touch supabase/migrations/YYYYMMDDHHMMSS_description.sql
 ```
-
-This creates `supabase/migrations/<timestamp>_<name>.sql`. Write your DDL there.
 
 Apply locally:
 
 ```bash
-pnpm supabase db reset        # reset + re-apply all migrations + seed
-# or
-pnpm supabase db push         # apply pending migrations without resetting
+pnpm supabase db reset   # reset + re-apply all migrations + seed
+pnpm supabase db push    # apply pending without resetting
 ```
 
 Push to remote (production):
@@ -45,119 +42,191 @@ Push to remote (production):
 pnpm supabase db push --linked
 ```
 
+**Never edit an already-applied migration.** Always write a new one.
+
 ## Row Level Security
 
-**Every table must have RLS enabled.** Never disable it.
+**Every table must have RLS enabled. No exceptions.**
 
-Template for a user-owned table:
+Template for a settleup group-owned table:
 
 ```sql
--- Enable RLS
-ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settleup.expenses ENABLE ROW LEVEL SECURITY;
 
--- Owner can do anything
-CREATE POLICY "owner_all" ON public.posts
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- Authenticated users can read published posts
-CREATE POLICY "read_published" ON public.posts FOR SELECT
-  USING (published = true AND auth.role() = 'authenticated');
+-- Group members can read expenses in their groups
+CREATE POLICY "members_select" ON settleup.expenses FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM settleup.group_members gm
+      WHERE gm.group_id = expenses.group_id
+        AND gm.user_id = auth.uid()
+    )
+  );
 ```
 
 ## Auth
 
-Supabase Auth is configured in `supabase/config.toml`. Key settings:
-
-- `enable_confirmations = false` in dev (set `true` in production)
-- Social providers configured in `[auth.external.*]` blocks
-- JWT expiry: 1 hour with refresh token rotation enabled
-
-### Web: using auth in Server Actions
+Web — Server Actions:
 
 ```ts
-import { createClient } from "@/lib/supabase/server";
+import { assertAuth } from "@/lib/supabase/guards";
 
-export async function getCurrentUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
+const user = await assertAuth(); // throws if unauthenticated
 ```
 
-### Mobile: using auth in components
+Mobile — use `onAuthStateChange` exclusively (not `getSession()`):
 
 ```ts
-import { supabase } from "@/lib/supabase";
-
-const { data, error } = await supabase.auth.signInWithPassword({
-  email,
-  password,
+supabase.auth.onAuthStateChange((event, session) => {
+  setSession(session);
 });
 ```
 
 ## Storage
 
-Buckets are created via migrations or the Studio. Example:
+Buckets are created via migrations. Storage paths use `{userId}/{type}-{uuid}.ext`.
 
 ```sql
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('avatars', 'avatars', true);
+VALUES ('receipts', 'receipts', false);
 
--- RLS on objects
 CREATE POLICY "owner upload" ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
-
-CREATE POLICY "public read" ON storage.objects FOR SELECT
-  USING (bucket_id = 'avatars');
+  WITH CHECK (
+    bucket_id = 'receipts'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
 ```
+
+Validate MIME type + file size in the Server Action before uploading.
 
 ## Environment Variables
 
-| Variable                       | Where used        | Notes                         |
-|-------------------------------|-------------------|-------------------------------|
-| `NEXT_PUBLIC_SUPABASE_URL`    | Web (client+server) | Safe to expose               |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Web (client+server) | RLS enforced                |
-| `SUPABASE_SERVICE_ROLE_KEY`   | Web (server only) | Bypasses RLS — keep secret   |
-| `EXPO_PUBLIC_SUPABASE_URL`    | Mobile            | Bundled in binary             |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Mobile          | RLS enforced                  |
+| Variable                         | Where used          | Notes                        |
+|----------------------------------|---------------------|------------------------------|
+| `NEXT_PUBLIC_SUPABASE_URL`       | Web (client+server) | Safe to expose               |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Web (client+server) | RLS enforced                 |
+| `SUPABASE_SERVICE_ROLE_KEY`      | Never in app code   | Bypasses RLS — keep secret   |
+| `EXPO_PUBLIC_SUPABASE_URL`       | Mobile              | Bundled in binary            |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY`  | Mobile              | RLS enforced                 |
 
 ## Schema Reference
 
-### `profiles`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` | PK, FK → `auth.users(id)` CASCADE |
-| `email` | `text` | Copied from auth on signup via trigger |
-| `full_name` | `text?` | Nullable |
-| `role` | `user_role` | Enum: `user` \| `admin`. Default: `user` |
-| `created_at` | `timestamptz` | Default: `NOW()` |
+All SettleUp tables live in the **`settleup` schema**. Query with `.schema("settleup").from(...)`.
 
-### `waitlist`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` | PK, `gen_random_uuid()` |
-| `email` | `text` | Unique |
-| `approved` | `boolean` | Default: `false` |
-| `approved_by` | `uuid?` | FK → `profiles(id)` SET NULL |
-| `created_at` | `timestamptz` | Default: `NOW()` |
+### `settleup.groups`
+| Column           | Type          | Notes                                    |
+|------------------|---------------|------------------------------------------|
+| `id`             | `uuid`        | PK                                       |
+| `name`           | `text`        |                                          |
+| `owner_user_id`  | `uuid?`       | FK → `auth.users(id)`                   |
+| `invite_code`    | `text`        | Unique                                   |
+| `is_archived`    | `boolean`     | Default: `false`                         |
+| `share_token`    | `text`        | Unique, auto-generated via trigger       |
+| `created_at`     | `timestamptz` |                                          |
 
-### RLS Summary
-| Table | Operation | Who |
-|---|---|---|
-| `profiles` | SELECT | Own row **or** any admin |
-| `profiles` | UPDATE | Own row (non-role fields) **or** any admin (any field) |
-| `profiles` | INSERT | Trigger only (SECURITY DEFINER) |
-| `profiles` | DELETE | Via `auth.users` cascade only |
-| `waitlist` | INSERT | Anyone (anon + authenticated) |
-| `waitlist` | SELECT / UPDATE / DELETE | Admins only |
+### `settleup.group_members`
+| Column         | Type          | Notes                                    |
+|----------------|---------------|------------------------------------------|
+| `id`           | `uuid`        | PK                                       |
+| `group_id`     | `uuid`        | FK → `groups(id)`                       |
+| `display_name` | `text`        |                                          |
+| `slug`         | `text`        | URL-safe name                            |
+| `share_token`  | `text`        | Unique, for friend/share view            |
+| `user_id`      | `uuid?`       | FK → `auth.users(id)`, nullable until claimed |
+| `created_at`   | `timestamptz` |                                          |
 
-### Key DB Functions
-| Function | Type | Purpose |
-|---|---|---|
-| `public.is_admin()` | `SECURITY DEFINER` | Returns `true` if `auth.uid()` has `role = 'admin'`. Used in RLS policies. |
-| `public.handle_new_user()` | `SECURITY DEFINER` trigger | Auto-inserts a `profiles` row on auth signup. |
-| `public.prevent_role_escalation()` | `SECURITY DEFINER` trigger | Blocks non-admins from changing `role` field at the DB level. |
+### `settleup.expenses`
+| Column                | Type          | Notes                          |
+|-----------------------|---------------|--------------------------------|
+| `id`                  | `uuid`        | PK                             |
+| `group_id`            | `uuid`        | FK → `groups(id)`             |
+| `item_name`           | `text`        |                                |
+| `amount_cents`        | `integer`     | Total amount in cents          |
+| `notes`               | `text?`       |                                |
+| `created_by_user_id`  | `uuid?`       | FK → `auth.users(id)`, audit  |
+| `created_at`          | `timestamptz` |                                |
+
+### `settleup.expense_payers`
+| Column        | Type      | Notes                               |
+|---------------|-----------|-------------------------------------|
+| `expense_id`  | `uuid`    | FK → `expenses(id)`                |
+| `member_id`   | `uuid`    | FK → `group_members(id)`           |
+| `paid_cents`  | `integer` | Amount this member paid             |
+
+### `settleup.expense_participants`
+| Column        | Type      | Notes                               |
+|---------------|-----------|-------------------------------------|
+| `expense_id`  | `uuid`    | FK → `expenses(id)`                |
+| `member_id`   | `uuid`    | FK → `group_members(id)`           |
+| `share_cents` | `integer` | This member's share                 |
+
+### `settleup.payments`
+| Column                | Type          | Notes                          |
+|-----------------------|---------------|--------------------------------|
+| `id`                  | `uuid`        | PK                             |
+| `group_id`            | `uuid`        | FK → `groups(id)`             |
+| `amount_cents`        | `integer`     |                                |
+| `status`              | `text`        | Default: `'completed'`         |
+| `from_member_id`      | `uuid?`       | Who paid                       |
+| `to_member_id`        | `uuid?`       | Who received                   |
+| `created_by_user_id`  | `uuid?`       | Audit                          |
+| `created_at`          | `timestamptz` |                                |
+
+### `settleup.user_payment_profiles`
+| Column                 | Type          | Notes                         |
+|------------------------|---------------|-------------------------------|
+| `user_id`              | `uuid`        | PK, FK → `auth.users(id)`    |
+| `payer_display_name`   | `text?`       |                               |
+| `gcash_name`           | `text?`       |                               |
+| `gcash_number`         | `text?`       |                               |
+| `gcash_qr_url`         | `text?`       | Storage URL                   |
+| `bank_name`            | `text?`       |                               |
+| `bank_account_name`    | `text?`       |                               |
+| `bank_account_number`  | `text?`       |                               |
+| `bank_qr_url`          | `text?`       | Storage URL                   |
+| `notes`                | `text?`       |                               |
+| `updated_at`           | `timestamptz` |                               |
+
+## Key RPCs
+
+| Function                              | Auth     | Purpose                                             |
+|---------------------------------------|----------|-----------------------------------------------------|
+| `get_member_balances(p_group_id)`     | Authed   | Returns balance per member: `net_cents`, `owed_cents` |
+| `get_friend_view(p_share_token)`      | Anon     | Public share page data — minimal member + payer info |
+| `get_group_overview(p_share_token)`   | Anon     | Group-level overview via share token                |
+| `get_groups_with_stats()`             | Authed   | All groups for current user with expense totals     |
+
+### Balance Formula
+
+```
+net_cents = paid_as_payer - shares - received_payments + sent_payments
+owed_cents = GREATEST(0, -net_cents)
+```
+
+- Positive `net_cents` → others owe this member
+- Negative `net_cents` → this member owes others
+
+## RLS Summary
+
+| Table                    | Operation     | Who                                      |
+|--------------------------|---------------|------------------------------------------|
+| `groups`                 | SELECT        | Members of the group                     |
+| `groups`                 | INSERT/UPDATE | Owner (`owner_user_id = auth.uid()`)     |
+| `group_members`          | SELECT        | Members of the same group                |
+| `group_members`          | INSERT        | Group owner                              |
+| `expenses`               | SELECT/INSERT | Members of the group                     |
+| `expense_payers`         | SELECT/INSERT | Members of the group                     |
+| `expense_participants`   | SELECT/INSERT | Members of the group                     |
+| `payments`               | SELECT/INSERT | Members of the group                     |
+| `user_payment_profiles`  | SELECT/UPDATE | Own row only                             |
+
+## Key DB Functions
+
+| Function                       | Type                    | Purpose                                       |
+|--------------------------------|-------------------------|-----------------------------------------------|
+| `public.is_admin()`            | `SECURITY DEFINER`      | Returns `true` if caller has `role = 'admin'` |
+| `public.handle_new_user()`     | `SECURITY DEFINER` trig | Auto-inserts `profiles` row on signup         |
+| `public.prevent_role_escalation()` | `SECURITY DEFINER` trig | Blocks non-admin role changes at DB level |
 
 ## Regenerating Types After Schema Changes
 
@@ -171,4 +240,4 @@ pnpm supabase gen types typescript --linked \
   > packages/supabase/src/database.types.ts
 ```
 
-Commit the updated `database.types.ts`. All apps and packages pick up the changes automatically.
+Commit the updated `database.types.ts`. All apps pick up changes automatically.

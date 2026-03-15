@@ -3,15 +3,22 @@ import type { LLMProvider, LLMRequest, LLMResponse } from "./types";
 
 const BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
+const API_KEY = process.env.OLLAMA_API_KEY;
 
 export function createOllamaProvider(): LLMProvider {
   return {
     name: "ollama",
     async generate(request: LLMRequest): Promise<ApiResponse<LLMResponse>> {
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (API_KEY) {
+          headers["Authorization"] = `Bearer ${API_KEY}`;
+        }
         const res = await fetch(`${BASE_URL}/api/generate`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             model: MODEL,
             system: request.system,
