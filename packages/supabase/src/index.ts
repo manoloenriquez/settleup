@@ -47,4 +47,10 @@ export type {
   UserPaymentProfile,
   UserPaymentProfileInsert,
   UserPaymentProfileUpdate,
+  ExpenseItem,
+  ExpenseItemInsert,
+  ExpenseItemUpdate,
+  ExpenseItemParticipant,
+  ExpenseItemParticipantInsert,
+  ExpenseItemParticipantUpdate,
 } from "./database.types";

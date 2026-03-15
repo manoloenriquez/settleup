@@ -141,6 +141,40 @@ export const addExpensesBatchSchema = z
     });
   });
 
+const lineItemSchema = z.object({
+  name: z.string().trim().min(1, "Item name is required").max(200),
+  amount_cents: z.number().int().positive("Amount must be positive"),
+  participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
+});
+
+export const addItemizedExpenseSchema = z
+  .object({
+    group_id: z.string().uuid(),
+    item_name: z.string().trim().min(1, "Expense name is required").max(200),
+    amount_cents: z.number().int().positive("Amount must be positive"),
+    notes: z.string().optional(),
+    payers: z.array(payerSchema).min(1, "At least one payer required"),
+    line_items: z.array(lineItemSchema).min(1, "At least one line item required"),
+  })
+  .superRefine((val, ctx) => {
+    const payerSum = val.payers.reduce((sum, p) => sum + p.paid_cents, 0);
+    if (payerSum !== val.amount_cents) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Payer total (${payerSum}) must equal amount (${val.amount_cents})`,
+        path: ["payers"],
+      });
+    }
+    const itemSum = val.line_items.reduce((sum, li) => sum + li.amount_cents, 0);
+    if (itemSum !== val.amount_cents) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Line items total (${itemSum}) must equal expense amount (${val.amount_cents})`,
+        path: ["line_items"],
+      });
+    }
+  });
+
 export const recordPaymentSchema = z
   .object({
     group_id: z.string().uuid(),
@@ -168,6 +202,7 @@ export type AddMemberInput = z.infer<typeof addMemberSchema>;
 export type AddMembersBatchInput = z.infer<typeof addMembersBatchSchema>;
 export type AddExpenseInput = z.infer<typeof addExpenseSchema>;
 export type AddExpensesBatchInput = z.infer<typeof addExpensesBatchSchema>;
+export type AddItemizedExpenseInput = z.infer<typeof addItemizedExpenseSchema>;
 export type PayerInput = z.infer<typeof payerSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UpsertPaymentProfileInput = z.infer<typeof upsertPaymentProfileSchema>;

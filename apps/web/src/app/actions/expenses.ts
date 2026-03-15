@@ -3,9 +3,9 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import { addExpenseSchema, addExpensesBatchSchema, equalSplit } from "@template/shared";
+import { addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema, equalSplit } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
-import type { Expense, ExpenseParticipant, ExpensePayer } from "@template/supabase";
+import type { Expense, ExpenseItem, ExpenseItemParticipant, ExpenseParticipant, ExpensePayer } from "@template/supabase";
 import { z } from "zod";
 
 const idSchema = z.string().uuid("Invalid ID.");
@@ -13,6 +13,7 @@ const idSchema = z.string().uuid("Invalid ID.");
 export type ExpenseWithParticipants = Expense & {
   participants: ExpenseParticipant[];
   payers: ExpensePayer[];
+  items?: (ExpenseItem & { item_participants: ExpenseItemParticipant[] })[];
 };
 
 export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> {
@@ -157,6 +158,103 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
   }
 }
 
+export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Expense>> {
+  try {
+    const user = await assertAuth();
+
+    const parsed = addItemizedExpenseSchema.safeParse(input);
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+
+    const { group_id, item_name, amount_cents, notes, payers, line_items } = parsed.data;
+
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    // Insert expense
+    const { data: expense, error: expenseError } = await db
+      .from("expenses")
+      .insert({ group_id, item_name, amount_cents, notes, created_by_user_id: user.id })
+      .select()
+      .single();
+
+    if (expenseError || !expense) {
+      return { data: null, error: expenseError?.message ?? "Failed to add expense." };
+    }
+
+    // Insert line items and their participants; accumulate rollup per member
+    const memberShareMap = new Map<string, number>();
+
+    for (const li of line_items) {
+      const { data: itemRow, error: itemError } = await db
+        .from("expense_items")
+        .insert({ expense_id: expense.id, name: li.name, amount_cents: li.amount_cents })
+        .select()
+        .single();
+
+      if (itemError || !itemRow) {
+        return { data: null, error: itemError?.message ?? "Failed to add line item." };
+      }
+
+      const sortedIds = [...li.participant_ids].sort();
+      const shares = equalSplit(li.amount_cents, sortedIds.length);
+
+      const itemParticipantRows = sortedIds.map((member_id, i) => ({
+        item_id: itemRow.id,
+        member_id,
+        share_cents: shares[i]!,
+      }));
+
+      const { error: itemPartError } = await db
+        .from("expense_item_participants")
+        .insert(itemParticipantRows);
+
+      if (itemPartError) {
+        return { data: null, error: itemPartError.message };
+      }
+
+      // Accumulate into rollup map
+      for (const { member_id, share_cents } of itemParticipantRows) {
+        memberShareMap.set(member_id, (memberShareMap.get(member_id) ?? 0) + share_cents);
+      }
+    }
+
+    // Rollup into expense_participants
+    const participantRows = Array.from(memberShareMap.entries()).map(([member_id, share_cents]) => ({
+      expense_id: expense.id,
+      member_id,
+      share_cents,
+    }));
+
+    const { error: participantError } = await db
+      .from("expense_participants")
+      .insert(participantRows);
+
+    if (participantError) {
+      return { data: null, error: participantError.message };
+    }
+
+    // Insert payers
+    const payerRows = payers.map((p) => ({
+      expense_id: expense.id,
+      member_id: p.member_id,
+      paid_cents: p.paid_cents,
+    }));
+
+    const { error: payerError } = await db.from("expense_payers").insert(payerRows);
+
+    if (payerError) {
+      return { data: null, error: payerError.message };
+    }
+
+    return { data: expense, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    throw e;
+  }
+}
+
 export async function listExpenses(
   groupId: string,
 ): Promise<ApiResponse<ExpenseWithParticipants[]>> {
@@ -170,7 +268,7 @@ export async function listExpenses(
 
     const { data: expenses, error } = await db
       .from("expenses")
-      .select("*, participants:expense_participants(*), payers:expense_payers(*)")
+      .select("*, participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: false });
 

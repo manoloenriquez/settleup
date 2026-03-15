@@ -270,6 +270,71 @@ export type Database = {
           },
         ];
       };
+      expense_items: {
+        Row: {
+          id: string;
+          expense_id: string;
+          name: string;
+          amount_cents: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          expense_id: string;
+          name: string;
+          amount_cents: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          expense_id?: string;
+          name?: string;
+          amount_cents?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_items_expense_id_fkey";
+            columns: ["expense_id"];
+            isOneToOne: false;
+            referencedRelation: "expenses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      expense_item_participants: {
+        Row: {
+          item_id: string;
+          member_id: string;
+          share_cents: number;
+        };
+        Insert: {
+          item_id: string;
+          member_id: string;
+          share_cents: number;
+        };
+        Update: {
+          item_id?: string;
+          member_id?: string;
+          share_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_item_participants_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "expense_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expense_item_participants_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "group_members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payments: {
         Row: {
           id: string;
@@ -459,3 +524,11 @@ export type PaymentUpdate = SettleUpTablesUpdate<"payments">;
 export type UserPaymentProfile = SettleUpTables<"user_payment_profiles">;
 export type UserPaymentProfileInsert = SettleUpTablesInsert<"user_payment_profiles">;
 export type UserPaymentProfileUpdate = SettleUpTablesUpdate<"user_payment_profiles">;
+
+export type ExpenseItem = SettleUpTables<"expense_items">;
+export type ExpenseItemInsert = SettleUpTablesInsert<"expense_items">;
+export type ExpenseItemUpdate = SettleUpTablesUpdate<"expense_items">;
+
+export type ExpenseItemParticipant = SettleUpTables<"expense_item_participants">;
+export type ExpenseItemParticipantInsert = SettleUpTablesInsert<"expense_item_participants">;
+export type ExpenseItemParticipantUpdate = SettleUpTablesUpdate<"expense_item_participants">;

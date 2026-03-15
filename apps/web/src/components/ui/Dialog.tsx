@@ -41,7 +41,7 @@ export function Dialog({
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="backdrop:bg-black/40 rounded-xl border border-slate-200 bg-white p-0 shadow-lg w-full max-w-md animate-scale-in"
+      className="m-auto backdrop:bg-black/40 rounded-xl border border-slate-200 bg-white p-0 shadow-lg w-full max-w-md animate-scale-in"
     >
       <div className="p-6">
         <h3 className="text-lg font-semibold text-slate-900">{title}</h3>

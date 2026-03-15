@@ -8,7 +8,7 @@ import { formatCents } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
-import { Search, CreditCard, Users, Trash2, Receipt, Clock } from "lucide-react";
+import { Search, CreditCard, Users, Trash2, Receipt, Clock, List } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
@@ -124,6 +124,12 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
                     <Users size={12} />
                     {expense.participants.length} people
                   </span>
+                  {expense.items && expense.items.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <List size={12} />
+                      {expense.items.length} item{expense.items.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1">
                     <Clock size={12} />
                     {relativeTime(expense.created_at)}
