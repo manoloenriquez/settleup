@@ -65,6 +65,7 @@ export type GroupOverviewPayload = {
     amount_cents: number;
     created_at: string;
     participants: { display_name: string; share_cents: number }[];
+    items?: { name: string; amount_cents: number }[];
   }[];
   payment_profile: {
     payer_display_name: string | null;
@@ -96,7 +97,12 @@ export type FriendViewPayload = {
     gcash_qr_url: string | null;
     bank_qr_url: string | null;
   } | null;
-  expenses: { item_name: string; share_cents: number; created_at: string }[];
+  expenses: {
+    item_name: string;
+    share_cents: number;
+    created_at: string;
+    items?: { name: string; share_cents: number }[];
+  }[];
   error?: string;
 };
 

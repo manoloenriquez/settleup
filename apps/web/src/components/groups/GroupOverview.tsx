@@ -72,6 +72,11 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
       const parts = exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ");
       lines.push(`• ${exp.item_name} — ${formatCents(exp.amount_cents)}`);
       if (parts) lines.push(`  ${parts}`);
+      if (exp.items && exp.items.length > 0) {
+        for (const item of exp.items) {
+          lines.push(`  - ${item.name}: ${formatCents(item.amount_cents)}`);
+        }
+      }
     }
   }
 
@@ -236,6 +241,16 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                       <p className="mt-1 text-xs text-slate-400">
                         {exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ")}
                       </p>
+                    )}
+                    {exp.items && exp.items.length > 0 && (
+                      <div className="mt-2 ml-3 border-l-2 border-indigo-100 pl-3 flex flex-col gap-0.5">
+                        {exp.items.map((item, j) => (
+                          <div key={j} className="flex items-center justify-between text-xs text-slate-500">
+                            <span>{item.name}</span>
+                            <span>{formatCents(item.amount_cents)}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}

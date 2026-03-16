@@ -160,12 +160,24 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
                 {payload.expenses.map((exp, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between text-sm rounded-lg border border-slate-100 px-3 py-2"
+                    className="rounded-lg border border-slate-100 px-3 py-2"
                   >
-                    <span className="text-slate-700">{exp.item_name}</span>
-                    <span className="font-medium text-slate-900">
-                      {formatCents(exp.share_cents)}
-                    </span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-700">{exp.item_name}</span>
+                      <span className="font-medium text-slate-900">
+                        {formatCents(exp.share_cents)}
+                      </span>
+                    </div>
+                    {exp.items && exp.items.length > 0 && (
+                      <div className="mt-1.5 ml-3 border-l-2 border-indigo-100 pl-3 flex flex-col gap-0.5">
+                        {exp.items.map((item, j) => (
+                          <div key={j} className="flex items-center justify-between text-xs text-slate-500">
+                            <span>{item.name}</span>
+                            <span>{formatCents(item.share_cents)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

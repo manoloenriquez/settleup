@@ -8,7 +8,7 @@ import { formatCents } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
-import { Search, CreditCard, Users, Trash2, Receipt, Clock, List } from "lucide-react";
+import { Search, CreditCard, Users, Trash2, Receipt, Clock, List, ChevronDown, ChevronUp } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
@@ -36,6 +36,16 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(id: string): void {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const router = useRouter();
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
@@ -125,10 +135,15 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
                     {expense.participants.length} people
                   </span>
                   {expense.items && expense.items.length > 0 && (
-                    <span className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(expense.id)}
+                      className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
+                    >
                       <List size={12} />
                       {expense.items.length} item{expense.items.length !== 1 ? "s" : ""}
-                    </span>
+                      {expandedIds.has(expense.id) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
                   )}
                   <span className="flex items-center gap-1">
                     <Clock size={12} />
@@ -146,6 +161,29 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
                 <Trash2 size={16} />
               </button>
             </div>
+            {expense.items && expense.items.length > 0 && expandedIds.has(expense.id) && (
+              <div className="mt-3 ml-4 border-l-2 border-indigo-100 pl-3 flex flex-col gap-1.5">
+                {expense.items.map((item, idx) => {
+                  const participants = item.item_participants
+                    .map((ip) => {
+                      const name = memberMap.get(ip.member_id) ?? "Unknown";
+                      return `${name} (${formatCents(ip.share_cents)})`;
+                    })
+                    .join(", ");
+                  return (
+                    <div key={idx} className="text-xs">
+                      <div className="flex items-center justify-between text-slate-700">
+                        <span>{item.name}</span>
+                        <span className="font-medium">{formatCents(item.amount_cents)}</span>
+                      </div>
+                      {participants && (
+                        <p className="text-slate-400 mt-0.5">{participants}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
