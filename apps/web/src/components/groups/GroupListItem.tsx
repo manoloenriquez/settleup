@@ -36,7 +36,12 @@ export function GroupListItem({ group }: Props): React.ReactElement {
 
   function handleDelete(): void {
     startTransition(async () => {
-      await deleteGroup(group.id);
+      const result = await deleteGroup(group.id);
+      if (result.error) {
+        toast.error(result.error);
+        setShowDelete(false);
+        return;
+      }
       toast.success(`"${group.name}" deleted`);
       setShowDelete(false);
       router.refresh();

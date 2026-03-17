@@ -53,9 +53,9 @@ export async function getGroupActivity(
         .limit(50),
     ]);
 
-    if (membersResult.error) return { data: null, error: membersResult.error.message };
-    if (expensesResult.error) return { data: null, error: expensesResult.error.message };
-    if (paymentsResult.error) return { data: null, error: paymentsResult.error.message };
+    if (membersResult.error) return { data: null, error: "Failed to load activity." };
+    if (expensesResult.error) return { data: null, error: "Failed to load activity." };
+    if (paymentsResult.error) return { data: null, error: "Failed to load activity." };
 
     const memberMap = new Map((membersResult.data ?? []).map((m) => [m.id, m.display_name]));
 
@@ -93,6 +93,6 @@ export async function getGroupActivity(
     return { data: activities.slice(0, 30), error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

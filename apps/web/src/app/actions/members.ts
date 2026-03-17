@@ -52,11 +52,11 @@ export async function addMember(input: unknown): Promise<ApiResponse<GroupMember
       .select()
       .single();
 
-    if (error || !data) return { data: null, error: error?.message ?? "Failed to add member." };
+    if (error || !data) return { data: null, error: "Failed to add member." };
     return { data, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -100,11 +100,11 @@ export async function addMembersBatch(input: unknown): Promise<ApiResponse<Group
 
     const { data, error } = await db.from("group_members").insert(rows).select();
 
-    if (error || !data) return { data: null, error: error?.message ?? "Failed to add members." };
+    if (error || !data) return { data: null, error: "Failed to add members." };
     return { data, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -122,11 +122,11 @@ export async function listMembers(groupId: string): Promise<ApiResponse<GroupMem
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load members." };
     return { data: data ?? [], error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -139,10 +139,10 @@ export async function deleteMember(memberId: string): Promise<ApiResponse<void>>
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { error } = await db.from("group_members").delete().eq("id", parsed.data);
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to delete member." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

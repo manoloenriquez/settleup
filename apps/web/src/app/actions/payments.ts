@@ -35,11 +35,11 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
       .select()
       .single();
 
-    if (error || !data) return { data: null, error: error?.message ?? "Failed to record payment." };
+    if (error || !data) return { data: null, error: "Failed to record payment." };
     return { data, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -66,10 +66,10 @@ export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse
     }
 
     const { error } = await db.from("payments").delete().eq("id", latest.id);
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to undo payment." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "@/app/actions/auth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { APP_NAME } from "@template/shared";
+import { APP_NAME, ROUTES } from "@template/shared";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import Link from "next/link";
 
 export function LoginForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") ?? "";
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
@@ -38,6 +42,8 @@ export function LoginForm(): React.ReactElement {
           {error}
         </div>
       )}
+
+      {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
 
       <Input
         name="email"
@@ -67,6 +73,14 @@ export function LoginForm(): React.ReactElement {
           >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
+        </div>
+        <div className="text-right">
+          <Link
+            href={ROUTES.FORGOT_PASSWORD}
+            className="text-xs text-indigo-600 hover:underline"
+          >
+            Forgot password?
+          </Link>
         </div>
       </div>
 

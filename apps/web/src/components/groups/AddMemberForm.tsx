@@ -67,6 +67,7 @@ export function AddMemberForm({ groupId }: Props): React.ReactElement {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Display name — press Enter to queue"
+          maxLength={80}
         />
         <Button type="button" variant="secondary" size="sm" onClick={enqueue} className="shrink-0 mb-0.5">
           Queue

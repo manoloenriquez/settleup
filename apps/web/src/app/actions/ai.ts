@@ -40,7 +40,7 @@ export async function parseReceipt(
     return await parseReceiptImage(buffer, user.id);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -76,7 +76,7 @@ export async function getSmartSplit(
     });
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -108,6 +108,6 @@ export async function parseConversationMessage(
     });
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

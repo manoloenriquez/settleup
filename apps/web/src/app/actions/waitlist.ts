@@ -49,11 +49,11 @@ export async function adminListWaitlist(): Promise<ApiResponse<Waitlist[]>> {
       .select("*")
       .order("created_at", { ascending: true });
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load waitlist." };
     return { data: data ?? [], error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -70,11 +70,11 @@ export async function adminApproveWaitlist(id: string): Promise<ApiResponse<void
       .update({ approved: true, approved_by: user.id })
       .eq("id", parsed.data);
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to approve waitlist entry." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -87,10 +87,10 @@ export async function adminDeleteWaitlistEntry(id: string): Promise<ApiResponse<
     const supabase = await createClient();
 
     const { error } = await supabase.from("waitlist").delete().eq("id", parsed.data);
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to delete waitlist entry." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

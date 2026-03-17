@@ -33,7 +33,7 @@ export async function getDashboardSummary(): Promise<ApiResponse<DashboardSummar
     const db = supabase.schema("settleup");
 
     const { data, error } = await db.rpc("get_groups_with_stats");
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load dashboard." };
 
     const groups = (data ?? []) as unknown as GroupWithStats[];
 
@@ -41,14 +41,17 @@ export async function getDashboardSummary(): Promise<ApiResponse<DashboardSummar
     const totalUnsettled = groups.reduce((sum, g) => sum + g.total_owed_cents, 0);
     const pendingMembers = groups.reduce((sum, g) => sum + g.pending_count, 0);
 
-    // Calculate net balance across groups for current user
+    // 2B: Parallelize balance fetches — was sequential (N+1 queries)
+    const balanceResults = await Promise.all(
+      groups.map((group) =>
+        db.rpc("get_member_balances", { p_group_id: group.id }),
+      ),
+    );
+
     let netBalance = 0;
-    for (const group of groups) {
-      const { data: balanceData } = await db.rpc("get_member_balances", {
-        p_group_id: group.id,
-      });
-      if (balanceData) {
-        const balances = (balanceData ?? []) as unknown as BalanceRow[];
+    for (const result of balanceResults) {
+      if (result.data) {
+        const balances = (result.data ?? []) as unknown as BalanceRow[];
         const myBalance = balances.find((b) => b.user_id === user.id);
         if (myBalance) {
           netBalance += myBalance.net_cents;
@@ -75,6 +78,6 @@ export async function getDashboardSummary(): Promise<ApiResponse<DashboardSummar
     };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

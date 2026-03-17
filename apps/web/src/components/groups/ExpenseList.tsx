@@ -56,7 +56,12 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
   function handleDelete(): void {
     if (!deleteTarget) return;
     startTransition(async () => {
-      await deleteExpense(deleteTarget);
+      const result = await deleteExpense(deleteTarget);
+      if (result.error) {
+        toast.error(result.error);
+        setDeleteTarget(null);
+        return;
+      }
       toast.success("Expense deleted");
       setDeleteTarget(null);
       router.refresh();
@@ -75,6 +80,7 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search expenses"
             placeholder="Search expenses..."
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />

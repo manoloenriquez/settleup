@@ -25,6 +25,7 @@ export function CreateGroupForm(): React.ReactElement {
         placeholder="e.g. Barkada Trip 2025"
         required
         autoFocus
+        maxLength={100}
       />
       {state?.error && (
         <p className="text-sm text-red-600">{state.error}</p>

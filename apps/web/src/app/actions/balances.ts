@@ -35,7 +35,7 @@ export async function getMembersWithBalances(
       p_group_id: parsed.data,
     });
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load balances." };
 
     const rows = (data ?? []) as unknown as RpcMemberRow[];
     const balances: MemberBalance[] = rows.map((r) => ({
@@ -52,6 +52,6 @@ export async function getMembersWithBalances(
     return { data: balances, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

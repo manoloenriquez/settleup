@@ -38,7 +38,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       .single();
 
     if (expenseError || !expense) {
-      return { data: null, error: expenseError?.message ?? "Failed to add expense." };
+      return { data: null, error: "Failed to add expense." };
     }
 
     // Sort participant IDs for deterministic remainder distribution
@@ -56,7 +56,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       .insert(participantRows);
 
     if (participantError) {
-      return { data: null, error: participantError.message };
+      return { data: null, error: "Failed to add expense participants." };
     }
 
     // Insert expense payers
@@ -71,13 +71,13 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       .insert(payerRows);
 
     if (payerError) {
-      return { data: null, error: payerError.message };
+      return { data: null, error: "Failed to add expense payers." };
     }
 
     return { data: expense, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -103,7 +103,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
         .single();
 
       if (expenseError || !expense) {
-        return { data: null, error: expenseError?.message ?? "Failed to add expense." };
+        return { data: null, error: "Failed to add expense." };
       }
 
       let participantRows: { expense_id: string; member_id: string; share_cents: number }[];
@@ -130,7 +130,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
         .insert(participantRows);
 
       if (participantError) {
-        return { data: null, error: participantError.message };
+        return { data: null, error: "Failed to add expense participants." };
       }
 
       // Insert expense payers
@@ -145,7 +145,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
         .insert(payerRows);
 
       if (payerError) {
-        return { data: null, error: payerError.message };
+        return { data: null, error: "Failed to add expense payers." };
       }
 
       inserted.push(expense);
@@ -154,7 +154,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
     return { data: inserted, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -180,7 +180,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
       .single();
 
     if (expenseError || !expense) {
-      return { data: null, error: expenseError?.message ?? "Failed to add expense." };
+      return { data: null, error: "Failed to add expense." };
     }
 
     // Insert line items and their participants; accumulate rollup per member
@@ -194,7 +194,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
         .single();
 
       if (itemError || !itemRow) {
-        return { data: null, error: itemError?.message ?? "Failed to add line item." };
+        return { data: null, error: "Failed to add line item." };
       }
 
       const sortedIds = [...li.participant_ids].sort();
@@ -211,7 +211,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
         .insert(itemParticipantRows);
 
       if (itemPartError) {
-        return { data: null, error: itemPartError.message };
+        return { data: null, error: "Failed to add item participants." };
       }
 
       // Accumulate into rollup map
@@ -232,7 +232,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
       .insert(participantRows);
 
     if (participantError) {
-      return { data: null, error: participantError.message };
+      return { data: null, error: "Failed to add expense participants." };
     }
 
     // Insert payers
@@ -245,13 +245,13 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
     const { error: payerError } = await db.from("expense_payers").insert(payerRows);
 
     if (payerError) {
-      return { data: null, error: payerError.message };
+      return { data: null, error: "Failed to add expense payers." };
     }
 
     return { data: expense, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -272,7 +272,7 @@ export async function listExpenses(
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: false });
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load expenses." };
 
     return {
       data: (expenses ?? []) as ExpenseWithParticipants[],
@@ -280,7 +280,7 @@ export async function listExpenses(
     };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -293,10 +293,10 @@ export async function deleteExpense(expenseId: string): Promise<ApiResponse<void
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { error } = await db.from("expenses").delete().eq("id", parsed.data);
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to delete expense." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

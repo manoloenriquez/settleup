@@ -76,6 +76,6 @@ export async function getGroupInsights(
     };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }

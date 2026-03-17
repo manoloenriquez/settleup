@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signInSchema, signUpSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
+import { z } from "zod";
+
+const redirectToSchema = z.string().startsWith("/").max(200).optional();
 
 export async function signIn(_: unknown, formData: FormData): Promise<ApiResponse<void>> {
   const parsed = signInSchema.safeParse(Object.fromEntries(formData));
@@ -19,7 +22,14 @@ export async function signIn(_: unknown, formData: FormData): Promise<ApiRespons
 
   if (error) return { data: null, error: error.message };
 
-  redirect("/dashboard");
+  // 2C: Honor redirectTo param if present and safe (must start with /)
+  const rawRedirect = formData.get("redirectTo");
+  const redirectParsed = redirectToSchema.safeParse(
+    typeof rawRedirect === "string" ? rawRedirect : undefined,
+  );
+  const destination = redirectParsed.success && redirectParsed.data ? redirectParsed.data : "/dashboard";
+
+  redirect(destination);
 }
 
 export async function signUp(_: unknown, formData: FormData): Promise<ApiResponse<void>> {

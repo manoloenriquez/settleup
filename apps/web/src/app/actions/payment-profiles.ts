@@ -25,11 +25,11 @@ export async function getPaymentProfile(): Promise<ApiResponse<UserPaymentProfil
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load payment profile." };
     return { data: data ?? null, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -53,12 +53,12 @@ export async function upsertPaymentProfile(
       .single();
 
     if (error || !data) {
-      return { data: null, error: error?.message ?? "Failed to save payment profile." };
+      return { data: null, error: "Failed to save payment profile." };
     }
     return { data, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -94,11 +94,10 @@ export async function uploadQRImageAction(
       .from("user_payment_profiles")
       .upsert({ user_id: user.id, [field]: publicUrl, updated_at: new Date().toISOString() });
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to save QR image URL." };
     return { data: publicUrl, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    if (e instanceof Error) return { data: null, error: "Failed to upload QR image." };
-    throw e;
+    return { data: null, error: "Failed to upload QR image." };
   }
 }

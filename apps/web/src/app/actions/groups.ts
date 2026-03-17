@@ -12,6 +12,11 @@ import { z } from "zod";
 
 const groupIdSchema = z.string().uuid("Invalid group ID.");
 
+// Re-throw Next.js internal errors (redirect, notFound) so they propagate correctly.
+function isNextInternalError(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "digest" in e;
+}
+
 export async function createGroup(_: unknown, formData: FormData): Promise<ApiResponse<Group>> {
   try {
     const user = await assertAuth();
@@ -29,7 +34,7 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
       .select()
       .single();
 
-    if (error || !data) return { data: null, error: error?.message ?? "Failed to create group." };
+    if (error || !data) return { data: null, error: "Failed to create group." };
 
     // Auto-link owner as first group member
     const publicClient = await createClient();
@@ -60,7 +65,8 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
     redirect(`/groups/${data.id}`);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    if (isNextInternalError(e)) throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -75,11 +81,11 @@ export async function listGroups(): Promise<ApiResponse<Group[]>> {
       .eq("is_archived", false)
       .order("created_at", { ascending: false });
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load groups." };
     return { data: data ?? [], error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -96,11 +102,11 @@ export async function archiveGroup(groupId: string): Promise<ApiResponse<void>> 
       .update({ is_archived: true })
       .eq("id", parsed.data);
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to archive group." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -112,13 +118,13 @@ export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[
 
     const { data, error } = await db.rpc("get_groups_with_stats");
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to load groups." };
 
     const rows = (data ?? []) as unknown as GroupWithStats[];
     return { data: rows, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
 
@@ -132,10 +138,10 @@ export async function deleteGroup(groupId: string): Promise<ApiResponse<void>> {
     const db = supabase.schema("settleup");
     const { error } = await db.from("groups").delete().eq("id", parsed.data);
 
-    if (error) return { data: null, error: error.message };
+    if (error) return { data: null, error: "Failed to delete group." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
-    throw e;
+    return { data: null, error: "Something went wrong." };
   }
 }
