@@ -1,210 +1,298 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { useAddExpense } from "@/hooks/useExpenses";
+import { useMembers } from "@/hooks/useMembers";
 import { useAuth } from "@/context/AuthContext";
-import { parsePHPAmount, equalSplit } from "@template/shared";
-import type { GroupMember } from "@template/supabase";
-import { supabase } from "@/lib/supabase";
+import { AmountInput, ChipGroup, SegmentedControl, AppButton } from "@/components/ui";
+import { AppTextInput } from "@/components/ui/TextInput";
+import { formatCents, parsePHPAmount, parseExpenseText, fuzzyMatchMember } from "@template/shared";
+import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
-export default function AddExpenseScreen(): React.ReactElement {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { session } = useAuth();
+type Mode = "quick" | "chat" | "detailed";
+
+export default function AddExpenseScreen() {
+  const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { session } = useAuth();
 
-  const [members, setMembers] = useState<GroupMember[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(true);
+  const membersQ = useMembers(groupId);
+  const members = membersQ.data ?? [];
+  const addExpense = useAddExpense(groupId);
+
+  const [mode, setMode] = useState<Mode>("quick");
+
+  // Quick mode state
   const [itemName, setItemName] = useState("");
-  const [amountStr, setAmountStr] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(() => new Set(members.map((m) => m.id)));
+  const [payerMemberId, setPayerMemberId] = useState<string>("");
 
-  const fetchMembers = useCallback(async () => {
-    if (!id) return;
-    const { data, error } = await supabase
-      .schema("settleup")
-      .from("group_members")
-      .select("*")
-      .eq("group_id", id)
-      .order("created_at");
-    if (error) Alert.alert("Error", error.message);
-    else {
-      const list = data ?? [];
-      setMembers(list);
-      setSelectedIds(list.map((m) => m.id));
-    }
-    setLoadingMembers(false);
-  }, [id]);
+  // Chat mode state
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [draftItem, setDraftItem] = useState("");
+  const [draftAmount, setDraftAmount] = useState("");
+  const [draftMembers, setDraftMembers] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    void fetchMembers();
-  }, [fetchMembers]);
+  // Initialize payer to first member that matches user
+  const myMember = members.find((m) => m.user_id === session?.user.id) ?? members[0];
+  const effectivePayerId = payerMemberId || myMember?.id || "";
 
-  function toggleMember(memberId: string) {
-    setSelectedIds((prev) =>
-      prev.includes(memberId) ? prev.filter((x) => x !== memberId) : [...prev, memberId],
-    );
+  function toggleMember(id: string) {
+    setSelectedMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
-  async function handleSave() {
-    const amountCents = parsePHPAmount(amountStr);
-    if (!itemName.trim()) {
-      Alert.alert("Validation", "Enter an item name.");
-      return;
-    }
-    if (!amountCents || amountCents <= 0) {
-      Alert.alert("Validation", "Enter a valid amount.");
-      return;
-    }
-    if (selectedIds.length === 0) {
-      Alert.alert("Validation", "Select at least one participant.");
-      return;
-    }
-    if (!session) return;
-
-    setSaving(true);
-
-    const { data: expense, error: expenseError } = await supabase
-      .schema("settleup")
-      .from("expenses")
-      .insert({ group_id: id!, item_name: itemName.trim(), amount_cents: amountCents })
-      .select()
-      .single();
-
-    if (expenseError || !expense) {
-      Alert.alert("Error", expenseError?.message ?? "Failed to add expense.");
-      setSaving(false);
+  async function handleQuickSave() {
+    const amountCents = parsePHPAmount(amount) ?? 0;
+    if (!itemName.trim() || amountCents <= 0 || selectedMembers.size === 0 || !effectivePayerId) {
+      Alert.alert("Missing info", "Please fill in item name, amount, and select at least one member.");
       return;
     }
 
-    const sortedIds = [...selectedIds].sort();
-    const shares = equalSplit(amountCents, sortedIds.length);
-    const participantRows = sortedIds.map((member_id, i) => ({
-      expense_id: expense.id,
-      member_id,
-      share_cents: shares[i]!,
-    }));
+    const result = await addExpense.mutateAsync({
+      groupId,
+      itemName: itemName.trim(),
+      amountCents,
+      memberIds: [...selectedMembers],
+      payerMemberId: effectivePayerId,
+      createdByUserId: session?.user.id ?? "",
+    });
 
-    const { error: participantError } = await supabase
-      .schema("settleup")
-      .from("expense_participants")
-      .insert(participantRows);
-
-    if (participantError) {
-      Alert.alert("Error", participantError.message);
-      setSaving(false);
+    if (result.error) {
+      Alert.alert("Error", result.error);
       return;
     }
 
-    setSaving(false);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   }
 
+  function handleChatSend() {
+    if (!chatInput.trim()) return;
+
+    const userMsg = chatInput.trim();
+    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setChatInput("");
+
+    // Parse with heuristics
+    const draft = parseExpenseText(userMsg);
+    // fuzzyMatchMember returns member IDs
+    const matchedMemberIds = draft.participantNames
+      .map((n) => fuzzyMatchMember(n, members))
+      .filter(Boolean) as string[];
+    const matchedNames = matchedMemberIds
+      .map((id) => members.find((m) => m.id === id)?.display_name)
+      .filter(Boolean) as string[];
+
+    if (draft.itemName || (draft.amountCents ?? 0) > 0) {
+      setDraftItem(draft.itemName);
+      setDraftAmount((draft.amountCents ?? 0) > 0 ? String((draft.amountCents ?? 0) / 100) : "");
+      setDraftMembers(new Set(matchedMemberIds.length > 0 ? matchedMemberIds : members.map((m) => m.id)));
+
+      const reply = `Got it! "${draft.itemName}" for ${formatCents(draft.amountCents ?? 0)}${matchedNames.length > 0 ? ` split with ${matchedNames.join(", ")}` : " split equally"}. Confirm to save.`;
+      setChatMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+    } else {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "I couldn't parse that. Try: \"Lunch 500 split Manolo, Ana\"" }]);
+    }
+  }
+
+  async function handleChatSave() {
+    const amountCents = parsePHPAmount(draftAmount) ?? 0;
+    if (!draftItem || amountCents <= 0) {
+      Alert.alert("Missing info", "Could not extract expense details. Please fill in manually.");
+      return;
+    }
+
+    const memberIds = draftMembers.size > 0 ? [...draftMembers] : members.map((m) => m.id);
+
+    const result = await addExpense.mutateAsync({
+      groupId,
+      itemName: draftItem,
+      amountCents,
+      memberIds,
+      payerMemberId: effectivePayerId,
+      createdByUserId: session!.user.id,
+    });
+
+    if (result.error) { Alert.alert("Error", result.error); return; }
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.back();
+  }
+
+  const memberChips = members.map((m) => ({ id: m.id, label: m.display_name }));
+
   return (
     <>
-      <Stack.Screen options={{ title: "Add Expense" }} />
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.field}>
-          <Text style={styles.label}>Item name</Text>
-          <TextInput
-            style={styles.input}
-            value={itemName}
-            onChangeText={setItemName}
-            placeholder="e.g. Wahunori"
+      <Stack.Screen options={{ title: "Add Expense", headerShown: true }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <SegmentedControl
+            segments={[
+              { value: "quick" as Mode, label: "Quick" },
+              { value: "chat" as Mode, label: "Chat" },
+              { value: "detailed" as Mode, label: "Detailed" },
+            ]}
+            value={mode}
+            onChange={setMode}
           />
-        </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Amount (₱)</Text>
-          <TextInput
-            style={styles.input}
-            value={amountStr}
-            onChangeText={setAmountStr}
-            placeholder="e.g. 8703.39"
-            keyboardType="decimal-pad"
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Split between</Text>
-          {loadingMembers ? (
-            <ActivityIndicator />
-          ) : (
-            <View style={styles.chips}>
-              {members.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  onPress={() => toggleMember(m.id)}
-                  style={[styles.chip, selectedIds.includes(m.id) && styles.chipSelected]}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selectedIds.includes(m.id) && styles.chipTextSelected,
-                    ]}
-                  >
-                    {m.display_name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {mode === "quick" && (
+            <View style={styles.form}>
+              <AppTextInput
+                label="Item Name"
+                value={itemName}
+                onChangeText={setItemName}
+                placeholder="e.g. Lunch, Grab, Hotel"
+              />
+              <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <ChipGroup
+                label="Split with"
+                chips={memberChips}
+                selected={selectedMembers}
+                onToggle={toggleMember}
+              />
+              <View>
+                <Text style={styles.label}>Paid by</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                  {members.map((m) => (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]}
+                      onPress={() => setPayerMemberId(m.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>
+                        {m.display_name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              <AppButton
+                title={addExpense.isPending ? "Saving…" : "Save Expense"}
+                onPress={handleQuickSave}
+                isLoading={addExpense.isPending}
+                disabled={!itemName.trim() || !amount || addExpense.isPending}
+              />
             </View>
           )}
-        </View>
 
-        <TouchableOpacity
-          style={[styles.btn, styles.primary, saving && styles.disabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Text style={styles.primaryText}>{saving ? "Saving…" : "Add Expense"}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {mode === "chat" && (
+            <View style={styles.form}>
+              <View style={styles.chatHistory}>
+                {chatMessages.length === 0 && (
+                  <Text style={styles.chatHint}>Try: "Lunch 500 split with Manolo and Ana"</Text>
+                )}
+                {chatMessages.map((msg, i) => (
+                  <View key={i} style={[styles.chatBubble, msg.role === "user" ? styles.chatUser : styles.chatAssistant]}>
+                    <Text style={[styles.chatText, msg.role === "user" && styles.chatTextUser]}>{msg.content}</Text>
+                  </View>
+                ))}
+              </View>
+              {draftItem ? (
+                <View style={styles.draftCard}>
+                  <Text style={styles.draftTitle}>DRAFT</Text>
+                  <Text style={styles.draftItem}>{draftItem}</Text>
+                  <Text style={styles.draftAmount}>{draftAmount ? `\u20B1${draftAmount}` : "\u2014"}</Text>
+                  <AppButton title="Confirm & Save" onPress={handleChatSave} isLoading={addExpense.isPending} />
+                </View>
+              ) : null}
+              <View style={styles.chatInputRow}>
+                <View style={styles.chatTextInput}>
+                  <AppTextInput
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    placeholder="Describe the expense…"
+                    onSubmitEditing={handleChatSend}
+                    returnKeyType="send"
+                  />
+                </View>
+                <TouchableOpacity style={styles.sendBtn} onPress={handleChatSend}>
+                  <Text style={styles.sendBtnText}>{"\u2192"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {mode === "detailed" && (
+            <View style={styles.form}>
+              <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
+              <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <ChipGroup label="Split with" chips={memberChips} selected={selectedMembers} onToggle={toggleMember} />
+              <View>
+                <Text style={styles.label}>Paid by</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                  {members.map((m) => (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]}
+                      onPress={() => setPayerMemberId(m.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>
+                        {m.display_name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              <AppButton
+                title={addExpense.isPending ? "Saving…" : "Save Expense"}
+                onPress={handleQuickSave}
+                isLoading={addExpense.isPending}
+                disabled={!itemName.trim() || !amount || addExpense.isPending}
+              />
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  content: { padding: 16, gap: 20, paddingBottom: 40 },
-  field: { gap: 8 },
-  label: { fontSize: 13, fontWeight: "600", color: "#374151" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: "#111827",
-    backgroundColor: "#fff",
-  },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 99,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    backgroundColor: "#fff",
-  },
-  chipSelected: { backgroundColor: "#6366f1", borderColor: "#6366f1" },
-  chipText: { fontSize: 13, fontWeight: "500", color: "#374151" },
-  chipTextSelected: { color: "#fff" },
-  btn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  primary: { backgroundColor: "#6366f1" },
-  primaryText: { color: "#fff", fontWeight: "600", fontSize: 15 },
-  disabled: { opacity: 0.6 },
+  scroll: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.base, paddingBottom: spacing["2xl"], gap: spacing.base },
+  form: { gap: spacing.md, marginTop: spacing.base },
+  label: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700, marginBottom: spacing.xs },
+
+  payerRow: { gap: spacing.sm, paddingVertical: spacing.xs },
+  payerChip: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, backgroundColor: colors.gray100, borderWidth: 1, borderColor: colors.border },
+  payerChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  payerChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray600 },
+  payerChipTextActive: { color: colors.primary, fontWeight: fontWeight.semibold },
+
+  chatHistory: { minHeight: 120, gap: spacing.sm },
+  chatHint: { fontSize: fontSize.sm, color: colors.gray400, fontStyle: "italic", textAlign: "center", paddingVertical: spacing.xl },
+  chatBubble: { borderRadius: borderRadius.md, padding: spacing.md, maxWidth: "85%" },
+  chatUser: { backgroundColor: colors.primary, alignSelf: "flex-end" },
+  chatAssistant: { backgroundColor: colors.gray100, alignSelf: "flex-start" },
+  chatText: { fontSize: fontSize.sm, color: colors.gray800, lineHeight: 20 },
+  chatTextUser: { color: colors.white },
+
+  draftCard: { backgroundColor: colors.surface, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
+  draftTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.5 },
+  draftItem: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
+  draftAmount: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.primary },
+
+  chatInputRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-end" },
+  chatTextInput: { flex: 1 },
+  sendBtn: { width: 48, height: 48, backgroundColor: colors.primary, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
+  sendBtnText: { color: colors.white, fontSize: fontSize.xl, fontWeight: fontWeight.bold },
 });

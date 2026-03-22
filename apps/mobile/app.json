@@ -1,28 +1,28 @@
 {
   "expo": {
-    "name": "Prototype Template",
-    "slug": "prototype-template",
+    "name": "SettleUp Lite",
+    "slug": "settleup-lite",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "myapp",
+    "scheme": "settleup",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.prototypetemplate"
+      "bundleIdentifier": "com.settleuplite.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#6366f1"
       },
-      "package": "com.example.prototypetemplate"
+      "package": "com.settleuplite.app"
     },
     "web": {
       "bundler": "metro",
@@ -35,12 +35,13 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash-icon.png",
+          "image": "./assets/splash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-image-picker"
     ],
     "experiments": {
       "typedRoutes": true

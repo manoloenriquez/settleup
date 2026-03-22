@@ -56,21 +56,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // -------------------------------------------------------------------------
 
   const loadProfile = useCallback((userId: string) => {
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single()
-      .then(({ data }) => {
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
         setProfile(data ?? null);
-      })
-      .catch(() => setProfile(null))
-      .finally(() => {
+      } catch {
+        setProfile(null);
+      } finally {
         if (!initialised.current) {
           setLoading(false);
           initialised.current = true;
         }
-      });
+      }
+    })();
   }, []);
 
   // -------------------------------------------------------------------------

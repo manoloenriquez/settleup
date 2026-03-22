@@ -105,6 +105,13 @@ export default function LoginScreen() {
             </Pressable>
           </Link>
         </View>
+        <View style={styles.footer}>
+          <Link href="/(auth)/forgot-password" asChild>
+            <Pressable>
+              <Text style={styles.link}>Forgot password?</Text>
+            </Pressable>
+          </Link>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

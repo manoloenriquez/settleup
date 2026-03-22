@@ -2,12 +2,13 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { queryClient } from "@/lib/queryClient";
 
 // ---------------------------------------------------------------------------
 // RouteGuard
-// Watches session + loading state and performs segment-based redirects.
-// Must be rendered inside <AuthProvider>.
 // ---------------------------------------------------------------------------
 
 function RouteGuard() {
@@ -16,17 +17,15 @@ function RouteGuard() {
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return; // Wait until auth is initialised
+    if (loading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
     const inProtectedGroup = segments[0] === "(protected)";
 
     if (!session && !inAuthGroup) {
-      // Not signed in — push to login
       router.replace("/(auth)/login");
     } else if (session && !inProtectedGroup) {
-      // Signed in — push to home
-      router.replace("/(protected)/home");
+      router.replace("/(protected)/(tabs)/dashboard");
     }
   }, [session, loading, segments, router]);
 
@@ -34,13 +33,12 @@ function RouteGuard() {
 }
 
 // ---------------------------------------------------------------------------
-// Root stack navigator
+// Root stack
 // ---------------------------------------------------------------------------
 
 function RootStack() {
   const { loading } = useAuth();
 
-  // Show a full-screen spinner while the session is being restored from SecureStore.
   if (loading) {
     return (
       <View style={styles.splash}>
@@ -51,7 +49,6 @@ function RootStack() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {/* index is the initial route — only shown for a frame before redirect */}
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(protected)" />
@@ -60,16 +57,20 @@ function RootStack() {
 }
 
 // ---------------------------------------------------------------------------
-// Root layout — exported default
+// Root layout
 // ---------------------------------------------------------------------------
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <StatusBar style="auto" />
-      <RouteGuard />
-      <RootStack />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <StatusBar style="auto" />
+          <RouteGuard />
+          <RootStack />
+        </AuthProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -8,11 +8,6 @@ export default function ProtectedLayout() {
         headerTintColor: "#111827",
         headerTitleStyle: { fontWeight: "700", fontSize: 17 },
         headerShadowVisible: false,
-        // Thin separator under the header
-        headerBackgroundContainerStyle: {
-          borderBottomWidth: 1,
-          borderBottomColor: "#e5e7eb",
-        },
       }}
     />
   );
