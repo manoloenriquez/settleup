@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
+import { signInWithGoogle } from "@/lib/google-auth";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -20,6 +21,18 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function handleGoogleSignIn(): Promise<void> {
+    setError(null);
+    setGoogleLoading(true);
+    const result = await signInWithGoogle();
+    if (result.error) {
+      setError(result.error);
+      setGoogleLoading(false);
+    }
+    // On success: onAuthStateChange fires → RouteGuard navigates to home.
+  }
 
   async function handleSignIn() {
     if (!email.trim() || !password) {
@@ -93,6 +106,19 @@ export default function LoginScreen() {
             onPress={handleSignIn}
             isLoading={loading}
             style={styles.submitBtn}
+          />
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <AppButton
+            title="Continue with Google"
+            onPress={handleGoogleSignIn}
+            isLoading={googleLoading}
+            variant="secondary"
           />
         </View>
 
@@ -169,6 +195,21 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 24,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e5e7eb",
+  },
+  dividerText: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginHorizontal: 12,
   },
   footer: {
     flexDirection: "row",

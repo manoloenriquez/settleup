@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { APP_NAME, ROUTES } from "@template/shared";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import Link from "next/link";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export function LoginForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
@@ -87,6 +88,17 @@ export function LoginForm(): React.ReactElement {
       <Button type="submit" isLoading={pending} leftIcon={LogIn} className="w-full" size="lg">
         Sign in
       </Button>
+
+      <div className="relative my-1">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-white px-2 text-slate-400">or</span>
+        </div>
+      </div>
+
+      <GoogleSignInButton />
     </form>
   );
 }

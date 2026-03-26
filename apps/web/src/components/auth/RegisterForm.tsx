@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
 import { Eye, EyeOff, UserPlus, Mail } from "lucide-react";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 function ConfirmEmailState(): React.ReactElement {
   return (
@@ -101,6 +102,17 @@ export function RegisterForm(): React.ReactElement {
       <Button type="submit" isLoading={pending} leftIcon={UserPlus} className="w-full" size="lg">
         Create account
       </Button>
+
+      <div className="relative my-1">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-white px-2 text-slate-400">or</span>
+        </div>
+      </div>
+
+      <GoogleSignInButton label="Sign up with Google" />
     </form>
   );
 }
