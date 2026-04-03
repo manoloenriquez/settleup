@@ -54,18 +54,7 @@ export async function getGroupInsights(
       payer_names: (e.expense_payers ?? []).map((p) => memberMap.get(p.member_id) ?? "Unknown"),
     }));
 
-    // Fetch balance data
-    const { data: balances } = await db.rpc("get_member_balances", {
-      p_group_id: parsed.data,
-    });
-
-    const balanceRows = (balances ?? []) as unknown as { display_name: string; net_cents: number }[];
-    const memberData = balanceRows.map((b) => ({
-      display_name: b.display_name,
-      net_cents: b.net_cents,
-    }));
-
-    const insights = computeInsights(expenseData, memberData);
+    const insights = computeInsights(expenseData);
 
     // Optional LLM summary
     const llmSummary = await generateInsightsSummary(insights, group.name, user.id);

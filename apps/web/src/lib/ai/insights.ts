@@ -1,6 +1,6 @@
 import type { InsightsSummary } from "@template/shared/types";
+import { llmSummarySchema } from "@template/shared/schemas";
 import { generateJSON, isLLMEnabled } from "./index";
-import { z } from "zod";
 
 type ExpenseData = {
   item_name: string;
@@ -9,17 +9,11 @@ type ExpenseData = {
   payer_names: string[];
 };
 
-type MemberData = {
-  display_name: string;
-  net_cents: number;
-};
-
 /**
  * Compute deterministic aggregate insights from expense & member data.
  */
 export function computeInsights(
   expenses: ExpenseData[],
-  _members: MemberData[],
 ): Omit<InsightsSummary, "llm_summary"> {
   const totalExpenses = expenses.length;
   const totalAmountCents = expenses.reduce((sum, e) => sum + e.amount_cents, 0);
@@ -68,10 +62,6 @@ export function computeInsights(
     period,
   };
 }
-
-const llmSummarySchema = z.object({
-  summary: z.string(),
-});
 
 /**
  * Generate an optional LLM narrative summary of the group insights.

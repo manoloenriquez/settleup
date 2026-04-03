@@ -32,7 +32,11 @@ Rules:
 - share_cents must sum to exactly the total amount
 - All amounts are integer cents
 - If you're not confident about a custom split, default to equal
-- Consider the context hint to decide splits (e.g. "Manolo had 2 drinks, others had 1" → proportional)`,
+- Consider the context hint to decide splits. Examples:
+  - "Manolo had 2 drinks, others had 1" → proportional (Manolo gets 2x share)
+  - "Ana and Bob didn't eat, only paid for drinks" → exclude them from food line items
+  - "Split 60/40 between Manolo and Yao" → percentage-based split
+  - "Manolo pays a fixed ₱200, rest split equally" → subtract fixed amount then equal split`,
       prompt: `Expense: "${item_name}" for ${amount_cents} cents
 Members: ${member_names.join(", ")}
 Context: ${context ?? "none"}`,

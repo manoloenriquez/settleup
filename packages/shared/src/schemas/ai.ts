@@ -50,6 +50,10 @@ export const conversationMessageSchema = z.object({
   content: z.string().min(1),
 });
 
+export const llmSummarySchema = z.object({
+  summary: z.string(),
+});
+
 export const insightsSummarySchema = z.object({
   total_expenses: z.number().int().nonnegative(),
   total_amount_cents: z.number().int(),
@@ -77,3 +81,4 @@ export type SplitSuggestionInput = z.infer<typeof splitSuggestionSchema>;
 export type SmartSplitResultInput = z.infer<typeof smartSplitResultSchema>;
 export type ConversationMessageInput = z.infer<typeof conversationMessageSchema>;
 export type InsightsSummaryInput = z.infer<typeof insightsSummarySchema>;
+export type LlmSummaryInput = z.infer<typeof llmSummarySchema>;

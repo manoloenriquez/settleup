@@ -18,6 +18,7 @@ export function createOllamaProvider(): LLMProvider {
         }
         const res = await fetch(`${BASE_URL}/api/generate`, {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
           headers,
           body: JSON.stringify({
             model: MODEL,
@@ -46,6 +47,9 @@ export function createOllamaProvider(): LLMProvider {
 
         return { data: { text: json.response }, error: null };
       } catch (e) {
+        if (e instanceof Error && e.name === "TimeoutError") {
+          return { data: null, error: "Ollama request timed out after 30s" };
+        }
         const msg = e instanceof Error ? e.message : "Unknown Ollama error";
         return { data: null, error: `Ollama connection failed: ${msg}` };
       }

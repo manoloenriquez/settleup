@@ -1,6 +1,7 @@
 "use server";
 
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { createClient } from "@/lib/supabase/server";
 import { parseReceiptImage } from "@/lib/ai/receipt";
 import { suggestSplit } from "@/lib/ai/smart-split";
 import { parseConversation } from "@/lib/ai/conversation";
@@ -9,6 +10,18 @@ import { conversationMessageSchema } from "@template/shared/schemas";
 import type { ApiResponse } from "@template/shared/types";
 import type { ParsedReceipt, SmartSplitResult, ExpenseDraft } from "@template/shared/types";
 import { z } from "zod";
+
+async function assertGroupMember(userId: string, groupId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .schema("settleup")
+    .from("group_members")
+    .select("id")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data !== null;
+}
 
 // ---------------------------------------------------------------------------
 // Receipt parsing
@@ -67,6 +80,11 @@ export async function getSmartSplit(
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
 
+    const isMember = await assertGroupMember(user.id, parsed.data.group_id);
+    if (!isMember) {
+      return { data: null, error: "You are not a member of this group." };
+    }
+
     return await suggestSplit({
       item_name: parsed.data.item_name,
       amount_cents: parsed.data.amount_cents,
@@ -99,6 +117,11 @@ export async function parseConversationMessage(
     const parsed = conversationInputSchema.safeParse(input);
     if (!parsed.success) {
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
+    const isMember = await assertGroupMember(user.id, parsed.data.group_id);
+    if (!isMember) {
+      return { data: null, error: "You are not a member of this group." };
     }
 
     return await parseConversation({

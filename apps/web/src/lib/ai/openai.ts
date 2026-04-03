@@ -14,6 +14,7 @@ export function createOpenAIProvider(): LLMProvider {
       try {
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${apiKey}`,
@@ -47,6 +48,9 @@ export function createOpenAIProvider(): LLMProvider {
 
         return { data: { text }, error: null };
       } catch (e) {
+        if (e instanceof Error && e.name === "TimeoutError") {
+          return { data: null, error: "OpenAI request timed out after 30s" };
+        }
         const msg = e instanceof Error ? e.message : "Unknown OpenAI error";
         return { data: null, error: `OpenAI request failed: ${msg}` };
       }

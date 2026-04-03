@@ -1,11 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { computeInsights } from "../insights";
 
-const noMembers = [] as { display_name: string; net_cents: number }[];
-
 describe("computeInsights", () => {
   it("returns all zeros/nulls for empty expenses", () => {
-    const result = computeInsights([], noMembers);
+    const result = computeInsights([]);
     expect(result.total_expenses).toBe(0);
     expect(result.total_amount_cents).toBe(0);
     expect(result.average_expense_cents).toBe(0);
@@ -17,7 +15,6 @@ describe("computeInsights", () => {
   it("handles single expense, single payer", () => {
     const result = computeInsights(
       [{ item_name: "Lunch", amount_cents: 50000, created_at: "2026-01-01", payer_names: ["Alice"] }],
-      noMembers,
     );
     expect(result.total_expenses).toBe(1);
     expect(result.total_amount_cents).toBe(50000);
@@ -32,7 +29,6 @@ describe("computeInsights", () => {
         { item_name: "B", amount_cents: 30000, created_at: "2026-01-02", payer_names: ["Alice"] },
         { item_name: "C", amount_cents: 5000, created_at: "2026-01-03", payer_names: ["Bob"] },
       ],
-      noMembers,
     );
     expect(result.top_spender?.name).toBe("Alice");
     expect(result.top_spender?.amount_cents).toBe(30000);
@@ -41,7 +37,6 @@ describe("computeInsights", () => {
   it("credits each payer with full expense amount on multi-payer expense", () => {
     const result = computeInsights(
       [{ item_name: "Dinner", amount_cents: 20000, created_at: "2026-01-01", payer_names: ["A", "B"] }],
-      noMembers,
     );
     // Both are credited 20000; whichever comes first in map iteration wins
     expect(result.top_spender?.amount_cents).toBe(20000);
@@ -53,7 +48,6 @@ describe("computeInsights", () => {
         { item_name: "Lunch", amount_cents: 100, created_at: "2026-01-01", payer_names: ["A"] },
         { item_name: "Dinner", amount_cents: 100, created_at: "2026-01-02", payer_names: ["A"] },
       ],
-      noMembers,
     );
     expect(result.most_common_item).toBeNull();
   });
@@ -64,7 +58,6 @@ describe("computeInsights", () => {
         { item_name: "Lunch", amount_cents: 100, created_at: "2026-01-01", payer_names: ["A"] },
         { item_name: "lunch", amount_cents: 100, created_at: "2026-01-02", payer_names: ["A"] },
       ],
-      noMembers,
     );
     expect(result.most_common_item?.name).toBe("lunch");
     expect(result.most_common_item?.count).toBe(2);
@@ -79,7 +72,6 @@ describe("computeInsights", () => {
         { item_name: "Dinner", amount_cents: 100, created_at: "2026-01-04", payer_names: ["A"] },
         { item_name: "Dinner", amount_cents: 100, created_at: "2026-01-05", payer_names: ["A"] },
       ],
-      noMembers,
     );
     expect(result.most_common_item?.name).toBe("lunch");
     expect(result.most_common_item?.count).toBe(3);
@@ -92,7 +84,6 @@ describe("computeInsights", () => {
         { item_name: "B", amount_cents: 100, created_at: "2026-01-15", payer_names: ["A"] },
         { item_name: "C", amount_cents: 100, created_at: "2026-06-20", payer_names: ["A"] },
       ],
-      noMembers,
     );
     expect(result.period?.first_expense).toBe("2026-01-15");
     expect(result.period?.last_expense).toBe("2026-06-20");
@@ -101,7 +92,6 @@ describe("computeInsights", () => {
   it("period.first === last for a single expense", () => {
     const result = computeInsights(
       [{ item_name: "A", amount_cents: 100, created_at: "2026-05-10", payer_names: ["A"] }],
-      noMembers,
     );
     expect(result.period?.first_expense).toBe("2026-05-10");
     expect(result.period?.last_expense).toBe("2026-05-10");
@@ -114,7 +104,6 @@ describe("computeInsights", () => {
         { item_name: "B", amount_cents: 870339, created_at: "2026-01-02", payer_names: ["A"] },
         { item_name: "C", amount_cents: 870339, created_at: "2026-01-03", payer_names: ["A"] },
       ],
-      noMembers,
     );
     expect(result.average_expense_cents).toBe(870339);
     expect(result.total_amount_cents).toBe(2611017);
