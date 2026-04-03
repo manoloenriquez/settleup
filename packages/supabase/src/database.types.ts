@@ -75,9 +75,45 @@ export type Database = {
           },
         ];
       };
+      ai_rate_limits: {
+        Row: {
+          user_id: string;
+          window_started_at: string;
+          request_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          window_started_at?: string;
+          request_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          window_started_at?: string;
+          request_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ai_rate_limits_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      consume_ai_rate_limit: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       is_admin: {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
@@ -521,6 +557,10 @@ export type ProfileUpdate = TablesUpdate<"profiles">;
 export type Waitlist = Tables<"waitlist">;
 export type WaitlistInsert = TablesInsert<"waitlist">;
 export type WaitlistUpdate = TablesUpdate<"waitlist">;
+
+export type AiRateLimit = Tables<"ai_rate_limits">;
+export type AiRateLimitInsert = TablesInsert<"ai_rate_limits">;
+export type AiRateLimitUpdate = TablesUpdate<"ai_rate_limits">;
 
 export type UserRole = Enums<"user_role">;
 

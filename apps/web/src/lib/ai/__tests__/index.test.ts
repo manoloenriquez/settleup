@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { isLLMEnabled, generateJSON } from "../index";
+import { createMemoryRateLimitBackend, setRateLimitBackendForTests } from "../rate-limit";
 import { z } from "zod";
 
 describe("isLLMEnabled", () => {
@@ -30,8 +31,13 @@ describe("generateJSON", () => {
   const schema = z.object({ value: z.string() });
   const opts = { system: "sys", prompt: "prompt", schema, userId: "test-gen" };
 
+  beforeEach(() => {
+    setRateLimitBackendForTests(createMemoryRateLimitBackend());
+  });
+
   afterEach(() => {
     delete process.env.LLM_ENABLED;
+    setRateLimitBackendForTests(null);
   });
 
   it("returns error when LLM is disabled", async () => {
@@ -50,7 +56,7 @@ describe("generateJSON", () => {
     // Import checkRateLimit and exhaust it first, then call generateJSON.
     const { checkRateLimit } = await import("../rate-limit");
     const userId = "index-test-ratelimit-user";
-    for (let i = 0; i < 10; i++) checkRateLimit(userId);
+    for (let i = 0; i < 10; i++) await checkRateLimit(userId);
     const result = await generateJSON({ ...opts, userId });
     expect(result.error).toMatch(/Rate limited/);
     expect(result.data).toBeNull();
@@ -60,7 +66,7 @@ describe("generateJSON", () => {
     process.env.LLM_ENABLED = "true";
     const { checkRateLimit } = await import("../rate-limit");
     const userId = "index-test-ratelimit-user-2";
-    for (let i = 0; i < 10; i++) checkRateLimit(userId);
+    for (let i = 0; i < 10; i++) await checkRateLimit(userId);
     const result = await generateJSON({ ...opts, userId });
     expect(result.error).toMatch(/\d+s/);
   });

@@ -5,7 +5,11 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { createGroupSchema } from "@template/shared";
 import type { ApiResponse, GroupWithStats } from "@template/shared";
-import type { Group } from "@template/supabase";
+import {
+  parseCreateGroupRpcResult,
+  parseGroupsWithStatsRpcResult,
+  type Group,
+} from "@template/supabase";
 import { z } from "zod";
 
 const groupIdSchema = z.string().uuid("Invalid group ID.");
@@ -27,17 +31,17 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data: result, error } = await db.rpc("create_group_with_owner" as never, {
+    const { data: result, error } = await db.rpc("create_group_with_owner", {
       p_name: parsed.data.name,
-    } as never);
+    });
 
     if (error) return { data: null, error: "Failed to create group." };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const group = (result as any)?.group as Group;
-    if (!group) return { data: null, error: "Failed to create group." };
+    const groupResult = parseCreateGroupRpcResult(result);
+    if (groupResult.error) return { data: null, error: groupResult.error };
+    if (groupResult.data === null) return { data: null, error: "Failed to create group." };
 
-    redirect(`/groups/${group.id}`);
+    redirect(`/groups/${groupResult.data.id}`);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     if (isNextInternalError(e)) throw e;
@@ -95,8 +99,10 @@ export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[
 
     if (error) return { data: null, error: "Failed to load groups." };
 
-    const rows = (data ?? []) as unknown as GroupWithStats[];
-    return { data: rows, error: null };
+    const parsedResult = parseGroupsWithStatsRpcResult(data);
+    if (parsedResult.error) return { data: null, error: parsedResult.error };
+
+    return parsedResult;
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };

@@ -19,7 +19,7 @@ export async function generateJSON<T>(opts: {
     return { data: null, error: "LLM features are disabled" };
   }
 
-  const rateCheck = checkRateLimit(opts.userId);
+  const rateCheck = await checkRateLimit(opts.userId);
   if (!rateCheck.allowed) {
     return {
       data: null,

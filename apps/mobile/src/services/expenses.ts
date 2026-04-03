@@ -1,6 +1,12 @@
 import { supabase } from "@/lib/supabase";
 import type { ApiResponse } from "@template/shared";
-import type { Expense } from "@template/supabase";
+import {
+  buildCustomExpenseRpcInput,
+  buildEqualExpenseRpcInput,
+  buildItemizedExpenseRpcInput,
+  parseCreateExpenseRpcResult,
+  type Expense,
+} from "@template/supabase";
 
 export async function addExpense(params: {
   groupId: string;
@@ -16,25 +22,19 @@ export async function addExpense(params: {
 
   const { data: result, error } = await supabase
     .schema("settleup")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .rpc("create_expense" as any, {
-      p_input: {
-        group_id: params.groupId,
-        item_name: params.itemName.trim(),
-        amount_cents: params.amountCents,
-        split_mode: "equal",
-        participant_ids: [...params.memberIds].sort(),
-        payers: [{ member_id: params.payerMemberId, paid_cents: params.amountCents }],
-      },
+    .rpc("create_expense", {
+      p_input: buildEqualExpenseRpcInput({
+        groupId: params.groupId,
+        itemName: params.itemName,
+        amountCents: params.amountCents,
+        participantIds: params.memberIds,
+        payers: [{ memberId: params.payerMemberId, paidCents: params.amountCents }],
+      }),
     });
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const expense = (result as any)?.expense as Expense;
-  if (!expense) return { data: null, error: "Failed to add expense" };
-
-  return { data: expense, error: null };
+  return parseCreateExpenseRpcResult(result);
 }
 
 export async function addExpenseCustomSplit(params: {
@@ -60,31 +60,19 @@ export async function addExpenseCustomSplit(params: {
 
   const { data: result, error } = await supabase
     .schema("settleup")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .rpc("create_expense" as any, {
-      p_input: {
-        group_id: params.groupId,
-        item_name: params.itemName.trim(),
-        amount_cents: params.amountCents,
-        split_mode: "custom",
-        custom_splits: params.customSplits.map((s) => ({
-          member_id: s.memberId,
-          share_cents: s.shareCents,
-        })),
-        payers: params.payers.map((p) => ({
-          member_id: p.memberId,
-          paid_cents: p.paidCents,
-        })),
-      },
+    .rpc("create_expense", {
+      p_input: buildCustomExpenseRpcInput({
+        groupId: params.groupId,
+        itemName: params.itemName,
+        amountCents: params.amountCents,
+        customSplits: params.customSplits,
+        payers: params.payers,
+      }),
     });
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const expense = (result as any)?.expense as Expense;
-  if (!expense) return { data: null, error: "Failed to add expense" };
-
-  return { data: expense, error: null };
+  return parseCreateExpenseRpcResult(result);
 }
 
 export async function addItemizedExpense(params: {
@@ -100,31 +88,19 @@ export async function addItemizedExpense(params: {
 
   const { data: result, error } = await supabase
     .schema("settleup")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .rpc("create_itemized_expense" as any, {
-      p_input: {
-        group_id: params.groupId,
-        item_name: params.expenseName.trim(),
-        amount_cents: params.amountCents,
-        payers: params.payers.map((p) => ({
-          member_id: p.memberId,
-          paid_cents: p.paidCents,
-        })),
-        line_items: params.lineItems.map((li) => ({
-          name: li.name,
-          amount_cents: li.amountCents,
-          participant_ids: [...li.participantIds].sort(),
-        })),
-      },
+    .rpc("create_itemized_expense", {
+      p_input: buildItemizedExpenseRpcInput({
+        groupId: params.groupId,
+        itemName: params.expenseName,
+        amountCents: params.amountCents,
+        payers: params.payers,
+        lineItems: params.lineItems,
+      }),
     });
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const expense = (result as any)?.expense as Expense;
-  if (!expense) return { data: null, error: "Failed to add expense" };
-
-  return { data: expense, error: null };
+  return parseCreateExpenseRpcResult(result);
 }
 
 export async function listExpenses(groupId: string): Promise<ApiResponse<Expense[]>> {

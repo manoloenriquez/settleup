@@ -12,8 +12,6 @@ import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-// Derive web app origin from Supabase project URL or fall back to env
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
 export default function GroupSettingsScreen() {

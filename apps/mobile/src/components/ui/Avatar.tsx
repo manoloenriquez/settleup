@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, fontSize, fontWeight } from "@/theme";
+import { colors, fontWeight } from "@/theme";
 import { getAvatarColor } from "@/theme";
 
 type AvatarProps = {

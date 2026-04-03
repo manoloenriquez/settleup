@@ -1,6 +1,10 @@
 import { supabase } from "@/lib/supabase";
 import type { ApiResponse, GroupWithStats } from "@template/shared";
-import type { Group } from "@template/supabase";
+import {
+  parseCreateGroupRpcResult,
+  parseGroupsWithStatsRpcResult,
+  type Group,
+} from "@template/supabase";
 
 export async function createGroup(name: string): Promise<ApiResponse<Group>> {
   if (!name.trim()) return { data: null, error: "Group name is required" };
@@ -8,16 +12,11 @@ export async function createGroup(name: string): Promise<ApiResponse<Group>> {
 
   const { data: result, error } = await supabase
     .schema("settleup")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .rpc("create_group_with_owner" as any, { p_name: name.trim() });
+    .rpc("create_group_with_owner", { p_name: name.trim() });
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const group = (result as any)?.group as Group;
-  if (!group) return { data: null, error: "Failed to create group" };
-
-  return { data: group, error: null };
+  return parseCreateGroupRpcResult(result);
 }
 
 export async function listGroups(): Promise<ApiResponse<Group[]>> {
@@ -35,8 +34,7 @@ export async function listGroups(): Promise<ApiResponse<Group[]>> {
 export async function listGroupsWithStats(_userId?: string): Promise<ApiResponse<GroupWithStats[]>> {
   const { data, error } = await supabase
     .schema("settleup")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .rpc("get_groups_with_stats" as any);
+    .rpc("get_groups_with_stats");
 
   if (error) {
     // Fallback: plain groups list
@@ -52,7 +50,10 @@ export async function listGroupsWithStats(_userId?: string): Promise<ApiResponse
       error: null,
     };
   }
-  return { data: (data as unknown as GroupWithStats[]) ?? [], error: null };
+  const parsed = parseGroupsWithStatsRpcResult(data);
+  if (parsed.error) return { data: null, error: parsed.error };
+
+  return parsed;
 }
 
 export async function deleteGroup(groupId: string): Promise<ApiResponse<null>> {

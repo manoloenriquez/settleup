@@ -191,9 +191,9 @@ BEGIN
   IF v_split_mode = 'equal' THEN
     -- Collect participant IDs, sort for deterministic remainder distribution
     SELECT ARRAY(
-      SELECT (val->>'')::UUID
-      FROM jsonb_array_elements_text(p_input->'participant_ids') AS val
-      ORDER BY val
+      SELECT participant_id::UUID
+      FROM jsonb_array_elements_text(p_input->'participant_ids') AS participant_id
+      ORDER BY participant_id
     ) INTO v_member_ids;
 
     IF array_length(v_member_ids, 1) IS NULL OR array_length(v_member_ids, 1) = 0 THEN
@@ -347,9 +347,9 @@ BEGIN
 
     -- Compute equal split for line item participants
     SELECT ARRAY(
-      SELECT (val->>'')::UUID
-      FROM jsonb_array_elements_text(v_line_item->'participant_ids') AS val
-      ORDER BY val
+      SELECT participant_id::UUID
+      FROM jsonb_array_elements_text(v_line_item->'participant_ids') AS participant_id
+      ORDER BY participant_id
     ) INTO v_member_ids;
 
     IF array_length(v_member_ids, 1) IS NULL OR array_length(v_member_ids, 1) = 0 THEN

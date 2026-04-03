@@ -9,7 +9,7 @@ import { SkeletonCard } from "@/components/ui";
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useDashboardSummary();
+  const { data: summary, refetch: refetchSummary } = useDashboardSummary();
   const { data: groups, isLoading: loadingGroups, refetch: refetchGroups } = useGroupsWithStats();
 
   const isRefreshing = false;

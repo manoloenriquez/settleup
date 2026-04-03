@@ -24,6 +24,10 @@ export default function JoinGroupScreen() {
       Alert.alert("Could not join", result.error);
       return;
     }
+    if (!result.data) {
+      Alert.alert("Could not join", "Group data was not returned.");
+      return;
+    }
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const groupId = result.data.group.id;

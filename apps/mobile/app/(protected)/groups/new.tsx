@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { useCreateGroup } from "@/hooks/useGroups";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function NewGroupScreen() {
   const router = useRouter();
@@ -22,7 +22,12 @@ export default function NewGroupScreen() {
     }
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace(`/(protected)/groups/${result.data!.id}`);
+    if (!result.data) {
+      Alert.alert("Error", "Group data was not returned.");
+      return;
+    }
+
+    router.replace(`/(protected)/groups/${result.data.id}`);
   }
 
   return (

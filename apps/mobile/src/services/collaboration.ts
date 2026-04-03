@@ -1,6 +1,13 @@
 import { supabase } from "@/lib/supabase";
 import type { ApiResponse } from "@template/shared";
-import type { Group, GroupMember } from "@template/supabase";
+import {
+  parseClaimMemberRpcResult,
+  parseInviteCodeRpcResult,
+  parseJoinGroupRpcResult,
+  parseShareTokenRpcResult,
+  type Group,
+  type GroupMember,
+} from "@template/supabase";
 
 export async function joinGroupByInvite(
   inviteCode: string,
@@ -13,15 +20,7 @@ export async function joinGroupByInvite(
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const res = result as any;
-  if (res?.error) return { data: null, error: res.error };
-
-  const group = res?.group as Group;
-  const member = res?.member as GroupMember;
-  if (!group || !member) return { data: null, error: "Failed to join group" };
-
-  return { data: { group, member }, error: null };
+  return parseJoinGroupRpcResult(result);
 }
 
 export async function claimMember(
@@ -33,11 +32,7 @@ export async function claimMember(
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const res = result as any;
-  if (res?.error) return { data: null, error: res.error };
-
-  return { data: { member: res?.member as GroupMember }, error: null };
+  return parseClaimMemberRpcResult(result);
 }
 
 export async function rotateShareToken(
@@ -49,9 +44,7 @@ export async function rotateShareToken(
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const token = (result as any)?.share_token as string;
-  return { data: { share_token: token }, error: null };
+  return parseShareTokenRpcResult(result);
 }
 
 export async function regenerateInviteCode(
@@ -63,7 +56,5 @@ export async function regenerateInviteCode(
 
   if (error) return { data: null, error: error.message };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const code = (result as any)?.invite_code as string;
-  return { data: { invite_code: code }, error: null };
+  return parseInviteCodeRpcResult(result);
 }

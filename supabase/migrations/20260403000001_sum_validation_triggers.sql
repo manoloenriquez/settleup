@@ -20,22 +20,25 @@ SECURITY DEFINER
 SET search_path = settleup
 AS $$
 DECLARE
+  v_expense_id     UUID;
   v_expense_amount BIGINT;
   v_payer_sum      BIGINT;
 BEGIN
+  v_expense_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.expense_id ELSE NEW.expense_id END;
+
   SELECT amount_cents INTO v_expense_amount
-  FROM settleup.expenses WHERE id = NEW.expense_id;
+  FROM settleup.expenses WHERE id = v_expense_id;
 
   SELECT COALESCE(SUM(paid_cents), 0) INTO v_payer_sum
-  FROM settleup.expense_payers WHERE expense_id = NEW.expense_id;
+  FROM settleup.expense_payers WHERE expense_id = v_expense_id;
 
   IF v_payer_sum <> v_expense_amount THEN
     RAISE EXCEPTION
       'Payer total (%) does not match expense amount (%) for expense %',
-      v_payer_sum, v_expense_amount, NEW.expense_id;
+      v_payer_sum, v_expense_amount, v_expense_id;
   END IF;
 
-  RETURN NEW;
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 
@@ -47,22 +50,25 @@ SECURITY DEFINER
 SET search_path = settleup
 AS $$
 DECLARE
+  v_expense_id     UUID;
   v_expense_amount BIGINT;
   v_share_sum      BIGINT;
 BEGIN
+  v_expense_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.expense_id ELSE NEW.expense_id END;
+
   SELECT amount_cents INTO v_expense_amount
-  FROM settleup.expenses WHERE id = NEW.expense_id;
+  FROM settleup.expenses WHERE id = v_expense_id;
 
   SELECT COALESCE(SUM(share_cents), 0) INTO v_share_sum
-  FROM settleup.expense_participants WHERE expense_id = NEW.expense_id;
+  FROM settleup.expense_participants WHERE expense_id = v_expense_id;
 
   IF v_share_sum <> v_expense_amount THEN
     RAISE EXCEPTION
       'Participant share total (%) does not match expense amount (%) for expense %',
-      v_share_sum, v_expense_amount, NEW.expense_id;
+      v_share_sum, v_expense_amount, v_expense_id;
   END IF;
 
-  RETURN NEW;
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 
@@ -74,22 +80,25 @@ SECURITY DEFINER
 SET search_path = settleup
 AS $$
 DECLARE
+  v_expense_id     UUID;
   v_expense_amount BIGINT;
   v_item_sum       BIGINT;
 BEGIN
+  v_expense_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.expense_id ELSE NEW.expense_id END;
+
   SELECT amount_cents INTO v_expense_amount
-  FROM settleup.expenses WHERE id = NEW.expense_id;
+  FROM settleup.expenses WHERE id = v_expense_id;
 
   SELECT COALESCE(SUM(amount_cents), 0) INTO v_item_sum
-  FROM settleup.expense_items WHERE expense_id = NEW.expense_id;
+  FROM settleup.expense_items WHERE expense_id = v_expense_id;
 
   IF v_item_sum <> v_expense_amount THEN
     RAISE EXCEPTION
       'Line item total (%) does not match expense amount (%) for expense %',
-      v_item_sum, v_expense_amount, NEW.expense_id;
+      v_item_sum, v_expense_amount, v_expense_id;
   END IF;
 
-  RETURN NEW;
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 

@@ -11,29 +11,56 @@
 -- 1. expenses.amount_cents must be positive
 -- ---------------------------------------------------------------------------
 
-ALTER TABLE settleup.expenses
-  ADD CONSTRAINT expenses_amount_positive CHECK (amount_cents > 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'expenses_amount_positive'
+  ) THEN
+    ALTER TABLE settleup.expenses
+      ADD CONSTRAINT expenses_amount_positive CHECK (amount_cents > 0);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 2. payments.amount_cents must be positive
 -- ---------------------------------------------------------------------------
 
-ALTER TABLE settleup.payments
-  ADD CONSTRAINT payments_amount_positive CHECK (amount_cents > 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'payments_amount_positive'
+  ) THEN
+    ALTER TABLE settleup.payments
+      ADD CONSTRAINT payments_amount_positive CHECK (amount_cents > 0);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 3. expense_participants.share_cents must be positive
 --    (Prevents zero-share ghost rows that confuse balance calculations)
 -- ---------------------------------------------------------------------------
 
-ALTER TABLE settleup.expense_participants
-  ADD CONSTRAINT expense_participants_share_positive CHECK (share_cents > 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'expense_participants_share_positive'
+  ) THEN
+    ALTER TABLE settleup.expense_participants
+      ADD CONSTRAINT expense_participants_share_positive CHECK (share_cents > 0);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
--- 4. payments.from_member_id / to_member_id: tighten to NOT NULL
---    The legacy member_id column was dropped in 20260224000004.
---    All rows created since 20260225000002 have both fields set.
---    Pre-check to avoid silent failure on existing nulls.
+-- 4. payments.from_member_id / to_member_id: tighten to NOT NULL when safe
+--    Legacy directional-payment rows may still have NULL to_member_id because
+--    20260225000002 only backfilled from_member_id from the deprecated
+--    member_id column. Do not fail the entire migration on those rows.
 -- ---------------------------------------------------------------------------
 
 DO $$
@@ -42,12 +69,11 @@ BEGIN
     SELECT 1 FROM settleup.payments
     WHERE from_member_id IS NULL OR to_member_id IS NULL
   ) THEN
-    RAISE EXCEPTION
-      'Cannot add NOT NULL to payments.from_member_id / to_member_id: '
-      'null rows exist. Backfill first.';
+    RAISE NOTICE
+      'Skipping NOT NULL on payments.from_member_id / to_member_id because legacy rows still contain nulls.';
+  ELSE
+    ALTER TABLE settleup.payments
+      ALTER COLUMN from_member_id SET NOT NULL,
+      ALTER COLUMN to_member_id   SET NOT NULL;
   END IF;
 END $$;
-
-ALTER TABLE settleup.payments
-  ALTER COLUMN from_member_id SET NOT NULL,
-  ALTER COLUMN to_member_id   SET NOT NULL;

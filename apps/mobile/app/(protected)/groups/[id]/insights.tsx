@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getGroupInsights } from "@/services/insights";
 import { formatCents } from "@template/shared";
 import { Card, SectionHeader, SkeletonCard } from "@/components/ui";
-import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function InsightsScreen() {
   const { id: groupId } = useLocalSearchParams<{ id: string }>();

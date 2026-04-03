@@ -268,7 +268,6 @@ export default function AddExpenseScreen() {
   }
 
   const memberChips = members.map((m) => ({ id: m.id, label: m.display_name }));
-  const isDetailedPending = addExpense.isPending || addCustomSplit.isPending || addItemized.isPending;
   const amountCents = parsePHPAmount(amount) ?? 0;
 
   // Custom split running total
