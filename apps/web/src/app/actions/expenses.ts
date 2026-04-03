@@ -3,7 +3,7 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import { addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema, equalSplit } from "@template/shared";
+import { addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Expense, ExpenseItem, ExpenseItemParticipant, ExpenseParticipant, ExpensePayer } from "@template/supabase";
 import { z } from "zod";
@@ -18,7 +18,7 @@ export type ExpenseWithParticipants = Expense & {
 
 export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> {
   try {
-    const user = await assertAuth();
+    await assertAuth();
 
     const parsed = addExpenseSchema.safeParse(input);
     if (!parsed.success) {
@@ -30,49 +30,23 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    // Insert expense
-    const { data: expense, error: expenseError } = await db
-      .from("expenses")
-      .insert({ group_id, item_name, amount_cents, notes, created_by_user_id: user.id })
-      .select()
-      .single();
+    const { data: result, error } = await db.rpc("create_expense" as never, {
+      p_input: {
+        group_id,
+        item_name,
+        amount_cents,
+        notes,
+        split_mode: "equal",
+        participant_ids: [...participant_ids].sort(),
+        payers,
+      },
+    } as never);
 
-    if (expenseError || !expense) {
-      return { data: null, error: "Failed to add expense." };
-    }
+    if (error) return { data: null, error: "Failed to add expense." };
 
-    // Sort participant IDs for deterministic remainder distribution
-    const sortedIds = [...participant_ids].sort();
-    const shares = equalSplit(amount_cents, sortedIds.length);
-
-    const participantRows = sortedIds.map((member_id, i) => ({
-      expense_id: expense.id,
-      member_id,
-      share_cents: shares[i]!,
-    }));
-
-    const { error: participantError } = await db
-      .from("expense_participants")
-      .insert(participantRows);
-
-    if (participantError) {
-      return { data: null, error: "Failed to add expense participants." };
-    }
-
-    // Insert expense payers
-    const payerRows = payers.map((p) => ({
-      expense_id: expense.id,
-      member_id: p.member_id,
-      paid_cents: p.paid_cents,
-    }));
-
-    const { error: payerError } = await db
-      .from("expense_payers")
-      .insert(payerRows);
-
-    if (payerError) {
-      return { data: null, error: "Failed to add expense payers." };
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const expense = (result as any)?.expense as Expense;
+    if (!expense) return { data: null, error: "Failed to add expense." };
 
     return { data: expense, error: null };
   } catch (e) {
@@ -83,7 +57,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
 
 export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expense[]>> {
   try {
-    const user = await assertAuth();
+    await assertAuth();
 
     const parsed = addExpensesBatchSchema.safeParse(input);
     if (!parsed.success) {
@@ -96,57 +70,40 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
     const inserted: Expense[] = [];
 
     for (const item of items) {
-      const { data: expense, error: expenseError } = await db
-        .from("expenses")
-        .insert({ group_id, item_name: item.item_name, amount_cents: item.amount_cents, notes: item.notes, created_by_user_id: user.id })
-        .select()
-        .single();
-
-      if (expenseError || !expense) {
-        return { data: null, error: "Failed to add expense." };
-      }
-
-      let participantRows: { expense_id: string; member_id: string; share_cents: number }[];
+      let rpcInput: Record<string, unknown>;
 
       if (item.split_mode === "equal") {
         const sortedIds = [...item.participant_ids].sort();
-        const shares = equalSplit(item.amount_cents, sortedIds.length);
-        participantRows = sortedIds.map((member_id, i) => ({
-          expense_id: expense.id,
-          member_id,
-          share_cents: shares[i]!,
-        }));
+        rpcInput = {
+          group_id,
+          item_name: item.item_name,
+          amount_cents: item.amount_cents,
+          notes: item.notes,
+          split_mode: "equal",
+          participant_ids: sortedIds,
+          payers: item.payers,
+        };
       } else {
-        // custom — validated by schema to sum correctly
-        participantRows = (item.custom_splits ?? []).map((s) => ({
-          expense_id: expense.id,
-          member_id: s.member_id,
-          share_cents: s.share_cents,
-        }));
+        rpcInput = {
+          group_id,
+          item_name: item.item_name,
+          amount_cents: item.amount_cents,
+          notes: item.notes,
+          split_mode: "custom",
+          custom_splits: item.custom_splits,
+          payers: item.payers,
+        };
       }
 
-      const { error: participantError } = await db
-        .from("expense_participants")
-        .insert(participantRows);
+      const { data: result, error } = await db.rpc("create_expense" as never, {
+        p_input: rpcInput,
+      } as never);
 
-      if (participantError) {
-        return { data: null, error: "Failed to add expense participants." };
-      }
+      if (error) return { data: null, error: "Failed to add expense." };
 
-      // Insert expense payers
-      const payerRows = item.payers.map((p) => ({
-        expense_id: expense.id,
-        member_id: p.member_id,
-        paid_cents: p.paid_cents,
-      }));
-
-      const { error: payerError } = await db
-        .from("expense_payers")
-        .insert(payerRows);
-
-      if (payerError) {
-        return { data: null, error: "Failed to add expense payers." };
-      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const expense = (result as any)?.expense as Expense;
+      if (!expense) return { data: null, error: "Failed to add expense." };
 
       inserted.push(expense);
     }
@@ -160,7 +117,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
 
 export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Expense>> {
   try {
-    const user = await assertAuth();
+    await assertAuth();
 
     const parsed = addItemizedExpenseSchema.safeParse(input);
     if (!parsed.success) {
@@ -172,81 +129,26 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    // Insert expense
-    const { data: expense, error: expenseError } = await db
-      .from("expenses")
-      .insert({ group_id, item_name, amount_cents, notes, created_by_user_id: user.id })
-      .select()
-      .single();
+    const { data: result, error } = await db.rpc("create_itemized_expense" as never, {
+      p_input: {
+        group_id,
+        item_name,
+        amount_cents,
+        notes,
+        payers,
+        line_items: line_items.map((li) => ({
+          name: li.name,
+          amount_cents: li.amount_cents,
+          participant_ids: [...li.participant_ids].sort(),
+        })),
+      },
+    } as never);
 
-    if (expenseError || !expense) {
-      return { data: null, error: "Failed to add expense." };
-    }
+    if (error) return { data: null, error: "Failed to add itemized expense." };
 
-    // Insert line items and their participants; accumulate rollup per member
-    const memberShareMap = new Map<string, number>();
-
-    for (const li of line_items) {
-      const { data: itemRow, error: itemError } = await db
-        .from("expense_items")
-        .insert({ expense_id: expense.id, name: li.name, amount_cents: li.amount_cents })
-        .select()
-        .single();
-
-      if (itemError || !itemRow) {
-        return { data: null, error: "Failed to add line item." };
-      }
-
-      const sortedIds = [...li.participant_ids].sort();
-      const shares = equalSplit(li.amount_cents, sortedIds.length);
-
-      const itemParticipantRows = sortedIds.map((member_id, i) => ({
-        item_id: itemRow.id,
-        member_id,
-        share_cents: shares[i]!,
-      }));
-
-      const { error: itemPartError } = await db
-        .from("expense_item_participants")
-        .insert(itemParticipantRows);
-
-      if (itemPartError) {
-        return { data: null, error: "Failed to add item participants." };
-      }
-
-      // Accumulate into rollup map
-      for (const { member_id, share_cents } of itemParticipantRows) {
-        memberShareMap.set(member_id, (memberShareMap.get(member_id) ?? 0) + share_cents);
-      }
-    }
-
-    // Rollup into expense_participants
-    const participantRows = Array.from(memberShareMap.entries()).map(([member_id, share_cents]) => ({
-      expense_id: expense.id,
-      member_id,
-      share_cents,
-    }));
-
-    const { error: participantError } = await db
-      .from("expense_participants")
-      .insert(participantRows);
-
-    if (participantError) {
-      return { data: null, error: "Failed to add expense participants." };
-    }
-
-    // Insert payers
-    const payerRows = payers.map((p) => ({
-      expense_id: expense.id,
-      member_id: p.member_id,
-      paid_cents: p.paid_cents,
-    }));
-
-    const { error: payerError } = await db.from("expense_payers").insert(payerRows);
-
-    if (payerError) {
-      return { data: null, error: "Failed to add expense payers." };
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const expense = (result as any)?.expense as Expense;
+    if (!expense) return { data: null, error: "Failed to add itemized expense." };
 
     return { data: expense, error: null };
   } catch (e) {

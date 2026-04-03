@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { aggregateBalances } from "@/lib/dashboard-utils";
 import type { ApiResponse } from "@template/shared";
 
 export type DashboardSummary = {
@@ -19,25 +20,25 @@ export async function getDashboardSummary(userId: string): Promise<ApiResponse<D
 
   if (groupsErr) return { data: null, error: groupsErr.message };
 
-  const summary: DashboardSummary = {
-    total_groups: (groups ?? []).length,
-    total_owed_cents: 0,
-    total_receivable_cents: 0,
-    net_cents: 0,
-  };
+  const allBalances: { net_cents: number }[] = [];
 
-  // Aggregate balances across all groups
   for (const g of groups ?? []) {
     const { data: rawBalances } = await supabase
       .schema("settleup")
       .rpc("get_member_balances", { p_group_id: g.id });
 
-    for (const b of (rawBalances as unknown as { net_cents: number }[]) ?? []) {
-      if (b.net_cents > 0) summary.total_receivable_cents += b.net_cents;
-      else summary.total_owed_cents += Math.abs(b.net_cents);
-    }
+    allBalances.push(...((rawBalances as unknown as { net_cents: number }[]) ?? []));
   }
 
-  summary.net_cents = summary.total_receivable_cents - summary.total_owed_cents;
-  return { data: summary, error: null };
+  const { total_owed_cents, total_receivable_cents, net_cents } = aggregateBalances(allBalances);
+
+  return {
+    data: {
+      total_groups: (groups ?? []).length,
+      total_owed_cents,
+      total_receivable_cents,
+      net_cents,
+    },
+    error: null,
+  };
 }

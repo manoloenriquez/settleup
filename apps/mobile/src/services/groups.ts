@@ -1,41 +1,21 @@
 import { supabase } from "@/lib/supabase";
-import { generateShareToken } from "@/lib/tokens";
-import { createGroupSchema, generateSlug } from "@template/shared";
 import type { ApiResponse, GroupWithStats } from "@template/shared";
 import type { Group } from "@template/supabase";
 
-export async function createGroup(name: string, userId: string): Promise<ApiResponse<Group>> {
-  const parsed = createGroupSchema.safeParse({ name });
-  if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+export async function createGroup(name: string): Promise<ApiResponse<Group>> {
+  if (!name.trim()) return { data: null, error: "Group name is required" };
+  if (name.trim().length > 100) return { data: null, error: "Group name must be at most 100 characters" };
 
-  // Insert group
-  const { data: group, error: groupErr } = await supabase
+  const { data: result, error } = await supabase
     .schema("settleup")
-    .from("groups")
-    .insert({ name: parsed.data.name, owner_user_id: userId })
-    .select()
-    .single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .rpc("create_group_with_owner" as any, { p_name: name.trim() });
 
-  if (groupErr || !group) return { data: null, error: groupErr?.message ?? "Failed to create group" };
+  if (error) return { data: null, error: error.message };
 
-  // Get owner display name
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", userId)
-    .single();
-
-  const ownerName = profile?.full_name ?? "Me";
-  const slug = generateSlug(ownerName, []);
-  const share_token = await generateShareToken();
-
-  // Auto-create owner as first member
-  const { error: memberErr } = await supabase
-    .schema("settleup")
-    .from("group_members")
-    .insert({ group_id: group.id, display_name: ownerName, slug, share_token, user_id: userId });
-
-  if (memberErr) return { data: null, error: memberErr.message };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const group = (result as any)?.group as Group;
+  if (!group) return { data: null, error: "Failed to create group" };
 
   return { data: group, error: null };
 }
@@ -52,7 +32,7 @@ export async function listGroups(): Promise<ApiResponse<Group[]>> {
   return { data: data ?? [], error: null };
 }
 
-export async function listGroupsWithStats(userId: string): Promise<ApiResponse<GroupWithStats[]>> {
+export async function listGroupsWithStats(_userId?: string): Promise<ApiResponse<GroupWithStats[]>> {
   const { data, error } = await supabase
     .schema("settleup")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

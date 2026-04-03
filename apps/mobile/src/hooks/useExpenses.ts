@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addExpense, deleteExpense, listExpenses } from "@/services/expenses";
+import { addExpense, addExpenseCustomSplit, addItemizedExpense, deleteExpense, listExpenses } from "@/services/expenses";
 
 type AddExpenseParams = {
   groupId: string;
@@ -8,6 +8,22 @@ type AddExpenseParams = {
   memberIds: string[];
   payerMemberId: string;
   createdByUserId: string;
+};
+
+type AddExpenseCustomSplitParams = {
+  groupId: string;
+  itemName: string;
+  amountCents: number;
+  customSplits: { memberId: string; shareCents: number }[];
+  payers: { memberId: string; paidCents: number }[];
+};
+
+type AddItemizedExpenseParams = {
+  groupId: string;
+  expenseName: string;
+  amountCents: number;
+  payers: { memberId: string; paidCents: number }[];
+  lineItems: { name: string; amountCents: number; participantIds: string[] }[];
 };
 
 export function useExpenses(groupId: string) {
@@ -19,28 +35,45 @@ export function useExpenses(groupId: string) {
   });
 }
 
-export function useAddExpense(groupId: string) {
+function useExpenseMutationInvalidations(groupId: string) {
   const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: ["expenses", groupId] });
+    void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+    void qc.invalidateQueries({ queryKey: ["activity", groupId] });
+    void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    void qc.invalidateQueries({ queryKey: ["groups"] });
+  };
+}
+
+export function useAddExpense(groupId: string) {
+  const invalidate = useExpenseMutationInvalidations(groupId);
   return useMutation({
     mutationFn: (params: AddExpenseParams) => addExpense(params),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["expenses", groupId] });
-      void qc.invalidateQueries({ queryKey: ["balances", groupId] });
-      void qc.invalidateQueries({ queryKey: ["activity", groupId] });
-      void qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useAddExpenseCustomSplit(groupId: string) {
+  const invalidate = useExpenseMutationInvalidations(groupId);
+  return useMutation({
+    mutationFn: (params: AddExpenseCustomSplitParams) => addExpenseCustomSplit(params),
+    onSuccess: invalidate,
+  });
+}
+
+export function useAddItemizedExpense(groupId: string) {
+  const invalidate = useExpenseMutationInvalidations(groupId);
+  return useMutation({
+    mutationFn: (params: AddItemizedExpenseParams) => addItemizedExpense(params),
+    onSuccess: invalidate,
   });
 }
 
 export function useDeleteExpense(groupId: string) {
-  const qc = useQueryClient();
+  const invalidate = useExpenseMutationInvalidations(groupId);
   return useMutation({
     mutationFn: (expenseId: string) => deleteExpense(expenseId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["expenses", groupId] });
-      void qc.invalidateQueries({ queryKey: ["balances", groupId] });
-      void qc.invalidateQueries({ queryKey: ["activity", groupId] });
-      void qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
+    onSuccess: invalidate,
   });
 }

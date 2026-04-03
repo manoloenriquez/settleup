@@ -46,12 +46,15 @@ export type SimplifiedDebt = {
   amount_cents: number;
 };
 
+export type MemberRole = "owner" | "member";
+
 export type MemberBalance = {
   member_id: string;
   display_name: string;
   slug: string;
   share_token: string;
   user_id: string | null;
+  role?: MemberRole;
   net_cents: number;
   owed_cents: number;
   is_paid: boolean;

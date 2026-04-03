@@ -75,6 +75,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
     slug: b.slug,
     share_token: b.share_token,
     user_id: b.user_id,
+    role: (b.role ?? "member") as "owner" | "member",
     group_id: groupId,
     created_at: "",
   }));

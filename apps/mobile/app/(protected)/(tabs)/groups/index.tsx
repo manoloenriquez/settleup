@@ -4,6 +4,7 @@ import { useGroupsWithStats } from "@/hooks/useGroups";
 import { formatCents } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { Badge, EmptyState, SkeletonCard } from "@/components/ui";
+import { Plus, Users } from "lucide-react-native";
 
 export default function GroupsScreen() {
   const router = useRouter();
@@ -16,12 +17,22 @@ export default function GroupsScreen() {
           title: "Groups",
           headerShown: true,
           headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.push("/(protected)/groups/new")}
-              style={styles.headerBtn}
-            >
-              <Text style={styles.headerBtnText}>+ New</Text>
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                onPress={() => router.push("/(protected)/join")}
+                style={styles.headerBtn}
+              >
+                <Users size={16} color={colors.primary} />
+                <Text style={styles.headerBtnText}>Join</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/(protected)/groups/new")}
+                style={styles.headerBtn}
+              >
+                <Plus size={16} color={colors.primary} />
+                <Text style={styles.headerBtnText}>New</Text>
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -90,7 +101,8 @@ const styles = StyleSheet.create({
   content: { padding: spacing.base, paddingBottom: spacing["2xl"] },
   list: { gap: spacing.sm },
 
-  headerBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  headerButtons: { flexDirection: "row", gap: spacing.base, alignItems: "center" },
+  headerBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   headerBtnText: { color: colors.primary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
 
   card: {

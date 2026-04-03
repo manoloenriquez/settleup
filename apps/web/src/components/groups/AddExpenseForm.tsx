@@ -67,6 +67,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
+  const [confirming, setConfirming] = useState(false);
   const router = useRouter();
 
   function updateItem(index: number, patch: Partial<ItemState>): void {
@@ -192,8 +193,13 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
 
   const allValid = items.every(isItemValid);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
+  function handleReview(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
+    setError(null);
+    setConfirming(true);
+  }
+
+  function handleConfirm(): void {
     setError(null);
 
     // Separate itemized from whole expenses
@@ -277,13 +283,72 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
 
       setItems([makeEmptyItem(allMemberIds, firstMemberId)]);
       setShowAdvanced({});
+      setConfirming(false);
       toast.success("Expense added!");
       router.refresh();
     });
   }
 
+  if (confirming) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+          <p className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Review</p>
+          {items.map((item, i) => {
+            const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+            const payerName = item.splitPayer
+              ? item.payers.filter((p) => p.memberId).map((p) => members.find((m) => m.id === p.memberId)?.display_name ?? p.memberId).join(", ")
+              : (members.find((m) => m.id === item.payers[0]?.memberId)?.display_name ?? "—");
+            return (
+              <div key={i} className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-900">{item.itemName}</span>
+                  <span className="font-semibold text-indigo-700">{formatCents(amountCents)}</span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Paid by <span className="font-medium text-slate-700">{payerName}</span>
+                  {item.expenseMode === "whole" && (
+                    <> · {item.splitMode === "equal" ? `Split equally ${item.selectedIds.length} ways` : "Custom split"}</>
+                  )}
+                  {item.expenseMode === "itemized" && (
+                    <> · {item.lineItems.length} line item{item.lineItems.length !== 1 ? "s" : ""}</>
+                  )}
+                </p>
+                {item.expenseMode === "itemized" && (
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {item.lineItems.map((li, j) => (
+                      <li key={j} className="text-xs text-slate-600 flex justify-between">
+                        <span>{li.name || `Item ${j + 1}`}</span>
+                        <span>{formatCents(parsePHPAmount(li.amountStr) ?? 0)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Back to Edit
+          </button>
+          <Button type="button" isLoading={isPending} disabled={isPending} onClick={handleConfirm} className="flex-1">
+            Confirm &amp; Add
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleReview} className="flex flex-col gap-4">
       {items.map((item, index) => {
         const amountCents = parsePHPAmount(item.amountStr) ?? 0;
         const customSum = getCustomSum(item);

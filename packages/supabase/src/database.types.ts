@@ -136,6 +136,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id: string | null;
+          role: "owner" | "member";
           created_at: string;
         };
         Insert: {
@@ -145,6 +146,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id?: string | null;
+          role?: "owner" | "member";
           created_at?: string;
         };
         Update: {
@@ -154,6 +156,7 @@ export type Database = {
           slug?: string;
           share_token?: string;
           user_id?: string | null;
+          role?: "owner" | "member";
           created_at?: string;
         };
         Relationships: [
@@ -341,8 +344,8 @@ export type Database = {
           group_id: string;
           amount_cents: number;
           status: string;
-          from_member_id: string | null;
-          to_member_id: string | null;
+          from_member_id: string;
+          to_member_id: string;
           created_by_user_id: string | null;
           created_at: string;
         };
@@ -351,8 +354,8 @@ export type Database = {
           group_id: string;
           amount_cents: number;
           status?: string;
-          from_member_id?: string | null;
-          to_member_id?: string | null;
+          from_member_id: string;
+          to_member_id: string;
           created_by_user_id?: string | null;
           created_at?: string;
         };
@@ -361,8 +364,8 @@ export type Database = {
           group_id?: string;
           amount_cents?: number;
           status?: string;
-          from_member_id?: string | null;
-          to_member_id?: string | null;
+          from_member_id?: string;
+          to_member_id?: string;
           created_by_user_id?: string | null;
           created_at?: string;
         };
@@ -442,6 +445,34 @@ export type Database = {
         Returns: Json;
       };
       get_member_balances: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      create_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      create_itemized_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      create_group_with_owner: {
+        Args: { p_name: string };
+        Returns: Json;
+      };
+      join_group_by_invite: {
+        Args: { p_invite_code: string };
+        Returns: Json;
+      };
+      claim_member: {
+        Args: { p_member_id: string };
+        Returns: Json;
+      };
+      rotate_member_share_token: {
+        Args: { p_member_id: string };
+        Returns: Json;
+      };
+      regenerate_invite_code: {
         Args: { p_group_id: string };
         Returns: Json;
       };

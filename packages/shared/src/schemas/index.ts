@@ -187,6 +187,14 @@ export const recordPaymentSchema = z
     path: ["to_member_id"],
   });
 
+export const joinGroupSchema = z.object({
+  invite_code: z.string().trim().min(1, "Invite code is required").max(20),
+});
+
+export const claimMemberSchema = z.object({
+  member_id: z.string().uuid("Invalid member ID"),
+});
+
 export const upsertPaymentProfileSchema = z.object({
   payer_display_name: z.string().optional(),
   gcash_name: z.string().optional(),
@@ -205,6 +213,8 @@ export type AddExpensesBatchInput = z.infer<typeof addExpensesBatchSchema>;
 export type AddItemizedExpenseInput = z.infer<typeof addItemizedExpenseSchema>;
 export type PayerInput = z.infer<typeof payerSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
+export type JoinGroupInput = z.infer<typeof joinGroupSchema>;
+export type ClaimMemberInput = z.infer<typeof claimMemberSchema>;
 export type UpsertPaymentProfileInput = z.infer<typeof upsertPaymentProfileSchema>;
 
 // ---------------------------------------------------------------------------

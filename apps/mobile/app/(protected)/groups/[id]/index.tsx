@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import { useMembersWithBalances } from "@/hooks/useBalances";
 import { useExpenses, useDeleteExpense } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
+import { useGroups } from "@/hooks/useGroups";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
@@ -11,6 +13,8 @@ import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { SegmentedControl, Card } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import type { SimplifiedDebt } from "@template/shared";
+
+const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
 type Tab = "balances" | "expenses" | "activity";
 
@@ -23,6 +27,18 @@ export default function GroupDetailScreen() {
   const expensesQ = useExpenses(id);
   const activityQ = useGroupActivity(id);
   const deleteExpense = useDeleteExpense(id);
+  const groupsQ = useGroups();
+  const group = (groupsQ.data ?? []).find((g) => g.id === id);
+
+  async function handleShareGroup() {
+    if (!group?.share_token || !WEB_ORIGIN) {
+      Alert.alert("Share not available", "Share link could not be generated.");
+      return;
+    }
+    const url = `${WEB_ORIGIN}/g/${group.share_token}`;
+    await Clipboard.setStringAsync(url);
+    Alert.alert("Copied", "Group overview link copied to clipboard");
+  }
 
   const isLoading = balancesQ.isLoading || expensesQ.isLoading;
   const isRefreshing = balancesQ.isFetching || expensesQ.isFetching || activityQ.isFetching;
@@ -54,6 +70,11 @@ export default function GroupDetailScreen() {
           title: "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
+              {WEB_ORIGIN ? (
+                <TouchableOpacity onPress={handleShareGroup} hitSlop={8}>
+                  <Text style={styles.headerIcon}>🔗</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity onPress={() => router.push(`/(protected)/groups/${id}/settings`)} hitSlop={8}>
                 <Text style={styles.headerIcon}>⚙️</Text>
               </TouchableOpacity>

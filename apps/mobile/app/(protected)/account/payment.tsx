@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Stack } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
@@ -72,7 +72,16 @@ export default function PaymentSettingsScreen() {
     }
   }
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Payment Settings", headerShown: true }} />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      </>
+    );
+  }
 
   return (
     <>

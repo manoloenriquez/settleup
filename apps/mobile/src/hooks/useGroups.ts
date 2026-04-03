@@ -6,17 +6,19 @@ export function useGroupsWithStats() {
   const { session } = useAuth();
   return useQuery({
     queryKey: ["groups"],
-    queryFn: () => listGroupsWithStats(session!.user.id),
+    queryFn: () => listGroupsWithStats(),
     enabled: !!session,
     select: (res) => res.data ?? [],
   });
 }
 
+// Alias for convenience (same data)
+export const useGroups = useGroupsWithStats;
+
 export function useCreateGroup() {
-  const { session } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => createGroup(name, session!.user.id),
+    mutationFn: (name: string) => createGroup(name),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["groups"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
