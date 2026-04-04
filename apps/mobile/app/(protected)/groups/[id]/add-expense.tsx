@@ -14,12 +14,18 @@ import * as Haptics from "expo-haptics";
 import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
 import { useMembers } from "@/hooks/useMembers";
 import { useAuth } from "@/context/AuthContext";
+import { useConversationAI } from "@/hooks/useConversationAI";
+import { useSmartSplit } from "@/hooks/useSmartSplit";
+import { useReceiptScan } from "@/hooks/useReceiptScan";
 import { AmountInput, ChipGroup, SegmentedControl, AppButton } from "@/components/ui";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { formatCents, parsePHPAmount, parseExpenseText, fuzzyMatchMember } from "@template/shared";
+import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
+import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
+import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
+import { formatCents, parsePHPAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
-type Mode = "quick" | "chat" | "detailed" | "itemized";
+type Mode = "quick" | "chat" | "receipt" | "detailed" | "itemized";
 type SplitMode = "equal" | "custom";
 type LineItem = { name: string; amountStr: string; participantIds: string[] };
 
@@ -33,6 +39,10 @@ export default function AddExpenseScreen() {
   const addExpense = useAddExpense(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
+  const conversationAI = useConversationAI({ groupId, members });
+  const smartSplit = useSmartSplit({ groupId });
+  const receiptScan = useReceiptScan();
+  const [showSmartSplit, setShowSmartSplit] = useState(false);
 
   const [mode, setMode] = useState<Mode>("quick");
 
@@ -162,28 +172,25 @@ export default function AddExpenseScreen() {
     router.back();
   }
 
-  function handleChatSend() {
-    if (!chatInput.trim()) return;
+  async function handleChatSend() {
+    if (!chatInput.trim() || conversationAI.isProcessing) return;
     const userMsg = chatInput.trim();
-    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setChatInput("");
 
-    const draft = parseExpenseText(userMsg);
-    const matchedMemberIds = draft.participantNames
-      .map((n) => fuzzyMatchMember(n, members))
-      .filter(Boolean) as string[];
-    const matchedNames = matchedMemberIds
-      .map((id) => members.find((m) => m.id === id)?.display_name)
-      .filter(Boolean) as string[];
+    await conversationAI.sendMessage(userMsg);
 
-    if (draft.itemName || (draft.amountCents ?? 0) > 0) {
-      setDraftItem(draft.itemName);
-      setDraftAmount((draft.amountCents ?? 0) > 0 ? String((draft.amountCents ?? 0) / 100) : "");
-      setDraftMembers(new Set(matchedMemberIds.length > 0 ? matchedMemberIds : members.map((m) => m.id)));
-      const reply = `Got it! "${draft.itemName}" for ${formatCents(draft.amountCents ?? 0)}${matchedNames.length > 0 ? ` split with ${matchedNames.join(", ")}` : " split equally"}. Confirm to save.`;
-      setChatMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } else {
-      setChatMessages((prev) => [...prev, { role: "assistant", content: "I couldn't parse that. Try: \"Lunch 500 split Manolo, Ana\"" }]);
+    // Sync AI draft into local form state
+    const aiDraft = conversationAI.draft;
+    if (aiDraft) {
+      setDraftItem(aiDraft.item_name);
+      setDraftAmount(aiDraft.amount_cents > 0 ? String(aiDraft.amount_cents / 100) : "");
+      // Match participant names to member IDs
+      const matchedIds = aiDraft.participant_names.length > 0
+        ? members
+            .filter((m) => aiDraft.participant_names.includes(m.display_name))
+            .map((m) => m.id)
+        : members.map((m) => m.id);
+      setDraftMembers(new Set(matchedIds));
     }
   }
 
@@ -345,11 +352,12 @@ export default function AddExpenseScreen() {
             segments={[
               { value: "quick" as Mode, label: "Quick" },
               { value: "chat" as Mode, label: "Chat" },
+              { value: "receipt" as Mode, label: "Receipt" },
               { value: "detailed" as Mode, label: "Detailed" },
               { value: "itemized" as Mode, label: "Itemized" },
             ]}
             value={mode}
-            onChange={setMode}
+            onChange={(m) => { setMode(m); if (m !== "chat") conversationAI.reset(); }}
           />
 
           {/* ---- QUICK MODE ---- */}
@@ -376,14 +384,19 @@ export default function AddExpenseScreen() {
           {mode === "chat" && (
             <View style={styles.form}>
               <View style={styles.chatHistory}>
-                {chatMessages.length === 0 && (
+                {conversationAI.messages.length === 0 && (
                   <Text style={styles.chatHint}>Try: "Lunch 500 split with Manolo and Ana"</Text>
                 )}
-                {chatMessages.map((msg, i) => (
+                {conversationAI.messages.map((msg, i) => (
                   <View key={i} style={[styles.chatBubble, msg.role === "user" ? styles.chatUser : styles.chatAssistant]}>
                     <Text style={[styles.chatText, msg.role === "user" && styles.chatTextUser]}>{msg.content}</Text>
                   </View>
                 ))}
+                {conversationAI.isProcessing && (
+                  <View style={[styles.chatBubble, styles.chatAssistant]}>
+                    <Text style={styles.chatText}>Thinking…</Text>
+                  </View>
+                )}
               </View>
               {draftItem ? (
                 <View style={styles.draftCard}>
@@ -395,12 +408,38 @@ export default function AddExpenseScreen() {
               ) : null}
               <View style={styles.chatInputRow}>
                 <View style={styles.chatTextInput}>
-                  <AppTextInput value={chatInput} onChangeText={setChatInput} placeholder="Describe the expense…" onSubmitEditing={handleChatSend} returnKeyType="send" />
+                  <AppTextInput value={chatInput} onChangeText={setChatInput} placeholder="Describe the expense…" onSubmitEditing={() => void handleChatSend()} returnKeyType="send" />
                 </View>
-                <TouchableOpacity style={styles.sendBtn} onPress={handleChatSend}>
+                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing}>
                   <Text style={styles.sendBtnText}>{"\u2192"}</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          )}
+
+          {/* ---- RECEIPT MODE ---- */}
+          {mode === "receipt" && (
+            <View style={styles.form}>
+              <ReceiptScanner
+                imageUri={receiptScan.imageUri}
+                isScanning={receiptScan.isScanning}
+                error={receiptScan.error}
+                onCamera={() => void receiptScan.scanFromCamera()}
+                onGallery={() => void receiptScan.scanFromGallery()}
+                onClear={receiptScan.clear}
+              />
+              {receiptScan.receipt && (
+                <ReceiptReviewCard
+                  receipt={receiptScan.receipt}
+                  onAccept={(name, cents) => {
+                    setItemName(name);
+                    setAmount(String(cents / 100));
+                    receiptScan.clear();
+                    setMode("detailed");
+                  }}
+                  onDismiss={receiptScan.clear}
+                />
+              )}
             </View>
           )}
 
@@ -537,6 +576,14 @@ export default function AddExpenseScreen() {
               {/* Custom split inputs */}
               {splitMode === "custom" && selectedMembers.size > 0 && (
                 <View style={styles.customSplitSection}>
+                  <TouchableOpacity
+                    style={styles.smartSplitBtn}
+                    onPress={() => setShowSmartSplit(true)}
+                    activeOpacity={0.7}
+                    disabled={!itemName.trim() || amountCents <= 0}
+                  >
+                    <Text style={styles.smartSplitBtnText}>✨ Smart Split</Text>
+                  </TouchableOpacity>
                   {[...selectedMembers].map((id) => {
                     const m = members.find((mem) => mem.id === id);
                     if (!m) return null;
@@ -598,6 +645,31 @@ export default function AddExpenseScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {showSmartSplit && (
+        <SmartSplitSheet
+          itemName={itemName}
+          amountCents={amountCents}
+          memberNames={[...selectedMembers].map((id) => members.find((m) => m.id === id)?.display_name ?? id)}
+          isLoading={smartSplit.isLoading}
+          result={smartSplit.result}
+          onSuggest={(context) => {
+            const memberNames = [...selectedMembers].map((id) => members.find((m) => m.id === id)?.display_name ?? id);
+            void smartSplit.suggest({ itemName, amountCents, memberNames, context });
+          }}
+          onApply={(result) => {
+            const newShares: Record<string, string> = {};
+            for (const s of result.suggestions) {
+              const member = members.find((m) => m.display_name === s.member_name);
+              if (member) newShares[member.id] = String(s.share_cents / 100);
+            }
+            setCustomShares(newShares);
+            setShowSmartSplit(false);
+            smartSplit.clear();
+          }}
+          onClose={() => { setShowSmartSplit(false); smartSplit.clear(); }}
+        />
+      )}
     </>
   );
 }
@@ -624,6 +696,8 @@ const styles = StyleSheet.create({
   multiPayerToggle: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.medium },
 
   customSplitSection: { gap: spacing.sm, backgroundColor: colors.gray50, borderRadius: borderRadius.md, padding: spacing.sm },
+  smartSplitBtn: { alignSelf: "flex-end", paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: borderRadius.full, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
+  smartSplitBtnText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
   customSplitRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   customSplitName: { flex: 1, fontSize: fontSize.sm, color: colors.gray700, fontWeight: fontWeight.medium },
   customSplitInput: { width: 120 },

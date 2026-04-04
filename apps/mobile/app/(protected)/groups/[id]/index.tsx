@@ -6,12 +6,14 @@ import { useMembersWithBalances } from "@/hooks/useBalances";
 import { useExpenses, useDeleteExpense } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
+import { useUndoLastPayment } from "@/hooks/usePayments";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { SegmentedControl, Card } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { simplifyDebts, formatCents } from "@template/shared";
 import type { SimplifiedDebt } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
@@ -27,6 +29,7 @@ export default function GroupDetailScreen() {
   const expensesQ = useExpenses(id);
   const activityQ = useGroupActivity(id);
   const deleteExpense = useDeleteExpense(id);
+  const undoPayment = useUndoLastPayment(id);
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
 
@@ -38,6 +41,43 @@ export default function GroupDetailScreen() {
     const url = `${WEB_ORIGIN}/g/${group.share_token}`;
     await Clipboard.setStringAsync(url);
     Alert.alert("Copied", "Group overview link copied to clipboard");
+  }
+
+  async function handleCopyGroupSummary() {
+    const members = balancesQ.data ?? [];
+    if (members.length === 0) {
+      Alert.alert("No data", "No balance data to copy.");
+      return;
+    }
+    const debts = simplifyDebts(members);
+    if (debts.length === 0) {
+      await Clipboard.setStringAsync("All settled up! 🎉");
+      Alert.alert("Copied", "Group summary copied to clipboard");
+      return;
+    }
+    const lines = debts.map((d) => `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`);
+    const text = `${group?.name ?? "Group"} Balances:\n${lines.join("\n")}`;
+    await Clipboard.setStringAsync(text);
+    Alert.alert("Copied", "Group summary copied to clipboard");
+  }
+
+  function handleUndoPayment() {
+    Alert.alert(
+      "Undo Last Payment",
+      "This will delete the most recent payment recorded for this group. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Undo",
+          style: "destructive",
+          onPress: () => {
+            undoPayment.mutate(undefined, {
+              onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to undo payment"),
+            });
+          },
+        },
+      ],
+    );
   }
 
   const isLoading = balancesQ.isLoading || expensesQ.isLoading;
@@ -67,9 +107,15 @@ export default function GroupDetailScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Group",
+          title: group?.name ?? "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
+              <TouchableOpacity onPress={handleCopyGroupSummary} hitSlop={8}>
+                <Text style={styles.headerIcon}>📋</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleUndoPayment} hitSlop={8}>
+                <Text style={styles.headerIcon}>↩️</Text>
+              </TouchableOpacity>
               {WEB_ORIGIN ? (
                 <TouchableOpacity onPress={handleShareGroup} hitSlop={8}>
                   <Text style={styles.headerIcon}>🔗</Text>
@@ -109,7 +155,7 @@ export default function GroupDetailScreen() {
             <Card padding={0}>
               {(balancesQ.data ?? []).map((m, i) => (
                 <View key={m.member_id}>
-                  <MemberRow member={m} />
+                  <MemberRow member={m} webOrigin={WEB_ORIGIN || undefined} />
                   {i < (balancesQ.data ?? []).length - 1 && <View style={styles.divider} />}
                 </View>
               ))}

@@ -67,7 +67,7 @@ export default function AccountScreen() {
             subtitle="Update your name"
             left={<Text style={styles.rowEmoji}>✏️</Text>}
             showChevron
-            onPress={() => {}}
+            onPress={() => router.push("/(protected)/account/edit-profile")}
           />
         </Card>
 
