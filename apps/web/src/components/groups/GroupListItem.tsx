@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
-import { deleteGroup } from "@/app/actions/groups";
+import { archiveGroup } from "@/app/actions/groups";
 import { formatCents } from "@template/shared";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog } from "@/components/ui/Dialog";
-import { Users, Trash2 } from "lucide-react";
+import { Users, Archive } from "lucide-react";
 import type { GroupWithStats } from "@template/shared";
 
 type Props = {
@@ -36,13 +36,13 @@ export function GroupListItem({ group }: Props): React.ReactElement {
 
   function handleDelete(): void {
     startTransition(async () => {
-      const result = await deleteGroup(group.id);
+      const result = await archiveGroup(group.id);
       if (result.error) {
         toast.error(result.error);
         setShowDelete(false);
         return;
       }
-      toast.success(`"${group.name}" deleted`);
+      toast.success(`"${group.name}" archived`);
       setShowDelete(false);
       router.refresh();
     });
@@ -57,15 +57,15 @@ export function GroupListItem({ group }: Props): React.ReactElement {
   return (
     <>
       <div
-        className={`flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:border-slate-300 transition-all${isPending ? " opacity-50" : ""}`}
+        className={`flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 hover:border-brand-200 hover:shadow-md transition-all${isPending ? " opacity-50" : ""}`}
       >
-        <div className="rounded-lg bg-indigo-50 p-2 shrink-0">
-          <Users size={16} className="text-indigo-600" />
+        <div className="rounded-xl bg-brand-50 p-2.5 shrink-0">
+          <Users size={16} className="text-brand-600" />
         </div>
         <Link href={`/groups/${group.id}`} className="min-w-0 flex-1">
-          <p className="truncate font-medium text-slate-900">{group.name}</p>
+          <p className="truncate font-semibold text-slate-900">{group.name}</p>
           <p className="text-xs text-slate-400">
-            {createdAt} &middot; {group.member_count} members
+            {createdAt} &middot; {group.member_count} member{group.member_count !== 1 ? "s" : ""}
           </p>
         </Link>
 
@@ -78,19 +78,19 @@ export function GroupListItem({ group }: Props): React.ReactElement {
             setShowDelete(true);
           }}
           disabled={isPending}
-          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:pointer-events-none"
-          aria-label={`Delete ${group.name}`}
+          className="rounded-lg p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors disabled:pointer-events-none"
+          aria-label={`Archive ${group.name}`}
         >
-          <Trash2 size={16} />
+          <Archive size={16} />
         </button>
       </div>
 
       <Dialog
         open={showDelete}
         onClose={() => setShowDelete(false)}
-        title="Delete group"
-        description={`Delete "${group.name}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        title="Archive group"
+        description={`Archive "${group.name}"? You can restore it later from the groups page.`}
+        confirmLabel="Archive"
         confirmVariant="danger"
         onConfirm={handleDelete}
         isLoading={isPending}

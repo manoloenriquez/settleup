@@ -80,6 +80,9 @@ const claimMemberResultSchema = z.object({
 });
 const shareTokenResultSchema = z.object({ share_token: z.string() });
 const inviteCodeResultSchema = z.object({ invite_code: z.string() });
+const leaveGroupResultSchema = z.object({ success: z.boolean() });
+const renameMemberResultSchema = z.object({ member: groupMemberSchema });
+const transferOwnershipResultSchema = z.object({ success: z.boolean() });
 
 function parseRpcPayload<T>(
   result: Json | null,
@@ -196,4 +199,19 @@ export function parseShareTokenRpcResult(result: Json | null): ApiResponse<{ sha
 
 export function parseInviteCodeRpcResult(result: Json | null): ApiResponse<{ invite_code: string }> {
   return parseRpcPayload(result, inviteCodeResultSchema, "Failed to regenerate invite code.");
+}
+
+export function parseLeaveGroupRpcResult(result: Json | null): ApiResponse<{ success: boolean }> {
+  return parseRpcPayload(result, leaveGroupResultSchema, "Failed to leave group.");
+}
+
+export function parseTransferOwnershipRpcResult(result: Json | null): ApiResponse<{ success: boolean }> {
+  return parseRpcPayload(result, transferOwnershipResultSchema, "Failed to transfer ownership.");
+}
+
+export function parseRenameMemberRpcResult(result: Json | null): ApiResponse<GroupMember> {
+  const parsed = parseRpcPayload(result, renameMemberResultSchema, "Failed to rename member.");
+  if (parsed.error) return parsed;
+  if (parsed.data === null) return { data: null, error: "Failed to rename member." };
+  return { data: parsed.data.member, error: null };
 }

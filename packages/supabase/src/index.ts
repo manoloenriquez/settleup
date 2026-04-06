@@ -13,7 +13,10 @@ export {
   parseGroupsWithStatsRpcResult,
   parseInviteCodeRpcResult,
   parseJoinGroupRpcResult,
+  parseLeaveGroupRpcResult,
+  parseRenameMemberRpcResult,
   parseShareTokenRpcResult,
+  parseTransferOwnershipRpcResult,
 } from "./settleup";
 
 // Supabase client type (re-exported so consumers don't need @supabase/supabase-js directly)

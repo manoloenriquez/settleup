@@ -1,11 +1,22 @@
 import { Tabs } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/theme";
 
-function TabIcon({ focused, emoji, label }: { focused: boolean; emoji: string; label: string }) {
+type TabIconProps = {
+  focused: boolean;
+  name: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+};
+
+function TabIcon({ focused, name, label }: TabIconProps) {
   return (
     <View style={styles.tabItem}>
-      <Text style={[styles.emoji, focused && styles.emojiActive]}>{emoji}</Text>
+      <Ionicons
+        name={name}
+        size={22}
+        color={focused ? colors.primary : colors.gray400}
+      />
       <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
     </View>
   );
@@ -24,7 +35,7 @@ export default function TabsLayout() {
         name="dashboard"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} emoji="🏠" label="Home" />
+            <TabIcon focused={focused} name={focused ? "home" : "home-outline"} label="Home" />
           ),
         }}
       />
@@ -32,7 +43,7 @@ export default function TabsLayout() {
         name="groups/index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} emoji="👥" label="Groups" />
+            <TabIcon focused={focused} name={focused ? "people" : "people-outline"} label="Groups" />
           ),
         }}
       />
@@ -40,7 +51,7 @@ export default function TabsLayout() {
         name="account"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} emoji="👤" label="Account" />
+            <TabIcon focused={focused} name={focused ? "person" : "person-outline"} label="Account" />
           ),
         }}
       />
@@ -58,8 +69,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   tabItem: { alignItems: "center", gap: 2 },
-  emoji: { fontSize: 22, opacity: 0.5 },
-  emojiActive: { opacity: 1 },
   tabLabel: { fontSize: 10, color: colors.gray400, fontWeight: "500" },
   tabLabelActive: { color: colors.primary, fontWeight: "700" },
 });

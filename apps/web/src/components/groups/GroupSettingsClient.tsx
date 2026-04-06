@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Copy, RefreshCw, Trash2, UserPlus } from "lucide-react";
+import { Archive, Copy, Crown, LogOut, Pencil, RefreshCw, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { addMember, deleteMember } from "@/app/actions/members";
-import { deleteGroup } from "@/app/actions/groups";
+import { Dialog } from "@/components/ui/Dialog";
+import { addMember, deleteMember, renameMember } from "@/app/actions/members";
+import { archiveGroup, deleteGroup, leaveGroup, renameGroup, transferOwnership } from "@/app/actions/groups";
 import { regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
 import type { GroupMember } from "@template/supabase";
 
@@ -38,9 +39,32 @@ export function GroupSettingsClient({
   const [newMemberName, setNewMemberName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editingMemberName, setEditingMemberName] = useState("");
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [groupName, setGroupName] = useState(group.name);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [transferTarget, setTransferTarget] = useState<GroupMember | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const inviteLink = `${origin}/join?code=${inviteCode}`;
+
+  function handleRenameGroup(e: React.FormEvent): void {
+    e.preventDefault();
+    const name = groupName.trim();
+    if (!name || name === group.name) return;
+    setRenameError(null);
+    startTransition(async () => {
+      const result = await renameGroup({ group_id: group.id, name });
+      if (result.error) {
+        setRenameError(result.error);
+      } else {
+        toast.success("Group renamed");
+        router.refresh();
+      }
+    });
+  }
 
   function copyToClipboard(text: string, label: string): void {
     navigator.clipboard.writeText(text).then(
@@ -107,6 +131,86 @@ export function GroupSettingsClient({
     });
   }
 
+  function handleTransferOwnership(member: GroupMember): void {
+    setTransferTarget(member);
+  }
+
+  function confirmTransferOwnership(): void {
+    if (!transferTarget) return;
+    const member = transferTarget;
+    setTransferTarget(null);
+    startTransition(async () => {
+      const result = await transferOwnership(group.id, member.id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success(`Ownership transferred to ${member.display_name}`);
+        router.refresh();
+      }
+    });
+  }
+
+  function startEditMember(member: GroupMember): void {
+    setEditingMemberId(member.id);
+    setEditingMemberName(member.display_name);
+  }
+
+  function handleRenameMember(member: GroupMember): void {
+    const name = editingMemberName.trim();
+    if (!name || name === member.display_name) {
+      setEditingMemberId(null);
+      return;
+    }
+    startTransition(async () => {
+      const result = await renameMember({ member_id: member.id, display_name: name });
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        setMemberList((prev) =>
+          prev.map((m) => (m.id === member.id ? result.data! : m)),
+        );
+        setEditingMemberId(null);
+        toast.success("Member renamed");
+      }
+    });
+  }
+
+  function handleLeaveGroup(): void {
+    if (!confirmLeave) {
+      setConfirmLeave(true);
+      return;
+    }
+    startTransition(async () => {
+      const result = await leaveGroup(group.id);
+      if (result.error) {
+        toast.error(result.error);
+        setConfirmLeave(false);
+      } else {
+        toast.success("You have left the group");
+        router.push("/groups");
+        router.refresh();
+      }
+    });
+  }
+
+  function handleArchiveGroup(): void {
+    if (!confirmArchive) {
+      setConfirmArchive(true);
+      return;
+    }
+    startTransition(async () => {
+      const result = await archiveGroup(group.id);
+      if (result.error) {
+        toast.error(result.error);
+        setConfirmArchive(false);
+      } else {
+        toast.success("Group archived");
+        router.push("/groups");
+        router.refresh();
+      }
+    });
+  }
+
   function handleDeleteGroup(): void {
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -127,9 +231,36 @@ export function GroupSettingsClient({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Group name (owner only) */}
+      {isOwner && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-700 mb-4">Group Name</h2>
+          <form onSubmit={handleRenameGroup} className="flex gap-2">
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm
+                         placeholder:text-slate-400 focus:outline-none focus:ring-2
+                         focus:ring-brand-500 focus:border-transparent"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              leftIcon={Pencil}
+              isLoading={isPending}
+              disabled={!groupName.trim() || groupName.trim() === group.name}
+            >
+              Save
+            </Button>
+          </form>
+          {renameError && <p className="text-xs text-red-600 mt-2">{renameError}</p>}
+        </section>
+      )}
+
       {/* Invite section (owner only) */}
       {isOwner && (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-700 mb-4">Invite Members</h2>
 
           <div className="flex flex-col gap-3">
@@ -183,7 +314,7 @@ export function GroupSettingsClient({
       )}
 
       {/* Member list */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-base font-semibold text-slate-700 mb-4">
           Members ({memberList.length})
         </h2>
@@ -195,49 +326,93 @@ export function GroupSettingsClient({
             return (
               <li
                 key={member.id}
-                className="flex items-center justify-between py-3 gap-4"
+                className="flex items-center justify-between py-3 gap-4 rounded-xl px-2 -mx-2 hover:bg-slate-50 transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-semibold text-sm flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-600 font-semibold text-sm flex items-center justify-center shrink-0">
                     {member.display_name.charAt(0).toUpperCase()}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {member.display_name}
-                      {isCurrentUser && (
-                        <span className="ml-1.5 text-xs text-slate-400">(you)</span>
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {isOwnerMember ? "Owner" : member.user_id ? "Member" : "Unlinked"}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    {editingMemberId === member.id ? (
+                      <form
+                        onSubmit={(e) => { e.preventDefault(); handleRenameMember(member); }}
+                        className="flex gap-1"
+                      >
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editingMemberName}
+                          onChange={(e) => setEditingMemberName(e.target.value)}
+                          className="flex-1 rounded-md border border-brand-300 px-2 py-1 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                        <Button type="submit" size="sm" isLoading={isPending}>Save</Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setEditingMemberId(null)}>✕</Button>
+                      </form>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-slate-800 truncate">
+                          {member.display_name}
+                          {isCurrentUser && (
+                            <span className="ml-1.5 text-xs text-slate-400">(you)</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {isOwnerMember ? "Owner" : member.user_id ? "Member" : "Unlinked"}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {isOwner && (
+                {(isOwner || isCurrentUser) && editingMemberId !== member.id && (
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
-                      leftIcon={RefreshCw}
-                      onClick={() => handleRotateToken(member)}
-                      isLoading={isPending}
-                      title="Rotate share link"
-                    >
-                      Rotate link
-                    </Button>
-                    {!isOwnerMember && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={Trash2}
-                        onClick={() => handleDeleteMember(member)}
-                        isLoading={isPending}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        title="Remove member"
-                      >
-                        Remove
-                      </Button>
+                      leftIcon={Pencil}
+                      onClick={() => startEditMember(member)}
+                      title="Rename member"
+                    />
+                    {isOwner && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={RefreshCw}
+                          onClick={() => handleRotateToken(member)}
+                          isLoading={isPending}
+                          title="Rotate share link"
+                        >
+                          Rotate link
+                        </Button>
+                        {!isOwnerMember && member.user_id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={Crown}
+                            onClick={() => handleTransferOwnership(member)}
+                            isLoading={isPending}
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            title="Transfer ownership"
+                          >
+                            Make owner
+                          </Button>
+                        )}
+                        {!isOwnerMember && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={Trash2}
+                            onClick={() => handleDeleteMember(member)}
+                            isLoading={isPending}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Remove member"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -256,7 +431,7 @@ export function GroupSettingsClient({
               placeholder="New member name…"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm
                          placeholder:text-slate-400 focus:outline-none focus:ring-2
-                         focus:ring-indigo-500 focus:border-transparent"
+                         focus:ring-brand-500 focus:border-transparent"
             />
             <Button type="submit" size="sm" leftIcon={UserPlus} isLoading={isPending}>
               Add
@@ -267,39 +442,39 @@ export function GroupSettingsClient({
       </section>
 
       {/* Payment details */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-base font-semibold text-slate-700 mb-2">Payment Details</h2>
         <p className="text-sm text-slate-500 mb-3">
           Payment details are shared across all your groups.
         </p>
         <a
           href="/account/payment"
-          className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+          className="text-sm font-medium text-brand-600 hover:text-brand-800"
         >
           Manage payment details →
         </a>
       </section>
 
-      {/* Danger zone (owner only) */}
-      {isOwner && (
-        <section className="rounded-xl border border-red-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-red-700 mb-2">Danger Zone</h2>
+      {/* Leave group (non-owners only) */}
+      {!isOwner && (
+        <section className="rounded-2xl border border-orange-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-orange-700 mb-2">Leave Group</h2>
           <p className="text-sm text-slate-500 mb-4">
-            Deleting this group will permanently remove all expenses, payments, and members.
-            This cannot be undone.
+            Your member record will remain so the group&apos;s expense history stays intact, but you will no longer have access.
           </p>
           <Button
-            variant="danger"
-            leftIcon={Trash2}
-            onClick={handleDeleteGroup}
+            variant="secondary"
+            leftIcon={LogOut}
+            onClick={handleLeaveGroup}
             isLoading={isPending}
+            className="border-orange-300 text-orange-700 hover:bg-orange-50"
           >
-            {confirmDelete ? "Click again to confirm deletion" : "Delete Group"}
+            {confirmLeave ? "Click again to confirm" : "Leave Group"}
           </Button>
-          {confirmDelete && (
+          {confirmLeave && (
             <button
               type="button"
-              onClick={() => setConfirmDelete(false)}
+              onClick={() => setConfirmLeave(false)}
               className="ml-3 text-sm text-slate-500 hover:text-slate-700"
             >
               Cancel
@@ -307,6 +482,73 @@ export function GroupSettingsClient({
           )}
         </section>
       )}
+
+      {/* Danger zone (owner only) */}
+      {isOwner && (
+        <section className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-red-700 mb-4">Danger Zone</h2>
+
+          <div className="mb-4">
+            <p className="text-sm font-medium text-slate-700 mb-1">Archive Group</p>
+            <p className="text-sm text-slate-500 mb-3">
+              Hides the group from your list. You can restore it later from the groups page.
+            </p>
+            <Button
+              variant="secondary"
+              leftIcon={Archive}
+              onClick={handleArchiveGroup}
+              isLoading={isPending}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {confirmArchive ? "Click again to confirm" : "Archive Group"}
+            </Button>
+            {confirmArchive && (
+              <button
+                type="button"
+                onClick={() => setConfirmArchive(false)}
+                className="ml-3 text-sm text-slate-500 hover:text-slate-700"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-red-100">
+            <p className="text-sm font-medium text-slate-700 mb-1">Delete Group</p>
+            <p className="text-sm text-slate-500 mb-3">
+              Permanently removes all expenses, payments, and members. This cannot be undone.
+            </p>
+            <Button
+              variant="danger"
+              leftIcon={Trash2}
+              onClick={handleDeleteGroup}
+              isLoading={isPending}
+            >
+              {confirmDelete ? "Click again to confirm deletion" : "Delete Group"}
+            </Button>
+            {confirmDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="ml-3 text-sm text-slate-500 hover:text-slate-700"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      <Dialog
+        open={transferTarget !== null}
+        onClose={() => setTransferTarget(null)}
+        title="Transfer ownership"
+        description={`Transfer ownership to ${transferTarget?.display_name ?? ""}? You will become a regular member and lose owner privileges.`}
+        confirmLabel="Transfer ownership"
+        confirmVariant="danger"
+        onConfirm={confirmTransferOwnership}
+        isLoading={isPending}
+      />
     </div>
   );
 }

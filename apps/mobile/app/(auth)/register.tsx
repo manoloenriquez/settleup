@@ -8,18 +8,20 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
 import { signInWithGoogle } from "@/lib/google-auth";
+import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
 function ConfirmEmailState() {
   return (
     <View style={styles.confirmCard}>
       <View style={styles.iconWrap}>
-        <Text style={styles.icon}>✉️</Text>
+        <Ionicons name="mail-outline" size={28} color={colors.primary} />
       </View>
       <Text style={styles.confirmTitle}>Check your email</Text>
       <Text style={styles.confirmSubtitle}>
@@ -191,129 +193,126 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#f8fafc" },
+  flex: { flex: 1, backgroundColor: colors.background },
   scroll: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 24,
+    padding: spacing.xl,
   },
   header: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: spacing["2xl"],
   },
   brand: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#111827",
+    color: colors.gray900,
     letterSpacing: -0.5,
   },
   title: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 6,
+    fontSize: fontSize.base,
+    color: colors.gray500,
+    marginTop: spacing.sm,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    shadowColor: "#000",
+    borderColor: colors.border,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
   errorBox: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: colors.dangerLight,
     borderWidth: 1,
-    borderColor: "#fecaca",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+    borderColor: colors.danger,
+    borderRadius: borderRadius.sm + 2,
+    padding: spacing.md,
+    marginBottom: spacing.base,
   },
   errorText: {
-    fontSize: 13,
-    color: "#dc2626",
+    fontSize: fontSize.sm,
+    color: colors.danger,
   },
   fieldGap: {
-    marginTop: 16,
+    marginTop: spacing.base,
   },
   submitBtn: {
-    marginTop: 24,
+    marginTop: spacing.xl,
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 16,
+    marginVertical: spacing.base,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: colors.border,
   },
   dividerText: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginHorizontal: 12,
+    fontSize: fontSize.sm,
+    color: colors.gray400,
+    marginHorizontal: spacing.md,
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
+    marginTop: spacing.xl,
   },
   footerText: {
-    fontSize: 13,
-    color: "#6b7280",
+    fontSize: fontSize.sm,
+    color: colors.gray500,
   },
   link: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6366f1",
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.primary,
   },
   // Confirm email state
   confirmCard: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 32,
+    padding: spacing["2xl"],
   },
   iconWrap: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#ede9fe",
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
-  },
-  icon: {
-    fontSize: 28,
+    marginBottom: spacing.lg,
   },
   confirmTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: fontSize["2xl"],
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
     textAlign: "center",
   },
   confirmSubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: fontSize.base,
+    color: colors.gray500,
     textAlign: "center",
-    marginTop: 10,
+    marginTop: spacing.sm,
     lineHeight: 22,
   },
   backToLogin: {
-    marginTop: 28,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 12,
+    marginTop: spacing["2xl"],
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    backgroundColor: colors.gray100,
+    borderRadius: borderRadius.md,
   },
   backToLoginText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray700,
   },
 });

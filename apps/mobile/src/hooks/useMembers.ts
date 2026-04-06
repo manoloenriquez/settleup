@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addMember, addMembersBatch, deleteMember, listMembers } from "@/services/members";
+import { addMember, addMembersBatch, deleteMember, listMembers, renameMember } from "@/services/members";
 
 
 export function useMembers(groupId: string) {
@@ -37,6 +37,18 @@ export function useDeleteMember(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (memberId: string) => deleteMember(memberId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["members", groupId] });
+      void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+    },
+  });
+}
+
+export function useRenameMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, newName }: { memberId: string; newName: string }) =>
+      renameMember(memberId, newName),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });

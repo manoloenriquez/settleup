@@ -95,6 +95,7 @@ export function BalanceSummary({
   const [paymentAmountStr, setPaymentAmountStr] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GroupMember | null>(null);
+  const [undoTarget, setUndoTarget] = useState<MemberBalance | null>(null);
   const router = useRouter();
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
@@ -190,8 +191,8 @@ export function BalanceSummary({
 
       {/* Payment form */}
       {showPaymentForm && (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 flex flex-col gap-3 animate-slide-down">
-          <p className="text-sm font-semibold text-indigo-800">Record a payment</p>
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-3 animate-slide-down">
+          <p className="text-sm font-semibold text-brand-800">Record a payment</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="From"
@@ -256,45 +257,54 @@ export function BalanceSummary({
         return (
           <div
             key={balance.member_id}
-            className={`flex items-center gap-3 rounded-lg border p-4 transition-colors ${
+            className={`flex items-center gap-3 rounded-2xl border p-4 transition-all hover:shadow-sm ${
               owes
-                ? "border-l-4 border-l-amber-400 border-slate-200"
+                ? "border-amber-200 bg-amber-50/60"
                 : isOwed
-                  ? "border-l-4 border-l-emerald-400 border-slate-200"
-                  : "border-slate-200"
+                  ? "border-emerald-200 bg-emerald-50/60"
+                  : "border-slate-200 bg-white"
             }`}
           >
             <Avatar name={balance.display_name} size="md" />
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-slate-900 truncate">{balance.display_name}</p>
+              <p className="font-semibold text-slate-900 truncate text-sm">{balance.display_name}</p>
               {isSettled && (
-                <p className="text-sm text-green-600">Settled</p>
+                <p className="text-xs text-emerald-600 font-medium">All settled</p>
               )}
-              {owes && memberDebtsFrom.map((d) => (
-                <p key={d.to_member_id} className="text-sm text-amber-600">
-                  owes {formatCents(d.amount_cents)} to {d.to_display_name}
+              {owes && (
+                <p className="text-xs text-amber-700 font-medium">
+                  Owes {formatCents(Math.abs(balance.net_cents))}
                 </p>
-              ))}
-              {isOwed && memberDebtsTo.map((d) => (
-                <p key={d.from_member_id} className="text-sm text-emerald-600">
-                  owed {formatCents(d.amount_cents)} by {d.from_display_name}
+              )}
+              {isOwed && (
+                <p className="text-xs text-emerald-700 font-medium">
+                  Owed {formatCents(balance.net_cents)}
                 </p>
-              ))}
+              )}
             </div>
 
+            {/* Amount badge */}
+            {owes && (
+              <span className="shrink-0 text-xs font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                {formatCents(Math.abs(balance.net_cents))}
+              </span>
+            )}
+            {isOwed && (
+              <span className="shrink-0 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                +{formatCents(balance.net_cents)}
+              </span>
+            )}
             {isSettled && <Badge variant="success">Settled</Badge>}
-            {isOwed && <Badge variant="success">Owed</Badge>}
-            {owes && <Badge variant="warning">Pending</Badge>}
 
             {owes && (
               <button
                 type="button"
                 disabled={isPending}
-                onClick={() => handleUndo(balance)}
-                className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                onClick={() => setUndoTarget(balance)}
+                className="rounded-xl p-1.5 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors disabled:opacity-50"
                 title="Undo last payment"
               >
-                <Undo2 size={16} />
+                <Undo2 size={15} />
               </button>
             )}
 
@@ -337,6 +347,21 @@ export function BalanceSummary({
         confirmLabel="Remove"
         confirmVariant="danger"
         onConfirm={handleDeleteMember}
+        isLoading={isPending}
+      />
+
+      {/* Undo payment confirmation dialog */}
+      <Dialog
+        open={undoTarget !== null}
+        onClose={() => setUndoTarget(null)}
+        title="Undo last payment"
+        description={`Undo the most recent payment for ${undoTarget?.display_name ?? ""}? This will reverse the last recorded payment.`}
+        confirmLabel="Undo payment"
+        confirmVariant="danger"
+        onConfirm={() => {
+          if (undoTarget) handleUndo(undoTarget);
+          setUndoTarget(null);
+        }}
         isLoading={isPending}
       />
     </div>

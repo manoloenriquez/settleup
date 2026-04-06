@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  transpilePackages: ["@template/ui", "@template/shared", "@template/supabase"],
+  transpilePackages: ["@template/shared", "@template/supabase"],
   experimental: {
     reactCompiler: false,
     serverActions: { bodySizeLimit: "5mb" },

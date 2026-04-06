@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { joinGroupByInvite, claimMember, rotateShareToken, regenerateInviteCode } from "@/services/collaboration";
+import { joinGroupByInvite, claimMember, leaveGroup, rotateShareToken, regenerateInviteCode } from "@/services/collaboration";
 
 export function useJoinGroup() {
   const queryClient = useQueryClient();
@@ -28,6 +28,16 @@ export function useRotateShareToken(groupId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["members", groupId] });
       void queryClient.invalidateQueries({ queryKey: ["balances", groupId] });
+    },
+  });
+}
+
+export function useLeaveGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => leaveGroup(groupId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }

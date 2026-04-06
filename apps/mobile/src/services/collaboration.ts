@@ -4,6 +4,7 @@ import {
   parseClaimMemberRpcResult,
   parseInviteCodeRpcResult,
   parseJoinGroupRpcResult,
+  parseLeaveGroupRpcResult,
   parseShareTokenRpcResult,
   type Group,
   type GroupMember,
@@ -45,6 +46,18 @@ export async function rotateShareToken(
   if (error) return { data: null, error: error.message };
 
   return parseShareTokenRpcResult(result);
+}
+
+export async function leaveGroup(
+  groupId: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("leave_group", { p_group_id: groupId });
+
+  if (error) return { data: null, error: error.message };
+
+  return parseLeaveGroupRpcResult(result);
 }
 
 export async function regenerateInviteCode(

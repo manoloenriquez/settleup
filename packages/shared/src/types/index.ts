@@ -35,7 +35,7 @@ export type DeepPartial<T> = T extends object
   : T;
 
 // ---------------------------------------------------------------------------
-// SettleUp Lite domain types
+// SettleUp domain types
 // ---------------------------------------------------------------------------
 
 export type SimplifiedDebt = {

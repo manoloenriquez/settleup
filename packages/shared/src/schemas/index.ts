@@ -48,11 +48,21 @@ export const updatePasswordSchema = z
   });
 
 // ---------------------------------------------------------------------------
-// SettleUp Lite schemas
+// SettleUp schemas
 // ---------------------------------------------------------------------------
 
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
+});
+
+export const renameGroupSchema = z.object({
+  group_id: z.string().uuid(),
+  name: z.string().trim().min(1, "Name is required").max(100),
+});
+
+export const renameMemberSchema = z.object({
+  member_id: z.string().uuid(),
+  display_name: z.string().trim().min(1, "Name is required").max(80),
 });
 
 export const addMemberSchema = z.object({
@@ -206,6 +216,8 @@ export const upsertPaymentProfileSchema = z.object({
 });
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
+export type RenameGroupInput = z.infer<typeof renameGroupSchema>;
+export type RenameMemberInput = z.infer<typeof renameMemberSchema>;
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
 export type AddMembersBatchInput = z.infer<typeof addMembersBatchSchema>;
 export type AddExpenseInput = z.infer<typeof addExpenseSchema>;

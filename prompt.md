@@ -1,4 +1,4 @@
-You are Claude Code acting as a senior full-stack engineer. Build an MVP app called “SettleUp Lite” using my existing template repo. The template repo contains:
+You are Claude Code acting as a senior full-stack engineer. Build an MVP app called “SettleUp” using my existing template repo. The template repo contains:
 
 - Next.js (web + admin interface)
 - Expo (mobile)

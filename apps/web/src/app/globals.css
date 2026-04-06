@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/* ─── Brand design tokens ──────────────────────────────────────────────────
+   Change these values to retheme the entire app.
+   All UI components reference brand-* instead of hardcoded indigo-*.
+   ──────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+}
+
 @layer base {
   *,
   *::before,
@@ -8,17 +25,19 @@
   }
 
   body {
-    @apply bg-white text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased;
   }
 
   ::selection {
-    @apply bg-indigo-100;
+    @apply bg-brand-100;
   }
 }
 
+/* ─── Animations ──────────────────────────────────────────────────────── */
+
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideDown {
@@ -27,12 +46,17 @@
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 @utility animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.3s ease-out;
 }
 
 @utility animate-slide-down {
@@ -40,7 +64,7 @@
 }
 
 @utility animate-scale-in {
-  animation: scaleIn 0.15s ease-out;
+  animation: scaleIn 0.2s ease-out;
 }
 
 @keyframes pulseAi {

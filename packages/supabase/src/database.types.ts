@@ -512,6 +512,18 @@ export type Database = {
         Args: { p_group_id: string };
         Returns: Json;
       };
+      leave_group: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      rename_member: {
+        Args: { p_member_id: string; p_new_name: string };
+        Returns: Json;
+      };
+      transfer_group_ownership: {
+        Args: { p_group_id: string; p_new_owner_member_id: string };
+        Returns: Json;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

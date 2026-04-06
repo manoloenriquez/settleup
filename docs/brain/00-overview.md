@@ -2,7 +2,7 @@
 
 ## What is this?
 
-**SettleUp Lite** — a group expense splitting app. Track shared expenses, calculate who owes whom, share payment info via public links, and use AI to parse receipts and suggest splits.
+**SettleUp** — a group expense splitting app. Track shared expenses, calculate who owes whom, share payment info via public links, and use AI to parse receipts and suggest splits.
 
 ## Tech Stack
 

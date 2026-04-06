@@ -6,6 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { queryClient } from "@/lib/queryClient";
+import { colors } from "@/theme";
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary
@@ -68,7 +69,7 @@ function RootStack() {
   if (loading) {
     return (
       <View style={styles.splash}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -107,24 +108,24 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
   errorContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
   errorTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#111",
+    color: colors.gray900,
     marginBottom: 8,
   },
   errorMessage: {
     fontSize: 14,
-    color: "#6b7280",
+    color: colors.gray500,
     textAlign: "center",
   },
 });

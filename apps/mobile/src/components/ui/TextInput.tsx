@@ -6,6 +6,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
+import { colors, borderRadius, fontSize, fontWeight } from "@/theme";
 
 export interface AppTextInputProps extends TextInputProps {
   label?: string;
@@ -25,7 +26,7 @@ export function AppTextInput({
       {label && <Text style={styles.label}>{label}</Text>}
       <TextInput
         style={[styles.input, error ? styles.inputError : null, style]}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor={colors.gray400}
         autoCorrect={false}
         spellCheck={false}
         {...props}
@@ -40,25 +41,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#374151",
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray700,
   },
   input: {
     height: 48,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
+    borderColor: colors.gray300,
+    borderRadius: borderRadius.sm + 2,
     paddingHorizontal: 14,
-    fontSize: 15,
-    color: "#111827",
-    backgroundColor: "#fff",
+    fontSize: fontSize.md,
+    color: colors.gray900,
+    backgroundColor: colors.white,
   },
   inputError: {
-    borderColor: "#f87171",
+    borderColor: colors.danger,
   },
   errorText: {
-    fontSize: 12,
-    color: "#dc2626",
+    fontSize: fontSize.xs,
+    color: colors.danger,
   },
 });

@@ -3,6 +3,7 @@ import type { ApiResponse, GroupWithStats } from "@template/shared";
 import {
   parseCreateGroupRpcResult,
   parseGroupsWithStatsRpcResult,
+  parseTransferOwnershipRpcResult,
   type Group,
 } from "@template/supabase";
 
@@ -56,7 +57,22 @@ export async function listGroupsWithStats(_userId?: string): Promise<ApiResponse
   return parsed;
 }
 
-export async function deleteGroup(groupId: string): Promise<ApiResponse<null>> {
+export async function renameGroup(groupId: string, name: string): Promise<ApiResponse<null>> {
+  const trimmed = name.trim();
+  if (!trimmed) return { data: null, error: "Name is required" };
+  if (trimmed.length > 100) return { data: null, error: "Name must be at most 100 characters" };
+
+  const { error } = await supabase
+    .schema("settleup")
+    .from("groups")
+    .update({ name: trimmed })
+    .eq("id", groupId);
+
+  if (error) return { data: null, error: error.message };
+  return { data: null, error: null };
+}
+
+export async function archiveGroup(groupId: string): Promise<ApiResponse<null>> {
   const { error } = await supabase
     .schema("settleup")
     .from("groups")
@@ -65,4 +81,45 @@ export async function deleteGroup(groupId: string): Promise<ApiResponse<null>> {
 
   if (error) return { data: null, error: error.message };
   return { data: null, error: null };
+}
+
+// Keep deleteGroup as an alias for backward compatibility
+export const deleteGroup = archiveGroup;
+
+export async function restoreGroup(groupId: string): Promise<ApiResponse<null>> {
+  const { error } = await supabase
+    .schema("settleup")
+    .from("groups")
+    .update({ is_archived: false })
+    .eq("id", groupId);
+
+  if (error) return { data: null, error: error.message };
+  return { data: null, error: null };
+}
+
+export async function transferOwnership(
+  groupId: string,
+  newOwnerMemberId: string,
+): Promise<ApiResponse<{ success: boolean }>> {
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("transfer_group_ownership", {
+      p_group_id: groupId,
+      p_new_owner_member_id: newOwnerMemberId,
+    });
+
+  if (error) return { data: null, error: error.message };
+  return parseTransferOwnershipRpcResult(result);
+}
+
+export async function listArchivedGroups(): Promise<ApiResponse<Group[]>> {
+  const { data, error } = await supabase
+    .schema("settleup")
+    .from("groups")
+    .select("*")
+    .eq("is_archived", true)
+    .order("created_at", { ascending: false });
+
+  if (error) return { data: null, error: error.message };
+  return { data: data ?? [], error: null };
 }

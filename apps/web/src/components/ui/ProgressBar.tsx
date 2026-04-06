@@ -12,7 +12,7 @@ export function ProgressBar({
   variant = "default",
 }: ProgressBarProps): React.ReactElement {
   const clamped = Math.max(0, Math.min(100, value));
-  const barColor = variant === "ai" ? "bg-indigo-500 animate-pulse-ai" : "bg-indigo-600";
+  const barColor = variant === "ai" ? "bg-brand-500 animate-pulse-ai" : "bg-brand-600";
 
   return (
     <div className="w-full">

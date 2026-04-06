@@ -1,4 +1,4 @@
-# SettleUp Lite
+# SettleUp
 
 Group expense tracker — split bills with friends, no login required for friends.
 **Next.js 15 · Expo 54 · Supabase · Turborepo · pnpm**
@@ -18,7 +18,7 @@ Group expense tracker — split bills with friends, no login required for friend
 
 ---
 
-## SettleUp Lite — Setup Notes
+## SettleUp — Setup Notes
 
 ### Apply the migration
 

@@ -28,7 +28,7 @@ export function Tabs({ tabs, activeTab, onChange, children }: TabsProps): React.
               className={[
                 "inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
                 activeTab === tab.id
-                  ? "border-indigo-600 text-indigo-600"
+                  ? "border-brand-600 text-brand-600"
                   : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300",
               ].join(" ")}
             >
