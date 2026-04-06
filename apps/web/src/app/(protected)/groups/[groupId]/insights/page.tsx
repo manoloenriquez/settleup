@@ -5,7 +5,7 @@ import { getGroupInsights } from "@/app/actions/insights";
 import { InsightsDashboard } from "@/components/groups/InsightsDashboard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
-import { ArrowLeft, BarChart3 } from "lucide-react";
+import { ChevronRight, BarChart3 } from "lucide-react";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -28,15 +28,24 @@ export default async function GroupInsightsPage({ params }: Props): Promise<Reac
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
+      {/* Breadcrumb */}
       <div>
-        <Link
-          href={`/groups/${groupId}`}
-          className="text-sm text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"
-        >
-          <ArrowLeft size={14} />
-          {group.name}
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-1">Insights</h1>
+        <nav className="flex items-center gap-1 text-xs text-slate-400 mb-3">
+          <Link href="/groups" className="hover:text-slate-600 transition-colors font-medium">Groups</Link>
+          <ChevronRight size={12} />
+          <Link href={`/groups/${groupId}`} className="hover:text-slate-600 transition-colors font-medium truncate max-w-[160px]">{group.name}</Link>
+          <ChevronRight size={12} />
+          <span className="text-slate-600 font-medium">Insights</span>
+        </nav>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
+            <BarChart3 size={20} className="text-brand-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Insights</h1>
+            <p className="text-sm text-slate-500 mt-0.5">{group.name}</p>
+          </div>
+        </div>
       </div>
 
       {result.error ? (

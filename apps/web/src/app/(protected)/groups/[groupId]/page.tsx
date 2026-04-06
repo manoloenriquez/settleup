@@ -13,10 +13,9 @@ import { AddMemberForm } from "@/components/groups/AddMemberForm";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { GroupDetailTabs } from "@/components/groups/GroupDetailTabs";
 import { GroupHeader } from "@/components/groups/GroupHeader";
-import { Card, CardContent } from "@/components/ui/Card";
 import { SeedButton } from "@/components/groups/SeedButton";
 import { CopyButton } from "@/components/groups/CopyButton";
-import { Share2 } from "lucide-react";
+import { AlertCircle, Share2 } from "lucide-react";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -93,9 +92,11 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const origin = `${protocol}://${host}`;
   const isDev = process.env.NODE_ENV === "development";
 
+  const isFullySettled = totalOutstandingCents === 0;
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      {/* Group header with CTAs */}
+      {/* Group header with breadcrumb + CTAs */}
       <GroupHeader
         groupId={groupId}
         groupName={group.name}
@@ -103,39 +104,56 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         members={members}
       />
 
-      {/* Share group overview */}
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0 flex items-center gap-2">
-            <Share2 size={16} className="text-slate-400 shrink-0" />
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                Group Overview Link
-              </p>
-              <p className="text-sm text-slate-700 truncate font-mono">
-                {origin}/g/{group.share_token}
-              </p>
-            </div>
+      {/* Stats hero */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className={`rounded-2xl p-4 col-span-2 ${isFullySettled ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"}`}>
+          <p className={`text-xs font-semibold uppercase tracking-wider ${isFullySettled ? "text-emerald-600" : "text-amber-600"}`}>
+            Outstanding Balance
+          </p>
+          <p className={`mt-1 text-2xl font-extrabold tracking-tight ${isFullySettled ? "text-emerald-800" : "text-amber-900"}`}>
+            {isFullySettled ? "All settled" : formatCents(totalOutstandingCents)}
+          </p>
+          {isFullySettled && (
+            <p className="text-xs text-emerald-600 mt-0.5">No outstanding debts</p>
+          )}
+        </div>
+        <div className="rounded-2xl p-4 bg-white border border-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Members</p>
+          <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{members.length}</p>
+          <div className="flex -space-x-1.5 mt-1.5">
+            {Array.from({ length: Math.min(members.length, 5) }).map((_, i) => (
+              <div key={i} className="h-5 w-5 rounded-full border-2 border-white" style={{ backgroundColor: ["#6366f1","#8b5cf6","#ec4899","#10b981","#f59e0b"][i % 5] }} />
+            ))}
           </div>
-          <div className="flex gap-2">
-            {isDev && <SeedButton />}
-            <CopyButton text={`${origin}/g/${group.share_token}`} label="Copy Link" />
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="rounded-2xl p-4 bg-white border border-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending</p>
+          <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{pendingMembers}</p>
+          {pendingMembers > 0 && (
+            <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-0.5">
+              <AlertCircle size={10} />
+              unsettled
+            </p>
+          )}
+          {pendingMembers === 0 && (
+            <p className="text-xs text-emerald-600 mt-0.5">all clear</p>
+          )}
+        </div>
+      </div>
 
-      <Card>
-        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Total Outstanding</p>
-            <p className="mt-1 text-xl font-bold text-amber-900">{formatCents(totalOutstandingCents)}</p>
-          </div>
-          <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Members Pending</p>
-            <p className="mt-1 text-xl font-bold text-indigo-900">{pendingMembers}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Share link — secondary, subtle */}
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Share2 size={14} className="text-slate-400 shrink-0" />
+          <p className="text-xs text-slate-400 truncate font-mono">
+            {origin}/g/{group.share_token}
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {isDev && <SeedButton />}
+          <CopyButton text={`${origin}/g/${group.share_token}`} label="Share" />
+        </div>
+      </div>
 
       {/* Tabbed content (Balances + Expenses only) */}
       <GroupDetailTabs

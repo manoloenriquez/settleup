@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRecordPayment } from "@/hooks/usePayments";
@@ -54,7 +55,7 @@ export default function SettleUpScreen() {
             <Text style={styles.name}>{fromMember?.display_name ?? fromId ?? "\u2014"}</Text>
           </View>
           <View style={styles.arrow}>
-            <Text style={styles.arrowText}>{"\u2193"}</Text>
+            <Ionicons name="arrow-down" size={24} color={colors.gray300} />
           </View>
           <View style={styles.card}>
             <Text style={styles.label}>To</Text>
@@ -88,5 +89,4 @@ const styles = StyleSheet.create({
   label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.5 },
   name: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900, marginTop: spacing.xs },
   arrow: { alignItems: "center", paddingVertical: spacing.sm },
-  arrowText: { fontSize: 24, color: colors.gray300 },
 });

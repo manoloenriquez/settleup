@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addMembersBatch } from "@/app/actions/members";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { UserPlus } from "lucide-react";
 
 type Props = {
   groupId: string;
@@ -59,6 +60,15 @@ export function AddMemberForm({ groupId }: Props): React.ReactElement {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <div className="flex items-center gap-2.5 mb-1">
+        <div className="h-7 w-7 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
+          <UserPlus size={14} className="text-brand-600" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Add Members</p>
+          <p className="text-xs text-slate-400">Type a name, press Enter to queue, then add all at once.</p>
+        </div>
+      </div>
       <div className="flex items-end gap-2">
         <Input
           ref={inputRef}
@@ -79,13 +89,13 @@ export function AddMemberForm({ groupId }: Props): React.ReactElement {
           {queue.map((name, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-800"
+              className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-3 py-1 text-sm font-medium text-brand-800"
             >
               {name}
               <button
                 type="button"
                 onClick={() => removeName(i)}
-                className="ml-1 text-indigo-500 hover:text-indigo-800 leading-none"
+                className="ml-1 text-brand-500 hover:text-brand-800 leading-none"
                 aria-label={`Remove ${name}`}
               >
                 ×

@@ -15,8 +15,8 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Card>
           <CardContent className="flex items-center gap-3">
-            <div className="rounded-lg bg-indigo-50 p-2">
-              <Receipt size={18} className="text-indigo-600" />
+            <div className="rounded-lg bg-brand-50 p-2">
+              <Receipt size={18} className="text-brand-600" />
             </div>
             <div>
               <p className="text-xs text-slate-500">Total Expenses</p>
@@ -112,8 +112,8 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
         <Card>
           <CardContent>
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles size={14} className="text-indigo-500" />
-              <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+              <Sparkles size={14} className="text-brand-500" />
+              <span className="text-xs font-semibold text-brand-700 uppercase tracking-wide">
                 AI Summary
               </span>
               <Badge variant="neutral">AI-assisted</Badge>

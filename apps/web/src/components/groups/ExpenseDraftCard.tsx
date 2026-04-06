@@ -22,11 +22,11 @@ export function ExpenseDraftCard({
   isLoading = false,
 }: Props): React.ReactElement {
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 flex flex-col gap-3 animate-slide-down">
+    <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 flex flex-col gap-3 animate-slide-down">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles size={14} className="text-indigo-500" />
-          <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+          <Sparkles size={14} className="text-brand-500" />
+          <span className="text-xs font-semibold text-brand-700 uppercase tracking-wide">
             Draft from {draft.source}
           </span>
           <Badge variant="neutral">

@@ -2,9 +2,8 @@ import { formatCents } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Receipt, CheckCircle, Smartphone, Landmark } from "lucide-react";
+import { Receipt, CheckCircle2, TrendingDown, ArrowUpRight, Smartphone, Landmark } from "lucide-react";
 import type { FriendViewPayload } from "@template/shared";
 
 type Props = {
@@ -41,57 +40,66 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
   const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
   const isPaid = owedAmount === 0;
   const isOwed = (payload.net_cents ?? 0) > 0;
+  const owes = !isPaid && !isOwed;
+
+  const heroBg = owes
+    ? "bg-gradient-to-br from-amber-500 to-orange-500"
+    : isOwed
+      ? "bg-gradient-to-br from-emerald-500 to-teal-500"
+      : "bg-gradient-to-br from-brand-600 to-violet-600";
+
+  const heroPill = owes
+    ? { label: "You owe", icon: <TrendingDown size={13} className="text-white/80" /> }
+    : isOwed
+      ? { label: "You're owed", icon: <ArrowUpRight size={13} className="text-white/80" /> }
+      : { label: "All settled", icon: <CheckCircle2 size={13} className="text-white/80" /> };
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto max-w-lg flex flex-col gap-6 animate-fade-in">
-        {/* Header */}
-        <Card>
-          <CardContent className="py-6 text-center">
-            <div className="flex justify-center mb-3">
-              <Avatar name={payload.member.display_name} size="lg" />
+      <div className="mx-auto max-w-lg flex flex-col gap-5 animate-fade-in">
+        {/* Gradient Hero */}
+        <div className={`${heroBg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}>
+          {/* Texture */}
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 80% 20%, white 1px, transparent 1px), radial-gradient(circle at 20% 80%, white 1px, transparent 1px)",
+              backgroundSize: "32px 32px",
+            }}
+          />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-medium text-white/80">{payload.group.name}</p>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-white/20">
+                {heroPill.icon}
+                {heroPill.label}
+              </span>
             </div>
-            <p className="text-slate-500 text-sm mb-2">{payload.group.name}</p>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Hi {payload.member.display_name}!
-            </h1>
-            <p
-              className={`mt-3 text-4xl font-extrabold ${
-                isPaid ? "text-green-600" : isOwed ? "text-green-600" : "text-red-500"
-              }`}
-            >
-              {isPaid
-                ? "All Settled!"
-                : isOwed
-                  ? `+${formatCents(payload.net_cents ?? 0)}`
-                  : formatCents(owedAmount)}
-            </p>
-            {isPaid ? (
-              <div className="mt-2 flex justify-center">
-                <Badge variant="success">
-                  <CheckCircle size={12} className="mr-1" />
-                  Settled
-                </Badge>
+            <div className="flex items-center gap-3 mb-2">
+              <Avatar name={payload.member.display_name} size="md" />
+              <div>
+                <p className="text-sm font-medium text-white/70">Hi {payload.member.display_name}</p>
+                <p className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+                  {isPaid ? "All Settled!" : formatCents(owedAmount)}
+                </p>
               </div>
-            ) : (
-              <div className="mt-2 flex justify-center">
-                <Badge variant={isOwed ? "success" : "danger"}>
-                  {isOwed ? "others owe you" : "remaining balance"}
-                </Badge>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+            <div className="mt-4">
+              <CopyButton text={shareLink} label="Copy link" />
+            </div>
+          </div>
+        </div>
 
         {/* Payment details */}
-        {pp && !isPaid && !isOwed && (
+        {pp && owes && (
           <Card>
             <CardHeader>
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">How to pay</h2>
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">How to pay</h2>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {(pp.gcash_name || pp.gcash_number) && (
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Smartphone size={16} className="text-blue-500" />
                     <span className="text-sm font-semibold text-slate-700">GCash</span>
@@ -116,9 +124,9 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
               )}
 
               {(pp.bank_name || pp.bank_account_number) && (
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Landmark size={16} className="text-indigo-500" />
+                    <Landmark size={16} className="text-brand-500" />
                     <span className="text-sm font-semibold text-slate-700">
                       {pp.bank_name ?? "Bank Transfer"}
                     </span>
@@ -152,7 +160,7 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
         {/* Expense breakdown */}
         <Card>
           <CardHeader>
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Your expenses</h2>
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your expenses</h2>
           </CardHeader>
           <CardContent>
             {payload.expenses.length > 0 ? (
@@ -160,16 +168,16 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
                 {payload.expenses.map((exp, i) => (
                   <div
                     key={i}
-                    className="rounded-lg border border-slate-100 px-3 py-2"
+                    className="rounded-xl border border-slate-100 px-3 py-2.5 hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-700">{exp.item_name}</span>
-                      <span className="font-medium text-slate-900">
+                      <span className="text-slate-700 font-medium">{exp.item_name}</span>
+                      <span className="font-semibold text-slate-900">
                         {formatCents(exp.share_cents)}
                       </span>
                     </div>
                     {exp.items && exp.items.length > 0 && (
-                      <div className="mt-1.5 ml-3 border-l-2 border-indigo-100 pl-3 flex flex-col gap-0.5">
+                      <div className="mt-1.5 ml-3 border-l-2 border-brand-100 pl-3 flex flex-col gap-0.5">
                         {exp.items.map((item, j) => (
                           <div key={j} className="flex items-center justify-between text-xs text-slate-500">
                             <span>{item.name}</span>
@@ -191,7 +199,7 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
         <Card className="bg-slate-50">
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Share this message
               </p>
               <CopyButton text={message} label="Copy message" />
@@ -201,7 +209,12 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
         </Card>
 
         {/* Footer */}
-        <p className="text-center text-xs text-slate-400 py-2">Powered by SettleUp</p>
+        <div className="flex items-center justify-center gap-2 py-2 text-xs text-slate-400">
+          <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
+            <span className="text-white text-[10px] font-bold">S</span>
+          </div>
+          <span>Powered by SettleUp</span>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
 import type { ActivityItem } from "@/services/activity";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
@@ -12,7 +13,7 @@ export function ActivityTimeline({ items }: ActivityTimelineProps) {
   if (items.length === 0) {
     return (
       <EmptyState
-        icon="📋"
+        icon="clipboard-outline"
         title="No activity yet"
         description="Activity will appear once you add expenses or record payments"
       />
@@ -23,8 +24,12 @@ export function ActivityTimeline({ items }: ActivityTimelineProps) {
     <View style={styles.list}>
       {items.map((item) => (
         <View key={item.id} style={styles.row}>
-          <View style={styles.iconWrapper}>
-            <Text style={styles.icon}>{item.type === "expense" ? "🧾" : "✅"}</Text>
+          <View style={[styles.iconWrapper, item.type === "payment" && styles.iconWrapperPayment]}>
+            <Ionicons
+              name={item.type === "expense" ? "receipt-outline" : "checkmark-circle"}
+              size={16}
+              color={item.type === "expense" ? colors.primary : colors.success}
+            />
           </View>
           <View style={styles.info}>
             <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
@@ -42,8 +47,8 @@ export function ActivityTimeline({ items }: ActivityTimelineProps) {
 const styles = StyleSheet.create({
   list: { gap: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  iconWrapper: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.gray100, alignItems: "center", justifyContent: "center" },
-  icon: { fontSize: 16 },
+  iconWrapper: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center" },
+  iconWrapperPayment: { backgroundColor: colors.successLight ?? colors.primaryLight },
   info: { flex: 1 },
   label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray900 },
   date: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 2 },

@@ -1,8 +1,9 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 type EmptyStateProps = {
-  icon?: string;
+  icon?: React.ComponentProps<typeof Ionicons>["name"];
   title: string;
   description?: string;
   actionLabel?: string;
@@ -12,7 +13,7 @@ type EmptyStateProps = {
 export function EmptyState({ icon, title, description, actionLabel, onAction }: EmptyStateProps) {
   return (
     <View style={styles.container}>
-      {icon && <Text style={styles.icon}>{icon}</Text>}
+      {icon && <Ionicons name={icon} size={40} color={colors.gray400} style={styles.icon} />}
       <Text style={styles.title}>{title}</Text>
       {description && <Text style={styles.description}>{description}</Text>}
       {actionLabel && onAction && (
@@ -26,7 +27,7 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
 
 const styles = StyleSheet.create({
   container: { alignItems: "center", justifyContent: "center", paddingVertical: spacing["3xl"], paddingHorizontal: spacing.xl },
-  icon: { fontSize: 48, marginBottom: spacing.base },
+  icon: { marginBottom: spacing.base },
   title: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.gray800, textAlign: "center" },
   description: { fontSize: fontSize.md, color: colors.gray400, textAlign: "center", marginTop: spacing.sm, lineHeight: 22 },
   action: { marginTop: spacing.base, backgroundColor: colors.primaryLight, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: 999 },

@@ -1,4 +1,5 @@
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -57,7 +58,7 @@ export default function AccountScreen() {
           <ListItem
             title="Payment Settings"
             subtitle="GCash, bank details, QR code"
-            left={<Text style={styles.rowEmoji}>💳</Text>}
+            left={<Ionicons name="card-outline" size={20} color={colors.primary} />}
             showChevron
             onPress={() => router.push("/(protected)/account/payment")}
           />
@@ -65,7 +66,7 @@ export default function AccountScreen() {
           <ListItem
             title="Edit Profile"
             subtitle="Update your name"
-            left={<Text style={styles.rowEmoji}>✏️</Text>}
+            left={<Ionicons name="pencil-outline" size={20} color={colors.gray600 ?? colors.gray400} />}
             showChevron
             onPress={() => router.push("/(protected)/account/edit-profile")}
           />
@@ -94,7 +95,6 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8, marginBottom: spacing.sm, marginTop: spacing.base },
 
   divider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.base },
-  rowEmoji: { fontSize: 20 },
 
   signOutBtn: {
     marginTop: spacing.xl,

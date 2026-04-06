@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
@@ -503,9 +504,16 @@ export default function AddExpenseScreen() {
                   const remaining = total - liTotal;
                   return (
                     <View style={[styles.splitSumRow, remaining !== 0 && styles.splitSumError]}>
-                      <Text style={[styles.splitSumText, remaining !== 0 && styles.splitSumTextError]}>
-                        {remaining === 0 ? "✓ Items balance" : remaining > 0 ? `₱${(remaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(remaining) / 100).toFixed(2)} over`}
-                      </Text>
+                      {remaining === 0 ? (
+                        <View style={styles.splitSumBalanced}>
+                          <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                          <Text style={styles.splitSumText}>Items balance</Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.splitSumText, styles.splitSumTextError]}>
+                          {remaining > 0 ? `₱${(remaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(remaining) / 100).toFixed(2)} over`}
+                        </Text>
+                      )}
                     </View>
                   );
                 })()}
@@ -538,9 +546,16 @@ export default function AddExpenseScreen() {
                       </View>
                     ))}
                     <View style={[styles.splitSumRow, payerRemaining !== 0 && styles.splitSumError]}>
-                      <Text style={[styles.splitSumText, payerRemaining !== 0 && styles.splitSumTextError]}>
-                        {payerRemaining === 0 ? "✓ Amounts balance" : payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
-                      </Text>
+                      {payerRemaining === 0 ? (
+                        <View style={styles.splitSumBalanced}>
+                          <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                          <Text style={styles.splitSumText}>Amounts balance</Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.splitSumText, styles.splitSumTextError]}>
+                          {payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 )}
@@ -582,7 +597,8 @@ export default function AddExpenseScreen() {
                     activeOpacity={0.7}
                     disabled={!itemName.trim() || amountCents <= 0}
                   >
-                    <Text style={styles.smartSplitBtnText}>✨ Smart Split</Text>
+                    <Ionicons name="sparkles" size={14} color={colors.primary} />
+                    <Text style={styles.smartSplitBtnText}>Smart Split</Text>
                   </TouchableOpacity>
                   {[...selectedMembers].map((id) => {
                     const m = members.find((mem) => mem.id === id);
@@ -597,9 +613,16 @@ export default function AddExpenseScreen() {
                     );
                   })}
                   <View style={[styles.splitSumRow, splitRemaining !== 0 && styles.splitSumError]}>
-                    <Text style={[styles.splitSumText, splitRemaining !== 0 && styles.splitSumTextError]}>
-                      {splitRemaining === 0 ? "✓ Split balances" : splitRemaining > 0 ? `₱${(splitRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(splitRemaining) / 100).toFixed(2)} over`}
-                    </Text>
+                    {splitRemaining === 0 ? (
+                      <View style={styles.splitSumBalanced}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={styles.splitSumText}>Split balances</Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.splitSumText, styles.splitSumTextError]}>
+                        {splitRemaining > 0 ? `₱${(splitRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(splitRemaining) / 100).toFixed(2)} over`}
+                      </Text>
+                    )}
                   </View>
                 </View>
               )}
@@ -632,9 +655,16 @@ export default function AddExpenseScreen() {
                       </View>
                     ))}
                     <View style={[styles.splitSumRow, payerRemaining !== 0 && styles.splitSumError]}>
-                      <Text style={[styles.splitSumText, payerRemaining !== 0 && styles.splitSumTextError]}>
-                        {payerRemaining === 0 ? "✓ Amounts balance" : payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
-                      </Text>
+                      {payerRemaining === 0 ? (
+                        <View style={styles.splitSumBalanced}>
+                          <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                          <Text style={styles.splitSumText}>Amounts balance</Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.splitSumText, styles.splitSumTextError]}>
+                          {payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 )}
@@ -696,13 +726,14 @@ const styles = StyleSheet.create({
   multiPayerToggle: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.medium },
 
   customSplitSection: { gap: spacing.sm, backgroundColor: colors.gray50, borderRadius: borderRadius.md, padding: spacing.sm },
-  smartSplitBtn: { alignSelf: "flex-end", paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: borderRadius.full, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
+  smartSplitBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: borderRadius.full, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
   smartSplitBtnText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
   customSplitRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   customSplitName: { flex: 1, fontSize: fontSize.sm, color: colors.gray700, fontWeight: fontWeight.medium },
   customSplitInput: { width: 120 },
 
   splitSumRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm, alignItems: "flex-end" },
+  splitSumBalanced: { flexDirection: "row", alignItems: "center", gap: 4 },
   splitSumError: { borderTopColor: colors.danger },
   splitSumText: { fontSize: fontSize.sm, color: colors.success, fontWeight: fontWeight.semibold },
   splitSumTextError: { color: colors.danger },

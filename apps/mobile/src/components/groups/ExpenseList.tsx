@@ -1,4 +1,5 @@
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, TouchableOpacity, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
 import type { Expense } from "@template/supabase";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -13,7 +14,7 @@ export function ExpenseList({ expenses, onDelete }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
       <EmptyState
-        icon="🧾"
+        icon="receipt-outline"
         title="No expenses yet"
         description="Add the first expense to start tracking"
       />
@@ -39,7 +40,7 @@ export function ExpenseList({ expenses, onDelete }: ExpenseListProps) {
             <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
             {onDelete && (
               <TouchableOpacity onPress={() => confirmDelete(exp.id)} hitSlop={8}>
-                <Text style={styles.deleteBtn}>✕</Text>
+                <Ionicons name="close" size={16} color={colors.gray400} />
               </TouchableOpacity>
             )}
           </View>
@@ -57,5 +58,4 @@ const styles = StyleSheet.create({
   date: { fontSize: fontSize.xs, color: colors.gray400 },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   amount: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
-  deleteBtn: { fontSize: fontSize.sm, color: colors.gray400 },
 });

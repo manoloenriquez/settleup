@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { simplifyDebts, formatCents } from "@template/shared";
 import type { MemberBalance, SimplifiedDebt } from "@template/shared";
 import { Avatar } from "@/components/ui";
@@ -15,7 +16,7 @@ export function DebtSummary({ members, onSettle }: DebtSummaryProps) {
   if (debts.length === 0) {
     return (
       <View style={styles.settled}>
-        <Text style={styles.settledEmoji}>🎉</Text>
+        <Ionicons name="checkmark-circle" size={40} color={colors.success} style={styles.settledIcon} />
         <Text style={styles.settledText}>All settled up!</Text>
       </View>
     );
@@ -60,6 +61,6 @@ const styles = StyleSheet.create({
   settleBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: borderRadius.full },
   settleBtnText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
   settled: { alignItems: "center", padding: spacing.xl },
-  settledEmoji: { fontSize: 36, marginBottom: spacing.sm },
+  settledIcon: { marginBottom: spacing.sm },
   settledText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.success },
 });

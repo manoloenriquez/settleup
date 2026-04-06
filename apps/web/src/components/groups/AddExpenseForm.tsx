@@ -292,7 +292,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
   if (confirming) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
           <p className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Review</p>
           {items.map((item, i) => {
             const amountCents = parsePHPAmount(item.amountStr) ?? 0;
@@ -303,7 +303,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
               <div key={i} className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-900">{item.itemName}</span>
-                  <span className="font-semibold text-indigo-700">{formatCents(amountCents)}</span>
+                  <span className="font-semibold text-brand-700">{formatCents(amountCents)}</span>
                 </div>
                 <p className="text-xs text-slate-500">
                   Paid by <span className="font-medium text-slate-700">{payerName}</span>
@@ -335,7 +335,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
           <button
             type="button"
             onClick={() => setConfirming(false)}
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
             Back to Edit
           </button>
@@ -392,7 +392,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                   onClick={() => updateItem(index, { expenseMode: "whole" })}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     item.expenseMode === "whole"
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-brand-600 text-white"
                       : "bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -403,7 +403,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                   onClick={() => updateItem(index, { expenseMode: "itemized" })}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     item.expenseMode === "itemized"
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-brand-600 text-white"
                       : "bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -504,7 +504,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                               onClick={() => toggleLineItemMember(index, liIndex, m.id)}
                               className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors ${
                                 li.participantIds.includes(m.id)
-                                  ? "bg-indigo-600 text-white border-indigo-600"
+                                  ? "bg-brand-600 text-white border-brand-600"
                                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
                               }`}
                             >
@@ -522,7 +522,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                 <button
                   type="button"
                   onClick={() => addLineItem(index)}
-                  className="self-start text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  className="self-start text-xs font-medium text-brand-600 hover:text-brand-800 flex items-center gap-1"
                 >
                   <Plus size={12} /> Add line item
                 </button>
@@ -541,7 +541,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((prev) => ({ ...prev, [index]: !advanced }))}
-                  className="self-start text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                  className="self-start text-xs text-brand-600 hover:text-brand-800 font-medium flex items-center gap-1"
                 >
                   {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   {advanced ? "Less options" : "More options"}
@@ -560,7 +560,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                             onClick={() => toggleMember(index, m.id)}
                             className={`rounded-full px-3 py-1 text-sm font-medium border transition-colors ${
                               item.selectedIds.includes(m.id)
-                                ? "bg-indigo-600 text-white border-indigo-600"
+                                ? "bg-brand-600 text-white border-brand-600"
                                 : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
                             }`}
                           >
@@ -649,7 +649,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
         <button
           type="button"
           onClick={addItem}
-          className="self-start text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+          className="self-start text-sm font-medium text-brand-600 hover:text-brand-800 flex items-center gap-1"
         >
           <Plus size={14} /> Add another item
         </button>
@@ -695,7 +695,7 @@ function PayerSection({ item, index, members, firstMemberId, amountCents, update
               updateItem(index, { splitPayer: true });
             }
           }}
-          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+          className="text-xs text-brand-600 hover:text-brand-800 font-medium"
         >
           {item.splitPayer ? "Single payer" : "Split payment"}
         </button>
@@ -756,7 +756,7 @@ function PayerSection({ item, index, members, firstMemberId, amountCents, update
                 payers: [...item.payers, { memberId: "", amountStr: "" }],
               })
             }
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium self-start flex items-center gap-1"
+            className="text-xs text-brand-600 hover:text-brand-800 font-medium self-start flex items-center gap-1"
           >
             <Plus size={12} /> Add payer
           </button>

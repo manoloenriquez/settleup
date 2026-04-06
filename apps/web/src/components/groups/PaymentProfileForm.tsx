@@ -92,7 +92,7 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
           />
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-700">GCash QR image</label>
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 p-4 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 p-4 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600 transition-colors">
               <Upload size={16} />
               Choose file
               <input type="file" accept="image/*" onChange={handleQRUpload("gcash")} className="hidden" />
@@ -129,7 +129,7 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
           />
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-700">Bank QR image</label>
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 p-4 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 p-4 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600 transition-colors">
               <Upload size={16} />
               Choose file
               <input type="file" accept="image/*" onChange={handleQRUpload("bank")} className="hidden" />

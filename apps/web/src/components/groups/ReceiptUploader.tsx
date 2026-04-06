@@ -68,11 +68,11 @@ export function ReceiptUploader({ onParsed }: Props): React.ReactElement {
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
-          className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors cursor-pointer"
+          className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center hover:border-brand-400 hover:bg-brand-50/50 transition-colors cursor-pointer"
           onClick={() => inputRef.current?.click()}
         >
-          <div className="rounded-full bg-indigo-100 p-3 mb-3">
-            <Camera size={24} className="text-indigo-600" />
+          <div className="rounded-full bg-brand-100 p-3 mb-3">
+            <Camera size={24} className="text-brand-600" />
           </div>
           <p className="text-sm font-medium text-slate-700">
             Drop a receipt image or tap to upload
