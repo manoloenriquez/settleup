@@ -42,9 +42,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated user hitting an auth route or "/" → groups
+  // Authenticated user hitting an auth route → groups
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
-  if (user && (isAuthRoute || pathname === "/")) {
+  if (user && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/groups";
     return NextResponse.redirect(url);

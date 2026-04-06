@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { listExpenses } from "@/app/actions/expenses";
-import { getMembersWithBalances } from "@/app/actions/balances";
+import { getMembersWithBalances, getCreditorProfiles } from "@/app/actions/balances";
 import { getPaymentProfile } from "@/app/actions/payment-profiles";
 import { getGroupActivity } from "@/app/actions/activity";
 import { simplifyDebts, formatCents } from "@template/shared";
@@ -49,32 +50,35 @@ function buildPaymentProfileText(profile: {
 
 export default async function GroupDetailPage({ params }: Props): Promise<React.ReactElement> {
   const { groupId } = await params;
+  const user = await cachedAuth();
   const supabase = await createClient();
 
   const { data: group } = await supabase
     .schema("settleup")
     .from("groups")
-    .select("id, name, share_token")
+    .select("id, name, share_token, owner_user_id")
     .eq("id", groupId)
     .single();
 
   if (!group) notFound();
 
-  const [balancesResult, expensesResult, profileResult, activityResult] = await Promise.all([
+  const [balancesResult, expensesResult, profileResult, activityResult, creditorProfilesResult] = await Promise.all([
     getMembersWithBalances(groupId),
     listExpenses(groupId),
     getPaymentProfile(),
     getGroupActivity(groupId),
+    getCreditorProfiles(groupId),
   ]);
 
   const balances = balancesResult.data ?? [];
+  const creditorProfiles = creditorProfilesResult.data ?? [];
   const members = balances.map((b) => ({
     id: b.member_id,
     display_name: b.display_name,
     slug: b.slug,
     share_token: b.share_token,
     user_id: b.user_id,
-    role: (b.role ?? "member") as "owner" | "member",
+    role: (b.role ?? "member") as "owner" | "admin" | "member",
     group_id: groupId,
     created_at: "",
   }));
@@ -82,6 +86,10 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const profile = profileResult.data ?? null;
   const activities = activityResult.data ?? [];
   const paymentProfileText = buildPaymentProfileText(profile);
+  const currentUserId = user.id;
+  const isOwner = group.owner_user_id === currentUserId;
+  const currentMember = members.find((m) => m.user_id === currentUserId);
+  const isAdminOrOwner = isOwner || currentMember?.role === "admin";
   const debts = simplifyDebts(balances);
   const pendingMembers = balances.filter((b) => b.net_cents < 0).length;
   const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
@@ -167,6 +175,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
               groupName={group.name}
               paymentProfileText={paymentProfileText}
               origin={origin}
+              creditorProfiles={creditorProfiles}
             />
             <div className="border-t border-slate-100 pt-4">
               <AddMemberForm groupId={groupId} />
@@ -177,7 +186,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
           </div>
         }
         expensesContent={
-          <ExpenseList expenses={expenses} members={members} />
+          <ExpenseList expenses={expenses} members={members} currentUserId={currentUserId} isAdminOrOwner={isAdminOrOwner} />
         }
       />
     </div>

@@ -8,9 +8,10 @@ import { EmptyState } from "@/components/ui";
 type ExpenseListProps = {
   expenses: Expense[];
   onDelete?: (id: string) => void;
+  onEdit?: (expense: Expense) => void;
 };
 
-export function ExpenseList({ expenses, onDelete }: ExpenseListProps) {
+export function ExpenseList({ expenses, onDelete, onEdit }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
       <EmptyState
@@ -38,6 +39,11 @@ export function ExpenseList({ expenses, onDelete }: ExpenseListProps) {
           </View>
           <View style={styles.rowRight}>
             <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
+            {onEdit && (
+              <TouchableOpacity onPress={() => onEdit(exp)} hitSlop={8}>
+                <Ionicons name="pencil" size={16} color={colors.gray400} />
+              </TouchableOpacity>
+            )}
             {onDelete && (
               <TouchableOpacity onPress={() => confirmDelete(exp.id)} hitSlop={8}>
                 <Ionicons name="close" size={16} color={colors.gray400} />

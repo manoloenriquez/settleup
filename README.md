@@ -137,11 +137,15 @@ pnpm dev:web
 ### Mobile (Expo)
 
 ```bash
+# First-time iOS setup for native modules / dev client
+pnpm dev:mobile:ios
+
+# Then start Metro for the development build
 pnpm dev:mobile
-# Opens Expo Go / simulator selector
+# Starts Expo for the development client
 # For iOS simulator: press i
 # For Android emulator: press a
-# For physical device: scan QR with Expo Go
+# For Expo Go specifically: pnpm --filter @template/mobile start:expo-go
 ```
 
 ### Supabase Local Stack

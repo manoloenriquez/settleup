@@ -172,7 +172,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id: string | null;
-          role: "owner" | "member";
+          role: "owner" | "admin" | "member";
           created_at: string;
         };
         Insert: {
@@ -182,7 +182,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id?: string | null;
-          role?: "owner" | "member";
+          role?: "owner" | "admin" | "member";
           created_at?: string;
         };
         Update: {
@@ -192,7 +192,7 @@ export type Database = {
           slug?: string;
           share_token?: string;
           user_id?: string | null;
-          role?: "owner" | "member";
+          role?: "owner" | "admin" | "member";
           created_at?: string;
         };
         Relationships: [
@@ -480,6 +480,10 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      get_dashboard_summary: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       get_member_balances: {
         Args: { p_group_id: string };
         Returns: Json;
@@ -522,6 +526,26 @@ export type Database = {
       };
       transfer_group_ownership: {
         Args: { p_group_id: string; p_new_owner_member_id: string };
+        Returns: Json;
+      };
+      promote_member: {
+        Args: { p_member_id: string; p_role: string };
+        Returns: Json;
+      };
+      rename_group: {
+        Args: { p_group_id: string; p_name: string };
+        Returns: Json;
+      };
+      get_creditor_profiles: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      update_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      update_itemized_expense: {
+        Args: { p_input: Json };
         Returns: Json;
       };
     };

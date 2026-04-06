@@ -64,9 +64,7 @@ export async function renameGroup(groupId: string, name: string): Promise<ApiRes
 
   const { error } = await supabase
     .schema("settleup")
-    .from("groups")
-    .update({ name: trimmed })
-    .eq("id", groupId);
+    .rpc("rename_group", { p_group_id: groupId, p_name: trimmed });
 
   if (error) return { data: null, error: error.message };
   return { data: null, error: null };

@@ -5,6 +5,7 @@ import {
   parseInviteCodeRpcResult,
   parseJoinGroupRpcResult,
   parseLeaveGroupRpcResult,
+  parsePromoteMemberRpcResult,
   parseShareTokenRpcResult,
   type Group,
   type GroupMember,
@@ -70,4 +71,17 @@ export async function regenerateInviteCode(
   if (error) return { data: null, error: error.message };
 
   return parseInviteCodeRpcResult(result);
+}
+
+export async function promoteMember(
+  memberId: string,
+  role: "admin" | "member",
+): Promise<ApiResponse<GroupMember>> {
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("promote_member", { p_member_id: memberId, p_role: role });
+
+  if (error) return { data: null, error: error.message };
+
+  return parsePromoteMemberRpcResult(result);
 }

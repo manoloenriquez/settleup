@@ -1,13 +1,13 @@
 "use client";
 
-import { formatCents } from "@template/shared";
+import { formatCents, buildSuggestedSettlements } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Receipt, Users, Smartphone, Landmark, CheckCircle2 } from "lucide-react";
-import type { GroupOverviewPayload } from "@template/shared";
+import { Receipt, Users, Smartphone, Landmark, CheckCircle2, ArrowRight } from "lucide-react";
+import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
 
 type Props = {
   payload: GroupOverviewPayload;
@@ -38,15 +38,21 @@ function sortedMembers(members: GroupOverviewPayload["members"]): MemberWithNet[
     });
 }
 
+function computeSettlements(payload: GroupOverviewPayload): SuggestedSettlement[] {
+  if (payload.creditor_profiles?.length) {
+    return buildSuggestedSettlements(payload.members, payload.creditor_profiles);
+  }
+  return [];
+}
+
 function buildSummaryText(payload: GroupOverviewPayload): string {
-  const pp = payload.payment_profile;
   const lines: string[] = [`GROUP SUMMARY — ${payload.group.name}`, "", "WHO OWES:"];
 
   for (const m of payload.members) {
     const net = m.net_cents ?? 0;
     const owed = m.owed_cents ?? Math.max(0, -net);
     if (net === 0) {
-      lines.push(`${m.display_name} — Settled ✓`);
+      lines.push(`${m.display_name} — Settled`);
     } else if (net > 0) {
       lines.push(`${m.display_name} — is owed ${formatCents(net)}`);
     } else {
@@ -57,13 +63,25 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   lines.push("", `Total outstanding: ${formatCents(totalOwed)}`);
 
-  if (pp) {
-    if (pp.payer_display_name) lines.push("", `Pay to: ${pp.payer_display_name}`);
-    if (pp.gcash_number) lines.push(`GCash: ${pp.gcash_number}`);
-    if (pp.bank_name && pp.bank_account_number) {
-      lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+  // Suggested settlements
+  const settlements = computeSettlements(payload);
+  if (settlements.length > 0) {
+    lines.push("", "SUGGESTED SETTLEMENTS:");
+    for (const s of settlements) {
+      lines.push(`${s.from_display_name} pays ${formatCents(s.amount_cents)} to ${s.to_display_name}`);
+      const pp = s.creditor_profile;
+      if (pp?.gcash_number) lines.push(`  GCash: ${pp.gcash_number}`);
+      if (pp?.bank_name && pp?.bank_account_number) lines.push(`  Bank: ${pp.bank_name} ${pp.bank_account_number}`);
     }
-    if (pp.notes) lines.push(pp.notes);
+  } else {
+    // Fallback to owner profile
+    const pp = payload.payment_profile;
+    if (pp) {
+      if (pp.payer_display_name) lines.push("", `Pay to: ${pp.payer_display_name}`);
+      if (pp.gcash_number) lines.push(`GCash: ${pp.gcash_number}`);
+      if (pp.bank_name && pp.bank_account_number) lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+      if (pp.notes) lines.push(pp.notes);
+    }
   }
 
   if (payload.expenses.length > 0) {
@@ -84,6 +102,7 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
 }
 
 export function GroupOverview({ payload }: Props): React.ReactElement {
+  const settlements = computeSettlements(payload);
   const pp = payload.payment_profile;
   const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   const summaryText = buildSummaryText(payload);
@@ -163,8 +182,65 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
           </CardContent>
         </Card>
 
-        {/* Payment info */}
-        {pp && (pp.gcash_number ?? pp.bank_account_number) && (
+        {/* Suggested settlements */}
+        {settlements.length > 0 && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Settle Up</h2>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {settlements.map((s, idx) => (
+                <div key={idx} className="rounded-xl border border-slate-100 p-4">
+                  <div className="flex items-center gap-2 text-sm mb-3">
+                    <Avatar name={s.from_display_name} size="sm" />
+                    <span className="font-medium text-slate-700">{s.from_display_name}</span>
+                    <ArrowRight size={14} className="text-slate-400" />
+                    <Avatar name={s.to_display_name} size="sm" />
+                    <span className="font-medium text-slate-700">{s.to_display_name}</span>
+                    <span className="ml-auto font-bold text-slate-900">{formatCents(s.amount_cents)}</span>
+                  </div>
+                  {!s.creditor_profile && (
+                    <p className="text-xs text-slate-400 italic mt-1">
+                      No payment details set — creditor can add them in Account &rarr; Payment Settings
+                    </p>
+                  )}
+                  {s.creditor_profile && (
+                    <div className="flex flex-col gap-2 pl-2 border-l-2 border-brand-100">
+                      {s.creditor_profile.gcash_number && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Smartphone size={12} className="text-blue-500" />
+                          <span className="font-mono text-slate-700">{s.creditor_profile.gcash_number}</span>
+                          {s.creditor_profile.gcash_name && <span className="text-slate-400">({s.creditor_profile.gcash_name})</span>}
+                        </div>
+                      )}
+                      {s.creditor_profile.gcash_qr_url && (
+                        <div className="mt-2 flex justify-center">
+                          <img src={s.creditor_profile.gcash_qr_url} alt="GCash QR" className="w-full max-w-[240px] object-contain bg-white p-3 rounded-xl border border-slate-200 shadow-sm" />
+                        </div>
+                      )}
+                      {s.creditor_profile.bank_name && s.creditor_profile.bank_account_number && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Landmark size={12} className="text-brand-500" />
+                          <span className="font-mono text-slate-700">{s.creditor_profile.bank_account_number}</span>
+                          <span className="text-slate-400">({s.creditor_profile.bank_name})</span>
+                        </div>
+                      )}
+                      {s.creditor_profile.bank_qr_url && (
+                        <div className="mt-2 flex justify-center">
+                          <img src={s.creditor_profile.bank_qr_url} alt="Bank QR" className="w-full max-w-[240px] object-contain bg-white p-3 rounded-xl border border-slate-200 shadow-sm" />
+                        </div>
+                      )}
+                      {s.creditor_profile.notes && <p className="text-xs text-slate-400 italic">{s.creditor_profile.notes}</p>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Fallback: owner payment info (when no creditor profiles available) */}
+        {settlements.length === 0 && pp && (pp.gcash_number ?? pp.bank_account_number) && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -191,16 +267,11 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                   </div>
                   {pp.gcash_qr_url && (
                     <div className="mt-3 flex justify-center">
-                      <img
-                        src={pp.gcash_qr_url}
-                        alt="GCash QR"
-                        className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
-                      />
+                      <img src={pp.gcash_qr_url} alt="GCash QR" className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm" />
                     </div>
                   )}
                 </div>
               )}
-
               {pp.bank_name && pp.bank_account_number && (
                 <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -214,16 +285,11 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                   </div>
                   {pp.bank_qr_url && (
                     <div className="mt-3 flex justify-center">
-                      <img
-                        src={pp.bank_qr_url}
-                        alt="Bank QR"
-                        className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
-                      />
+                      <img src={pp.bank_qr_url} alt="Bank QR" className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm" />
                     </div>
                   )}
                 </div>
               )}
-
               {pp.notes && <p className="text-xs text-slate-400 italic">{pp.notes}</p>}
             </CardContent>
           </Card>

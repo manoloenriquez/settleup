@@ -17,7 +17,7 @@ export function useReceiptScan() {
     }
 
     const picked = await ImagePicker.launchCameraAsync({
-      mediaTypes: "images",
+      mediaTypes: ["images"],
       quality: 0.9,
       allowsEditing: false,
     });
@@ -34,7 +34,7 @@ export function useReceiptScan() {
     }
 
     const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
+      mediaTypes: ["images"],
       quality: 0.9,
       allowsEditing: false,
     });

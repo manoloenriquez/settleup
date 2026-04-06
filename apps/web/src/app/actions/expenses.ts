@@ -3,12 +3,15 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import { addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema } from "@template/shared";
+import { addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema, updateExpenseSchema, updateItemizedExpenseSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
   buildItemizedExpenseRpcInput,
+  buildUpdateCustomExpenseRpcInput,
+  buildUpdateEqualExpenseRpcInput,
+  buildUpdateItemizedExpenseRpcInput,
   parseCreateExpenseRpcResult,
   type Expense,
   type ExpenseItem,
@@ -164,6 +167,92 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
 
     const expenseResult = parseCreateExpenseRpcResult(result);
     if (expenseResult.error) return { data: null, error: "Failed to add itemized expense." };
+
+    return expenseResult;
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function updateExpense(input: unknown): Promise<ApiResponse<Expense>> {
+  try {
+    await assertAuth();
+
+    const parsed = updateExpenseSchema.safeParse(input);
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+
+    const { expense_id, item_name, amount_cents, notes, split_mode, participant_ids, custom_splits, payers } = parsed.data;
+
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    const rpcInput = split_mode === "equal"
+      ? buildUpdateEqualExpenseRpcInput({
+          expenseId: expense_id,
+          itemName: item_name,
+          amountCents: amount_cents,
+          notes,
+          participantIds: participant_ids,
+          payers: payers.map((p) => ({ memberId: p.member_id, paidCents: p.paid_cents })),
+        })
+      : buildUpdateCustomExpenseRpcInput({
+          expenseId: expense_id,
+          itemName: item_name,
+          amountCents: amount_cents,
+          notes,
+          customSplits: (custom_splits ?? []).map((s) => ({ memberId: s.member_id, shareCents: s.share_cents })),
+          payers: payers.map((p) => ({ memberId: p.member_id, paidCents: p.paid_cents })),
+        });
+
+    const { data: result, error } = await db.rpc("update_expense", { p_input: rpcInput });
+    if (error) return { data: null, error: "Failed to update expense." };
+
+    const expenseResult = parseCreateExpenseRpcResult(result);
+    if (expenseResult.error) return { data: null, error: "Failed to update expense." };
+
+    return expenseResult;
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function updateItemizedExpense(input: unknown): Promise<ApiResponse<Expense>> {
+  try {
+    await assertAuth();
+
+    const parsed = updateItemizedExpenseSchema.safeParse(input);
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+
+    const { expense_id, item_name, amount_cents, notes, payers, line_items } = parsed.data;
+
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    const { data: result, error } = await db.rpc("update_itemized_expense", {
+      p_input: buildUpdateItemizedExpenseRpcInput({
+        expenseId: expense_id,
+        itemName: item_name,
+        amountCents: amount_cents,
+        notes,
+        payers: payers.map((p) => ({ memberId: p.member_id, paidCents: p.paid_cents })),
+        lineItems: line_items.map((li) => ({
+          name: li.name,
+          amountCents: li.amount_cents,
+          participantIds: li.participant_ids,
+        })),
+      }),
+    });
+
+    if (error) return { data: null, error: "Failed to update itemized expense." };
+
+    const expenseResult = parseCreateExpenseRpcResult(result);
+    if (expenseResult.error) return { data: null, error: "Failed to update itemized expense." };
 
     return expenseResult;
   } catch (e) {

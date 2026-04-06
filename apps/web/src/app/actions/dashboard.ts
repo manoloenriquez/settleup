@@ -1,83 +1,33 @@
 "use server";
 
-import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
-import type { ApiResponse, GroupWithStats } from "@template/shared/types";
+import type { ApiResponse, DashboardSummary } from "@template/shared/types";
+import { parseDashboardSummaryRpcResult } from "@template/supabase";
 
-export type DashboardSummary = {
-  net_balance_cents: number; // positive = owed to you, negative = you owe
-  total_groups: number;
-  total_unsettled_cents: number;
-  pending_members: number;
-  groups: {
-    id: string;
-    name: string;
-    member_count: number;
-    pending_count: number;
-    total_owed_cents: number;
-    created_at: string;
-  }[];
-};
-
-type BalanceRow = {
-  member_id: string;
-  display_name: string;
-  net_cents: number;
-  user_id: string | null;
-};
+function logDashboardTiming(durationMs: number): void {
+  if (process.env.NODE_ENV === "development") {
+    console.info(`[perf] web dashboard summary ${durationMs}ms`);
+  }
+}
 
 export async function getDashboardSummary(): Promise<ApiResponse<DashboardSummary>> {
+  const startedAt = Date.now();
+
   try {
-    const user = await assertAuth();
+    await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data, error } = await db.rpc("get_groups_with_stats");
+    const { data, error } = await db.rpc("get_dashboard_summary");
     if (error) return { data: null, error: "Failed to load dashboard." };
 
-    const groups = (data ?? []) as unknown as GroupWithStats[];
-
-    const totalGroups = groups.length;
-    const totalUnsettled = groups.reduce((sum, g) => sum + g.total_owed_cents, 0);
-    const pendingMembers = groups.reduce((sum, g) => sum + g.pending_count, 0);
-
-    // 2B: Parallelize balance fetches — was sequential (N+1 queries)
-    const balanceResults = await Promise.all(
-      groups.map((group) =>
-        db.rpc("get_member_balances", { p_group_id: group.id }),
-      ),
-    );
-
-    let netBalance = 0;
-    for (const result of balanceResults) {
-      if (result.data) {
-        const balances = (result.data ?? []) as unknown as BalanceRow[];
-        const myBalance = balances.find((b) => b.user_id === user.id);
-        if (myBalance) {
-          netBalance += myBalance.net_cents;
-        }
-      }
-    }
-
-    return {
-      data: {
-        net_balance_cents: netBalance,
-        total_groups: totalGroups,
-        total_unsettled_cents: totalUnsettled,
-        pending_members: pendingMembers,
-        groups: groups.map((g) => ({
-          id: g.id,
-          name: g.name,
-          member_count: g.member_count,
-          pending_count: g.pending_count,
-          total_owed_cents: g.total_owed_cents,
-          created_at: g.created_at,
-        })),
-      },
-      error: null,
-    };
+    return parseDashboardSummaryRpcResult(data);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };
+  } finally {
+    logDashboardTiming(Date.now() - startedAt);
   }
 }

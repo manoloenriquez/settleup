@@ -14,9 +14,10 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog } from "@/components/ui/Dialog";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
-import { Undo2, Link as LinkIcon, MessageSquare, Trash2, Banknote } from "lucide-react";
+import Link from "next/link";
+import { Undo2, Link as LinkIcon, MessageSquare, Trash2, Banknote, CreditCard } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
-import type { MemberBalance, SimplifiedDebt } from "@template/shared";
+import type { MemberBalance, SimplifiedDebt, CreditorPaymentProfile } from "@template/shared";
 
 type Props = {
   members: GroupMember[];
@@ -25,6 +26,7 @@ type Props = {
   groupName: string;
   paymentProfileText?: string;
   origin: string;
+  creditorProfiles?: CreditorPaymentProfile[];
 };
 
 function buildMessage(
@@ -87,7 +89,9 @@ export function BalanceSummary({
   groupName,
   paymentProfileText = "",
   origin,
+  creditorProfiles,
 }: Props): React.ReactElement {
+  const creditorMemberIds = new Set(creditorProfiles?.map((cp) => cp.member_id) ?? []);
   const [isPending, startTransition] = useTransition();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [fromMemberId, setFromMemberId] = useState("");
@@ -280,6 +284,12 @@ export function BalanceSummary({
                 <p className="text-xs text-emerald-700 font-medium">
                   Owed {formatCents(balance.net_cents)}
                 </p>
+              )}
+              {isOwed && !creditorMemberIds.has(balance.member_id) && (
+                <Link href="/account/payment" className="flex items-center gap-1 text-[10px] text-brand-600 hover:text-brand-700 mt-0.5">
+                  <CreditCard size={10} />
+                  Add payment details
+                </Link>
               )}
             </div>
 

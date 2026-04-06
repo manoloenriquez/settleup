@@ -6,7 +6,7 @@ import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { useArchiveGroup, useGroups, useRenameGroup, useTransferOwnership } from "@/hooks/useGroups";
 import { useAddMember, useAddMembersBatch, useMembers, useDeleteMember, useRenameMember } from "@/hooks/useMembers";
-import { useRegenerateInviteCode, useLeaveGroup } from "@/hooks/useCollaboration";
+import { useRegenerateInviteCode, useLeaveGroup, usePromoteMember } from "@/hooks/useCollaboration";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
@@ -35,6 +35,7 @@ export default function GroupSettingsScreen() {
   const renameGroupMutation = useRenameGroup();
   const regenerateCode = useRegenerateInviteCode();
   const leaveGroupMutation = useLeaveGroup();
+  const promoteMemberMutation = usePromoteMember(groupId);
 
   // Get current group to show invite code
   const groupsQ = useGroups();
@@ -50,6 +51,8 @@ export default function GroupSettingsScreen() {
   // Determine if current user is the group owner
   const currentMember = (membersQ.data ?? []).find((m) => m.user_id === user?.id);
   const isOwner = currentMember?.role === "owner";
+  const isAdmin = currentMember?.role === "admin";
+  const isAdminOrOwner = isOwner || isAdmin;
 
   function confirmLeaveGroup() {
     Alert.alert(
@@ -174,6 +177,27 @@ export default function GroupSettingsScreen() {
     ]);
   }
 
+  function handlePromoteMember(memberId: string, memberName: string, newRole: "admin" | "member") {
+    const label = newRole === "admin" ? "Make admin" : "Remove admin";
+    Alert.alert(
+      `${label}?`,
+      newRole === "admin"
+        ? `${memberName} will be able to manage members and invite codes.`
+        : `${memberName} will become a regular member.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: label,
+          onPress: async () => {
+            const r = await promoteMemberMutation.mutateAsync({ memberId, role: newRole });
+            if (r.error) { Alert.alert("Error", r.error); return; }
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ],
+    );
+  }
+
   function confirmArchiveGroup() {
     Alert.alert("Archive Group?", "The group will be hidden from your list. You can restore it later.", [
       { text: "Cancel", style: "cancel" },
@@ -246,13 +270,15 @@ export default function GroupSettingsScreen() {
                   style={{ marginTop: spacing.sm }}
                 />
               ) : null}
-              <AppButton
-                title="Regenerate Code"
-                variant="secondary"
-                onPress={handleRegenerateCode}
-                isLoading={regenerateCode.isPending}
-                style={{ marginTop: spacing.sm }}
-              />
+              {isAdminOrOwner && (
+                <AppButton
+                  title="Regenerate Code"
+                  variant="secondary"
+                  onPress={handleRegenerateCode}
+                  isLoading={regenerateCode.isPending}
+                  style={{ marginTop: spacing.sm }}
+                />
+              )}
               <Text style={styles.inviteHint}>
                 Share this code or link so others can join the group.
               </Text>
@@ -301,16 +327,27 @@ export default function GroupSettingsScreen() {
                 ) : (
                   <ListItem
                     left={<Avatar name={m.display_name} size={32} />}
-                    title={m.display_name}
-                    subtitle={m.role === "owner" ? "Owner" : m.user_id ? "Member" : "Unlinked"}
+                    title={`${m.display_name}${m.user_id === user?.id ? " (you)" : ""}`}
+                    subtitle={m.role === "owner" ? "Owner" : m.role === "admin" ? "Admin" : m.user_id ? "Member" : "Unlinked"}
                     right={
                       <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                        <Text
-                          style={styles.renameBtn}
-                          onPress={() => startRenameMember(m.id, m.display_name)}
-                        >
-                          Rename
-                        </Text>
+                        {(isAdminOrOwner || m.user_id === user?.id) && (
+                          <Text
+                            style={styles.renameBtn}
+                            onPress={() => startRenameMember(m.id, m.display_name)}
+                          >
+                            Rename
+                          </Text>
+                        )}
+                        {/* Owner-only: promote/demote admin */}
+                        {isOwner && m.role !== "owner" && m.user_id && m.user_id !== user?.id && (
+                          <Text
+                            style={styles.adminBtn}
+                            onPress={() => handlePromoteMember(m.id, m.display_name, m.role === "admin" ? "member" : "admin")}
+                          >
+                            {m.role === "admin" ? "Remove admin" : "Make admin"}
+                          </Text>
+                        )}
                         {isOwner && m.role !== "owner" && m.user_id && (
                           <Text
                             style={styles.transferBtn}
@@ -319,7 +356,7 @@ export default function GroupSettingsScreen() {
                             Make owner
                           </Text>
                         )}
-                        {m.role !== "owner" && (
+                        {isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id && (
                           <Text
                             style={styles.removeBtn}
                             onPress={() => confirmDeleteMember(m.id, m.display_name)}
@@ -431,6 +468,7 @@ const styles = StyleSheet.create({
   batchHint: { fontSize: fontSize.xs, color: colors.gray400, marginTop: spacing.xs },
   removeBtn: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
   renameBtn: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.medium },
+  adminBtn: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.medium },
   transferBtn: { fontSize: fontSize.sm, color: colors.warning, fontWeight: fontWeight.medium },
   renameRow: {
     flexDirection: "row",

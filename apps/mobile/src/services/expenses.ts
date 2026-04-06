@@ -4,6 +4,8 @@ import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
   buildItemizedExpenseRpcInput,
+  buildUpdateEqualExpenseRpcInput,
+  buildUpdateCustomExpenseRpcInput,
   parseCreateExpenseRpcResult,
   type Expense,
 } from "@template/supabase";
@@ -95,6 +97,61 @@ export async function addItemizedExpense(params: {
         amountCents: params.amountCents,
         payers: params.payers,
         lineItems: params.lineItems,
+      }),
+    });
+
+  if (error) return { data: null, error: error.message };
+
+  return parseCreateExpenseRpcResult(result);
+}
+
+export async function updateExpense(params: {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  participantIds: string[];
+  payers: { memberId: string; paidCents: number }[];
+}): Promise<ApiResponse<Expense>> {
+  if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
+  if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+  if (params.participantIds.length === 0) return { data: null, error: "Select at least one participant" };
+
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("update_expense", {
+      p_input: buildUpdateEqualExpenseRpcInput({
+        expenseId: params.expenseId,
+        itemName: params.itemName,
+        amountCents: params.amountCents,
+        participantIds: params.participantIds,
+        payers: params.payers,
+      }),
+    });
+
+  if (error) return { data: null, error: error.message };
+
+  return parseCreateExpenseRpcResult(result);
+}
+
+export async function updateExpenseCustomSplit(params: {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  customSplits: { memberId: string; shareCents: number }[];
+  payers: { memberId: string; paidCents: number }[];
+}): Promise<ApiResponse<Expense>> {
+  if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
+  if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("update_expense", {
+      p_input: buildUpdateCustomExpenseRpcInput({
+        expenseId: params.expenseId,
+        itemName: params.itemName,
+        amountCents: params.amountCents,
+        customSplits: params.customSplits,
+        payers: params.payers,
       }),
     });
 

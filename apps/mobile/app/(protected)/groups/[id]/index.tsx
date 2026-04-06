@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useMembersWithBalances } from "@/hooks/useBalances";
-import { useExpenses, useDeleteExpense } from "@/hooks/useExpenses";
+import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances";
+import { useExpenses, useDeleteExpense, useUpdateExpense } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
 import { useUndoLastPayment } from "@/hooks/usePayments";
@@ -17,8 +17,9 @@ import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { SegmentedControl, Card } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { simplifyDebts, formatCents } from "@template/shared";
+import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
 import type { SimplifiedDebt } from "@template/shared";
+import type { Expense } from "@template/supabase";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -31,10 +32,17 @@ export default function GroupDetailScreen() {
   const { user } = useAuth();
 
   const balancesQ = useMembersWithBalances(id);
+  const creditorProfilesQ = useCreditorProfiles(id);
   const expensesQ = useExpenses(id);
   const activityQ = useGroupActivity(id);
   const deleteExpense = useDeleteExpense(id);
+  const updateExpenseMut = useUpdateExpense(id);
   const undoPayment = useUndoLastPayment(id);
+
+  // Edit expense modal state
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
   const membersQ = useMembers(id);
@@ -104,9 +112,44 @@ export default function GroupDetailScreen() {
 
   function handleSettle(debt: SimplifiedDebt) {
     router.push({
-      pathname: `/(protected)/groups/${id}/settle-up`,
-      params: { fromId: debt.from_member_id, toId: debt.to_member_id, amount: String(debt.amount_cents) },
+      pathname: "/groups/[id]/settle-up",
+      params: { id, fromId: debt.from_member_id, toId: debt.to_member_id, amount: String(debt.amount_cents) },
     });
+  }
+
+  function openEditExpense(expense: Expense): void {
+    setEditingExpense(expense);
+    setEditName(expense.item_name);
+    setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+  }
+
+  function handleSaveEdit(): void {
+    if (!editingExpense) return;
+    const amountCents = parsePHPAmount(editAmount);
+    if (!amountCents || amountCents <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
+      return;
+    }
+    const allMemberIds = (membersQ.data ?? []).map((m) => m.id);
+    updateExpenseMut.mutate(
+      {
+        expenseId: editingExpense.id,
+        itemName: editName.trim(),
+        amountCents,
+        participantIds: allMemberIds,
+        payers: [{ memberId: allMemberIds[0] ?? "", paidCents: amountCents }],
+      },
+      {
+        onSuccess: (res) => {
+          if (res.error) {
+            Alert.alert("Error", res.error);
+            return;
+          }
+          setEditingExpense(null);
+        },
+        onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to update"),
+      },
+    );
   }
 
   const segments: { value: Tab; label: string }[] = [
@@ -220,7 +263,7 @@ export default function GroupDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>WHO OWES WHO</Text>
           </View>
-          <DebtSummary members={balancesQ.data ?? []} onSettle={handleSettle} />
+          <DebtSummary members={balancesQ.data ?? []} creditorProfiles={creditorProfilesQ.data} onSettle={handleSettle} />
 
           {/* Segmented Tabs */}
           <View style={styles.segmentWrapper}>
@@ -242,6 +285,7 @@ export default function GroupDetailScreen() {
           {tab === "expenses" && (
             <ExpenseList
               expenses={expensesQ.data ?? []}
+              onEdit={openEditExpense}
               onDelete={(expId) => deleteExpense.mutate(expId)}
             />
           )}
@@ -261,6 +305,54 @@ export default function GroupDetailScreen() {
         <Ionicons name="add" size={20} color={colors.white} />
         <Text style={styles.fabText}>Add Expense</Text>
       </TouchableOpacity>
+
+      {/* Edit Expense Modal */}
+      <Modal
+        visible={editingExpense !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingExpense(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Expense</Text>
+            <Text style={styles.modalLabel}>Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Expense name"
+              placeholderTextColor={colors.gray400}
+            />
+            <Text style={styles.modalLabel}>Amount</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editAmount}
+              onChangeText={setEditAmount}
+              placeholder="0.00"
+              placeholderTextColor={colors.gray400}
+              keyboardType="decimal-pad"
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setEditingExpense(null)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, updateExpenseMut.isPending && { opacity: 0.6 }]}
+                onPress={handleSaveEdit}
+                disabled={updateExpenseMut.isPending}
+              >
+                <Text style={styles.modalSaveText}>
+                  {updateExpenseMut.isPending ? "Saving..." : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -335,4 +427,15 @@ const styles = StyleSheet.create({
   },
   claimMemberName: { fontSize: fontSize.sm, color: colors.gray900, fontWeight: fontWeight.medium },
   claimMemberAction: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: spacing.base },
+  modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, width: "100%" },
+  modalTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900, marginBottom: spacing.base },
+  modalLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray600, marginBottom: 4 },
+  modalInput: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: fontSize.md, color: colors.gray900, marginBottom: spacing.sm },
+  modalBtns: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.sm },
+  modalCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.base },
+  modalCancelText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray500 },
+  modalSaveBtn: { backgroundColor: colors.primary, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: borderRadius.md },
+  modalSaveText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.white },
 });

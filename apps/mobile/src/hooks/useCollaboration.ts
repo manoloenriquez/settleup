@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { joinGroupByInvite, claimMember, leaveGroup, rotateShareToken, regenerateInviteCode } from "@/services/collaboration";
+import { joinGroupByInvite, claimMember, leaveGroup, promoteMember, rotateShareToken, regenerateInviteCode } from "@/services/collaboration";
 
 export function useJoinGroup() {
   const queryClient = useQueryClient();
@@ -48,6 +48,17 @@ export function useRegenerateInviteCode() {
     mutationFn: (groupId: string) => regenerateInviteCode(groupId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}
+
+export function usePromoteMember(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, role }: { memberId: string; role: "admin" | "member" }) =>
+      promoteMember(memberId, role),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["members", groupId] });
     },
   });
 }

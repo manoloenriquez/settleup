@@ -1,18 +1,49 @@
-import { formatCents } from "@template/shared";
+import { formatCents, buildSuggestedSettlements } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Receipt, CheckCircle2, TrendingDown, ArrowUpRight, Smartphone, Landmark } from "lucide-react";
-import type { FriendViewPayload } from "@template/shared";
+import type { FriendViewPayload, CreditorPaymentProfile } from "@template/shared";
 
 type Props = {
   payload: FriendViewPayload;
   shareLink: string;
 };
 
+/**
+ * Resolve the payment profile(s) to show for this member.
+ * If creditor_profiles + all_balances are available, use simplifyDebts to find
+ * who this member owes, and return those creditors' profiles.
+ * Falls back to the owner's payment_profile for backward compat.
+ */
+function resolveCreditorProfiles(payload: FriendViewPayload): CreditorPaymentProfile[] {
+  if (payload.all_balances?.length && payload.creditor_profiles?.length) {
+    const settlements = buildSuggestedSettlements(payload.all_balances, payload.creditor_profiles);
+    return settlements
+      .filter((s) => s.from_member_id === payload.member.id && s.creditor_profile)
+      .map((s) => s.creditor_profile!);
+  }
+  // Fallback: wrap owner payment_profile as a single creditor
+  if (payload.payment_profile) {
+    return [{
+      member_id: "",
+      display_name: payload.payment_profile.payer_display_name ?? "Group Owner",
+      gcash_name: payload.payment_profile.gcash_name,
+      gcash_number: payload.payment_profile.gcash_number,
+      gcash_qr_url: payload.payment_profile.gcash_qr_url,
+      bank_name: payload.payment_profile.bank_name,
+      bank_account_name: payload.payment_profile.bank_account_name,
+      bank_account_number: payload.payment_profile.bank_account_number,
+      bank_qr_url: payload.payment_profile.bank_qr_url,
+      notes: payload.payment_profile.notes,
+    }];
+  }
+  return [];
+}
+
 function buildMessage(payload: FriendViewPayload, link: string): string {
-  const pp = payload.payment_profile;
+  const profiles = resolveCreditorProfiles(payload);
   const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
   const lines: string[] = [
     owedAmount > 0
@@ -20,22 +51,25 @@ function buildMessage(payload: FriendViewPayload, link: string): string {
       : `Hi ${payload.member.display_name}! You're all settled for ${payload.group.name}.`,
   ];
 
-  if (pp?.gcash_number) {
-    lines.push(`Pay via GCash: ${pp.gcash_number}${pp.gcash_name ? ` (${pp.gcash_name})` : ""}`);
+  for (const pp of profiles) {
+    if (pp.display_name) lines.push(`Pay to: ${pp.display_name}`);
+    if (pp.gcash_number) {
+      lines.push(`GCash: ${pp.gcash_number}${pp.gcash_name ? ` (${pp.gcash_name})` : ""}`);
+    }
+    if (pp.bank_name && pp.bank_account_number) {
+      lines.push(
+        `Bank: ${pp.bank_name} ${pp.bank_account_number}${pp.bank_account_name ? ` (${pp.bank_account_name})` : ""}`,
+      );
+    }
+    if (pp.notes) lines.push(pp.notes);
   }
-  if (pp?.bank_name && pp?.bank_account_number) {
-    lines.push(
-      `Or bank: ${pp.bank_name} ${pp.bank_account_number}${pp.bank_account_name ? ` (${pp.bank_account_name})` : ""}`,
-    );
-  }
-  if (pp?.notes) lines.push(pp.notes);
   lines.push(`Link: ${link}`);
 
   return lines.join("\n");
 }
 
 export function FriendView({ payload, shareLink }: Props): React.ReactElement {
-  const pp = payload.payment_profile;
+  const creditorProfiles = resolveCreditorProfiles(payload);
   const message = buildMessage(payload, shareLink);
   const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
   const isPaid = owedAmount === 0;
@@ -91,11 +125,13 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
           </div>
         </div>
 
-        {/* Payment details */}
-        {pp && owes && (
-          <Card>
+        {/* Payment details — per creditor */}
+        {owes && creditorProfiles.length > 0 && creditorProfiles.map((pp, idx) => (
+          <Card key={pp.member_id || idx}>
             <CardHeader>
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">How to pay</h2>
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                {pp.display_name ? `Pay ${pp.display_name}` : "How to pay"}
+              </h2>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {(pp.gcash_name || pp.gcash_number) && (
@@ -155,7 +191,7 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
               {pp.notes && <p className="text-sm text-slate-500 italic">{pp.notes}</p>}
             </CardContent>
           </Card>
-        )}
+        ))}
 
         {/* Expense breakdown */}
         <Card>

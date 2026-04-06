@@ -1,4 +1,4 @@
-import type { ApiResponse, GroupWithStats } from "@template/shared";
+import { dashboardSummarySchema, type ApiResponse, type DashboardSummary, type GroupWithStats } from "@template/shared";
 import type { Expense, Group, GroupMember, Json } from "./database.types";
 import { z } from "zod";
 
@@ -29,6 +29,33 @@ type ItemizedExpenseRpcInput = {
   lineItems: Array<{ name: string; amountCents: number; participantIds: string[] }>;
 };
 
+type UpdateEqualExpenseRpcInput = {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  notes?: string;
+  participantIds: string[];
+  payers: Array<{ memberId: string; paidCents: number }>;
+};
+
+type UpdateCustomExpenseRpcInput = {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  notes?: string;
+  customSplits: Array<{ memberId: string; shareCents: number }>;
+  payers: Array<{ memberId: string; paidCents: number }>;
+};
+
+type UpdateItemizedExpenseRpcInput = {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  notes?: string;
+  payers: Array<{ memberId: string; paidCents: number }>;
+  lineItems: Array<{ name: string; amountCents: number; participantIds: string[] }>;
+};
+
 const groupSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -46,7 +73,7 @@ const groupMemberSchema = z.object({
   slug: z.string(),
   share_token: z.string(),
   user_id: z.string().uuid().nullable(),
-  role: z.enum(["owner", "member"]),
+  role: z.enum(["owner", "admin", "member"]),
   created_at: z.string(),
 });
 
@@ -69,6 +96,7 @@ const groupWithStatsSchema = groupSchema.extend({
 const createGroupResultSchema = z.object({ group: groupSchema });
 const createExpenseResultSchema = z.object({ expense: expenseSchema });
 const groupsWithStatsResultSchema = z.array(groupWithStatsSchema);
+const dashboardSummaryResultSchema = dashboardSummarySchema;
 const joinGroupResultSchema = z.object({
   group: groupSchema,
   member: groupMemberSchema,
@@ -83,6 +111,7 @@ const inviteCodeResultSchema = z.object({ invite_code: z.string() });
 const leaveGroupResultSchema = z.object({ success: z.boolean() });
 const renameMemberResultSchema = z.object({ member: groupMemberSchema });
 const transferOwnershipResultSchema = z.object({ success: z.boolean() });
+const promoteMemberResultSchema = z.object({ member: groupMemberSchema });
 
 function parseRpcPayload<T>(
   result: Json | null,
@@ -148,6 +177,57 @@ export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Js
   };
 }
 
+export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInput): Json {
+  return {
+    expense_id: input.expenseId,
+    item_name: input.itemName.trim(),
+    amount_cents: input.amountCents,
+    notes: input.notes?.trim() || undefined,
+    split_mode: "equal",
+    participant_ids: [...input.participantIds].sort(),
+    payers: input.payers.map((payer) => ({
+      member_id: payer.memberId,
+      paid_cents: payer.paidCents,
+    })),
+  };
+}
+
+export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcInput): Json {
+  return {
+    expense_id: input.expenseId,
+    item_name: input.itemName.trim(),
+    amount_cents: input.amountCents,
+    notes: input.notes?.trim() || undefined,
+    split_mode: "custom",
+    custom_splits: input.customSplits.map((split) => ({
+      member_id: split.memberId,
+      share_cents: split.shareCents,
+    })),
+    payers: input.payers.map((payer) => ({
+      member_id: payer.memberId,
+      paid_cents: payer.paidCents,
+    })),
+  };
+}
+
+export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseRpcInput): Json {
+  return {
+    expense_id: input.expenseId,
+    item_name: input.itemName.trim(),
+    amount_cents: input.amountCents,
+    notes: input.notes?.trim() || undefined,
+    payers: input.payers.map((payer) => ({
+      member_id: payer.memberId,
+      paid_cents: payer.paidCents,
+    })),
+    line_items: input.lineItems.map((lineItem) => ({
+      name: lineItem.name.trim(),
+      amount_cents: lineItem.amountCents,
+      participant_ids: [...lineItem.participantIds].sort(),
+    })),
+  };
+}
+
 export function parseCreateGroupRpcResult(result: Json | null): ApiResponse<Group> {
   const parsed = parseRpcPayload(result, createGroupResultSchema, "Failed to create group.");
   if (parsed.error) return parsed;
@@ -166,6 +246,10 @@ export function parseCreateExpenseRpcResult(result: Json | null): ApiResponse<Ex
 
 export function parseGroupsWithStatsRpcResult(result: Json | null): ApiResponse<GroupWithStats[]> {
   return parseRpcPayload(result, groupsWithStatsResultSchema, "Failed to parse groups.");
+}
+
+export function parseDashboardSummaryRpcResult(result: Json | null): ApiResponse<DashboardSummary> {
+  return parseRpcPayload(result, dashboardSummaryResultSchema, "Failed to parse dashboard summary.");
 }
 
 export function parseJoinGroupRpcResult(
@@ -213,5 +297,12 @@ export function parseRenameMemberRpcResult(result: Json | null): ApiResponse<Gro
   const parsed = parseRpcPayload(result, renameMemberResultSchema, "Failed to rename member.");
   if (parsed.error) return parsed;
   if (parsed.data === null) return { data: null, error: "Failed to rename member." };
+  return { data: parsed.data.member, error: null };
+}
+
+export function parsePromoteMemberRpcResult(result: Json | null): ApiResponse<GroupMember> {
+  const parsed = parseRpcPayload(result, promoteMemberResultSchema, "Failed to update member role.");
+  if (parsed.error) return parsed;
+  if (parsed.data === null) return { data: null, error: "Failed to update member role." };
   return { data: parsed.data.member, error: null };
 }

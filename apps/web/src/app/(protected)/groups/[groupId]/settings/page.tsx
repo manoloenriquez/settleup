@@ -31,6 +31,9 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   if (!group) notFound();
 
   const isOwner = group.owner_user_id === user.id;
+  const currentMember = (members ?? []).find((m) => m.user_id === user.id);
+  const isAdmin = currentMember?.role === "admin";
+  const isAdminOrOwner = isOwner || isAdmin;
 
   return (
     <div className="flex flex-col gap-6">
@@ -49,6 +52,8 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         group={group}
         members={members ?? []}
         isOwner={isOwner}
+        isAdmin={isAdmin}
+        isAdminOrOwner={isAdminOrOwner}
         currentUserId={user.id}
       />
     </div>

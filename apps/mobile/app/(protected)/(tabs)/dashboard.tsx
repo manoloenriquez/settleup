@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDashboardSummary } from "@/hooks/useDashboard";
-import { useGroupsWithStats } from "@/hooks/useGroups";
 import { formatCents, APP_NAME } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { SkeletonCard } from "@/components/ui";
@@ -18,18 +17,18 @@ type QuickAction = {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { data: summary, refetch: refetchSummary } = useDashboardSummary();
-  const { data: groups, isLoading: loadingGroups, refetch: refetchGroups } = useGroupsWithStats();
+  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useDashboardSummary();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function handleRefresh() {
     setIsRefreshing(true);
-    await Promise.all([refetchSummary(), refetchGroups()]);
+    await refetchSummary();
     setIsRefreshing(false);
   }
 
-  const netCents = summary?.net_cents ?? 0;
+  const groups = summary?.groups ?? [];
+  const netCents = summary?.net_balance_cents ?? 0;
   const isOwed = netCents > 0;
   const owes = netCents < 0;
   const settled = netCents === 0;
@@ -60,7 +59,7 @@ export default function DashboardScreen() {
       label: "All Groups",
       color: "#8b5cf6",
       bg: "#ede9fe",
-      onPress: () => router.push("/(tabs)/groups/index"),
+      onPress: () => router.push("/groups"),
     },
   ];
 
@@ -117,12 +116,12 @@ export default function DashboardScreen() {
           <Text style={styles.sectionTitle}>YOUR GROUPS</Text>
         </View>
 
-        {loadingGroups ? (
+        {loadingSummary ? (
           <View style={styles.skeletonWrapper}>
             <SkeletonCard />
             <SkeletonCard />
           </View>
-        ) : (groups ?? []).length === 0 ? (
+        ) : groups.length === 0 ? (
           <View style={styles.emptyGroups}>
             <View style={styles.emptyIconWrap}>
               <Ionicons name="people-outline" size={32} color={colors.gray400} />
@@ -138,7 +137,7 @@ export default function DashboardScreen() {
           </View>
         ) : (
           <View style={styles.groupsList}>
-            {(groups ?? []).map((group) => {
+            {groups.map((group) => {
               const hasDebt = (group.total_owed_cents ?? 0) > 0;
               return (
                 <TouchableOpacity

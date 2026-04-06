@@ -46,7 +46,24 @@ export type SimplifiedDebt = {
   amount_cents: number;
 };
 
-export type MemberRole = "owner" | "member";
+export type CreditorPaymentProfile = {
+  member_id: string;
+  display_name: string;
+  gcash_name: string | null;
+  gcash_number: string | null;
+  gcash_qr_url: string | null;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_qr_url: string | null;
+  notes: string | null;
+};
+
+export type SuggestedSettlement = SimplifiedDebt & {
+  creditor_profile: CreditorPaymentProfile | null;
+};
+
+export type MemberRole = "owner" | "admin" | "member";
 
 export type MemberBalance = {
   member_id: string;
@@ -81,6 +98,7 @@ export type GroupOverviewPayload = {
     bank_qr_url: string | null;
     notes: string | null;
   } | null;
+  creditor_profiles?: CreditorPaymentProfile[];
   error?: string;
 };
 
@@ -100,6 +118,8 @@ export type FriendViewPayload = {
     gcash_qr_url: string | null;
     bank_qr_url: string | null;
   } | null;
+  all_balances?: { member_id: string; display_name: string; net_cents: number }[];
+  creditor_profiles?: CreditorPaymentProfile[];
   expenses: {
     item_name: string;
     share_cents: number;
@@ -123,4 +143,21 @@ export type GroupWithStats = {
   member_count: number;
   pending_count: number;
   total_owed_cents: number;
+};
+
+export type DashboardGroupSummary = {
+  id: string;
+  name: string;
+  member_count: number;
+  pending_count: number;
+  total_owed_cents: number;
+  created_at: string;
+};
+
+export type DashboardSummary = {
+  net_balance_cents: number;
+  total_groups: number;
+  total_unsettled_cents: number;
+  pending_members: number;
+  groups: DashboardGroupSummary[];
 };

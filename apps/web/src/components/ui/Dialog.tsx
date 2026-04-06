@@ -9,6 +9,7 @@ type DialogProps = {
   onClose: () => void;
   title: string;
   description?: string;
+  children?: React.ReactNode;
   confirmLabel?: string;
   confirmVariant?: "primary" | "danger";
   onConfirm: () => void;
@@ -20,6 +21,7 @@ export function Dialog({
   onClose,
   title,
   description,
+  children,
   confirmLabel = "Confirm",
   confirmVariant = "primary",
   onConfirm,
@@ -48,6 +50,7 @@ export function Dialog({
         {description && (
           <p className="mt-2 text-sm text-slate-500">{description}</p>
         )}
+        {children}
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
             Cancel

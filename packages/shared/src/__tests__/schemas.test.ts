@@ -6,6 +6,7 @@ import {
   recordPaymentSchema,
   createGroupSchema,
   addMemberSchema,
+  dashboardSummarySchema,
 } from "../schemas";
 
 // Valid v4 UUIDs (version=4, variant=8)
@@ -295,6 +296,50 @@ describe("addItemizedExpenseSchema", () => {
         { name: "Paid thing", amount_cents: 1000, participant_ids: [MEMBER_A] },
       ],
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("dashboardSummarySchema", () => {
+  it("accepts a valid dashboard summary payload", () => {
+    const result = dashboardSummarySchema.safeParse({
+      net_balance_cents: -1250,
+      total_groups: 2,
+      total_unsettled_cents: 4300,
+      pending_members: 3,
+      groups: [
+        {
+          id: GROUP_ID,
+          name: "Trip",
+          member_count: 4,
+          pending_count: 2,
+          total_owed_cents: 4300,
+          created_at: "2026-04-06T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects groups with invalid IDs", () => {
+    const result = dashboardSummarySchema.safeParse({
+      net_balance_cents: 0,
+      total_groups: 1,
+      total_unsettled_cents: 0,
+      pending_members: 0,
+      groups: [
+        {
+          id: "not-a-uuid",
+          name: "Trip",
+          member_count: 1,
+          pending_count: 0,
+          total_owed_cents: 0,
+          created_at: "2026-04-06T00:00:00.000Z",
+        },
+      ],
+    });
+
     expect(result.success).toBe(false);
   });
 });

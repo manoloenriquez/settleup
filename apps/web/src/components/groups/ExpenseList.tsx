@@ -3,18 +3,20 @@
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteExpense } from "@/app/actions/expenses";
-import { formatCents } from "@template/shared";
+import { deleteExpense, updateExpense } from "@/app/actions/expenses";
+import { formatCents, parsePHPAmount } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
-import { Search, CreditCard, Users, Trash2, Receipt, Clock, List, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, CreditCard, Users, Trash2, Pencil, Receipt, Clock, List, ChevronDown, ChevronUp } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
   expenses: ExpenseWithParticipants[];
   members: GroupMember[];
+  currentUserId: string;
+  isAdminOrOwner: boolean;
 };
 
 function formatDayLabel(dateStr: string): string {
@@ -44,10 +46,13 @@ function getDayKey(dateStr: string): string {
   return new Date(dateStr).toDateString();
 }
 
-export function ExpenseList({ expenses, members }: Props): React.ReactElement {
+export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<ExpenseWithParticipants | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   function toggleExpanded(id: string): void {
@@ -88,6 +93,48 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
       }
       toast.success("Expense deleted");
       setDeleteTarget(null);
+      router.refresh();
+    });
+  }
+
+  function canEditExpense(expense: ExpenseWithParticipants): boolean {
+    return isAdminOrOwner || expense.created_by_user_id === currentUserId;
+  }
+
+  function openEdit(expense: ExpenseWithParticipants): void {
+    setEditTarget(expense);
+    setEditName(expense.item_name);
+    setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+  }
+
+  function handleEdit(): void {
+    if (!editTarget) return;
+    const amountCents = parsePHPAmount(editAmount);
+    if (!amountCents || amountCents <= 0) {
+      toast.error("Invalid amount");
+      return;
+    }
+    startTransition(async () => {
+      const result = await updateExpense({
+        expense_id: editTarget.id,
+        item_name: editName.trim(),
+        amount_cents: amountCents,
+        notes: editTarget.notes ?? undefined,
+        split_mode: "equal",
+        participant_ids: editTarget.participants.map((p) => p.member_id),
+        payers: editTarget.payers.map((p) => ({
+          member_id: p.member_id,
+          paid_cents: editTarget.payers.length === 1
+            ? amountCents
+            : Math.round((p.paid_cents / editTarget.amount_cents) * amountCents),
+        })),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Expense updated");
+      setEditTarget(null);
       router.refresh();
     });
   }
@@ -211,16 +258,29 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
                       )}
                     </div>
 
-                    {/* Delete */}
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => setDeleteTarget(expense.id)}
-                      className="rounded-xl p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 shrink-0"
-                      title="Delete expense"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {/* Edit + Delete */}
+                    <div className="flex gap-0.5 shrink-0">
+                      {canEditExpense(expense) && (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => openEdit(expense)}
+                          className="rounded-xl p-1.5 text-slate-300 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50"
+                          title="Edit expense"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => setDeleteTarget(expense.id)}
+                        className="rounded-xl p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                        title="Delete expense"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Item breakdown */}
@@ -267,6 +327,40 @@ export function ExpenseList({ expenses, members }: Props): React.ReactElement {
         onConfirm={handleDelete}
         isLoading={isPending}
       />
+
+      {/* Edit expense dialog */}
+      <Dialog
+        open={editTarget !== null}
+        onClose={() => setEditTarget(null)}
+        title="Edit expense"
+        confirmLabel="Save"
+        onConfirm={handleEdit}
+        isLoading={isPending}
+      >
+        <div className="flex flex-col gap-4 mt-2">
+          <div>
+            <label className="text-sm font-medium text-slate-700" htmlFor="edit-name">Name</label>
+            <Input
+              id="edit-name"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Expense name"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700" htmlFor="edit-amount">Amount</label>
+            <Input
+              id="edit-amount"
+              value={editAmount}
+              onChange={(e) => setEditAmount(e.target.value)}
+              placeholder="0.00"
+              inputMode="decimal"
+              className="mt-1"
+            />
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

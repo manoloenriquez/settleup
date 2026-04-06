@@ -3,12 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Archive, Copy, Crown, LogOut, Pencil, RefreshCw, Trash2, UserPlus } from "lucide-react";
+import { Archive, Copy, Crown, LogOut, Pencil, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { addMember, deleteMember, renameMember } from "@/app/actions/members";
 import { archiveGroup, deleteGroup, leaveGroup, renameGroup, transferOwnership } from "@/app/actions/groups";
-import { regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
+import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
 import type { GroupMember } from "@template/supabase";
 
 type GroupRow = {
@@ -23,6 +23,8 @@ interface Props {
   group: GroupRow;
   members: GroupMember[];
   isOwner: boolean;
+  isAdmin: boolean;
+  isAdminOrOwner: boolean;
   currentUserId: string;
 }
 
@@ -30,6 +32,8 @@ export function GroupSettingsClient({
   group,
   members,
   isOwner,
+  isAdmin: _isAdmin,
+  isAdminOrOwner,
   currentUserId,
 }: Props): React.ReactElement {
   const router = useRouter();
@@ -193,6 +197,20 @@ export function GroupSettingsClient({
     });
   }
 
+  function handlePromoteMember(member: GroupMember, role: "admin" | "member"): void {
+    startTransition(async () => {
+      const result = await promoteMember(member.id, role);
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        setMemberList((prev) =>
+          prev.map((m) => (m.id === member.id ? result.data! : m)),
+        );
+        toast.success(role === "admin" ? `${member.display_name} is now an admin` : `${member.display_name} is now a regular member`);
+      }
+    });
+  }
+
   function handleArchiveGroup(): void {
     if (!confirmArchive) {
       setConfirmArchive(true);
@@ -231,9 +249,8 @@ export function GroupSettingsClient({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Group name (owner only) */}
-      {isOwner && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* Group name (any linked member) */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-700 mb-4">Group Name</h2>
           <form onSubmit={handleRenameGroup} className="flex gap-2">
             <input
@@ -256,11 +273,9 @@ export function GroupSettingsClient({
           </form>
           {renameError && <p className="text-xs text-red-600 mt-2">{renameError}</p>}
         </section>
-      )}
 
-      {/* Invite section (owner only) */}
-      {isOwner && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* Invite section (all members can see; regenerate restricted to owner/admin) */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-700 mb-4">Invite Members</h2>
 
           <div className="flex flex-col gap-3">
@@ -278,16 +293,18 @@ export function GroupSettingsClient({
                 >
                   Copy code
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={RefreshCw}
-                  isLoading={isPending}
-                  onClick={handleRegenerateInvite}
-                  title="Regenerate invite code (invalidates the old one)"
-                >
-                  Rotate
-                </Button>
+                {isAdminOrOwner && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={RefreshCw}
+                    isLoading={isPending}
+                    onClick={handleRegenerateInvite}
+                    title="Regenerate invite code (invalidates the old one)"
+                  >
+                    Rotate
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -311,7 +328,6 @@ export function GroupSettingsClient({
             </div>
           </div>
         </section>
-      )}
 
       {/* Member list */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -323,6 +339,15 @@ export function GroupSettingsClient({
           {memberList.map((member) => {
             const isCurrentUser = member.user_id === currentUserId;
             const isOwnerMember = member.role === "owner";
+            const isAdminMember = member.role === "admin";
+            const canManageMember = isAdminOrOwner && !isOwnerMember && !isCurrentUser;
+            const roleLabel = isOwnerMember
+              ? "Owner"
+              : isAdminMember
+                ? "Admin"
+                : member.user_id
+                  ? "Member"
+                  : "Unlinked";
             return (
               <li
                 key={member.id}
@@ -357,15 +382,13 @@ export function GroupSettingsClient({
                             <span className="ml-1.5 text-xs text-slate-400">(you)</span>
                           )}
                         </p>
-                        <p className="text-xs text-slate-400">
-                          {isOwnerMember ? "Owner" : member.user_id ? "Member" : "Unlinked"}
-                        </p>
+                        <p className="text-xs text-slate-400">{roleLabel}</p>
                       </>
                     )}
                   </div>
                 </div>
 
-                {(isOwner || isCurrentUser) && editingMemberId !== member.id && (
+                {(isAdminOrOwner || isCurrentUser) && editingMemberId !== member.id && (
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       variant="ghost"
@@ -374,7 +397,7 @@ export function GroupSettingsClient({
                       onClick={() => startEditMember(member)}
                       title="Rename member"
                     />
-                    {isOwner && (
+                    {isAdminOrOwner && (
                       <>
                         <Button
                           variant="ghost"
@@ -386,7 +409,22 @@ export function GroupSettingsClient({
                         >
                           Rotate link
                         </Button>
-                        {!isOwnerMember && member.user_id && (
+                        {/* Owner-only: promote/demote admin */}
+                        {isOwner && !isOwnerMember && member.user_id && !isCurrentUser && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={Shield}
+                            onClick={() => handlePromoteMember(member, isAdminMember ? "member" : "admin")}
+                            isLoading={isPending}
+                            className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            title={isAdminMember ? "Remove admin" : "Make admin"}
+                          >
+                            {isAdminMember ? "Remove admin" : "Make admin"}
+                          </Button>
+                        )}
+                        {/* Owner-only: transfer ownership */}
+                        {isOwner && !isOwnerMember && member.user_id && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -399,7 +437,7 @@ export function GroupSettingsClient({
                             Make owner
                           </Button>
                         )}
-                        {!isOwnerMember && (
+                        {canManageMember && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -421,8 +459,8 @@ export function GroupSettingsClient({
           })}
         </ul>
 
-        {/* Add member form (owner only) */}
-        {isOwner && (
+        {/* Add member form (owner/admin) */}
+        {isAdminOrOwner && (
           <form onSubmit={handleAddMember} className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
             <input
               type="text"

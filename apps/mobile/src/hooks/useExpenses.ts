@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addExpense, addExpenseCustomSplit, addItemizedExpense, deleteExpense, listExpenses } from "@/services/expenses";
+import { addExpense, addExpenseCustomSplit, addItemizedExpense, deleteExpense, listExpenses, updateExpense } from "@/services/expenses";
 
 type AddExpenseParams = {
   groupId: string;
@@ -66,6 +66,22 @@ export function useAddItemizedExpense(groupId: string) {
   const invalidate = useExpenseMutationInvalidations(groupId);
   return useMutation({
     mutationFn: (params: AddItemizedExpenseParams) => addItemizedExpense(params),
+    onSuccess: invalidate,
+  });
+}
+
+type UpdateExpenseParams = {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  participantIds: string[];
+  payers: { memberId: string; paidCents: number }[];
+};
+
+export function useUpdateExpense(groupId: string) {
+  const invalidate = useExpenseMutationInvalidations(groupId);
+  return useMutation({
+    mutationFn: (params: UpdateExpenseParams) => updateExpense(params),
     onSuccess: invalidate,
   });
 }

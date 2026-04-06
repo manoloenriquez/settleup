@@ -136,12 +136,12 @@ export async function renameGroup(input: unknown): Promise<ApiResponse<void>> {
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
-    const { error } = await db
-      .from("groups")
-      .update({ name: parsed.data.name })
-      .eq("id", parsed.data.group_id);
+    const { error } = await db.rpc("rename_group", {
+      p_group_id: parsed.data.group_id,
+      p_name: parsed.data.name,
+    });
 
-    if (error) return { data: null, error: "Failed to rename group." };
+    if (error) return { data: null, error: error.message };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

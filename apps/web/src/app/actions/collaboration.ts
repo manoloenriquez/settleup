@@ -9,6 +9,7 @@ import {
   parseClaimMemberRpcResult,
   parseInviteCodeRpcResult,
   parseJoinGroupRpcResult,
+  parsePromoteMemberRpcResult,
   parseShareTokenRpcResult,
   type Group,
   type GroupMember,
@@ -17,6 +18,10 @@ import { z } from "zod";
 
 const groupIdSchema = z.string().uuid("Invalid group ID.");
 const memberIdSchema = z.string().uuid("Invalid member ID.");
+const promoteMemberSchema = z.object({
+  member_id: z.string().uuid("Invalid member ID."),
+  role: z.enum(["admin", "member"]),
+});
 
 function isNextInternalError(e: unknown): boolean {
   return typeof e === "object" && e !== null && "digest" in e;
@@ -123,6 +128,32 @@ export async function regenerateInviteCode(
     if (error) return { data: null, error: error.message };
 
     return parseInviteCodeRpcResult(result);
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function promoteMember(
+  memberId: string,
+  role: "admin" | "member",
+): Promise<ApiResponse<GroupMember>> {
+  try {
+    const parsed = promoteMemberSchema.safeParse({ member_id: memberId, role });
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+    await assertAuth();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    const { data: result, error } = await db.rpc("promote_member", {
+      p_member_id: parsed.data.member_id,
+      p_role: parsed.data.role,
+    });
+
+    if (error) return { data: null, error: error.message };
+
+    return parsePromoteMemberRpcResult(result);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };
