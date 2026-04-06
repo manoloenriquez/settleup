@@ -31,38 +31,34 @@ Philippine receipt conventions:
 type ReceiptScanInput = {
   /** Raw OCR text extracted from the image */
   ocrText: string;
-  /** Base64-encoded image or file URI — only used for API fallback multipart upload */
+  /** Base64-encoded image or file URI — used for API fallback multipart upload */
   imageUri?: string;
   imageMimeType?: string;
 };
 
 /**
- * Parse receipt OCR text using on-device AI (Apple Intelligence) or API fallback.
+ * Parse receipt using: Apple Intelligence (primary) → API/OpenAI (fallback) → regex (last resort).
  * The caller is responsible for OCR — pass the raw text here.
  */
 export async function parseReceiptMobile(
   input: ReceiptScanInput,
 ): Promise<ApiResponse<ParsedReceipt>> {
   const { ocrText, imageUri, imageMimeType } = input;
-
-  if (!ocrText.trim()) {
-    return { data: null, error: "Could not extract text from image" };
-  }
-
   const provider = await resolveProvider();
 
-  if (provider.name === "apple-intelligence") {
+  // 1. Try Apple Intelligence (primary for iOS)
+  if (provider.name === "apple-intelligence" && ocrText.trim()) {
     const result = await generateJSON<ParsedReceipt>({
       system: RECEIPT_SYSTEM_PROMPT,
       prompt: ocrText,
       schema: parsedReceiptSchema,
     });
     if (result.data) return result;
-    // Fall through to regex on AI error
+    // Fall through to API on Apple Intelligence error
   }
 
-  if (provider.name === "api" && imageUri && imageMimeType) {
-    // Send the image to the web API for OCR + AI extraction
+  // 2. Try web API backend (OpenAI vision — processes the image directly)
+  if (imageUri && imageMimeType) {
     try {
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -71,10 +67,14 @@ export async function parseReceiptMobile(
       const result = await callAiEndpointForm<ParsedReceipt>("/receipt", formData);
       if (result.data) return result;
     } catch {
-      // Fall through to regex on API error
+      // Fall through to regex
     }
   }
 
-  // Fallback: regex heuristics
-  return { data: parseReceiptWithRegex(ocrText), error: null };
+  // 3. Fallback: regex heuristics on OCR text
+  if (ocrText.trim()) {
+    return { data: parseReceiptWithRegex(ocrText), error: null };
+  }
+
+  return { data: null, error: "Could not extract text from image" };
 }

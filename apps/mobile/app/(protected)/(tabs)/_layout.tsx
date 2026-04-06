@@ -40,6 +40,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="scan"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} name={focused ? "scan" : "scan-outline"} label="Scan" />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="groups/index"
         options={{
           tabBarIcon: ({ focused }) => (

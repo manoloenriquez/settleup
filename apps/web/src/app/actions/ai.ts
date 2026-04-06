@@ -50,7 +50,7 @@ export async function parseReceipt(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    return await parseReceiptImage(buffer, user.id);
+    return await parseReceiptImage(buffer, file.type, user.id);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };

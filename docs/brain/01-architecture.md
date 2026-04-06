@@ -77,15 +77,15 @@ generateJSON<T>({ system, prompt, schema, userId })
     │
     ├── isLLMEnabled() check (LLM_ENABLED env var)
     ├── checkRateLimit(userId) — in-memory, per-user
-    ├── createProvider() — Ollama (default) or OpenAI (LLM_PROVIDER env)
-    ├── provider.generate({ system, prompt })
+    ├── createProvider() — OpenAI
+    ├── provider.generate({ system, prompt, imageBase64? })
     ├── JSON.parse(result.text)
     └── schema.safeParse(parsed) — Zod validation
         → returns ApiResponse<T>
 ```
 
 Feature modules:
-- `receipt.ts` — OCR image → expense draft
+- `receipt.ts` — vision LLM image → expense draft (falls back to OCR+text LLM → regex)
 - `smart-split.ts` — suggest split amounts
 - `insights.ts` — spending analysis
 - `conversation.ts` — natural language expense entry
@@ -103,12 +103,9 @@ NEXT_PUBLIC_APP_URL               client-safe
 
 SUPABASE_SERVICE_ROLE_KEY         server-only — NEVER use in app code
 LLM_ENABLED                       true | false
-LLM_PROVIDER                      ollama (default) | openai
-OLLAMA_BASE_URL                   default: http://localhost:11434
-OLLAMA_MODEL                      default: llama3.2
-OLLAMA_API_KEY                    optional (ollama.com cloud)
-OPENAI_API_KEY                    required if LLM_PROVIDER=openai
-OPENAI_MODEL                      default: gpt-4o-mini
+OPENAI_API_KEY                    required when LLM_ENABLED=true
+OPENAI_MODEL                      default: gpt-4o-mini (text tasks)
+OPENAI_VISION_MODEL               default: gpt-5.4-mini (receipt scanning)
 ```
 
 ### Mobile (`apps/mobile/.env`)

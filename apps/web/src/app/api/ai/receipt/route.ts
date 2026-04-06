@@ -42,6 +42,6 @@ export async function POST(request: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const result = await parseReceiptImage(buffer, user.id);
+  const result = await parseReceiptImage(buffer, file.type, user.id);
   return NextResponse.json(result);
 }

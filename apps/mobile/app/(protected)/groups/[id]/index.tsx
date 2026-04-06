@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -60,8 +60,11 @@ export default function GroupDetailScreen() {
       return;
     }
     const url = `${WEB_ORIGIN}/g/${group.share_token}`;
-    await Clipboard.setStringAsync(url);
-    Alert.alert("Copied", "Group overview link copied to clipboard");
+    try {
+      await Share.share({ message: url, url });
+    } catch {
+      // User cancelled — no action needed
+    }
   }
 
   async function handleCopyGroupSummary() {
@@ -166,6 +169,9 @@ export default function GroupDetailScreen() {
           title: group?.name ?? "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
+              <TouchableOpacity onPress={() => router.push(`/(protected)/groups/${id}/overview`)} hitSlop={8}>
+                <Ionicons name="eye-outline" size={20} color={colors.gray600} />
+              </TouchableOpacity>
               <TouchableOpacity onPress={handleCopyGroupSummary} hitSlop={8}>
                 <Ionicons name="copy-outline" size={20} color={colors.gray600} />
               </TouchableOpacity>
@@ -174,7 +180,7 @@ export default function GroupDetailScreen() {
               </TouchableOpacity>
               {WEB_ORIGIN ? (
                 <TouchableOpacity onPress={handleShareGroup} hitSlop={8}>
-                  <Ionicons name="link-outline" size={20} color={colors.gray600} />
+                  <Ionicons name="share-outline" size={20} color={colors.gray600} />
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity onPress={() => router.push(`/(protected)/groups/${id}/settings`)} hitSlop={8}>

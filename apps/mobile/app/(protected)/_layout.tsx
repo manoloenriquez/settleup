@@ -9,7 +9,10 @@ export default function ProtectedLayout() {
         headerTintColor: colors.gray900,
         headerTitleStyle: { fontWeight: fontWeight.bold, fontSize: fontSize.lg },
         headerShadowVisible: false,
+        headerBackTitle: " ",
       }}
-    />
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "" }} />
+    </Stack>
   );
 }

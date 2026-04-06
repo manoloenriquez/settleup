@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { buildSuggestedSettlements, simplifyDebts, formatCents } from "@template/shared";
 import type { CreditorPaymentProfile, MemberBalance, SimplifiedDebt, SuggestedSettlement } from "@template/shared";
@@ -47,27 +47,6 @@ export function DebtSummary({ members, creditorProfiles, onSettle }: DebtSummary
               <Text style={styles.settleBtnText}>Settle</Text>
             </TouchableOpacity>
           </View>
-          {debt.creditor_profile && (debt.creditor_profile.gcash_number || debt.creditor_profile.bank_account_number) && (
-            <View style={styles.paymentInfo}>
-              {debt.creditor_profile.gcash_number ? (
-                <Text style={styles.paymentText}>
-                  GCash: {debt.creditor_profile.gcash_number}
-                  {debt.creditor_profile.gcash_name ? ` (${debt.creditor_profile.gcash_name})` : ""}
-                </Text>
-              ) : null}
-              {debt.creditor_profile.gcash_qr_url ? (
-                <Image source={{ uri: debt.creditor_profile.gcash_qr_url }} style={styles.qrImage} />
-              ) : null}
-              {debt.creditor_profile.bank_name && debt.creditor_profile.bank_account_number ? (
-                <Text style={styles.paymentText}>
-                  {debt.creditor_profile.bank_name}: {debt.creditor_profile.bank_account_number}
-                </Text>
-              ) : null}
-              {debt.creditor_profile.bank_qr_url ? (
-                <Image source={{ uri: debt.creditor_profile.bank_qr_url }} style={styles.qrImage} />
-              ) : null}
-            </View>
-          )}
         </View>
       ))}
     </View>
@@ -84,9 +63,7 @@ const styles = StyleSheet.create({
   debtAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.danger },
   settleBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: borderRadius.full },
   settleBtnText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
-  paymentInfo: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
-  paymentText: { fontSize: fontSize.xs, color: colors.gray500, fontFamily: "monospace" },
-  qrImage: { width: 200, height: 200, alignSelf: "center" as const, marginTop: spacing.sm, borderRadius: borderRadius.md },
+
   settled: { alignItems: "center", padding: spacing.xl },
   settledIcon: { marginBottom: spacing.sm },
   settledText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.success },
