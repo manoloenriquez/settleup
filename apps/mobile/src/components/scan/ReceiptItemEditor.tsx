@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ReceiptLineItem } from "@template/shared/types";
+import type { ReceiptProvider } from "@/lib/ai/receipt";
 import { formatCents, parsePHPAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { AppButton } from "@/components/ui";
@@ -13,6 +14,7 @@ type ReceiptItemEditorProps = {
   date: string | null;
   items: EditableLineItem[];
   confidence: number;
+  provider?: ReceiptProvider;
   onItemsChange: (items: EditableLineItem[]) => void;
   onContinue: (expenseName: string, totalCents: number, items: EditableLineItem[]) => void;
   onBack: () => void;
@@ -23,6 +25,7 @@ export function ReceiptItemEditor({
   date,
   items,
   confidence,
+  provider,
   onItemsChange,
   onContinue,
   onBack,
@@ -70,6 +73,12 @@ export function ReceiptItemEditor({
           <Text style={styles.confidenceText}>{confidencePct}%</Text>
         </View>
       </View>
+
+      {provider === "apple-intelligence" && (
+        <View style={styles.aiBadge}>
+          <Text style={styles.aiBadgeText}>Powered by Apple Intelligence</Text>
+        </View>
+      )}
 
       {/* Expense name */}
       <View style={styles.nameSection}>
@@ -153,6 +162,14 @@ export function ReceiptItemEditor({
 const styles = StyleSheet.create({
   container: { flex: 1, gap: spacing.md },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  aiBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f0f0f0",
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  aiBadgeText: { fontSize: fontSize.xs, color: "#555", fontWeight: fontWeight.medium },
   backBtn: { padding: spacing.xs },
   title: { flex: 1, fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900 },
   confidenceBadge: {

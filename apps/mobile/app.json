@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SettleUp",
-    "slug": "settleup-lite",
+    "slug": "settleup",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -18,14 +18,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.settleuplite.app"
+      "bundleIdentifier": "com.settleup.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6366f1"
       },
-      "package": "com.settleuplite.app"
+      "package": "com.settleup.app"
     },
     "plugins": [
       "expo-router",

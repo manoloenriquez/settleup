@@ -1,4 +1,5 @@
 import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type ReceiptScannerProps = {
@@ -24,6 +25,11 @@ export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGaller
     return (
       <View style={styles.preview}>
         <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="contain" />
+        {error && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
         <TouchableOpacity style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
           <Text style={styles.clearBtnText}>Use Different Image</Text>
         </TouchableOpacity>
@@ -43,11 +49,11 @@ export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGaller
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.actionBtn} onPress={onCamera} activeOpacity={0.7}>
-          <Text style={styles.actionIcon}>📷</Text>
+          <Ionicons name="camera-outline" size={32} color={colors.gray500} />
           <Text style={styles.actionLabel}>Camera</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={onGallery} activeOpacity={0.7}>
-          <Text style={styles.actionIcon}>🖼️</Text>
+          <Ionicons name="images-outline" size={32} color={colors.gray500} />
           <Text style={styles.actionLabel}>Gallery</Text>
         </TouchableOpacity>
       </View>
@@ -72,7 +78,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
-  actionIcon: { fontSize: 32 },
   actionLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
   scanning: { alignItems: "center", gap: spacing.md, paddingVertical: spacing["2xl"] },
   scanningText: { fontSize: fontSize.sm, color: colors.gray500 },

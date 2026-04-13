@@ -6,6 +6,7 @@
     "dev:web": "turbo run dev --filter=@template/web",
     "dev:mobile": "turbo run dev --filter=@template/mobile",
     "dev:mobile:ios": "pnpm --filter @template/mobile ios",
+    "dev:api": "pnpm --filter @template/api dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",

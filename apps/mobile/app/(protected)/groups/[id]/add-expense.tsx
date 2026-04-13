@@ -432,6 +432,7 @@ export default function AddExpenseScreen() {
               {receiptScan.receipt && (
                 <ReceiptReviewCard
                   receipt={receiptScan.receipt}
+                  provider={receiptScan.provider}
                   onAccept={(name, cents) => {
                     setItemName(name);
                     setAmount(String(cents / 100));

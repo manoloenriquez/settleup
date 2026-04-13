@@ -1,15 +1,17 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { ParsedReceipt } from "@template/shared/types";
+import type { ReceiptProvider } from "@/lib/ai/receipt";
 import { formatCents } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type ReceiptReviewCardProps = {
   receipt: ParsedReceipt;
+  provider?: ReceiptProvider;
   onAccept: (itemName: string, amountCents: number) => void;
   onDismiss: () => void;
 };
 
-export function ReceiptReviewCard({ receipt, onAccept, onDismiss }: ReceiptReviewCardProps) {
+export function ReceiptReviewCard({ receipt, provider, onAccept, onDismiss }: ReceiptReviewCardProps) {
   const merchantName = receipt.merchant ?? "Receipt";
   const totalCents = receipt.total_cents;
   const confidence = Math.round(receipt.confidence * 100);
@@ -22,6 +24,12 @@ export function ReceiptReviewCard({ receipt, onAccept, onDismiss }: ReceiptRevie
           <Text style={styles.confidenceText}>{confidence}% confident</Text>
         </View>
       </View>
+
+      {provider === "apple-intelligence" && (
+        <View style={styles.aiBadge}>
+          <Text style={styles.aiBadgeText}>Powered by Apple Intelligence</Text>
+        </View>
+      )}
 
       <Text style={styles.merchant}>{merchantName}</Text>
       {receipt.date && <Text style={styles.date}>{receipt.date}</Text>}
@@ -74,6 +82,14 @@ const styles = StyleSheet.create({
   title: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
   confidenceBadge: { backgroundColor: colors.primaryLight, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   confidenceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
+  aiBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f0f0f0",
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  aiBadgeText: { fontSize: fontSize.xs, color: "#555", fontWeight: fontWeight.medium },
   merchant: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900 },
   date: { fontSize: fontSize.sm, color: colors.gray500 },
   lineItems: { gap: spacing.xs },

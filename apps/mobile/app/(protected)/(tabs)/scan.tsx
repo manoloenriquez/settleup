@@ -229,6 +229,7 @@ export default function ScanScreen(): React.ReactElement {
               date={receiptScan.receipt?.date ?? null}
               items={editedItems}
               confidence={receiptScan.receipt?.confidence ?? 0}
+              provider={receiptScan.provider}
               onItemsChange={setEditedItems}
               onContinue={handleReviewContinue}
               onBack={() => setStep("scan")}

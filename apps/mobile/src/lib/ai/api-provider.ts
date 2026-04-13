@@ -2,6 +2,13 @@ import type { MobileLLMProvider, MobileLLMRequest } from "./types";
 import type { ApiResponse } from "@template/shared";
 import { supabase } from "@/lib/supabase";
 
+/** Create an AbortSignal that fires after `ms` — Hermes doesn't support AbortSignal.timeout() */
+function timeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 /**
  * AI provider that calls the web app's /api/ai/* REST endpoints.
  * Used when Apple Intelligence is not available.
@@ -25,7 +32,7 @@ export function createApiProvider(baseUrl: string): MobileLLMProvider {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ system: request.system, prompt: request.prompt }),
-          signal: AbortSignal.timeout(30_000),
+          signal: timeoutSignal(30_000),
         });
         const json = await res.json() as ApiResponse<{ text: string }>;
         return json;
@@ -65,7 +72,7 @@ export async function callAiEndpoint<T>(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
+      signal: timeoutSignal(30_000),
     });
     const json = await res.json() as ApiResponse<T>;
     return json;
@@ -77,6 +84,7 @@ export async function callAiEndpoint<T>(
 
 /**
  * Make a multipart form data call to a specific AI API endpoint.
+ * Uses a longer timeout (60s) since vision/image processing can be slow.
  */
 export async function callAiEndpointForm<T>(
   endpoint: string,
@@ -100,7 +108,7 @@ export async function callAiEndpointForm<T>(
         "Authorization": `Bearer ${token}`,
       },
       body: formData,
-      signal: AbortSignal.timeout(30_000),
+      signal: timeoutSignal(60_000),
     });
     const json = await res.json() as ApiResponse<T>;
     return json;

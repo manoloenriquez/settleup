@@ -10,22 +10,48 @@ const noneProvider: MobileLLMProvider = {
   generate: async () => ({ data: null, error: "AI is not available on this device" }),
 };
 
+/**
+ * Check if a TurboModule native module is linked in the binary.
+ * Uses the low-level __turboModuleProxy directly — unlike getEnforcing(),
+ * this returns null instead of throwing an invariant violation.
+ */
+function hasNativeModule(name: string): boolean {
+  try {
+    const proxy = (global as Record<string, unknown>).__turboModuleProxy;
+    if (typeof proxy === "function") {
+      return (proxy as (n: string) => unknown)(name) != null;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Safely load @react-native-ai/apple — only if the native module is present.
+ * The package calls TurboModuleRegistry.getEnforcing() at module scope,
+ * which throws an invariant violation that RN's error overlay intercepts
+ * before JS try/catch can handle it. We must verify the module exists first.
+ */
+function loadAppleAI(): { apple: { isAvailable(): boolean; (): unknown } } | null {
+  if (Platform.OS !== "ios") return null;
+  if (!hasNativeModule("NativeAppleEmbeddings")) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("@react-native-ai/apple") as { apple: { isAvailable(): boolean; (): unknown } };
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveProvider(): Promise<MobileLLMProvider> {
   if (cachedProvider) return cachedProvider;
 
-  // 1. Try Apple Intelligence on iOS
-  if (Platform.OS === "ios") {
-    try {
-      // Dynamic import — avoids crashes on iOS < 26 where the module may fail to load
-      const { apple } = await import("@react-native-ai/apple");
-
-      if (apple.isAvailable()) {
-        cachedProvider = createAppleIntelligenceProvider();
-        return cachedProvider;
-      }
-    } catch {
-      // @react-native-ai/apple not installed or not supported on this iOS version
-    }
+  // 1. Try Apple Intelligence on iOS (requires native module in the binary)
+  const appleModule = loadAppleAI();
+  if (appleModule && appleModule.apple.isAvailable()) {
+    cachedProvider = createAppleIntelligenceProvider(appleModule);
+    return cachedProvider;
   }
 
   // 2. Fall back to web API backend
@@ -44,25 +70,23 @@ export function resetProviderCache(): void {
   cachedProvider = null;
 }
 
-function createAppleIntelligenceProvider(): MobileLLMProvider {
+function createAppleIntelligenceProvider(
+  appleModule: { apple: { isAvailable(): boolean; (): unknown } },
+): MobileLLMProvider {
   return {
     name: "apple-intelligence",
     isAvailable: async () => {
       try {
-        const { apple } = await import("@react-native-ai/apple");
-        return apple.isAvailable();
+        return appleModule.apple.isAvailable();
       } catch {
         return false;
       }
     },
     generate: async (request) => {
       try {
-        const [{ apple }, { generateText }] = await Promise.all([
-          import("@react-native-ai/apple"),
-          import("ai"),
-        ]);
+        const { generateText } = await import("ai");
         const { text } = await generateText({
-          model: apple(),
+          model: appleModule.apple() as Parameters<typeof generateText>[0]["model"],
           system: request.system,
           prompt: request.prompt,
         });

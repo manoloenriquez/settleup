@@ -2,9 +2,8 @@
 
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { createClient } from "@/lib/supabase/server";
-import { parseReceiptImage } from "@/lib/ai/receipt";
-import { suggestSplit } from "@/lib/ai/smart-split";
-import { parseConversation } from "@/lib/ai/conversation";
+import { parseReceiptImage, suggestSplit, parseConversation } from "@template/ai";
+import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { AI_LIMITS } from "@template/shared/constants";
 import { conversationMessageSchema } from "@template/shared/schemas";
 import type { ApiResponse } from "@template/shared/types";
@@ -23,6 +22,14 @@ async function assertGroupMember(userId: string, groupId: string): Promise<boole
   return data !== null;
 }
 
+async function enforceRateLimit(userId: string): Promise<string | null> {
+  const rate = await checkRateLimit(userId);
+  if (!rate.allowed) {
+    return `Rate limited. Try again in ${Math.ceil(rate.retryAfterMs / 1000)}s.`;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Receipt parsing
 // ---------------------------------------------------------------------------
@@ -32,6 +39,9 @@ export async function parseReceipt(
 ): Promise<ApiResponse<ParsedReceipt>> {
   try {
     const user = await assertAuth();
+
+    const rateError = await enforceRateLimit(user.id);
+    if (rateError) return { data: null, error: rateError };
 
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -50,7 +60,7 @@ export async function parseReceipt(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    return await parseReceiptImage(buffer, file.type, user.id);
+    return await parseReceiptImage(buffer, file.type);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };
@@ -85,12 +95,14 @@ export async function getSmartSplit(
       return { data: null, error: "You are not a member of this group." };
     }
 
+    const rateError = await enforceRateLimit(user.id);
+    if (rateError) return { data: null, error: rateError };
+
     return await suggestSplit({
       item_name: parsed.data.item_name,
       amount_cents: parsed.data.amount_cents,
       member_names: parsed.data.member_names,
       context: parsed.data.context,
-      userId: user.id,
     });
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
@@ -124,10 +136,12 @@ export async function parseConversationMessage(
       return { data: null, error: "You are not a member of this group." };
     }
 
+    const rateError = await enforceRateLimit(user.id);
+    if (rateError) return { data: null, error: rateError };
+
     return await parseConversation({
       messages: parsed.data.messages,
       member_names: parsed.data.member_names,
-      userId: user.id,
     });
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

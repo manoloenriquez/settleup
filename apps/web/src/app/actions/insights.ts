@@ -2,7 +2,8 @@
 
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
-import { computeInsights, generateInsightsSummary } from "@/lib/ai/insights";
+import { computeInsights, generateInsightsSummary } from "@template/ai";
+import { checkRateLimit } from "@/lib/ai/rate-limit";
 import type { ApiResponse } from "@template/shared/types";
 import type { InsightsSummary } from "@template/shared/types";
 import { z } from "zod";
@@ -56,8 +57,11 @@ export async function getGroupInsights(
 
     const insights = computeInsights(expenseData);
 
-    // Optional LLM summary
-    const llmSummary = await generateInsightsSummary(insights, group.name, user.id);
+    // Optional LLM summary — only call the rate limiter if we're actually going to invoke the LLM
+    const rate = await checkRateLimit(user.id);
+    const llmSummary = rate.allowed
+      ? await generateInsightsSummary(insights, group.name)
+      : null;
 
     return {
       data: { ...insights, llm_summary: llmSummary },
