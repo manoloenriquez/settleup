@@ -7,9 +7,12 @@ export function useGroupsWithStats() {
   const { session } = useAuth();
   return useQuery({
     queryKey: ["groups"],
-    queryFn: () => listGroupsWithStats(),
+    queryFn: async () => {
+      const res = await listGroupsWithStats();
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!session,
-    select: (res) => res.data ?? [],
   });
 }
 
@@ -71,9 +74,12 @@ export function useArchivedGroups() {
   const { session } = useAuth();
   return useQuery({
     queryKey: ["archivedGroups"],
-    queryFn: () => listArchivedGroups(),
+    queryFn: async () => {
+      const res = await listArchivedGroups();
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!session,
-    select: (res) => res.data ?? [],
   });
 }
 

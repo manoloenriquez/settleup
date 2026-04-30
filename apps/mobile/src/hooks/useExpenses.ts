@@ -29,9 +29,12 @@ type AddItemizedExpenseParams = {
 export function useExpenses(groupId: string) {
   return useQuery({
     queryKey: ["expenses", groupId],
-    queryFn: () => listExpenses(groupId),
+    queryFn: async () => {
+      const res = await listExpenses(groupId);
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!groupId,
-    select: (res) => res.data ?? [],
   });
 }
 

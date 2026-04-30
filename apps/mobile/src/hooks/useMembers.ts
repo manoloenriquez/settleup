@@ -5,9 +5,12 @@ import { addMember, addMembersBatch, deleteMember, listMembers, renameMember } f
 export function useMembers(groupId: string) {
   return useQuery({
     queryKey: ["members", groupId],
-    queryFn: () => listMembers(groupId),
+    queryFn: async () => {
+      const res = await listMembers(groupId);
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!groupId,
-    select: (res) => res.data ?? [],
   });
 }
 

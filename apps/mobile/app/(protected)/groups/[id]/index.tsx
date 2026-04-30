@@ -15,7 +15,7 @@ import { DebtSummary } from "@/components/groups/DebtSummary";
 import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
-import { SegmentedControl, Card } from "@/components/ui";
+import { SegmentedControl, Card, ErrorBanner } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
@@ -333,6 +333,21 @@ export default function GroupDetailScreen() {
             <RefreshControl refreshing={isRefreshing && !isLoading} onRefresh={handleRefresh} tintColor={colors.primary} />
           }
         >
+          {(balancesQ.error || expensesQ.error || activityQ.error) && (
+            <ErrorBanner
+              message={
+                (balancesQ.error instanceof Error ? balancesQ.error.message : null) ??
+                (expensesQ.error instanceof Error ? expensesQ.error.message : null) ??
+                (activityQ.error instanceof Error ? activityQ.error.message : null) ??
+                "Couldn't load this group."
+              }
+              onRetry={() => {
+                void balancesQ.refetch();
+                void expensesQ.refetch();
+                void activityQ.refetch();
+              }}
+            />
+          )}
           {/* Balance Stats */}
           {(() => {
             const members = balancesQ.data ?? [];

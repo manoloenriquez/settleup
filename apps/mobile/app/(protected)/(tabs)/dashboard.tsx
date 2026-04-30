@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useDashboardSummary } from "@/hooks/useDashboard";
 import { formatCents, APP_NAME } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { SkeletonCard } from "@/components/ui";
+import { SkeletonCard, ErrorBanner } from "@/components/ui";
 
 type QuickAction = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -17,7 +17,7 @@ type QuickAction = {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useDashboardSummary();
+  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary, error: summaryError } = useDashboardSummary();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -71,6 +71,12 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
       >
+        {summaryError && (
+          <ErrorBanner
+            message={summaryError instanceof Error ? summaryError.message : "Couldn't load your dashboard."}
+            onRetry={() => void refetchSummary()}
+          />
+        )}
         {/* Hero Balance Card */}
         <View style={[styles.heroCard, { backgroundColor: heroBg, borderColor: heroBorder }]}>
           <View style={[styles.heroPill, { backgroundColor: heroColor + "20" }]}>

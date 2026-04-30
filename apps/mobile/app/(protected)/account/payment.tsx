@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getPaymentProfile, upsertPaymentProfile, uploadQRImage } from "@/services/payment-profiles";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { Card, SectionHeader } from "@/components/ui";
+import { Card, SectionHeader, ErrorBanner } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function PaymentSettingsScreen() {
@@ -15,6 +15,7 @@ export default function PaymentSettingsScreen() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [gcashName, setGcashName] = useState("");
   const [gcashNumber, setGcashNumber] = useState("");
@@ -29,8 +30,11 @@ export default function PaymentSettingsScreen() {
     async function load() {
       if (!userId) return;
       setLoading(true);
+      setLoadError(null);
       const res = await getPaymentProfile(userId);
-      if (res.data) {
+      if (res.error) {
+        setLoadError(res.error);
+      } else if (res.data) {
         setGcashName(res.data.gcash_name ?? "");
         setGcashNumber(res.data.gcash_number ?? "");
         setGcashQrUrl(res.data.gcash_qr_url ?? null);
@@ -88,6 +92,12 @@ export default function PaymentSettingsScreen() {
       <Stack.Screen options={{ title: "Payment Settings", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          {loadError && (
+            <ErrorBanner
+              message={`Couldn't load your payment settings: ${loadError}`}
+              onDismiss={() => setLoadError(null)}
+            />
+          )}
           <SectionHeader title="GCash" />
           <Card>
             <View style={styles.fieldGroup}>
