@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.51.0",
     "@supabase/ssr": "^0.8.0",
     "@template/ai": "workspace:*",
     "@template/shared": "workspace:*",

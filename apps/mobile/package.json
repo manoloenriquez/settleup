@@ -20,6 +20,7 @@
     "@gorhom/bottom-sheet": "^5.2.8",
     "@react-native-ai/apple": "^0.12.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@sentry/react-native": "^8.9.2",
     "@supabase/supabase-js": "^2.97.0",
     "@tanstack/react-query": "^5.91.0",
     "@template/shared": "workspace:*",

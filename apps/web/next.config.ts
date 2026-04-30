@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
+
+// Sentry's connect-src ingestion endpoint (sentry.io) — only added to CSP when a DSN is configured.
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN;
+const sentryConnectSrc = sentryDsn ? " https://*.sentry.io" : "";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -41,7 +46,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' blob: data: https://*.supabase.co",
               "font-src 'self'",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              `connect-src 'self' https://*.supabase.co wss://*.supabase.co${sentryConnectSrc}`,
               "frame-ancestors 'none'",
             ].join("; "),
           },
@@ -51,4 +56,17 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with Sentry only when a DSN is configured. Otherwise withSentryConfig is a passthrough,
+// but we skip it to avoid the build-time source-map upload step that requires SENTRY_AUTH_TOKEN.
+export default sentryDsn
+  ? withSentryConfig(nextConfig, {
+      silent: !process.env.CI,
+      // Source-map upload — only runs if SENTRY_AUTH_TOKEN + org/project are set.
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      widenClientFileUpload: true,
+      tunnelRoute: "/monitoring",
+      sourcemaps: { disable: false },
+      disableLogger: true,
+    })
+  : nextConfig;

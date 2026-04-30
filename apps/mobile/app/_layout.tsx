@@ -4,9 +4,21 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { queryClient } from "@/lib/queryClient";
 import { colors } from "@/theme";
+
+// Initialize Sentry as early as possible. No-op if no DSN is configured.
+const sentryDsn = process.env["EXPO_PUBLIC_SENTRY_DSN"];
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    enabled: !__DEV__,
+    environment: process.env["EXPO_PUBLIC_SENTRY_ENV"] ?? (__DEV__ ? "development" : "production"),
+    tracesSampleRate: 0.1,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary
@@ -19,6 +31,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error): void {
+    Sentry.captureException(error);
   }
 
   render() {
@@ -87,7 +103,7 @@ function RootStack() {
 // Root layout
 // ---------------------------------------------------------------------------
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -102,6 +118,8 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+export default sentryDsn ? Sentry.wrap(RootLayout) : RootLayout;
 
 const styles = StyleSheet.create({
   splash: {
