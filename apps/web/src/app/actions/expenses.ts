@@ -29,6 +29,12 @@ export type ExpenseWithParticipants = Expense & {
   items?: (ExpenseItem & { item_participants: ExpenseItemParticipant[] })[];
 };
 
+type ExpenseWithParticipantsRow = Expense & {
+  participants: ExpenseParticipant[] | null;
+  payers: ExpensePayer[] | null;
+  items: (ExpenseItem & { item_participants: ExpenseItemParticipant[] | null })[] | null;
+};
+
 export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> {
   try {
     await assertAuth();
@@ -281,7 +287,15 @@ export async function listExpenses(
     if (error) return { data: null, error: "Failed to load expenses." };
 
     return {
-      data: (expenses ?? []) as ExpenseWithParticipants[],
+      data: ((expenses ?? []) as ExpenseWithParticipantsRow[]).map((expense) => ({
+        ...expense,
+        participants: expense.participants ?? [],
+        payers: expense.payers ?? [],
+        items: (expense.items ?? []).map((item) => ({
+          ...item,
+          item_participants: item.item_participants ?? [],
+        })),
+      })),
       error: null,
     };
   } catch (e) {

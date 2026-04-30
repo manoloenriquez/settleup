@@ -1,4 +1,3 @@
-import type { ApiResponse } from "@template/shared";
 import type { ParsedReceipt } from "@template/shared/types";
 import { parsedReceiptSchema } from "@template/shared/schemas";
 import { generateJSON } from "./index";

@@ -1,14 +1,14 @@
 import { Alert, StyleSheet, TouchableOpacity, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
-import type { Expense } from "@template/supabase";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { EmptyState } from "@/components/ui";
+import type { ExpenseWithDetails } from "@/services/expenses";
 
 type ExpenseListProps = {
-  expenses: Expense[];
+  expenses: ExpenseWithDetails[];
   onDelete?: (id: string) => void;
-  onEdit?: (expense: Expense) => void;
+  onEdit?: (expense: ExpenseWithDetails) => void;
 };
 
 export function ExpenseList({ expenses, onDelete, onEdit }: ExpenseListProps) {

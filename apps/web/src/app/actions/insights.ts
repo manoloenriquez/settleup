@@ -23,28 +23,36 @@ export async function getGroupInsights(
     const db = supabase.schema("settleup");
 
     // Fetch group name
-    const { data: group } = await db
+    const { data: group, error: groupError } = await db
       .from("groups")
       .select("name")
       .eq("id", parsed.data)
       .single();
+
+    if (groupError) {
+      return { data: null, error: "Failed to load group." };
+    }
 
     if (!group) {
       return { data: null, error: "Group not found" };
     }
 
     // Fetch expenses with payers
-    const { data: expenses } = await db
+    const { data: expenses, error: expensesError } = await db
       .from("expenses")
       .select("item_name, amount_cents, created_at, expense_payers(member_id)")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
     // Fetch members
-    const { data: members } = await db
+    const { data: members, error: membersError } = await db
       .from("group_members")
       .select("id, display_name")
       .eq("group_id", parsed.data);
+
+    if (expensesError || membersError) {
+      return { data: null, error: "Failed to load insights." };
+    }
 
     const memberMap = new Map((members ?? []).map((m) => [m.id, m.display_name]));
 

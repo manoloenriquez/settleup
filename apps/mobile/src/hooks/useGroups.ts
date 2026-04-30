@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { archiveGroup, createGroup, deleteGroup, listArchivedGroups, listGroupsWithStats, renameGroup, restoreGroup, transferOwnership } from "@/services/groups";
+import type { GroupWithStats } from "@template/shared";
 
 export function useGroupsWithStats() {
   const { session } = useAuth();
@@ -19,7 +20,24 @@ export function useCreateGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => createGroup(name),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result.data) {
+        qc.setQueryData<GroupWithStats[]>(["groups"], (existing = []) => {
+          if (existing.some((group) => group.id === result.data?.id)) {
+            return existing;
+          }
+
+          return [
+            {
+              ...result.data,
+              member_count: 1,
+              pending_count: 0,
+              total_owed_cents: 0,
+            },
+            ...existing,
+          ];
+        });
+      }
       void qc.invalidateQueries({ queryKey: ["groups"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
     },

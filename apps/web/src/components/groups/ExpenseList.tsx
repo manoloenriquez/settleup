@@ -3,7 +3,7 @@
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteExpense, updateExpense } from "@/app/actions/expenses";
+import { deleteExpense, updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
 import { formatCents, parsePHPAmount } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -44,6 +44,51 @@ function relativeTime(dateStr: string): string {
 
 function getDayKey(dateStr: string): string {
   return new Date(dateStr).toDateString();
+}
+
+function scalePositiveAmounts(weights: number[], totalCents: number): number[] | null {
+  if (weights.length === 0) return [];
+  if (weights.some((weight) => weight <= 0)) return null;
+  if (totalCents < weights.length) return null;
+  if (weights.length === 1) return [totalCents];
+
+  const allocations = new Array<number>(weights.length).fill(1);
+  const remaining = totalCents - weights.length;
+  if (remaining === 0) return allocations;
+
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+  const scaled = weights.map((weight, index) => {
+    const raw = weight * remaining;
+    return {
+      index,
+      base: Math.floor(raw / weightTotal),
+      remainder: raw % weightTotal,
+    };
+  });
+
+  for (const item of scaled) {
+    allocations[item.index] = (allocations[item.index] ?? 0) + item.base;
+  }
+
+  let leftover = totalCents - allocations.reduce((sum, amount) => sum + amount, 0);
+  const byRemainder = [...scaled].sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; i < byRemainder.length && leftover > 0; i += 1) {
+    const current = byRemainder[i];
+    if (!current) break;
+    allocations[current.index] = (allocations[current.index] ?? 0) + 1;
+    leftover -= 1;
+  }
+
+  return allocations;
+}
+
+function isEqualSplit(expense: ExpenseWithParticipants): boolean {
+  if ((expense.items?.length ?? 0) > 0 || expense.participants.length === 0) {
+    return false;
+  }
+
+  const shares = expense.participants.map((participant) => participant.share_cents).sort((a, b) => a - b);
+  return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
 export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
@@ -102,6 +147,11 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
   }
 
   function openEdit(expense: ExpenseWithParticipants): void {
+    if (expense.amount_cents < 0) {
+      toast.error("Credits are not editable from this screen yet.");
+      return;
+    }
+
     setEditTarget(expense);
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
@@ -115,20 +165,71 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
       return;
     }
     startTransition(async () => {
-      const result = await updateExpense({
-        expense_id: editTarget.id,
-        item_name: editName.trim(),
-        amount_cents: amountCents,
-        notes: editTarget.notes ?? undefined,
-        split_mode: "equal",
-        participant_ids: editTarget.participants.map((p) => p.member_id),
-        payers: editTarget.payers.map((p) => ({
-          member_id: p.member_id,
-          paid_cents: editTarget.payers.length === 1
-            ? amountCents
-            : Math.round((p.paid_cents / editTarget.amount_cents) * amountCents),
-        })),
-      });
+      const payerAmounts = scalePositiveAmounts(
+        editTarget.payers.map((payer) => payer.paid_cents),
+        amountCents,
+      );
+      if (!payerAmounts) {
+        toast.error("Amount is too small to preserve payer contributions.");
+        return;
+      }
+
+      const customSplitAmounts = (editTarget.items?.length ?? 0) > 0 || isEqualSplit(editTarget)
+        ? null
+        : scalePositiveAmounts(
+            editTarget.participants.map((participant) => participant.share_cents),
+            amountCents,
+          );
+      if ((editTarget.items?.length ?? 0) === 0 && !isEqualSplit(editTarget) && !customSplitAmounts) {
+        toast.error("Amount is too small to preserve custom splits.");
+        return;
+      }
+
+      const result = (editTarget.items?.length ?? 0) > 0
+        ? await (async () => {
+            const items = editTarget.items ?? [];
+            const itemAmounts = scalePositiveAmounts(
+              items.map((item) => item.amount_cents),
+              amountCents,
+            );
+            if (!itemAmounts) {
+              return { data: null, error: "Amount is too small to preserve itemized shares." };
+            }
+
+            return updateItemizedExpense({
+              expense_id: editTarget.id,
+              item_name: editName.trim(),
+              amount_cents: amountCents,
+              notes: editTarget.notes ?? undefined,
+              payers: editTarget.payers.map((payer, index) => ({
+                member_id: payer.member_id,
+                paid_cents: payerAmounts[index]!,
+              })),
+              line_items: items.map((item, index) => ({
+                name: item.name,
+                amount_cents: itemAmounts[index]!,
+                participant_ids: item.item_participants.map((participant) => participant.member_id),
+              })),
+            });
+          })()
+        : await updateExpense({
+            expense_id: editTarget.id,
+            item_name: editName.trim(),
+            amount_cents: amountCents,
+            notes: editTarget.notes ?? undefined,
+            split_mode: isEqualSplit(editTarget) ? "equal" : "custom",
+            participant_ids: editTarget.participants.map((participant) => participant.member_id),
+            custom_splits: isEqualSplit(editTarget)
+              ? undefined
+              : editTarget.participants.map((participant, index) => ({
+                  member_id: participant.member_id,
+                  share_cents: customSplitAmounts![index]!,
+                })),
+            payers: editTarget.payers.map((payer, index) => ({
+              member_id: payer.member_id,
+              paid_cents: payerAmounts[index]!,
+            })),
+          });
       if (result.error) {
         toast.error(result.error);
         return;

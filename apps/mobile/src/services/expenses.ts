@@ -6,9 +6,26 @@ import {
   buildItemizedExpenseRpcInput,
   buildUpdateEqualExpenseRpcInput,
   buildUpdateCustomExpenseRpcInput,
+  buildUpdateItemizedExpenseRpcInput,
   parseCreateExpenseRpcResult,
   type Expense,
+  type ExpenseItem,
+  type ExpenseItemParticipant,
+  type ExpenseParticipant,
+  type ExpensePayer,
 } from "@template/supabase";
+
+export type ExpenseWithDetails = Expense & {
+  participants: ExpenseParticipant[];
+  payers: ExpensePayer[];
+  items?: (ExpenseItem & { item_participants: ExpenseItemParticipant[] })[];
+};
+
+type ExpenseWithDetailsRow = Expense & {
+  participants: ExpenseParticipant[] | null;
+  payers: ExpensePayer[] | null;
+  items: (ExpenseItem & { item_participants: ExpenseItemParticipant[] | null })[] | null;
+};
 
 export async function addExpense(params: {
   groupId: string;
@@ -160,16 +177,55 @@ export async function updateExpenseCustomSplit(params: {
   return parseCreateExpenseRpcResult(result);
 }
 
-export async function listExpenses(groupId: string): Promise<ApiResponse<Expense[]>> {
+export async function updateItemizedExpense(params: {
+  expenseId: string;
+  expenseName: string;
+  amountCents: number;
+  payers: { memberId: string; paidCents: number }[];
+  lineItems: { name: string; amountCents: number; participantIds: string[] }[];
+}): Promise<ApiResponse<Expense>> {
+  if (!params.expenseName.trim()) return { data: null, error: "Expense name is required" };
+  if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+  if (params.lineItems.length === 0) return { data: null, error: "At least one line item is required" };
+
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("update_itemized_expense", {
+      p_input: buildUpdateItemizedExpenseRpcInput({
+        expenseId: params.expenseId,
+        itemName: params.expenseName,
+        amountCents: params.amountCents,
+        payers: params.payers,
+        lineItems: params.lineItems,
+      }),
+    });
+
+  if (error) return { data: null, error: error.message };
+
+  return parseCreateExpenseRpcResult(result);
+}
+
+export async function listExpenses(groupId: string): Promise<ApiResponse<ExpenseWithDetails[]>> {
   const { data, error } = await supabase
     .schema("settleup")
     .from("expenses")
-    .select("*")
+    .select("*, participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
     .eq("group_id", groupId)
     .order("created_at", { ascending: false });
 
   if (error) return { data: null, error: error.message };
-  return { data: data ?? [], error: null };
+  return {
+    data: ((data ?? []) as ExpenseWithDetailsRow[]).map((expense) => ({
+      ...expense,
+      participants: expense.participants ?? [],
+      payers: expense.payers ?? [],
+      items: (expense.items ?? []).map((item) => ({
+        ...item,
+        item_participants: item.item_participants ?? [],
+      })),
+    })),
+    error: null,
+  };
 }
 
 export async function deleteExpense(expenseId: string): Promise<ApiResponse<null>> {

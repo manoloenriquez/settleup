@@ -1,4 +1,4 @@
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Avatar, Badge } from "@/components/ui";
 import { formatCents } from "@template/shared";

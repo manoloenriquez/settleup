@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addExpense, addExpenseCustomSplit, addItemizedExpense, deleteExpense, listExpenses, updateExpense } from "@/services/expenses";
+import { addExpense, addExpenseCustomSplit, addItemizedExpense, deleteExpense, listExpenses, updateExpense, updateExpenseCustomSplit, updateItemizedExpense } from "@/services/expenses";
 
 type AddExpenseParams = {
   groupId: string;
@@ -78,10 +78,42 @@ type UpdateExpenseParams = {
   payers: { memberId: string; paidCents: number }[];
 };
 
+type UpdateExpenseCustomSplitParams = {
+  expenseId: string;
+  itemName: string;
+  amountCents: number;
+  customSplits: { memberId: string; shareCents: number }[];
+  payers: { memberId: string; paidCents: number }[];
+};
+
+type UpdateItemizedExpenseParams = {
+  expenseId: string;
+  expenseName: string;
+  amountCents: number;
+  payers: { memberId: string; paidCents: number }[];
+  lineItems: { name: string; amountCents: number; participantIds: string[] }[];
+};
+
 export function useUpdateExpense(groupId: string) {
   const invalidate = useExpenseMutationInvalidations(groupId);
   return useMutation({
     mutationFn: (params: UpdateExpenseParams) => updateExpense(params),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateExpenseCustomSplit(groupId: string) {
+  const invalidate = useExpenseMutationInvalidations(groupId);
+  return useMutation({
+    mutationFn: (params: UpdateExpenseCustomSplitParams) => updateExpenseCustomSplit(params),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateItemizedExpense(groupId: string) {
+  const invalidate = useExpenseMutationInvalidations(groupId);
+  return useMutation({
+    mutationFn: (params: UpdateItemizedExpenseParams) => updateItemizedExpense(params),
     onSuccess: invalidate,
   });
 }

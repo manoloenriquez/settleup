@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@template/shared";
 import type { Group } from "@template/supabase";
 
-const initialState: ApiResponse<Group> = { data: null, error: null } as unknown as ApiResponse<Group>;
+const initialState: ApiResponse<Group> | null = null;
 
 export function CreateGroupForm(): React.ReactElement {
   const [state, formAction] = useActionState(createGroup, initialState);

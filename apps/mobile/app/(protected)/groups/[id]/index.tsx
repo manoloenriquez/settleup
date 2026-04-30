@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances";
-import { useExpenses, useDeleteExpense, useUpdateExpense } from "@/hooks/useExpenses";
+import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
 import { useUndoLastPayment } from "@/hooks/usePayments";
@@ -16,14 +16,62 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { SegmentedControl, Card } from "@/components/ui";
+import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
 import type { SimplifiedDebt } from "@template/shared";
-import type { Expense } from "@template/supabase";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
 type Tab = "balances" | "expenses" | "activity";
+
+function scalePositiveAmounts(weights: number[], totalCents: number): number[] | null {
+  if (weights.length === 0) return [];
+  if (weights.some((weight) => weight <= 0)) return null;
+  if (totalCents < weights.length) return null;
+  if (weights.length === 1) return [totalCents];
+
+  const allocations = new Array<number>(weights.length).fill(1);
+  const remaining = totalCents - weights.length;
+  if (remaining === 0) return allocations;
+
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+  const scaled = weights.map((weight, index) => {
+    const raw = weight * remaining;
+    return {
+      index,
+      base: Math.floor(raw / weightTotal),
+      remainder: raw % weightTotal,
+    };
+  });
+
+  for (const item of scaled) {
+    allocations[item.index] = (allocations[item.index] ?? 0) + item.base;
+  }
+
+  let leftover = totalCents - allocations.reduce((sum, amount) => sum + amount, 0);
+  const byRemainder = [...scaled].sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; i < byRemainder.length && leftover > 0; i += 1) {
+    const current = byRemainder[i];
+    if (!current) break;
+    allocations[current.index] = (allocations[current.index] ?? 0) + 1;
+    leftover -= 1;
+  }
+
+  return allocations;
+}
+
+function isEqualSplit(expense: ExpenseWithDetails): boolean {
+  if ((expense.items?.length ?? 0) > 0 || expense.participants.length === 0) {
+    return false;
+  }
+
+  const shares = expense.participants
+    .map((participant) => participant.share_cents)
+    .sort((a, b) => a - b);
+
+  return shares[shares.length - 1]! - shares[0]! <= 1;
+}
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,10 +85,12 @@ export default function GroupDetailScreen() {
   const activityQ = useGroupActivity(id);
   const deleteExpense = useDeleteExpense(id);
   const updateExpenseMut = useUpdateExpense(id);
+  const updateCustomExpenseMut = useUpdateExpenseCustomSplit(id);
+  const updateItemizedExpenseMut = useUpdateItemizedExpense(id);
   const undoPayment = useUndoLastPayment(id);
 
   // Edit expense modal state
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const groupsQ = useGroups();
@@ -120,7 +170,12 @@ export default function GroupDetailScreen() {
     });
   }
 
-  function openEditExpense(expense: Expense): void {
+  function openEditExpense(expense: ExpenseWithDetails): void {
+    if (expense.amount_cents < 0) {
+      Alert.alert("Editing unavailable", "Credits are not editable from this screen yet.");
+      return;
+    }
+
     setEditingExpense(expense);
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
@@ -133,25 +188,100 @@ export default function GroupDetailScreen() {
       Alert.alert("Error", "Please enter a valid amount");
       return;
     }
-    const allMemberIds = (membersQ.data ?? []).map((m) => m.id);
-    updateExpenseMut.mutate(
+
+    const onSuccess = (res: { error: string | null }) => {
+      if (res.error) {
+        Alert.alert("Error", res.error);
+        return;
+      }
+      setEditingExpense(null);
+    };
+    const onError = (e: unknown) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to update");
+
+    const payerAmounts = scalePositiveAmounts(
+      editingExpense.payers.map((payer) => payer.paid_cents),
+      amountCents,
+    );
+
+    if (!payerAmounts) {
+      Alert.alert("Error", "Amount is too small to preserve payer contributions.");
+      return;
+    }
+
+    if ((editingExpense.items?.length ?? 0) > 0) {
+      const items = editingExpense.items ?? [];
+      const itemAmounts = scalePositiveAmounts(
+        items.map((item) => item.amount_cents),
+        amountCents,
+      );
+
+      if (!itemAmounts) {
+        Alert.alert("Error", "Amount is too small to preserve itemized shares.");
+        return;
+      }
+
+      updateItemizedExpenseMut.mutate(
+        {
+          expenseId: editingExpense.id,
+          expenseName: editName.trim(),
+          amountCents,
+          payers: editingExpense.payers.map((payer, index) => ({
+            memberId: payer.member_id,
+            paidCents: payerAmounts[index]!,
+          })),
+          lineItems: items.map((item, index) => ({
+            name: item.name,
+            amountCents: itemAmounts[index]!,
+            participantIds: item.item_participants.map((participant) => participant.member_id),
+          })),
+        },
+        { onSuccess, onError },
+      );
+      return;
+    }
+
+    const participantIds = editingExpense.participants.map((participant) => participant.member_id);
+    if (isEqualSplit(editingExpense)) {
+      updateExpenseMut.mutate(
+        {
+          expenseId: editingExpense.id,
+          itemName: editName.trim(),
+          amountCents,
+          participantIds,
+          payers: editingExpense.payers.map((payer, index) => ({
+            memberId: payer.member_id,
+            paidCents: payerAmounts[index]!,
+          })),
+        },
+        { onSuccess, onError },
+      );
+      return;
+    }
+
+    const customSplitAmounts = scalePositiveAmounts(
+      editingExpense.participants.map((participant) => participant.share_cents),
+      amountCents,
+    );
+    if (!customSplitAmounts) {
+      Alert.alert("Error", "Amount is too small to preserve custom splits.");
+      return;
+    }
+
+    updateCustomExpenseMut.mutate(
       {
         expenseId: editingExpense.id,
         itemName: editName.trim(),
         amountCents,
-        participantIds: allMemberIds,
-        payers: [{ memberId: allMemberIds[0] ?? "", paidCents: amountCents }],
+        customSplits: editingExpense.participants.map((participant, index) => ({
+          memberId: participant.member_id,
+          shareCents: customSplitAmounts[index]!,
+        })),
+        payers: editingExpense.payers.map((payer, index) => ({
+          memberId: payer.member_id,
+          paidCents: payerAmounts[index]!,
+        })),
       },
-      {
-        onSuccess: (res) => {
-          if (res.error) {
-            Alert.alert("Error", res.error);
-            return;
-          }
-          setEditingExpense(null);
-        },
-        onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to update"),
-      },
+      { onSuccess, onError },
     );
   }
 

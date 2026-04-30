@@ -62,7 +62,9 @@ export async function getGroupActivity(
     const activities: ActivityItem[] = [];
 
     for (const exp of expensesResult.data ?? []) {
-      const payerNames = (exp.payers as Array<{ member_id: string }>)
+      const payers = Array.isArray(exp.payers) ? exp.payers : [];
+      const participants = Array.isArray(exp.participants) ? exp.participants : [];
+      const payerNames = payers
         .map((p) => memberMap.get(p.member_id) ?? "Unknown")
         ;
       activities.push({
@@ -72,7 +74,7 @@ export async function getGroupActivity(
         item_name: exp.item_name,
         amount_cents: exp.amount_cents,
         payer_names: payerNames,
-        participant_count: (exp.participants as Array<{ member_id: string }>).length,
+        participant_count: participants.length,
       });
     }
 
