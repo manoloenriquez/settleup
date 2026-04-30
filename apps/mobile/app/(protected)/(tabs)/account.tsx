@@ -1,15 +1,18 @@
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, Badge, Card, ListItem, SkeletonCard } from "@/components/ui";
+import { deleteAccount } from "@/services/account";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function AccountScreen() {
   const router = useRouter();
   const { session, signOut } = useAuth();
   const { data: profile, isLoading } = useProfile();
+  const [deleting, setDeleting] = useState(false);
 
   async function handleSignOut() {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -22,6 +25,30 @@ export default function AccountScreen() {
         },
       },
     ]);
+  }
+
+  function handleDeleteAccount() {
+    Alert.alert(
+      "Delete Account",
+      "This permanently deletes your account, profile, and payment settings. Groups you own will be removed. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            const res = await deleteAccount();
+            setDeleting(false);
+            if (res.error) {
+              Alert.alert("Couldn't delete account", res.error);
+              return;
+            }
+            await signOut();
+          },
+        },
+      ],
+    );
   }
 
   const displayName = profile?.full_name ?? session?.user.email ?? "User";
@@ -75,6 +102,23 @@ export default function AccountScreen() {
         <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
+
+        <Text style={styles.dangerLabel}>DANGER ZONE</Text>
+        <TouchableOpacity
+          style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+          disabled={deleting}
+        >
+          {deleting ? (
+            <ActivityIndicator color={colors.danger} />
+          ) : (
+            <Text style={styles.deleteText}>Delete Account</Text>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.dangerHint}>
+          Permanently deletes your account and all data you own. This cannot be undone.
+        </Text>
       </ScrollView>
     </>
   );
@@ -98,10 +142,35 @@ const styles = StyleSheet.create({
 
   signOutBtn: {
     marginTop: spacing.xl,
-    backgroundColor: colors.dangerLight,
+    backgroundColor: colors.gray100,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     alignItems: "center",
   },
-  signOutText: { color: colors.danger, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
+  signOutText: { color: colors.gray700, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
+
+  dangerLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.danger,
+    letterSpacing: 0.8,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  deleteBtn: {
+    backgroundColor: colors.dangerLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  deleteBtnDisabled: { opacity: 0.6 },
+  deleteText: { color: colors.danger, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
+  dangerHint: {
+    fontSize: fontSize.xs,
+    color: colors.gray500,
+    marginTop: spacing.sm,
+    lineHeight: 16,
+  },
 });

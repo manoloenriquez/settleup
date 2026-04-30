@@ -28,3 +28,20 @@ export function createUserScopedClient(token: string): SupabaseClient {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+/**
+ * Privileged Supabase client using the service role key. Bypasses RLS.
+ * Only call from server-side routes that have already authenticated the
+ * caller via authMiddleware and are intentionally performing an admin
+ * action (e.g. auth.admin.deleteUser for the caller's own account).
+ */
+export function createServiceRoleClient(): SupabaseClient {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Missing env vars: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}

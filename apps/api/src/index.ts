@@ -7,6 +7,7 @@ import receipt from "./routes/receipt";
 import conversation from "./routes/conversation";
 import smartSplit from "./routes/smart-split";
 import insightsSummary from "./routes/insights-summary";
+import account from "./routes/account";
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -28,7 +29,7 @@ app.use(
       return null;
     },
     allowHeaders: ["Authorization", "Content-Type"],
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
     maxAge: 86400,
   }),
 );
@@ -38,6 +39,7 @@ app.route("/ai/receipt", receipt);
 app.route("/ai/conversation", conversation);
 app.route("/ai/smart-split", smartSplit);
 app.route("/ai/insights-summary", insightsSummary);
+app.route("/account", account);
 
 app.notFound((c) => c.json({ data: null, error: "Not found" }, 404));
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LayoutDashboard, Users, Shield, LogOut, ChevronDown } from "lucide-react";
+import { Menu, X, LayoutDashboard, Users, Shield, LogOut, ChevronDown, User } from "lucide-react";
 import { APP_NAME, ROUTES } from "@template/shared";
 import { signOut } from "@/app/actions/auth";
 
@@ -121,6 +121,14 @@ export function AppNav({ profile }: Props): React.ReactElement {
                     <p className="text-xs font-medium text-slate-900 truncate">{displayName}</p>
                     <p className="text-xs text-slate-400 truncate">{profile.email}</p>
                   </div>
+                  <Link
+                    href="/account"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                  >
+                    <User size={14} />
+                    Account
+                  </Link>
                   <form action={signOut}>
                     <button
                       type="submit"
