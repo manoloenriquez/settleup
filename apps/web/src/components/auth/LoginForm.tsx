@@ -16,6 +16,7 @@ export function LoginForm(): React.ReactElement {
   const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "";
+  const expired = searchParams.get("expired") === "1";
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
@@ -30,6 +31,15 @@ export function LoginForm(): React.ReactElement {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {expired && !error && (
+        <div
+          role="status"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          Your session expired. Please sign in again to continue.
+        </div>
+      )}
+
       {error && (
         <div
           role="alert"

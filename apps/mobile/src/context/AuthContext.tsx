@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Alert } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { emailSchema, passwordSchema, signInSchema } from "@template/shared";
@@ -49,6 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Start loading=true; set to false after the first auth event is resolved.
   const [loading, setLoading] = useState(true);
   const initialised = useRef(false);
+  const hadSessionRef = useRef(false);
+  const intentionalSignOutRef = useRef(false);
 
   // -------------------------------------------------------------------------
   // Profile fetcher (called outside the onAuthStateChange callback to keep
@@ -86,9 +89,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(newSession);
 
       if (newSession?.user) {
+        hadSessionRef.current = true;
         // Trigger async profile load — callback itself stays synchronous.
         loadProfile(newSession.user.id);
       } else {
+        // Detect session expiry: had a session, now SIGNED_OUT without a deliberate signOut() call.
+        if (
+          event === "SIGNED_OUT" &&
+          hadSessionRef.current &&
+          !intentionalSignOutRef.current
+        ) {
+          Alert.alert("Session expired", "Please sign in again to continue.");
+        }
+        hadSessionRef.current = false;
         setProfile(null);
         // If this is the first event and there's no session, we're done loading.
         if (!initialised.current) {
@@ -150,8 +163,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut(): Promise<void> {
-    await supabase.auth.signOut();
-    // onAuthStateChange fires with SIGNED_OUT → session/profile cleared → RouteGuard navigates.
+    intentionalSignOutRef.current = true;
+    try {
+      await supabase.auth.signOut();
+      // onAuthStateChange fires with SIGNED_OUT → session/profile cleared → RouteGuard navigates.
+    } finally {
+      // Reset on next tick so the listener (which fires synchronously via the
+      // realtime channel) sees the flag while it processes the SIGNED_OUT event.
+      setTimeout(() => { intentionalSignOutRef.current = false; }, 0);
+    }
   }
 
   return (
