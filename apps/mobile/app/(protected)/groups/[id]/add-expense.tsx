@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -36,7 +36,7 @@ export default function AddExpenseScreen() {
   const { session } = useAuth();
 
   const membersQ = useMembers(groupId);
-  const members = membersQ.data ?? [];
+  const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
   const addExpense = useAddExpense(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
@@ -69,14 +69,30 @@ export default function AddExpenseScreen() {
 
   // Chat mode state
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [draftItem, setDraftItem] = useState("");
   const [draftAmount, setDraftAmount] = useState("");
   const [draftMembers, setDraftMembers] = useState<Set<string>>(new Set());
+  const hasInitializedMembersRef = useRef(false);
 
   // Initialize payer to first member that matches user
   const myMember = members.find((m) => m.user_id === session?.user.id) ?? members[0];
   const effectivePayerId = payerMemberId || myMember?.id || "";
+
+  useEffect(() => {
+    hasInitializedMembersRef.current = false;
+    setSelectedMembers(new Set());
+    setPayerMemberId("");
+  }, [groupId]);
+
+  useEffect(() => {
+    if (hasInitializedMembersRef.current || members.length === 0) return;
+
+    setSelectedMembers(new Set(members.map((member) => member.id)));
+    if (myMember) {
+      setPayerMemberId((current) => current || myMember.id);
+    }
+    hasInitializedMembersRef.current = true;
+  }, [members, myMember]);
 
   function toggleMember(id: string) {
     setSelectedMembers((prev) => {
@@ -178,10 +194,10 @@ export default function AddExpenseScreen() {
     const userMsg = chatInput.trim();
     setChatInput("");
 
-    await conversationAI.sendMessage(userMsg);
+    const aiResult = await conversationAI.sendMessage(userMsg);
 
     // Sync AI draft into local form state
-    const aiDraft = conversationAI.draft;
+    const aiDraft = aiResult.draft;
     if (aiDraft) {
       setDraftItem(aiDraft.item_name);
       setDraftAmount(aiDraft.amount_cents > 0 ? String(aiDraft.amount_cents / 100) : "");
@@ -208,7 +224,7 @@ export default function AddExpenseScreen() {
       amountCents,
       memberIds,
       payerMemberId: effectivePayerId,
-      createdByUserId: session!.user.id,
+      createdByUserId: session?.user.id ?? "",
     });
     if (result.error) { Alert.alert("Error", result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

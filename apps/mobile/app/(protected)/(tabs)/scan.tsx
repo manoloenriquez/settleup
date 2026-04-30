@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,7 +12,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import * as Haptics from "expo-haptics";
-import type { ReceiptLineItem } from "@template/shared/types";
 import { formatCents } from "@template/shared";
 import { useAuth } from "@/context/AuthContext";
 import { useReceiptScan } from "@/hooks/useReceiptScan";
@@ -44,16 +43,24 @@ export default function ScanScreen(): React.ReactElement {
   const [payerMemberId, setPayerMemberId] = useState("");
   const [splitMode, setSplitMode] = useState<"equal" | "itemized">("equal");
   const [lineItemAssignments, setLineItemAssignments] = useState<Record<number, string[]>>({});
+  const pendingMemberInitRef = useRef(false);
 
   // Group-dependent hooks
   const membersQ = useMembers(selectedGroupId ?? "");
-  const members = membersQ.data ?? [];
+  const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
   const addExpense = useAddExpense(selectedGroupId ?? "");
   const addItemized = useAddItemizedExpense(selectedGroupId ?? "");
 
   const myMember = members.find((m) => m.user_id === session?.user.id) ?? members[0];
   const effectivePayerId = payerMemberId || myMember?.id || "";
   const selectedGroup = (groups ?? []).find((g) => g.id === selectedGroupId);
+  const includedItemEntries = useMemo(
+    () =>
+      editedItems
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item.included),
+    [editedItems],
+  );
 
   const isSaving = addExpense.isPending || addItemized.isPending;
 
@@ -82,6 +89,7 @@ export default function ScanScreen(): React.ReactElement {
   function handleGroupSelected(groupId: string): void {
     setSelectedGroupId(groupId);
     // Reset split state for new group
+    pendingMemberInitRef.current = true;
     setSelectedMembers(new Set());
     setPayerMemberId("");
     setSplitMode("equal");
@@ -89,16 +97,17 @@ export default function ScanScreen(): React.ReactElement {
     setStep("configure-split");
   }
 
-  function initMembersOnLoad(): void {
-    if (members.length > 0 && selectedMembers.size === 0) {
-      setSelectedMembers(new Set(members.map((m) => m.id)));
-      if (myMember) setPayerMemberId(myMember.id);
+  useEffect(() => {
+    if (step !== "configure-split" || !pendingMemberInitRef.current || members.length === 0) {
+      return;
     }
-  }
-  // Trigger when members load
-  if (step === "configure-split" && members.length > 0 && selectedMembers.size === 0) {
-    initMembersOnLoad();
-  }
+
+    setSelectedMembers(new Set(members.map((member) => member.id)));
+    if (myMember) {
+      setPayerMemberId(myMember.id);
+    }
+    pendingMemberInitRef.current = false;
+  }, [members, myMember, step]);
 
   function toggleMember(id: string): void {
     setSelectedMembers((prev) => {
@@ -134,18 +143,16 @@ export default function ScanScreen(): React.ReactElement {
   async function handleSave(): Promise<void> {
     if (!selectedGroupId || !session) return;
 
-    const included = editedItems.filter((i) => i.included);
-
-    if (splitMode === "itemized" && included.length > 1) {
+    if (splitMode === "itemized" && includedItemEntries.length > 1) {
       const result = await addItemized.mutateAsync({
         groupId: selectedGroupId,
         expenseName,
         amountCents: totalCents,
         payers: [{ memberId: effectivePayerId, paidCents: totalCents }],
-        lineItems: included.map((li, i) => ({
-          name: li.description || `Item ${i + 1}`,
-          amountCents: li.total_cents,
-          participantIds: lineItemAssignments[i] ?? members.map((m) => m.id),
+        lineItems: includedItemEntries.map(({ item, index }, displayIndex) => ({
+          name: item.description || `Item ${displayIndex + 1}`,
+          amountCents: item.total_cents,
+          participantIds: lineItemAssignments[index] ?? members.map((m) => m.id),
         })),
       });
       if (result.error) {
@@ -288,7 +295,7 @@ export default function ScanScreen(): React.ReactElement {
               </View>
 
               {/* Split mode (only if multiple items) */}
-              {editedItems.filter((i) => i.included).length > 1 && (
+              {includedItemEntries.length > 1 && (
                 <View>
                   <Text style={styles.label}>How to split</Text>
                   <View style={styles.toggleRow}>
@@ -311,12 +318,12 @@ export default function ScanScreen(): React.ReactElement {
               {/* Itemized assignment */}
               {splitMode === "itemized" && (
                 <View style={styles.itemAssignSection}>
-                  {editedItems.filter((i) => i.included).map((li, i) => {
-                    const assigned = lineItemAssignments[i] ?? members.map((m) => m.id);
+                  {includedItemEntries.map(({ item: li, index }, displayIndex) => {
+                    const assigned = lineItemAssignments[index] ?? members.map((m) => m.id);
                     return (
-                      <View key={i} style={styles.itemAssignCard}>
+                      <View key={index} style={styles.itemAssignCard}>
                         <View style={styles.itemAssignHeader}>
-                          <Text style={styles.itemAssignName} numberOfLines={1}>{li.description || `Item ${i + 1}`}</Text>
+                          <Text style={styles.itemAssignName} numberOfLines={1}>{li.description || `Item ${displayIndex + 1}`}</Text>
                           <Text style={styles.itemAssignAmount}>{formatCents(li.total_cents)}</Text>
                         </View>
                         <View style={styles.participantRow}>
@@ -324,7 +331,7 @@ export default function ScanScreen(): React.ReactElement {
                             <TouchableOpacity
                               key={m.id}
                               style={[styles.participantChip, assigned.includes(m.id) && styles.participantChipActive]}
-                              onPress={() => toggleLineItemAssignment(i, m.id)}
+                              onPress={() => toggleLineItemAssignment(index, m.id)}
                               activeOpacity={0.7}
                             >
                               <Text style={[styles.participantChipText, assigned.includes(m.id) && styles.participantChipTextActive]}>
