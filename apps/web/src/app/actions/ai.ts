@@ -52,9 +52,9 @@ export async function parseReceipt(
       return { data: null, error: `File too large. Max ${AI_LIMITS.MAX_FILE_SIZE_BYTES / 1024 / 1024}MB.` };
     }
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
     if (!allowedTypes.includes(file.type)) {
-      return { data: null, error: "Unsupported file type. Use JPEG, PNG, or WebP." };
+      return { data: null, error: "Unsupported file type. Use JPEG, PNG, WebP, HEIC, or HEIF." };
     }
 
     const arrayBuffer = await file.arrayBuffer();

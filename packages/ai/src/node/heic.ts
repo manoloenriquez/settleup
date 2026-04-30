@@ -1,5 +1,3 @@
-/// <reference path="./heic-convert.d.ts" />
-
 /**
  * Convert HEIC/HEIF image buffers to JPEG.
  * Uses heic-convert (pure JS, no native deps).
@@ -8,6 +6,8 @@
 export async function convertHeicToJpeg(
   buffer: Buffer,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore heic-convert does not ship typed ESM declarations
   const convert = (await import("heic-convert")).default;
   const outputBuffer = await convert({
     buffer,

@@ -26,9 +26,9 @@ receipt.post("/", authMiddleware, rateLimitMiddleware, async (c) => {
     );
   }
 
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
   if (!allowedTypes.includes(file.type)) {
-    return c.json({ data: null, error: "Unsupported file type. Use JPEG, PNG, or WebP." }, 400);
+    return c.json({ data: null, error: "Unsupported file type. Use JPEG, PNG, WebP, HEIC, or HEIF." }, 400);
   }
 
   const arrayBuffer = await file.arrayBuffer();

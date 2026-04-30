@@ -71,6 +71,8 @@ export async function parseReceiptImage(
   // Step 0: Convert HEIC to JPEG (vision APIs and Tesseract don't support HEIC)
   if (mimeType === "image/heic" || mimeType === "image/heif") {
     try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore NodeNext build requires explicit .js extensions, but Next resolves source modules without them
       const { convertHeicToJpeg } = await import("../node/heic");
       const converted = await convertHeicToJpeg(buffer);
       buffer = converted.buffer;
@@ -117,6 +119,8 @@ export async function parseReceiptImage(
 }
 
 async function extractTextWithOCR(buffer: Buffer): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore NodeNext build requires explicit .js extensions, but Next resolves source modules without them
   const { extractTextWithOCR: run } = await import("../node/ocr");
   return run(buffer);
 }
