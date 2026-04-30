@@ -208,6 +208,14 @@ export default function LandingPage(): React.ReactElement {
             </div>
             <span className="text-sm font-semibold text-slate-900">{APP_NAME}</span>
           </div>
+          <div className="flex gap-4 text-xs text-slate-500">
+            <Link href={ROUTES.PRIVACY} className="hover:text-slate-900 transition-colors">
+              Privacy
+            </Link>
+            <Link href={ROUTES.TERMS} className="hover:text-slate-900 transition-colors">
+              Terms
+            </Link>
+          </div>
           <p className="text-xs text-slate-400">
             &copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.
           </p>

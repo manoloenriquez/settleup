@@ -22,6 +22,8 @@ export const ROUTES = {
   GROUP_NEW: "/groups/new",
   PAYMENT_SETTINGS: "/account/payment",
   GROUP_INSIGHTS: "/groups/:groupId/insights",
+  PRIVACY: "/privacy",
+  TERMS: "/terms",
 } as const;
 
 export type Route = (typeof ROUTES)[keyof typeof ROUTES];
