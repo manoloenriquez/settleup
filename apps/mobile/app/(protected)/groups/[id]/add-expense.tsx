@@ -133,9 +133,29 @@ export default function AddExpenseScreen() {
   }
 
   function handleQuickReview() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
-    if (!itemName.trim() || amountCents <= 0 || selectedMembers.size === 0 || !effectivePayerId) {
-      Alert.alert("Missing info", "Please fill in item name, amount, and select at least one member.");
+    if (!itemName.trim()) {
+      Alert.alert("Missing item name", "Please enter what this expense was for.");
+      return;
+    }
+    const amountCents = parsePHPAmount(amount);
+    if (amountCents === null) {
+      Alert.alert("Missing amount", "Please enter the expense amount.");
+      return;
+    }
+    if (amountCents < 0) {
+      Alert.alert("Invalid amount", "Amount must be positive. To record a refund, edit an existing expense.");
+      return;
+    }
+    if (amountCents === 0) {
+      Alert.alert("Invalid amount", "Amount must be greater than zero.");
+      return;
+    }
+    if (selectedMembers.size === 0) {
+      Alert.alert("No members", "Please select at least one member to split this with.");
+      return;
+    }
+    if (!effectivePayerId) {
+      Alert.alert("No payer", "Please select who paid for this.");
       return;
     }
     setConfirming(true);
@@ -157,9 +177,25 @@ export default function AddExpenseScreen() {
   }
 
   function handleDetailedReview() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
-    if (!itemName.trim() || amountCents <= 0 || selectedMembers.size === 0) {
-      Alert.alert("Missing info", "Please fill in all required fields.");
+    if (!itemName.trim()) {
+      Alert.alert("Missing item name", "Please enter what this expense was for.");
+      return;
+    }
+    const amountCents = parsePHPAmount(amount);
+    if (amountCents === null) {
+      Alert.alert("Missing amount", "Please enter the expense amount.");
+      return;
+    }
+    if (amountCents < 0) {
+      Alert.alert("Invalid amount", "Amount must be positive. To record a refund, edit an existing expense.");
+      return;
+    }
+    if (amountCents === 0) {
+      Alert.alert("Invalid amount", "Amount must be greater than zero.");
+      return;
+    }
+    if (selectedMembers.size === 0) {
+      Alert.alert("No members", "Please select at least one member to split this with.");
       return;
     }
     if (!validatePayerSum(amountCents)) return;
