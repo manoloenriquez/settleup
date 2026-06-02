@@ -41,6 +41,7 @@ Return JSON:
   - confidence: 0-1 how confident you are
   - participant_names: who should split this (empty array = everyone)
   - payer_name: who paid (null = unknown)
+  - category_slug: one of food-drinks, groceries, transport, lodging, activities, shopping, supplies, fees, other
   - notes: any extra context (null if none)
   - source: always "conversation"
 
@@ -91,6 +92,7 @@ function parseWithHeuristics(
     confidence: 0.7,
     participant_names: participantNames.length > 0 ? participantNames : memberNames,
     payer_name: null,
+    category_slug: "other",
     notes: null,
     source: "conversation",
   };

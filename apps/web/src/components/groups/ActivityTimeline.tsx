@@ -1,6 +1,7 @@
 import { formatCents } from "@template/shared";
 import { Receipt, Banknote, Clock } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { CategoryBadge } from "./CategoryControls";
 import type { ActivityItem } from "@/app/actions/activity";
 
 type Props = {
@@ -72,6 +73,8 @@ export function ActivityTimeline({ activities }: Props): React.ReactElement {
                         {" "}split {activity.participant_count} ways
                       </span>
                     )}
+                    {" "}
+                    <CategoryBadge category={activity.category} compact />
                   </p>
                 ) : (
                   <p className="text-sm text-slate-700">

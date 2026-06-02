@@ -8,13 +8,15 @@ import { formatCents, parsePHPAmount } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
+import { CategoryBadge, CategorySelect } from "./CategoryControls";
 import { Search, CreditCard, Users, Trash2, Pencil, Receipt, Clock, List, ChevronDown, ChevronUp } from "lucide-react";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
   expenses: ExpenseWithParticipants[];
   members: GroupMember[];
+  categories: ExpenseCategory[];
   currentUserId: string;
   isAdminOrOwner: boolean;
 };
@@ -91,13 +93,14 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
+export function ExpenseList({ expenses, members, categories, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<ExpenseWithParticipants | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   function toggleExpanded(id: string): void {
@@ -155,6 +158,7 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
     setEditTarget(expense);
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+    setEditCategoryId(expense.category_id);
   }
 
   function handleEdit(): void {
@@ -198,6 +202,7 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
 
             return updateItemizedExpense({
               expense_id: editTarget.id,
+              category_id: editCategoryId,
               item_name: editName.trim(),
               amount_cents: amountCents,
               notes: editTarget.notes ?? undefined,
@@ -214,6 +219,7 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
           })()
         : await updateExpense({
             expense_id: editTarget.id,
+            category_id: editCategoryId,
             item_name: editName.trim(),
             amount_cents: amountCents,
             notes: editTarget.notes ?? undefined,
@@ -338,6 +344,7 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
                           <Clock size={11} />
                           {relativeTime(expense.created_at)}
                         </span>
+                        <CategoryBadge category={expense.category} compact />
                       </div>
                     </div>
 
@@ -460,6 +467,7 @@ export function ExpenseList({ expenses, members, currentUserId, isAdminOrOwner }
               className="mt-1"
             />
           </div>
+          <CategorySelect categories={categories} value={editCategoryId} onChange={setEditCategoryId} />
         </div>
       </Dialog>
     </div>

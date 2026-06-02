@@ -75,9 +75,26 @@ export const payerSchema = z.object({
   paid_cents: z.number().int().positive("Payer amount must be positive"),
 });
 
+export const expenseCategoryIdSchema = z.string().uuid().nullable().optional();
+
+export const expenseCategoryInputSchema = z.object({
+  group_id: z.string().uuid(),
+  name: z.string().trim().min(1, "Category name is required").max(80),
+  icon: z.string().trim().min(1).max(40).optional(),
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Use a 6-digit hex color").optional(),
+  sort_order: z.number().int().optional(),
+});
+
+export const updateExpenseCategorySchema = expenseCategoryInputSchema
+  .omit({ group_id: true })
+  .extend({
+    category_id: z.string().uuid(),
+  });
+
 export const addExpenseSchema = z
   .object({
     group_id: z.string().uuid(),
+    category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
     amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
     notes: z.string().optional(),
@@ -101,6 +118,7 @@ export const addMembersBatchSchema = z.object({
 });
 
 const expenseItemSchema = z.object({
+  category_id: expenseCategoryIdSchema,
   item_name: z.string().trim().min(1, "Item name is required").max(200),
   amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
   notes: z.string().optional(),
@@ -160,6 +178,7 @@ const lineItemSchema = z.object({
 export const addItemizedExpenseSchema = z
   .object({
     group_id: z.string().uuid(),
+    category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
@@ -188,6 +207,7 @@ export const addItemizedExpenseSchema = z
 export const updateExpenseSchema = z
   .object({
     expense_id: z.string().uuid(),
+    category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
     amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
     notes: z.string().optional(),
@@ -230,6 +250,7 @@ export const updateExpenseSchema = z
 export const updateItemizedExpenseSchema = z
   .object({
     expense_id: z.string().uuid(),
+    category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
@@ -312,6 +333,8 @@ export type AddExpensesBatchInput = z.infer<typeof addExpensesBatchSchema>;
 export type AddItemizedExpenseInput = z.infer<typeof addItemizedExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 export type UpdateItemizedExpenseInput = z.infer<typeof updateItemizedExpenseSchema>;
+export type ExpenseCategoryFormInput = z.infer<typeof expenseCategoryInputSchema>;
+export type UpdateExpenseCategoryInput = z.infer<typeof updateExpenseCategorySchema>;
 export type PayerInput = z.infer<typeof payerSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type JoinGroupInput = z.infer<typeof joinGroupSchema>;

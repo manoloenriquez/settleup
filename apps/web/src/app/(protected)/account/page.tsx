@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CreditCard, ChevronRight } from "lucide-react";
-import { ROUTES } from "@template/shared";
+import { CreditCard, ChevronRight, MessageCircle } from "lucide-react";
+import { BETA_SUPPORT_EMAIL, ROUTES } from "@template/shared";
 import { requireAuth } from "@/lib/supabase/guards";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 
@@ -31,6 +31,19 @@ export default async function AccountPage(): Promise<React.ReactElement> {
             </div>
             <ChevronRight size={16} className="text-slate-300" />
           </Link>
+          <a
+            href={`mailto:${BETA_SUPPORT_EMAIL}?subject=SettleUp%20beta%20feedback`}
+            className="flex items-center gap-3 border-t border-slate-100 px-4 py-3.5 hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              <MessageCircle size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-900">Beta feedback</p>
+              <p className="text-xs text-slate-500">Report bugs or tell us what felt confusing</p>
+            </div>
+            <ChevronRight size={16} className="text-slate-300" />
+          </a>
         </div>
       </section>
 

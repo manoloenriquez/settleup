@@ -4,16 +4,17 @@ export type ActivityItem = {
   label: string;
   amount_cents: number;
   created_at: string;
+  category?: { name: string; color: string } | null;
 };
 
 export function mergeAndSortActivity(
-  expenses: { id: string; item_name: string; amount_cents: number; created_at: string }[],
+  expenses: { id: string; item_name: string; amount_cents: number; created_at: string; category?: { name: string; color: string } | null }[],
   payments: { id: string; amount_cents: number; created_at: string }[],
 ): ActivityItem[] {
   const items: ActivityItem[] = [];
 
   for (const e of expenses) {
-    items.push({ id: e.id, type: "expense", label: e.item_name, amount_cents: e.amount_cents, created_at: e.created_at });
+    items.push({ id: e.id, type: "expense", label: e.item_name, amount_cents: e.amount_cents, created_at: e.created_at, category: e.category ?? null });
   }
 
   for (const p of payments) {

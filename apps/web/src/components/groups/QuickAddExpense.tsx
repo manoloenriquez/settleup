@@ -7,18 +7,21 @@ import { addExpense } from "@/app/actions/expenses";
 import { parsePHPAmount } from "@template/shared";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { CategorySelect } from "./CategoryControls";
 import { Plus } from "lucide-react";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
 type Props = {
   groupId: string;
   members: GroupMember[];
+  categories: ExpenseCategory[];
   onClose?: () => void;
 };
 
-export function QuickAddExpense({ groupId, members, onClose }: Props): React.ReactElement {
+export function QuickAddExpense({ groupId, members, categories, onClose }: Props): React.ReactElement {
   const [itemName, setItemName] = useState("");
   const [amountStr, setAmountStr] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(categories.find((category) => category.slug === "other")?.id ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -47,6 +50,7 @@ export function QuickAddExpense({ groupId, members, onClose }: Props): React.Rea
     startTransition(async () => {
       const result = await addExpense({
         group_id: groupId,
+        category_id: categoryId,
         item_name: itemName.trim(),
         amount_cents: amountCents,
         participant_ids: allMemberIds,
@@ -58,6 +62,7 @@ export function QuickAddExpense({ groupId, members, onClose }: Props): React.Rea
         toast.success("Expense added!");
         setItemName("");
         setAmountStr("");
+        setCategoryId(categories.find((category) => category.slug === "other")?.id ?? null);
         router.refresh();
         onClose?.();
       }
@@ -89,6 +94,7 @@ export function QuickAddExpense({ groupId, members, onClose }: Props): React.Rea
           Add
         </Button>
       </div>
+      <CategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
       {error && <p className="text-sm text-red-600">{error}</p>}
     </form>
   );

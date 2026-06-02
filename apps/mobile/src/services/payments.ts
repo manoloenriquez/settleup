@@ -1,15 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { recordPaymentSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
-
-type Payment = {
-  id: string;
-  group_id: string;
-  from_member_id: string;
-  to_member_id: string;
-  amount_cents: number;
-  created_at: string;
-};
+import {
+  parseRecordPaymentRpcResult,
+  parseSuccessRpcResult,
+  type Payment,
+} from "@template/supabase";
 
 export async function recordPayment(params: {
   groupId: string;
@@ -27,39 +23,24 @@ export async function recordPayment(params: {
 
   const { data, error } = await supabase
     .schema("settleup")
-    .from("payments")
-    .insert({
-      group_id: params.groupId,
-      from_member_id: params.fromMemberId,
-      to_member_id: params.toMemberId,
-      amount_cents: params.amountCents,
+    .rpc("record_payment", {
+      p_group_id: params.groupId,
+      p_from_member_id: params.fromMemberId,
+      p_to_member_id: params.toMemberId,
+      p_amount_cents: params.amountCents,
     })
-    .select()
-    .single();
 
   if (error || !data) return { data: null, error: error?.message ?? "Failed to record payment" };
-  return { data: data as Payment, error: null };
+  return parseRecordPaymentRpcResult(data);
 }
 
 export async function undoLastPayment(groupId: string): Promise<ApiResponse<null>> {
-  // Fetch last payment for this group
-  const { data: last, error: fetchErr } = await supabase
+  const { data, error } = await supabase
     .schema("settleup")
-    .from("payments")
-    .select("id")
-    .eq("group_id", groupId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    .rpc("undo_last_payment", { p_group_id: groupId });
 
-  if (fetchErr || !last) return { data: null, error: "No payment found" };
-
-  const { error } = await supabase
-    .schema("settleup")
-    .from("payments")
-    .delete()
-    .eq("id", last.id);
-
-  if (error) return { data: null, error: error.message };
+  if (error || !data) return { data: null, error: error?.message ?? "No payment found" };
+  const parsed = parseSuccessRpcResult(data);
+  if (parsed.error) return { data: null, error: parsed.error };
   return { data: null, error: null };
 }

@@ -15,7 +15,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const supabase = await createSettleUpDb();
   const db = supabase.schema("settleup");
 
-  const [{ data: group }, { data: members }] = await Promise.all([
+  const [{ data: group }, { data: members }, { data: categories }] = await Promise.all([
     db
       .from("groups")
       .select("id, name, owner_user_id, invite_code, share_token")
@@ -26,6 +26,12 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
       .select("*")
       .eq("group_id", groupId)
       .order("created_at", { ascending: true }),
+    db
+      .from("expense_categories")
+      .select("*")
+      .or(`group_id.is.null,group_id.eq.${groupId}`)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
   ]);
 
   if (!group) notFound();
@@ -51,6 +57,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
       <GroupSettingsClient
         group={group}
         members={members ?? []}
+        categories={categories ?? []}
         isOwner={isOwner}
         isAdmin={isAdmin}
         isAdminOrOwner={isAdminOrOwner}

@@ -322,6 +322,12 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                         <span>{exp.participants.length} participant{exp.participants.length !== 1 ? "s" : ""}</span>
                       </div>
                     )}
+                    {exp.category && (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: exp.category.color }} />
+                        {exp.category.name}
+                      </div>
+                    )}
                     {exp.participants.length > 0 && (
                       <p className="mt-1 text-xs text-slate-400">
                         {exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ")}

@@ -54,6 +54,7 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
       confidence: receipt.confidence,
       participant_names: [],
       payer_name: null,
+      category_slug: "other",
       notes: items.map((i) => `${i.description}: ₱${i.totalStr}`).join("; "),
       source: "receipt",
     };

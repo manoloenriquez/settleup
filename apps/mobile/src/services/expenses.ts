@@ -9,6 +9,7 @@ import {
   buildUpdateItemizedExpenseRpcInput,
   parseCreateExpenseRpcResult,
   type Expense,
+  type ExpenseCategory,
   type ExpenseItem,
   type ExpenseItemParticipant,
   type ExpenseParticipant,
@@ -16,12 +17,14 @@ import {
 } from "@template/supabase";
 
 export type ExpenseWithDetails = Expense & {
+  category: ExpenseCategory | null;
   participants: ExpenseParticipant[];
   payers: ExpensePayer[];
   items?: (ExpenseItem & { item_participants: ExpenseItemParticipant[] })[];
 };
 
 type ExpenseWithDetailsRow = Expense & {
+  category: ExpenseCategory | null;
   participants: ExpenseParticipant[] | null;
   payers: ExpensePayer[] | null;
   items: (ExpenseItem & { item_participants: ExpenseItemParticipant[] | null })[] | null;
@@ -31,6 +34,7 @@ export async function addExpense(params: {
   groupId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   memberIds: string[];
   payerMemberId: string;
   createdByUserId: string;
@@ -44,6 +48,7 @@ export async function addExpense(params: {
     .rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
         groupId: params.groupId,
+        categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
         participantIds: params.memberIds,
@@ -60,6 +65,7 @@ export async function addExpenseCustomSplit(params: {
   groupId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
 }): Promise<ApiResponse<Expense>> {
@@ -82,6 +88,7 @@ export async function addExpenseCustomSplit(params: {
     .rpc("create_expense", {
       p_input: buildCustomExpenseRpcInput({
         groupId: params.groupId,
+        categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
         customSplits: params.customSplits,
@@ -98,6 +105,7 @@ export async function addItemizedExpense(params: {
   groupId: string;
   expenseName: string;
   amountCents: number;
+  categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
 }): Promise<ApiResponse<Expense>> {
@@ -110,6 +118,7 @@ export async function addItemizedExpense(params: {
     .rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
         groupId: params.groupId,
+        categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,
         payers: params.payers,
@@ -126,6 +135,7 @@ export async function updateExpense(params: {
   expenseId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
 }): Promise<ApiResponse<Expense>> {
@@ -138,6 +148,7 @@ export async function updateExpense(params: {
     .rpc("update_expense", {
       p_input: buildUpdateEqualExpenseRpcInput({
         expenseId: params.expenseId,
+        categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
         participantIds: params.participantIds,
@@ -154,6 +165,7 @@ export async function updateExpenseCustomSplit(params: {
   expenseId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
 }): Promise<ApiResponse<Expense>> {
@@ -165,6 +177,7 @@ export async function updateExpenseCustomSplit(params: {
     .rpc("update_expense", {
       p_input: buildUpdateCustomExpenseRpcInput({
         expenseId: params.expenseId,
+        categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
         customSplits: params.customSplits,
@@ -181,6 +194,7 @@ export async function updateItemizedExpense(params: {
   expenseId: string;
   expenseName: string;
   amountCents: number;
+  categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
 }): Promise<ApiResponse<Expense>> {
@@ -193,6 +207,7 @@ export async function updateItemizedExpense(params: {
     .rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
         expenseId: params.expenseId,
+        categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,
         payers: params.payers,
@@ -209,7 +224,7 @@ export async function listExpenses(groupId: string): Promise<ApiResponse<Expense
   const { data, error } = await supabase
     .schema("settleup")
     .from("expenses")
-    .select("*, participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
+    .select("*, category:expense_categories(*), participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
     .eq("group_id", groupId)
     .order("created_at", { ascending: false });
 

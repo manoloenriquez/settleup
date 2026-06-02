@@ -9,12 +9,14 @@ import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
 import { useUndoLastPayment } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
+import { useCategories } from "@/hooks/useCategories";
 import { useClaimMember } from "@/hooks/useCollaboration";
 import { useAuth } from "@/context/AuthContext";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
+import { CategoryPicker } from "@/components/groups/CategoryPicker";
 import { SegmentedControl, Card, ErrorBanner } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -93,9 +95,11 @@ export default function GroupDetailScreen() {
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
   const membersQ = useMembers(id);
+  const categoriesQ = useCategories(id);
   const claimMember = useClaimMember(id);
 
   // Unlinked members the current user might want to claim
@@ -154,6 +158,17 @@ export default function GroupDetailScreen() {
     );
   }
 
+  function handleGroupActions() {
+    Alert.alert("Group actions", undefined, [
+      { text: "Public overview", onPress: () => router.push(`/(protected)/groups/${id}/overview`) },
+      { text: "Copy summary", onPress: () => void handleCopyGroupSummary() },
+      { text: "Undo last payment", style: "destructive", onPress: handleUndoPayment },
+      ...(WEB_ORIGIN ? [{ text: "Share group", onPress: () => void handleShareGroup() }] : []),
+      { text: "Settings", onPress: () => router.push(`/(protected)/groups/${id}/settings`) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
   const isLoading = balancesQ.isLoading || expensesQ.isLoading;
   const isRefreshing = balancesQ.isFetching || expensesQ.isFetching || activityQ.isFetching;
 
@@ -179,6 +194,7 @@ export default function GroupDetailScreen() {
     setEditingExpense(expense);
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+    setEditCategoryId(expense.category_id);
   }
 
   function handleSaveEdit(): void {
@@ -225,6 +241,7 @@ export default function GroupDetailScreen() {
           expenseId: editingExpense.id,
           expenseName: editName.trim(),
           amountCents,
+          categoryId: editCategoryId,
           payers: editingExpense.payers.map((payer, index) => ({
             memberId: payer.member_id,
             paidCents: payerAmounts[index]!,
@@ -247,6 +264,7 @@ export default function GroupDetailScreen() {
           expenseId: editingExpense.id,
           itemName: editName.trim(),
           amountCents,
+          categoryId: editCategoryId,
           participantIds,
           payers: editingExpense.payers.map((payer, index) => ({
             memberId: payer.member_id,
@@ -272,6 +290,7 @@ export default function GroupDetailScreen() {
         expenseId: editingExpense.id,
         itemName: editName.trim(),
         amountCents,
+        categoryId: editCategoryId,
         customSplits: editingExpense.participants.map((participant, index) => ({
           memberId: participant.member_id,
           shareCents: customSplitAmounts[index]!,
@@ -299,22 +318,8 @@ export default function GroupDetailScreen() {
           title: group?.name ?? "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
-              <TouchableOpacity onPress={() => router.push(`/(protected)/groups/${id}/overview`)} hitSlop={8}>
-                <Ionicons name="eye-outline" size={20} color={colors.gray600} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleCopyGroupSummary} hitSlop={8}>
-                <Ionicons name="copy-outline" size={20} color={colors.gray600} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleUndoPayment} hitSlop={8}>
-                <Ionicons name="arrow-undo-outline" size={20} color={colors.gray600} />
-              </TouchableOpacity>
-              {WEB_ORIGIN ? (
-                <TouchableOpacity onPress={handleShareGroup} hitSlop={8}>
-                  <Ionicons name="share-outline" size={20} color={colors.gray600} />
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity onPress={() => router.push(`/(protected)/groups/${id}/settings`)} hitSlop={8}>
-                <Ionicons name="settings-outline" size={20} color={colors.gray600} />
+              <TouchableOpacity onPress={handleGroupActions} hitSlop={8}>
+                <Ionicons name="ellipsis-horizontal" size={22} color={colors.gray600} />
               </TouchableOpacity>
             </View>
           ),
@@ -484,6 +489,7 @@ export default function GroupDetailScreen() {
               placeholderTextColor={colors.gray400}
               keyboardType="decimal-pad"
             />
+            <CategoryPicker categories={categoriesQ.data ?? []} selectedId={editCategoryId} onSelect={setEditCategoryId} />
             <View style={styles.modalBtns}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}

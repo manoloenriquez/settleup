@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { addMember, deleteMember, renameMember } from "@/app/actions/members";
 import { archiveGroup, deleteGroup, leaveGroup, renameGroup, transferOwnership } from "@/app/actions/groups";
+import { createExpenseCategory, deleteExpenseCategory, updateExpenseCategory } from "@/app/actions/categories";
 import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
 type GroupRow = {
   id: string;
@@ -22,6 +23,7 @@ type GroupRow = {
 interface Props {
   group: GroupRow;
   members: GroupMember[];
+  categories: ExpenseCategory[];
   isOwner: boolean;
   isAdmin: boolean;
   isAdminOrOwner: boolean;
@@ -31,6 +33,7 @@ interface Props {
 export function GroupSettingsClient({
   group,
   members,
+  categories,
   isOwner,
   isAdmin: _isAdmin,
   isAdminOrOwner,
@@ -39,6 +42,12 @@ export function GroupSettingsClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [memberList, setMemberList] = useState<GroupMember[]>(members);
+  const [categoryList, setCategoryList] = useState<ExpenseCategory[]>(categories);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6b7280");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [editingCategoryColor, setEditingCategoryColor] = useState("#6b7280");
   const [inviteCode, setInviteCode] = useState(group.invite_code);
   const [newMemberName, setNewMemberName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -207,6 +216,75 @@ export function GroupSettingsClient({
           prev.map((m) => (m.id === member.id ? result.data! : m)),
         );
         toast.success(role === "admin" ? `${member.display_name} is now an admin` : `${member.display_name} is now a regular member`);
+      }
+    });
+  }
+
+  function handleCreateCategory(e: React.FormEvent): void {
+    e.preventDefault();
+    const name = newCategoryName.trim();
+    if (!name) return;
+    startTransition(async () => {
+      const result = await createExpenseCategory({
+        group_id: group.id,
+        name,
+        color: newCategoryColor,
+        icon: "circle-ellipsis",
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        setCategoryList((prev) => [...prev, result.data!].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)));
+        setNewCategoryName("");
+        setNewCategoryColor("#6b7280");
+        toast.success("Category added");
+        router.refresh();
+      }
+    });
+  }
+
+  function startEditCategory(category: ExpenseCategory): void {
+    setEditingCategoryId(category.id);
+    setEditingCategoryName(category.name);
+    setEditingCategoryColor(category.color);
+  }
+
+  function handleUpdateCategory(category: ExpenseCategory, sortOrder = category.sort_order): void {
+    const name = editingCategoryId === category.id ? editingCategoryName.trim() : category.name;
+    const color = editingCategoryId === category.id ? editingCategoryColor : category.color;
+    if (!name) return;
+    startTransition(async () => {
+      const result = await updateExpenseCategory({
+        category_id: category.id,
+        name,
+        icon: category.icon,
+        color,
+        sort_order: sortOrder,
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        setCategoryList((prev) =>
+          prev
+            .map((item) => (item.id === category.id ? result.data! : item))
+            .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
+        );
+        setEditingCategoryId(null);
+        toast.success("Category updated");
+        router.refresh();
+      }
+    });
+  }
+
+  function handleDeleteCategory(category: ExpenseCategory): void {
+    startTransition(async () => {
+      const result = await deleteExpenseCategory(category.id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        setCategoryList((prev) => prev.filter((item) => item.id !== category.id));
+        toast.success("Category deleted");
+        router.refresh();
       }
     });
   }
@@ -477,6 +555,94 @@ export function GroupSettingsClient({
           </form>
         )}
         {addError && <p className="text-xs text-red-600 mt-2">{addError}</p>}
+      </section>
+
+      {/* Categories */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-700 mb-2">Expense Categories</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Members can use default and custom categories when adding expenses.
+        </p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {categoryList.map((category) => {
+            const isCustom = !category.is_default;
+            return (
+              <div key={category.id} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                {editingCategoryId === category.id ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={editingCategoryName}
+                      onChange={(e) => setEditingCategoryName(e.target.value)}
+                      className="min-w-0 flex-1 rounded-md border border-brand-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <input
+                      type="color"
+                      value={editingCategoryColor}
+                      onChange={(e) => setEditingCategoryColor(e.target.value)}
+                      className="h-8 w-10 shrink-0"
+                      aria-label="Category color"
+                    />
+                    <Button type="button" size="sm" isLoading={isPending} onClick={() => handleUpdateCategory(category)}>
+                      Save
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditingCategoryId(null)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800">{category.name}</p>
+                      <p className="text-xs text-slate-400">{category.is_default ? "Default" : "Custom"}</p>
+                    </div>
+                    {isAdminOrOwner && isCustom && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateCategory(category, category.sort_order - 15)}>
+                          ↑
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateCategory(category, category.sort_order + 15)}>
+                          ↓
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" leftIcon={Pencil} onClick={() => startEditCategory(category)} title="Edit category" />
+                        <Button type="button" variant="ghost" size="sm" leftIcon={Trash2} onClick={() => handleDeleteCategory(category)} title="Delete category" className="text-red-600 hover:bg-red-50 hover:text-red-700" />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {isAdminOrOwner && (
+          <form onSubmit={handleCreateCategory} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
+            <label className="min-w-0 flex-1 text-sm font-medium text-slate-700">
+              New category
+              <input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="e.g. Souvenirs"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              Color
+              <input
+                type="color"
+                value={newCategoryColor}
+                onChange={(e) => setNewCategoryColor(e.target.value)}
+                className="mt-1 block h-10 w-14"
+                aria-label="New category color"
+              />
+            </label>
+            <Button type="submit" size="sm" leftIcon={UserPlus} isLoading={isPending} disabled={!newCategoryName.trim()}>
+              Add category
+            </Button>
+          </form>
+        )}
       </section>
 
       {/* Payment details */}

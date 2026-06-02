@@ -3,6 +3,7 @@ export { createBrowserClient } from "./browser";
 export { createServerClient, type CookieAdapter } from "./server";
 export { createMobileClient } from "./mobile";
 export { createAnonClient } from "./anon";
+export { createUserScopedClient } from "./anon";
 export {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
@@ -19,8 +20,10 @@ export {
   parseJoinGroupRpcResult,
   parseLeaveGroupRpcResult,
   parsePromoteMemberRpcResult,
+  parseRecordPaymentRpcResult,
   parseRenameMemberRpcResult,
   parseShareTokenRpcResult,
+  parseSuccessRpcResult,
   parseTransferOwnershipRpcResult,
 } from "./settleup";
 
@@ -55,6 +58,9 @@ export type {
   GroupMember,
   GroupMemberInsert,
   GroupMemberUpdate,
+  ExpenseCategory,
+  ExpenseCategoryInsert,
+  ExpenseCategoryUpdate,
   Expense,
   ExpenseInsert,
   ExpenseUpdate,

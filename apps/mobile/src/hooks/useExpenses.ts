@@ -5,6 +5,7 @@ type AddExpenseParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   memberIds: string[];
   payerMemberId: string;
   createdByUserId: string;
@@ -14,6 +15,7 @@ type AddExpenseCustomSplitParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
 };
@@ -22,6 +24,7 @@ type AddItemizedExpenseParams = {
   groupId: string;
   expenseName: string;
   amountCents: number;
+  categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
 };
@@ -77,6 +80,7 @@ type UpdateExpenseParams = {
   expenseId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
 };
@@ -85,6 +89,7 @@ type UpdateExpenseCustomSplitParams = {
   expenseId: string;
   itemName: string;
   amountCents: number;
+  categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
 };
@@ -93,6 +98,7 @@ type UpdateItemizedExpenseParams = {
   expenseId: string;
   expenseName: string;
   amountCents: number;
+  categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
 };

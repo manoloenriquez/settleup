@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
+import { CategoryPill } from "@/components/groups/CategoryPicker";
 import type { ActivityItem } from "@/services/activity";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 import { EmptyState } from "@/components/ui";
@@ -33,7 +34,10 @@ export function ActivityTimeline({ items }: ActivityTimelineProps) {
           </View>
           <View style={styles.info}>
             <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
-            <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString("en-PH")}</Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString("en-PH")}</Text>
+              {item.type === "expense" && <CategoryPill category={item.category} />}
+            </View>
           </View>
           <Text style={[styles.amount, item.type === "payment" && { color: colors.success }]}>
             {formatCents(item.amount_cents)}
@@ -51,6 +55,7 @@ const styles = StyleSheet.create({
   iconWrapperPayment: { backgroundColor: colors.successLight ?? colors.primaryLight },
   info: { flex: 1 },
   label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray900 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
   date: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 2 },
   amount: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray900 },
 });

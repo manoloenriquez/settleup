@@ -14,6 +14,7 @@ import {
   buildUpdateItemizedExpenseRpcInput,
   parseCreateExpenseRpcResult,
   type Expense,
+  type ExpenseCategory,
   type ExpenseItem,
   type ExpenseItemParticipant,
   type ExpenseParticipant,
@@ -24,12 +25,14 @@ import { z } from "zod";
 const idSchema = z.string().uuid("Invalid ID.");
 
 export type ExpenseWithParticipants = Expense & {
+  category: ExpenseCategory | null;
   participants: ExpenseParticipant[];
   payers: ExpensePayer[];
   items?: (ExpenseItem & { item_participants: ExpenseItemParticipant[] })[];
 };
 
 type ExpenseWithParticipantsRow = Expense & {
+  category: ExpenseCategory | null;
   participants: ExpenseParticipant[] | null;
   payers: ExpensePayer[] | null;
   items: (ExpenseItem & { item_participants: ExpenseItemParticipant[] | null })[] | null;
@@ -44,7 +47,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { group_id, item_name, amount_cents, notes, participant_ids, payers } = parsed.data;
+    const { group_id, category_id, item_name, amount_cents, notes, participant_ids, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -52,6 +55,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
     const { data: result, error } = await db.rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
         groupId: group_id,
+        categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
         notes,
@@ -93,6 +97,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
       const rpcInput = item.split_mode === "equal"
         ? buildEqualExpenseRpcInput({
             groupId: group_id,
+            categoryId: item.category_id,
             itemName: item.item_name,
             amountCents: item.amount_cents,
             notes: item.notes,
@@ -104,6 +109,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
           })
         : buildCustomExpenseRpcInput({
             groupId: group_id,
+            categoryId: item.category_id,
             itemName: item.item_name,
             amountCents: item.amount_cents,
             notes: item.notes,
@@ -146,7 +152,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { group_id, item_name, amount_cents, notes, payers, line_items } = parsed.data;
+    const { group_id, category_id, item_name, amount_cents, notes, payers, line_items } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -154,6 +160,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
     const { data: result, error } = await db.rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
         groupId: group_id,
+        categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
         notes,
@@ -190,7 +197,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { expense_id, item_name, amount_cents, notes, split_mode, participant_ids, custom_splits, payers } = parsed.data;
+    const { expense_id, category_id, item_name, amount_cents, notes, split_mode, participant_ids, custom_splits, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -198,6 +205,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
     const rpcInput = split_mode === "equal"
       ? buildUpdateEqualExpenseRpcInput({
           expenseId: expense_id,
+          categoryId: category_id,
           itemName: item_name,
           amountCents: amount_cents,
           notes,
@@ -206,6 +214,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
         })
       : buildUpdateCustomExpenseRpcInput({
           expenseId: expense_id,
+          categoryId: category_id,
           itemName: item_name,
           amountCents: amount_cents,
           notes,
@@ -235,7 +244,7 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { expense_id, item_name, amount_cents, notes, payers, line_items } = parsed.data;
+    const { expense_id, category_id, item_name, amount_cents, notes, payers, line_items } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -243,6 +252,7 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
     const { data: result, error } = await db.rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
         expenseId: expense_id,
+        categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
         notes,
@@ -280,7 +290,7 @@ export async function listExpenses(
 
     const { data: expenses, error } = await db
       .from("expenses")
-      .select("*, participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
+      .select("*, category:expense_categories(*), participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: false });
 

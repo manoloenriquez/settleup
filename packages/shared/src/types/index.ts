@@ -65,6 +65,38 @@ export type SuggestedSettlement = SimplifiedDebt & {
 
 export type MemberRole = "owner" | "admin" | "member";
 
+export type ExpenseCategory = {
+  id: string;
+  group_id: string | null;
+  name: string;
+  slug: string;
+  icon: string;
+  color: string;
+  sort_order: number;
+  is_default: boolean;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpenseCategoryInput = {
+  group_id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+};
+
+export type ExpenseCategorySummary = Pick<
+  ExpenseCategory,
+  "id" | "name" | "slug" | "icon" | "color" | "is_default"
+>;
+
+export type CategorySpendingSummary = ExpenseCategorySummary & {
+  amount_cents: number;
+  expense_count: number;
+};
+
 export type MemberBalance = {
   member_id: string;
   display_name: string;
@@ -84,6 +116,7 @@ export type GroupOverviewPayload = {
     item_name: string;
     amount_cents: number;
     created_at: string;
+    category: ExpenseCategorySummary | null;
     participants: { display_name: string; share_cents: number }[];
     items?: { name: string; amount_cents: number }[];
   }[];
@@ -124,6 +157,7 @@ export type FriendViewPayload = {
     item_name: string;
     share_cents: number;
     created_at: string;
+    category: ExpenseCategorySummary | null;
     items?: { name: string; share_cents: number }[];
   }[];
   error?: string;

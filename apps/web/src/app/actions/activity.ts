@@ -17,6 +17,14 @@ export type ActivityItem = {
   amount_cents: number;
   payer_names?: string[];
   participant_count?: number;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+    icon: string;
+    color: string;
+    is_default: boolean;
+  } | null;
   // Payment fields
   from_name?: string;
   to_name?: string;
@@ -41,7 +49,7 @@ export async function getGroupActivity(
         .eq("group_id", parsed.data),
       db
         .from("expenses")
-        .select("id, item_name, amount_cents, created_at, payers:expense_payers(member_id), participants:expense_participants(member_id)")
+        .select("id, item_name, amount_cents, created_at, category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id), participants:expense_participants(member_id)")
         .eq("group_id", parsed.data)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -75,6 +83,7 @@ export async function getGroupActivity(
         amount_cents: exp.amount_cents,
         payer_names: payerNames,
         participant_count: participants.length,
+        category: exp.category,
       });
     }
 

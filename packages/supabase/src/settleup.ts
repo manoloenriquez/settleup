@@ -1,9 +1,10 @@
 import { dashboardSummarySchema, type ApiResponse, type DashboardSummary, type GroupWithStats } from "@template/shared";
-import type { Expense, Group, GroupMember, Json } from "./database.types";
+import type { Expense, Group, GroupMember, Json, Payment } from "./database.types";
 import { z } from "zod";
 
 type EqualExpenseRpcInput = {
   groupId: string;
+  categoryId?: string | null;
   itemName: string;
   amountCents: number;
   notes?: string;
@@ -13,6 +14,7 @@ type EqualExpenseRpcInput = {
 
 type CustomExpenseRpcInput = {
   groupId: string;
+  categoryId?: string | null;
   itemName: string;
   amountCents: number;
   notes?: string;
@@ -22,6 +24,7 @@ type CustomExpenseRpcInput = {
 
 type ItemizedExpenseRpcInput = {
   groupId: string;
+  categoryId?: string | null;
   itemName: string;
   amountCents: number;
   notes?: string;
@@ -31,6 +34,7 @@ type ItemizedExpenseRpcInput = {
 
 type UpdateEqualExpenseRpcInput = {
   expenseId: string;
+  categoryId?: string | null;
   itemName: string;
   amountCents: number;
   notes?: string;
@@ -40,6 +44,7 @@ type UpdateEqualExpenseRpcInput = {
 
 type UpdateCustomExpenseRpcInput = {
   expenseId: string;
+  categoryId?: string | null;
   itemName: string;
   amountCents: number;
   notes?: string;
@@ -49,6 +54,7 @@ type UpdateCustomExpenseRpcInput = {
 
 type UpdateItemizedExpenseRpcInput = {
   expenseId: string;
+  categoryId?: string | null;
   itemName: string;
   amountCents: number;
   notes?: string;
@@ -80,9 +86,21 @@ const groupMemberSchema = z.object({
 const expenseSchema = z.object({
   id: z.string().uuid(),
   group_id: z.string().uuid(),
+  category_id: z.string().uuid().nullable(),
   item_name: z.string(),
   amount_cents: z.number().int(),
   notes: z.string().nullable(),
+  created_by_user_id: z.string().uuid().nullable(),
+  created_at: z.string(),
+});
+
+const paymentSchema = z.object({
+  id: z.string().uuid(),
+  group_id: z.string().uuid(),
+  amount_cents: z.number().int(),
+  status: z.string(),
+  from_member_id: z.string().uuid(),
+  to_member_id: z.string().uuid(),
   created_by_user_id: z.string().uuid().nullable(),
   created_at: z.string(),
 });
@@ -95,6 +113,8 @@ const groupWithStatsSchema = groupSchema.extend({
 
 const createGroupResultSchema = z.object({ group: groupSchema });
 const createExpenseResultSchema = z.object({ expense: expenseSchema });
+const recordPaymentResultSchema = z.object({ payment: paymentSchema });
+const successResultSchema = z.object({ success: z.boolean() });
 const groupsWithStatsResultSchema = z.array(groupWithStatsSchema);
 const dashboardSummaryResultSchema = dashboardSummarySchema;
 const joinGroupResultSchema = z.object({
@@ -129,6 +149,7 @@ function parseRpcPayload<T>(
 export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
   return {
     group_id: input.groupId,
+    category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
@@ -144,6 +165,7 @@ export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
 export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
   return {
     group_id: input.groupId,
+    category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
@@ -162,6 +184,7 @@ export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
 export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Json {
   return {
     group_id: input.groupId,
+    category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
@@ -180,6 +203,7 @@ export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Js
 export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInput): Json {
   return {
     expense_id: input.expenseId,
+    category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
@@ -195,6 +219,7 @@ export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInpu
 export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcInput): Json {
   return {
     expense_id: input.expenseId,
+    category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
@@ -213,6 +238,7 @@ export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcIn
 export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseRpcInput): Json {
   return {
     expense_id: input.expenseId,
+    category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
@@ -242,6 +268,18 @@ export function parseCreateExpenseRpcResult(result: Json | null): ApiResponse<Ex
   if (parsed.data === null) return { data: null, error: "Failed to parse expense." };
 
   return { data: parsed.data.expense, error: null };
+}
+
+export function parseRecordPaymentRpcResult(result: Json | null): ApiResponse<Payment> {
+  const parsed = parseRpcPayload(result, recordPaymentResultSchema, "Failed to parse payment.");
+  if (parsed.error) return parsed;
+  if (parsed.data === null) return { data: null, error: "Failed to parse payment." };
+
+  return { data: parsed.data.payment, error: null };
+}
+
+export function parseSuccessRpcResult(result: Json | null): ApiResponse<{ success: boolean }> {
+  return parseRpcPayload(result, successResultSchema, "Operation failed.");
 }
 
 export function parseGroupsWithStatsRpcResult(result: Json | null): ApiResponse<GroupWithStats[]> {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -7,6 +7,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { Avatar, Badge, Card, ListItem, SkeletonCard } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { BETA_SUPPORT_EMAIL } from "@template/shared";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -37,8 +38,13 @@ export default function AccountScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            const accessToken = session?.access_token;
+            if (!accessToken) {
+              Alert.alert("Not signed in", "Please sign in again before deleting your account.");
+              return;
+            }
             setDeleting(true);
-            const res = await deleteAccount();
+            const res = await deleteAccount(accessToken);
             setDeleting(false);
             if (res.error) {
               Alert.alert("Couldn't delete account", res.error);
@@ -49,6 +55,17 @@ export default function AccountScreen() {
         },
       ],
     );
+  }
+
+  async function handleBetaFeedback() {
+    const subject = encodeURIComponent("SettleUp beta feedback");
+    const url = `mailto:${BETA_SUPPORT_EMAIL}?subject=${subject}`;
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      Alert.alert("Email unavailable", `Send feedback to ${BETA_SUPPORT_EMAIL}.`);
+      return;
+    }
+    await Linking.openURL(url);
   }
 
   const displayName = profile?.full_name ?? session?.user.email ?? "User";
@@ -96,6 +113,14 @@ export default function AccountScreen() {
             left={<Ionicons name="pencil-outline" size={20} color={colors.gray600 ?? colors.gray400} />}
             showChevron
             onPress={() => router.push("/(protected)/account/edit-profile")}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Beta Feedback"
+            subtitle="Report bugs or confusing trip flows"
+            left={<Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.success ?? colors.primary} />}
+            showChevron
+            onPress={handleBetaFeedback}
           />
         </Card>
 

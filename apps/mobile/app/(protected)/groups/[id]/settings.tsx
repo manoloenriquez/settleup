@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useArchiveGroup, useGroups, useRenameGroup, useTransferOwnership } from "@/hooks/useGroups";
 import { useAddMember, useAddMembersBatch, useMembers, useDeleteMember, useRenameMember } from "@/hooks/useMembers";
 import { useRegenerateInviteCode, useLeaveGroup, usePromoteMember } from "@/hooks/useCollaboration";
+import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
@@ -24,6 +25,10 @@ export default function GroupSettingsScreen() {
   const [batchMode, setBatchMode] = useState(false);
   const [renamingMemberId, setRenamingMemberId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6b7280");
+  const [renamingCategoryId, setRenamingCategoryId] = useState<string | null>(null);
+  const [renamingCategoryName, setRenamingCategoryName] = useState("");
 
   const membersQ = useMembers(groupId);
   const addMember = useAddMember(groupId);
@@ -36,6 +41,10 @@ export default function GroupSettingsScreen() {
   const regenerateCode = useRegenerateInviteCode();
   const leaveGroupMutation = useLeaveGroup();
   const promoteMemberMutation = usePromoteMember(groupId);
+  const categoriesQ = useCategories(groupId);
+  const createCategory = useCreateCategory(groupId);
+  const updateCategory = useUpdateCategory(groupId);
+  const deleteCategory = useDeleteCategory(groupId);
 
   // Get current group to show invite code
   const groupsQ = useGroups();
@@ -196,6 +205,58 @@ export default function GroupSettingsScreen() {
         },
       ],
     );
+  }
+
+  async function handleCreateCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const result = await createCategory.mutateAsync({ name, color: newCategoryColor });
+    if (result.error) { Alert.alert("Error", result.error); return; }
+    setNewCategoryName("");
+    setNewCategoryColor("#6b7280");
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  function startRenameCategory(categoryId: string, currentName: string) {
+    setRenamingCategoryId(categoryId);
+    setRenamingCategoryName(currentName);
+  }
+
+  function nextCategoryColor(current: string): string {
+    const palette = ["#6b7280", "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+    const index = palette.indexOf(current);
+    return palette[(index + 1) % palette.length] ?? palette[0]!;
+  }
+
+  async function handleUpdateCategory(category: {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    sort_order: number;
+  }, sortOrder = category.sort_order, color = category.color) {
+    const name = renamingCategoryId === category.id ? renamingCategoryName.trim() : category.name;
+    if (!name) {
+      setRenamingCategoryId(null);
+      return;
+    }
+    const result = await updateCategory.mutateAsync({
+      categoryId: category.id,
+      name,
+      icon: category.icon,
+      color,
+      sortOrder,
+    });
+    if (result.error) { Alert.alert("Error", result.error); return; }
+    setRenamingCategoryId(null);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  function confirmDeleteCategory(categoryId: string, name: string) {
+    Alert.alert(`Delete ${name}?`, "Existing expenses will move to Other.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteCategory.mutate(categoryId) },
+    ]);
   }
 
   function confirmArchiveGroup() {
@@ -406,6 +467,69 @@ export default function GroupSettingsScreen() {
           <Text style={styles.batchHint}>Separate names with commas</Text>
         )}
 
+        {/* Categories */}
+        <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+          <Ionicons name="pricetags-outline" size={12} color={colors.gray400} />
+          <Text style={styles.sectionLabel}>CATEGORIES</Text>
+        </View>
+        <Card padding={0}>
+          {(categoriesQ.data ?? []).map((category, i) => (
+            <View key={category.id}>
+              {renamingCategoryId === category.id ? (
+                <View style={styles.renameRow}>
+                  <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
+                  <AppTextInput
+                    value={renamingCategoryName}
+                    onChangeText={setRenamingCategoryName}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={() => handleUpdateCategory(category)}
+                    containerStyle={{ flex: 1 }}
+                  />
+                  <AppButton title="Save" onPress={() => handleUpdateCategory(category)} isLoading={updateCategory.isPending} style={styles.renameSaveBtn} />
+                  <Text style={styles.renameCancelBtn} onPress={() => setRenamingCategoryId(null)}>Cancel</Text>
+                </View>
+              ) : (
+                <ListItem
+                  left={<View style={[styles.categoryDot, { backgroundColor: category.color }]} />}
+                  title={category.name}
+                  subtitle={category.is_default ? "Default" : "Custom"}
+                  right={
+                    !category.is_default && isAdminOrOwner ? (
+                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                        <Text style={styles.renameBtn} onPress={() => handleUpdateCategory(category, category.sort_order - 15)}>Up</Text>
+                        <Text style={styles.renameBtn} onPress={() => handleUpdateCategory(category, category.sort_order + 15)}>Down</Text>
+                        <Text style={styles.renameBtn} onPress={() => handleUpdateCategory(category, category.sort_order, nextCategoryColor(category.color))}>Color</Text>
+                        <Text style={styles.renameBtn} onPress={() => startRenameCategory(category.id, category.name)}>Rename</Text>
+                        <Text style={styles.removeBtn} onPress={() => confirmDeleteCategory(category.id, category.name)}>Delete</Text>
+                      </View>
+                    ) : null
+                  }
+                />
+              )}
+              {i < (categoriesQ.data ?? []).length - 1 && <View style={styles.divider} />}
+            </View>
+          ))}
+        </Card>
+        {isAdminOrOwner && (
+          <View style={[styles.addRow, { marginTop: spacing.sm }]}>
+            <View style={{ flex: 1 }}>
+              <AppTextInput
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="New category"
+                returnKeyType="done"
+                onSubmitEditing={handleCreateCategory}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.colorSwatch, { backgroundColor: newCategoryColor }]}
+              onPress={() => setNewCategoryColor(newCategoryColor === "#6b7280" ? "#ef4444" : newCategoryColor === "#ef4444" ? "#3b82f6" : "#6b7280")}
+            />
+            <AppButton title="Add" onPress={handleCreateCategory} isLoading={createCategory.isPending} disabled={!newCategoryName.trim()} />
+          </View>
+        )}
+
         {/* Leave group (non-owners only) */}
         {!isOwner && (
           <AppButton
@@ -479,4 +603,6 @@ const styles = StyleSheet.create({
   },
   renameSaveBtn: { height: 36, paddingHorizontal: spacing.sm },
   renameCancelBtn: { fontSize: fontSize.sm, color: colors.gray500 },
+  categoryDot: { width: 14, height: 14, borderRadius: 7 },
+  colorSwatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: colors.surface },
 });

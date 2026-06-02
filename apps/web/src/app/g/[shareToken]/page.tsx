@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { createAnonClient } from "@template/supabase";
 import { GroupOverview } from "@/components/groups/GroupOverview";
+import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
 import type { GroupOverviewPayload } from "@template/shared";
 
 type Props = {
@@ -9,33 +11,28 @@ type Props = {
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { shareToken } = await params;
-
-  const supabase = createAnonClient();
-  const { data } = await supabase.schema("settleup").rpc("get_group_overview", {
-    p_share_token: shareToken,
-  });
-
-  const payload = data as GroupOverviewPayload | null;
-  if (!payload || payload.error) {
-    return { title: "Not found" };
-  }
-
-  const group = payload.group.name;
-  const count = payload.members.length;
+  await params;
 
   return {
-    title: `${group} — Group Overview`,
-    description: `View the expense summary and balances for ${group} (${count} members).`,
+    title: "SettleUp group overview",
+    description: "View a private SettleUp group overview link.",
     openGraph: {
-      title: `${group} — Group Overview`,
-      description: `View the expense summary and balances for ${group} (${count} members).`,
+      title: "SettleUp group overview",
+      description: "View a private SettleUp group overview link.",
     },
   };
 }
 
 export default async function GroupOverviewPage({ params }: Props): Promise<React.ReactElement> {
   const { shareToken } = await params;
+  const headersList = await headers();
+  const clientIp = getClientIp(headersList);
+  const allowed = checkPublicRateLimit(`group:${clientIp}:${shareToken}`, {
+    maxRequests: 20,
+    windowMs: 5 * 60_000,
+  });
+
+  if (!allowed) notFound();
 
   const supabase = createAnonClient();
   const { data, error } = await supabase.schema("settleup").rpc("get_group_overview", {

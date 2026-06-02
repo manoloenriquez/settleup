@@ -34,7 +34,8 @@ supabase/
 **Invariants:**
 - `packages/shared` must not import from `apps/*` or other `packages/*`
 - `packages/supabase` must not import from `apps/*`
-- `SERVICE_ROLE_KEY` must never be imported in application code — guards use the user's JWT
+- `SERVICE_ROLE_KEY` must never be imported in web/mobile application code — guards use the user's JWT
+- Exception: `apps/api` may use `SUPABASE_SERVICE_ROLE_KEY` only for `auth.admin.deleteUser` in the authenticated self-account-deletion route
 - All DB mutations go through Supabase RLS — never bypass with service role
 
 ---
@@ -68,7 +69,7 @@ type ApiResponse<T> = { data: T; error: null } | { data: null; error: string };
 
 **Supabase:** RLS on every table; write RLS policy before application code; never edit applied migrations — write a new one; migrations named `YYYYMMDDHHMMSS_description.sql`.
 
-**Security:** No `SUPABASE_SERVICE_ROLE_KEY` in app code; validate MIME type + size before Storage uploads; only `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` vars in client bundles.
+**Security:** No `SUPABASE_SERVICE_ROLE_KEY` in web/mobile app code; validate MIME type + size before Storage uploads; only `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` vars in client bundles. The only allowed service-role use is the `apps/api` authenticated self-account-deletion route.
 
 **AI:** `generateJSON<T>()` in `apps/web/src/lib/ai/` — validate all output with Zod; rate limit per user; AI never writes to DB directly; handle `LLM_ENABLED=false` gracefully.
 
@@ -95,7 +96,7 @@ type ApiResponse<T> = { data: T; error: null } | { data: null; error: string };
 ## Definition of Done
 
 - [ ] RLS policies exist for user and admin roles
-- [ ] No `service_role` key in application code
+- [ ] No `service_role` key outside the approved `apps/api` self-account-deletion route
 - [ ] All Server Actions return `ApiResponse<T>`, never throw
 - [ ] New tables/columns reflected in `database.types.ts`
 - [ ] Zod validation in all Server Actions before DB ops

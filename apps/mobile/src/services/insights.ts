@@ -8,7 +8,7 @@ export async function getGroupInsights(groupId: string): Promise<ApiResponse<Gro
   const { data: expenses, error } = await supabase
     .schema("settleup")
     .from("expenses")
-    .select("item_name, amount_cents, created_at")
+    .select("item_name, amount_cents, created_at, category:expense_categories(name, slug, color)")
     .eq("group_id", groupId)
     .order("created_at", { ascending: true });
 

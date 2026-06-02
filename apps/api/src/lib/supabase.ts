@@ -31,9 +31,8 @@ export function createUserScopedClient(token: string): SupabaseClient {
 
 /**
  * Privileged Supabase client using the service role key. Bypasses RLS.
- * Only call from server-side routes that have already authenticated the
- * caller via authMiddleware and are intentionally performing an admin
- * action (e.g. auth.admin.deleteUser for the caller's own account).
+ * Approved use is intentionally narrow: apps/api account deletion calls
+ * auth.admin.deleteUser for the already-authenticated caller only.
  */
 export function createServiceRoleClient(): SupabaseClient {
   const url = process.env.SUPABASE_URL;

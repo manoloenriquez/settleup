@@ -1,6 +1,7 @@
 import { Alert, StyleSheet, TouchableOpacity, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
+import { CategoryPill } from "@/components/groups/CategoryPicker";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { EmptyState } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
@@ -35,7 +36,10 @@ export function ExpenseList({ expenses, onDelete, onEdit }: ExpenseListProps) {
         <View key={exp.id} style={styles.row}>
           <View style={styles.rowInfo}>
             <Text style={styles.name} numberOfLines={1}>{exp.item_name}</Text>
-            <Text style={styles.date}>{new Date(exp.created_at).toLocaleDateString("en-PH")}</Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.date}>{new Date(exp.created_at).toLocaleDateString("en-PH")}</Text>
+              <CategoryPill category={exp.category} />
+            </View>
           </View>
           <View style={styles.rowRight}>
             <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
@@ -61,6 +65,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   rowInfo: { flex: 1, gap: 2 },
   name: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: colors.gray900 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
   date: { fontSize: fontSize.xs, color: colors.gray400 },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   amount: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },

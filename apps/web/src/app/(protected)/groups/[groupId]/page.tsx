@@ -6,6 +6,7 @@ import { listExpenses } from "@/app/actions/expenses";
 import { getMembersWithBalances, getCreditorProfiles } from "@/app/actions/balances";
 import { getPaymentProfile } from "@/app/actions/payment-profiles";
 import { getGroupActivity } from "@/app/actions/activity";
+import { listExpenseCategories } from "@/app/actions/categories";
 import { simplifyDebts, formatCents } from "@template/shared";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
@@ -14,6 +15,7 @@ import { AddMemberForm } from "@/components/groups/AddMemberForm";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { GroupDetailTabs } from "@/components/groups/GroupDetailTabs";
 import { GroupHeader } from "@/components/groups/GroupHeader";
+import { GroupSetupChecklist, setupChecklistIcons } from "@/components/groups/GroupSetupChecklist";
 import { SeedButton } from "@/components/groups/SeedButton";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { AlertCircle, Share2 } from "lucide-react";
@@ -62,12 +64,13 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
   if (!group) notFound();
 
-  const [balancesResult, expensesResult, profileResult, activityResult, creditorProfilesResult] = await Promise.all([
+  const [balancesResult, expensesResult, profileResult, activityResult, creditorProfilesResult, categoriesResult] = await Promise.all([
     getMembersWithBalances(groupId),
     listExpenses(groupId),
     getPaymentProfile(),
     getGroupActivity(groupId),
     getCreditorProfiles(groupId),
+    listExpenseCategories(groupId),
   ]);
 
   const balances = balancesResult.data ?? [];
@@ -85,6 +88,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const expenses = expensesResult.data ?? [];
   const profile = profileResult.data ?? null;
   const activities = activityResult.data ?? [];
+  const categories = categoriesResult.data ?? [];
   const paymentProfileText = buildPaymentProfileText(profile);
   const currentUserId = user.id;
   const isOwner = group.owner_user_id === currentUserId;
@@ -101,6 +105,42 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const isDev = process.env.NODE_ENV === "development";
 
   const isFullySettled = totalOutstandingCents === 0;
+  const hasPaymentDetails = Boolean(
+    profile?.gcash_number || profile?.gcash_qr_url || profile?.bank_account_number || profile?.bank_qr_url,
+  );
+  const setupItems = [
+    {
+      label: "Add members",
+      complete: members.length > 1,
+      href: `/groups/${groupId}`,
+      icon: setupChecklistIcons.members,
+    },
+    {
+      label: "Claim your profile",
+      complete: Boolean(currentMember),
+      href: `/groups/${groupId}/settings`,
+      icon: setupChecklistIcons.claim,
+    },
+    {
+      label: "Add payment details",
+      complete: hasPaymentDetails,
+      href: "/account/payment",
+      icon: setupChecklistIcons.payment,
+    },
+    {
+      label: "Share group link",
+      complete: members.length > 1,
+      copyText: `${origin}/g/${group.share_token}`,
+      copyLabel: "Share",
+      icon: setupChecklistIcons.share,
+    },
+    {
+      label: "Add first expense",
+      complete: expenses.length > 0,
+      href: `/groups/${groupId}`,
+      icon: setupChecklistIcons.expense,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -110,7 +150,10 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         groupName={group.name}
         memberCount={members.length}
         members={members}
+        categories={categories}
       />
+
+      <GroupSetupChecklist groupId={groupId} items={setupItems} />
 
       {/* Stats hero */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -186,7 +229,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
           </div>
         }
         expensesContent={
-          <ExpenseList expenses={expenses} members={members} currentUserId={currentUserId} isAdminOrOwner={isAdminOrOwner} />
+          <ExpenseList expenses={expenses} members={members} categories={categories} currentUserId={currentUserId} isAdminOrOwner={isAdminOrOwner} />
         }
       />
     </div>

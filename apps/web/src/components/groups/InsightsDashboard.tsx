@@ -107,6 +107,45 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
         )}
       </div>
 
+      {insights.categories.length > 0 && (
+        <Card>
+          <CardContent>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-slate-900">Spending by category</p>
+                {insights.top_category && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Top: {insights.top_category.name} · {formatCents(insights.top_category.amount_cents)}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-3">
+              {insights.categories.map((category) => {
+                const pct = insights.total_amount_cents > 0
+                  ? Math.round((category.amount_cents / insights.total_amount_cents) * 100)
+                  : 0;
+                return (
+                  <div key={category.slug} className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="flex min-w-0 items-center gap-2 font-medium text-slate-700">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                        <span className="truncate">{category.name}</span>
+                      </span>
+                      <span className="shrink-0 font-semibold text-slate-900">{formatCents(category.amount_cents)}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: category.color }} />
+                    </div>
+                    <p className="text-xs text-slate-400">{category.expense_count} expense{category.expense_count !== 1 ? "s" : ""} · {pct}%</p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* LLM Summary */}
       {insights.llm_summary && (
         <Card>

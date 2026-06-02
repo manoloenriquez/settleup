@@ -9,7 +9,7 @@ export async function getGroupActivity(groupId: string): Promise<ApiResponse<Act
     supabase
       .schema("settleup")
       .from("expenses")
-      .select("id, item_name, amount_cents, created_at")
+      .select("id, item_name, amount_cents, created_at, category:expense_categories(id, name, slug, icon, color, is_default)")
       .eq("group_id", groupId)
       .order("created_at", { ascending: false })
       .limit(30),

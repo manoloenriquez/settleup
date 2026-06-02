@@ -33,6 +33,16 @@ export default function InsightsScreen() {
         average_expense_cents: insights.average_expense_cents,
         top_spender: null,
         most_common_item: insights.top_item ? { name: insights.top_item, count: 1 } : null,
+        top_category: insights.top_category ?? null,
+        categories: insights.categories.map((category) => ({
+          id: null,
+          name: category.name,
+          slug: category.slug,
+          icon: "circle-ellipsis",
+          color: category.color,
+          amount_cents: category.amount_cents,
+          expense_count: category.expense_count,
+        })),
         period: insights.period_days > 0 ? { first_expense: "", last_expense: "" } : null,
       },
     });
@@ -88,6 +98,26 @@ export default function InsightsScreen() {
               <Text style={styles.statValue}>{insights.period_days} days</Text>
             </Card>
 
+            {insights.categories.length > 0 && (
+              <Card>
+                <Text style={styles.categoryTitle}>SPENDING BY CATEGORY</Text>
+                {insights.categories.map((category) => {
+                  const pct = insights.total_amount_cents > 0
+                    ? Math.round((category.amount_cents / insights.total_amount_cents) * 100)
+                    : 0;
+                  return (
+                    <View key={category.slug} style={styles.categoryRow}>
+                      <View style={styles.categoryLabelRow}>
+                        <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
+                        <Text style={styles.categoryName}>{category.name}</Text>
+                      </View>
+                      <Text style={styles.categoryAmount}>{formatCents(category.amount_cents)} · {pct}%</Text>
+                    </View>
+                  );
+                })}
+              </Card>
+            )}
+
             {/* AI Summary */}
             {summary ? (
               <Card>
@@ -124,6 +154,12 @@ const styles = StyleSheet.create({
   statCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
   statValue: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900 },
+  categoryTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8, marginBottom: spacing.sm },
+  categoryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.xs },
+  categoryLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flex: 1 },
+  categoryDot: { width: 10, height: 10, borderRadius: 5 },
+  categoryName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray800 },
+  categoryAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray900 },
   empty: { padding: spacing.xl, alignItems: "center" },
   emptyText: { color: colors.gray400, fontSize: fontSize.base, textAlign: "center" },
   aiBadgeRow: { marginBottom: spacing.sm },

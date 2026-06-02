@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { SplitModeToggle } from "./SplitModeToggle";
+import { CategoryBadge, CategorySelect } from "./CategoryControls";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
 type SplitMode = "equal" | "custom";
 
@@ -26,6 +27,7 @@ type LineItemState = {
 };
 
 type ItemState = {
+  categoryId: string | null;
   itemName: string;
   amountStr: string;
   selectedIds: string[];
@@ -37,8 +39,14 @@ type ItemState = {
   lineItems: LineItemState[];
 };
 
-function makeEmptyItem(allMemberIds: string[], firstMemberId: string, previousSelectedIds?: string[]): ItemState {
+function makeEmptyItem(
+  allMemberIds: string[],
+  firstMemberId: string,
+  categoryId: string | null,
+  previousSelectedIds?: string[],
+): ItemState {
   return {
+    categoryId,
     itemName: "",
     amountStr: "",
     selectedIds: previousSelectedIds ?? allMemberIds,
@@ -58,12 +66,14 @@ function makeEmptyLineItem(allMemberIds: string[]): LineItemState {
 type Props = {
   groupId: string;
   members: GroupMember[];
+  categories: ExpenseCategory[];
 };
 
-export function AddExpenseForm({ groupId, members }: Props): React.ReactElement {
+export function AddExpenseForm({ groupId, members, categories }: Props): React.ReactElement {
   const allMemberIds = members.map((m) => m.id);
   const firstMemberId = members[0]?.id ?? "";
-  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId)]);
+  const defaultCategoryId = categories.find((category) => category.slug === "other")?.id ?? null;
+  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
@@ -91,7 +101,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
   function addItem(): void {
     setItems((prev) => {
       const last = prev[prev.length - 1];
-      return [...prev, makeEmptyItem(allMemberIds, firstMemberId, last?.selectedIds)];
+      return [...prev, makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId, last?.selectedIds)];
     });
   }
 
@@ -224,6 +234,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
             return {
               item_name: item.itemName.trim(),
               amount_cents,
+              category_id: item.categoryId,
               split_mode: "equal" as const,
               participant_ids: item.selectedIds,
               payers,
@@ -232,6 +243,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
           return {
             item_name: item.itemName.trim(),
             amount_cents,
+            category_id: item.categoryId,
             split_mode: "custom" as const,
             participant_ids: item.selectedIds,
             custom_splits: item.selectedIds.map((id) => ({
@@ -271,6 +283,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
           group_id: groupId,
           item_name: item.itemName.trim(),
           amount_cents,
+          category_id: item.categoryId,
           payers,
           line_items,
         });
@@ -281,7 +294,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
         }
       }
 
-      setItems([makeEmptyItem(allMemberIds, firstMemberId)]);
+      setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
       setShowAdvanced({});
       setConfirming(false);
       toast.success("Expense added!");
@@ -306,6 +319,8 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                   <span className="font-semibold text-brand-700">{formatCents(amountCents)}</span>
                 </div>
                 <p className="text-xs text-slate-500">
+                  <CategoryBadge category={categories.find((category) => category.id === item.categoryId) ?? null} compact />
+                  {" · "}
                   Paid by <span className="font-medium text-slate-700">{payerName}</span>
                   {item.expenseMode === "whole" && (
                     <> · {item.splitMode === "equal" ? `Split equally ${item.selectedIds.length} ways` : "Custom split"}</>
@@ -428,6 +443,12 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                 placeholder="e.g. 8703.39"
               />
             </div>
+
+            <CategorySelect
+              categories={categories}
+              value={item.categoryId}
+              onChange={(categoryId) => updateItem(index, { categoryId })}
+            />
 
             {/* Paid by — always visible */}
             {!item.splitPayer && (

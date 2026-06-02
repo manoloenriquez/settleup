@@ -14,6 +14,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
 import { useMembers } from "@/hooks/useMembers";
+import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
 import { useConversationAI } from "@/hooks/useConversationAI";
 import { useSmartSplit } from "@/hooks/useSmartSplit";
@@ -22,6 +23,7 @@ import { AmountInput, ChipGroup, SegmentedControl, AppButton } from "@/component
 import { AppTextInput } from "@/components/ui/TextInput";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
+import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
 import { formatCents, parsePHPAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -37,6 +39,8 @@ export default function AddExpenseScreen() {
 
   const membersQ = useMembers(groupId);
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
+  const categoriesQ = useCategories(groupId);
+  const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
   const addExpense = useAddExpense(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
@@ -52,6 +56,7 @@ export default function AddExpenseScreen() {
   const [amount, setAmount] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(() => new Set(members.map((m) => m.id)));
   const [payerMemberId, setPayerMemberId] = useState<string>("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
 
   // Detailed mode split state
   const [splitMode, setSplitMode] = useState<SplitMode>("equal");
@@ -77,6 +82,7 @@ export default function AddExpenseScreen() {
   // Initialize payer to first member that matches user
   const myMember = members.find((m) => m.user_id === session?.user.id) ?? members[0];
   const effectivePayerId = payerMemberId || myMember?.id || "";
+  const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
 
   useEffect(() => {
     hasInitializedMembersRef.current = false;
@@ -93,6 +99,11 @@ export default function AddExpenseScreen() {
     }
     hasInitializedMembersRef.current = true;
   }, [members, myMember]);
+
+  useEffect(() => {
+    if (categoryId || categories.length === 0) return;
+    setCategoryId(categories.find((category) => category.slug === "other")?.id ?? categories[0]?.id ?? null);
+  }, [categories, categoryId]);
 
   function toggleMember(id: string) {
     setSelectedMembers((prev) => {
@@ -167,6 +178,7 @@ export default function AddExpenseScreen() {
       groupId,
       itemName: itemName.trim(),
       amountCents,
+      categoryId,
       memberIds: [...selectedMembers],
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
@@ -215,10 +227,10 @@ export default function AddExpenseScreen() {
         memberId: id,
         shareCents: parsePHPAmount(customShares[id] ?? "0") ?? 0,
       }));
-      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, customSplits, payers });
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers });
       if (result.error) { Alert.alert("Error", result.error); return; }
     } else {
-      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "" });
+      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "" });
       if (result.error) { Alert.alert("Error", result.error); return; }
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -244,6 +256,8 @@ export default function AddExpenseScreen() {
             .map((m) => m.id)
         : members.map((m) => m.id);
       setDraftMembers(new Set(matchedIds));
+      const suggested = categories.find((category) => category.is_default && category.slug === aiDraft.category_slug);
+      if (suggested) setCategoryId(suggested.id);
     }
   }
 
@@ -258,6 +272,7 @@ export default function AddExpenseScreen() {
       groupId,
       itemName: draftItem,
       amountCents,
+      categoryId,
       memberIds,
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
@@ -315,6 +330,7 @@ export default function AddExpenseScreen() {
       groupId,
       expenseName: itemName.trim(),
       amountCents,
+      categoryId,
       payers,
       lineItems: filledItems.map((li) => ({
         name: li.name.trim(),
@@ -359,6 +375,7 @@ export default function AddExpenseScreen() {
             <Text style={styles.confirmTitle}>REVIEW</Text>
             <Text style={styles.confirmName}>{itemName}</Text>
             <Text style={styles.confirmAmount}>{formatCents(amountCents)}</Text>
+            <CategoryPill category={selectedCategory} />
             <View style={styles.confirmRow}>
               <Text style={styles.confirmLabel}>Paid by</Text>
               <Text style={styles.confirmValue}>{payerLabel}</Text>
@@ -418,6 +435,7 @@ export default function AddExpenseScreen() {
             <View style={styles.form}>
               <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Lunch, Grab, Hotel" />
               <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
               <ChipGroup label="Split with" chips={memberChips} selected={selectedMembers} onToggle={toggleMember} />
               <View>
                 <Text style={styles.label}>Paid by</Text>
@@ -456,6 +474,7 @@ export default function AddExpenseScreen() {
                   <Text style={styles.draftTitle}>DRAFT</Text>
                   <Text style={styles.draftItem}>{draftItem}</Text>
                   <Text style={styles.draftAmount}>{draftAmount ? `\u20B1${draftAmount}` : "\u2014"}</Text>
+                  <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
                   <AppButton title="Confirm & Save" onPress={handleChatSave} isLoading={addExpense.isPending} />
                 </View>
               ) : null}
@@ -502,6 +521,7 @@ export default function AddExpenseScreen() {
             <View style={styles.form}>
               <AppTextInput label="Expense Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
               <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} />
+              <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Line items */}
               <View>
@@ -623,6 +643,7 @@ export default function AddExpenseScreen() {
             <View style={styles.form}>
               <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Participant chips */}
               <ChipGroup label="Split with" chips={memberChips} selected={selectedMembers} onToggle={toggleMember} />

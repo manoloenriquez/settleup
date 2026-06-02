@@ -212,6 +212,12 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
                         {formatCents(exp.share_cents)}
                       </span>
                     </div>
+                    {exp.category && (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: exp.category.color }} />
+                        {exp.category.name}
+                      </div>
+                    )}
                     {exp.items && exp.items.length > 0 && (
                       <div className="mt-1.5 ml-3 border-l-2 border-brand-100 pl-3 flex flex-col gap-0.5">
                         {exp.items.map((item, j) => (

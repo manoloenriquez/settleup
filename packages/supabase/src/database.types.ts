@@ -205,10 +205,61 @@ export type Database = {
           },
         ];
       };
+      expense_categories: {
+        Row: {
+          id: string;
+          group_id: string | null;
+          name: string;
+          slug: string;
+          icon: string;
+          color: string;
+          sort_order: number;
+          is_default: boolean;
+          created_by_user_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id?: string | null;
+          name: string;
+          slug: string;
+          icon?: string;
+          color?: string;
+          sort_order?: number;
+          is_default?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string | null;
+          name?: string;
+          slug?: string;
+          icon?: string;
+          color?: string;
+          sort_order?: number;
+          is_default?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       expenses: {
         Row: {
           id: string;
           group_id: string;
+          category_id: string | null;
           item_name: string;
           amount_cents: number;
           notes: string | null;
@@ -218,6 +269,7 @@ export type Database = {
         Insert: {
           id?: string;
           group_id: string;
+          category_id?: string | null;
           item_name: string;
           amount_cents: number;
           notes?: string | null;
@@ -227,6 +279,7 @@ export type Database = {
         Update: {
           id?: string;
           group_id?: string;
+          category_id?: string | null;
           item_name?: string;
           amount_cents?: number;
           notes?: string | null;
@@ -239,6 +292,13 @@ export type Database = {
             columns: ["group_id"];
             isOneToOne: false;
             referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expenses_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "expense_categories";
             referencedColumns: ["id"];
           },
         ];
@@ -500,6 +560,29 @@ export type Database = {
         Args: { p_name: string };
         Returns: Json;
       };
+      create_expense_category: {
+        Args: {
+          p_group_id: string;
+          p_name: string;
+          p_icon?: string;
+          p_color?: string;
+        };
+        Returns: Json;
+      };
+      update_expense_category: {
+        Args: {
+          p_category_id: string;
+          p_name: string;
+          p_icon: string;
+          p_color: string;
+          p_sort_order?: number | null;
+        };
+        Returns: Json;
+      };
+      delete_expense_category: {
+        Args: { p_category_id: string };
+        Returns: Json;
+      };
       join_group_by_invite: {
         Args: { p_invite_code: string };
         Returns: Json;
@@ -530,6 +613,23 @@ export type Database = {
       };
       promote_member: {
         Args: { p_member_id: string; p_role: string };
+        Returns: Json;
+      };
+      record_payment: {
+        Args: {
+          p_group_id: string;
+          p_from_member_id: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+        };
+        Returns: Json;
+      };
+      undo_last_payment: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      undo_last_payment_for_member: {
+        Args: { p_from_member_id: string };
         Returns: Json;
       };
       rename_group: {
@@ -611,6 +711,10 @@ export type GroupUpdate = SettleUpTablesUpdate<"groups">;
 export type GroupMember = SettleUpTables<"group_members">;
 export type GroupMemberInsert = SettleUpTablesInsert<"group_members">;
 export type GroupMemberUpdate = SettleUpTablesUpdate<"group_members">;
+
+export type ExpenseCategory = SettleUpTables<"expense_categories">;
+export type ExpenseCategoryInsert = SettleUpTablesInsert<"expense_categories">;
+export type ExpenseCategoryUpdate = SettleUpTablesUpdate<"expense_categories">;
 
 export type Expense = SettleUpTables<"expenses">;
 export type ExpenseInsert = SettleUpTablesInsert<"expenses">;

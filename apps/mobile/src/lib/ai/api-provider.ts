@@ -1,6 +1,7 @@
 import type { MobileLLMProvider, MobileLLMRequest } from "./types";
 import type { ApiResponse } from "@template/shared";
 import { supabase } from "@/lib/supabase";
+import { getAiApiBase } from "@/lib/api-base";
 
 /** Create an AbortSignal that fires after `ms` — Hermes doesn't support AbortSignal.timeout() */
 function timeoutSignal(ms: number): AbortSignal {
@@ -53,7 +54,7 @@ export async function callAiEndpoint<T>(
   endpoint: string,
   body: object,
 ): Promise<ApiResponse<T>> {
-  const apiUrl = process.env["EXPO_PUBLIC_AI_API_URL"];
+  const apiUrl = getAiApiBase();
   if (!apiUrl) {
     return { data: null, error: "AI API not configured" };
   }
@@ -90,7 +91,7 @@ export async function callAiEndpointForm<T>(
   endpoint: string,
   formData: FormData,
 ): Promise<ApiResponse<T>> {
-  const apiUrl = process.env["EXPO_PUBLIC_AI_API_URL"];
+  const apiUrl = getAiApiBase();
   if (!apiUrl) {
     return { data: null, error: "AI API not configured" };
   }

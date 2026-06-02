@@ -8,6 +8,13 @@ type ExpenseData = {
   amount_cents: number;
   created_at: string;
   payer_names: string[];
+  category?: {
+    id: string | null;
+    name: string;
+    slug: string;
+    icon: string;
+    color: string;
+  } | null;
 };
 
 /**
@@ -47,6 +54,48 @@ export function computeInsights(
     }
   }
 
+  const categoryTotals = new Map<
+    string,
+    {
+      id: string | null;
+      name: string;
+      slug: string;
+      icon: string;
+      color: string;
+      amount_cents: number;
+      expense_count: number;
+    }
+  >();
+  for (const expense of expenses) {
+    const category = expense.category ?? {
+      id: null,
+      name: "Other",
+      slug: "other",
+      icon: "circle-ellipsis",
+      color: "#6b7280",
+    };
+    const existing = categoryTotals.get(category.slug);
+    if (existing) {
+      existing.amount_cents += expense.amount_cents;
+      existing.expense_count += 1;
+    } else {
+      categoryTotals.set(category.slug, {
+        ...category,
+        amount_cents: expense.amount_cents,
+        expense_count: 1,
+      });
+    }
+  }
+  const categories = [...categoryTotals.values()].sort((a, b) => b.amount_cents - a.amount_cents);
+  const firstCategory = categories[0] ?? null;
+  const topCategory = firstCategory
+    ? {
+        name: firstCategory.name,
+        slug: firstCategory.slug,
+        amount_cents: firstCategory.amount_cents,
+      }
+    : null;
+
   // Period
   const dates = expenses.map((e) => e.created_at).sort();
   const period =
@@ -60,6 +109,8 @@ export function computeInsights(
     average_expense_cents: averageExpenseCents,
     top_spender: topSpender,
     most_common_item: mostCommonItem,
+    top_category: topCategory,
+    categories,
     period,
   };
 }

@@ -13,3 +13,13 @@ export function getApiBase(): string | null {
 
   return null;
 }
+
+export function getAiApiBase(): string | null {
+  const explicit = process.env["EXPO_PUBLIC_AI_API_URL"];
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const apiBase = getApiBase();
+  if (!apiBase) return null;
+
+  return `${apiBase}/ai`;
+}

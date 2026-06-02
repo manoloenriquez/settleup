@@ -40,7 +40,7 @@ export async function getGroupInsights(
     // Fetch expenses with payers
     const { data: expenses, error: expensesError } = await db
       .from("expenses")
-      .select("item_name, amount_cents, created_at, expense_payers(member_id)")
+      .select("item_name, amount_cents, created_at, category:expense_categories(id, name, slug, icon, color), expense_payers(member_id)")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
@@ -61,6 +61,7 @@ export async function getGroupInsights(
       amount_cents: e.amount_cents,
       created_at: e.created_at,
       payer_names: (e.expense_payers ?? []).map((p) => memberMap.get(p.member_id) ?? "Unknown"),
+      category: e.category,
     }));
 
     const insights = computeInsights(expenseData);

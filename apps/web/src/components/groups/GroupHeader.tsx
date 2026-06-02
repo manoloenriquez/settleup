@@ -5,13 +5,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { AddExpenseDialog } from "./AddExpenseDialog";
 import { ChevronRight, Plus, BarChart3, CreditCard, Settings, Users } from "lucide-react";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
 type Props = {
   groupId: string;
   groupName: string;
   memberCount: number;
   members: GroupMember[];
+  categories: ExpenseCategory[];
 };
 
 export function GroupHeader({
@@ -19,6 +20,7 @@ export function GroupHeader({
   groupName,
   memberCount,
   members,
+  categories,
 }: Props): React.ReactElement {
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
 
@@ -85,6 +87,7 @@ export function GroupHeader({
         onClose={() => setShowExpenseDialog(false)}
         groupId={groupId}
         members={members}
+        categories={categories}
       />
     </>
   );

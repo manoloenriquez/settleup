@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import type { MobileLLMProvider } from "./types";
 import { createApiProvider } from "./api-provider";
+import { getAiApiBase } from "@/lib/api-base";
 
 let cachedProvider: MobileLLMProvider | null = null;
 
@@ -55,7 +56,7 @@ export async function resolveProvider(): Promise<MobileLLMProvider> {
   }
 
   // 2. Fall back to web API backend
-  const apiUrl = process.env["EXPO_PUBLIC_AI_API_URL"];
+  const apiUrl = getAiApiBase();
   if (apiUrl) {
     cachedProvider = createApiProvider(apiUrl);
     return cachedProvider;

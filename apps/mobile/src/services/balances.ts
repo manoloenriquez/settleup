@@ -20,7 +20,7 @@ export async function getMembersWithBalances(groupId: string): Promise<ApiRespon
   const balances: MemberBalance[] = rows.map((r) => ({
     ...r,
     owed_cents: Math.max(0, -r.net_cents),
-    is_paid: r.net_cents >= 0,
+    is_paid: r.net_cents === 0,
   }));
   return { data: balances, error: null };
 }

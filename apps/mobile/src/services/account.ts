@@ -1,20 +1,18 @@
-import { supabase } from "@/lib/supabase";
 import { getApiBase } from "@/lib/api-base";
 import type { ApiResponse } from "@template/shared";
 
 /**
  * Permanently delete the authenticated user's account.
  * Calls apps/api DELETE /account, which uses the service role to remove
- * the auth.users row (cascading FKs handle profile + payment data).
+ * the auth.users row; database FKs handle owned groups and user-owned data.
  */
-export async function deleteAccount(): Promise<ApiResponse<null>> {
+export async function deleteAccount(accessToken: string): Promise<ApiResponse<null>> {
   const apiBase = getApiBase();
   if (!apiBase) {
     return { data: null, error: "API URL not configured. Set EXPO_PUBLIC_API_URL." };
   }
 
-  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-  if (sessionErr || !sessionData.session) {
+  if (!accessToken) {
     return { data: null, error: "Not signed in." };
   }
 
@@ -22,7 +20,7 @@ export async function deleteAccount(): Promise<ApiResponse<null>> {
     const res = await fetch(`${apiBase}/account`, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${sessionData.session.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 
