@@ -33,6 +33,25 @@
   }
 }
 
+/* ─── Brand surfaces ──────────────────────────────────────────────────────
+   Gradient/texture utilities tied to brand tokens, so a retheme in @theme
+   above carries through decorative backgrounds too.
+   ──────────────────────────────────────────────────────────────────────── */
+
+@utility bg-auth-gradient {
+  background: linear-gradient(135deg, var(--color-brand-50) 0%, #f8faff 40%, #f0fdf4 100%);
+}
+
+@utility bg-hero-gradient {
+  background: radial-gradient(ellipse at 50% 0%, var(--color-brand-50) 0%, white 70%);
+}
+
+@utility bg-dot-grid {
+  background-image: radial-gradient(circle at 80% 20%, white 1px, transparent 1px),
+    radial-gradient(circle at 20% 80%, white 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 /* ─── Animations ──────────────────────────────────────────────────────── */
 
 @keyframes fadeIn {

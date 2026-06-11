@@ -94,14 +94,7 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
         {/* Gradient Hero */}
         <div className={`${heroBg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}>
           {/* Texture */}
-          <div
-            className="absolute inset-0 opacity-10"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 80% 20%, white 1px, transparent 1px), radial-gradient(circle at 20% 80%, white 1px, transparent 1px)",
-              backgroundSize: "32px 32px",
-            }}
-          />
+          <div className="absolute inset-0 opacity-10 bg-dot-grid" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-medium text-white/80">{payload.group.name}</p>

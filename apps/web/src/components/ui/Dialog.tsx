@@ -43,9 +43,9 @@ export function Dialog({
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="m-auto backdrop:bg-black/40 rounded-xl border border-slate-200 bg-white p-0 shadow-lg w-full max-w-md animate-scale-in"
+      className="m-auto backdrop:bg-black/40 rounded-xl border border-slate-200 bg-white p-0 shadow-lg w-full max-w-md max-h-[90dvh] animate-scale-in"
     >
-      <div className="p-6">
+      <div className="p-6 max-h-[85dvh] overflow-y-auto">
         <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
         {description && (
           <p className="mt-2 text-sm text-slate-500">{description}</p>

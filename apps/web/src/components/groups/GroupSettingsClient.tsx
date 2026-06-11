@@ -11,6 +11,7 @@ import { archiveGroup, deleteGroup, leaveGroup, renameGroup, transferOwnership }
 import { createExpenseCategory, deleteExpenseCategory, updateExpenseCategory } from "@/app/actions/categories";
 import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
+import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
 
 type GroupRow = {
   id: string;
@@ -44,10 +45,10 @@ export function GroupSettingsClient({
   const [memberList, setMemberList] = useState<GroupMember[]>(members);
   const [categoryList, setCategoryList] = useState<ExpenseCategory[]>(categories);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryColor, setNewCategoryColor] = useState("#6b7280");
+  const [newCategoryColor, setNewCategoryColor] = useState<string>(DEFAULT_CATEGORY_COLOR);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState("");
-  const [editingCategoryColor, setEditingCategoryColor] = useState("#6b7280");
+  const [editingCategoryColor, setEditingCategoryColor] = useState<string>(DEFAULT_CATEGORY_COLOR);
   const [inviteCode, setInviteCode] = useState(group.invite_code);
   const [newMemberName, setNewMemberName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -236,7 +237,7 @@ export function GroupSettingsClient({
       } else if (result.data) {
         setCategoryList((prev) => [...prev, result.data!].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)));
         setNewCategoryName("");
-        setNewCategoryColor("#6b7280");
+        setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
         toast.success("Category added");
         router.refresh();
       }

@@ -33,8 +33,7 @@ export default function LandingPage(): React.ReactElement {
 
       {/* Hero */}
       <section
-        className="relative min-h-[100dvh] flex items-center justify-center"
-        style={{ background: "radial-gradient(ellipse at 50% 0%, #eef2ff 0%, white 70%)" }}
+        className="relative min-h-[100dvh] flex items-center justify-center bg-hero-gradient"
       >
         <div className="max-w-2xl px-6 text-center animate-fade-in">
           <p className="text-sm font-medium text-brand-600 tracking-wide uppercase mb-4">

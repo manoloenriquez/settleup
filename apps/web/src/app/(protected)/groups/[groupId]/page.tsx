@@ -173,7 +173,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
           <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{members.length}</p>
           <div className="flex -space-x-1.5 mt-1.5">
             {Array.from({ length: Math.min(members.length, 5) }).map((_, i) => (
-              <div key={i} className="h-5 w-5 rounded-full border-2 border-white" style={{ backgroundColor: ["#6366f1","#8b5cf6","#ec4899","#10b981","#f59e0b"][i % 5] }} />
+              <div key={i} className={`h-5 w-5 rounded-full border-2 border-white ${["bg-brand-500", "bg-violet-500", "bg-pink-500", "bg-emerald-500", "bg-amber-500"][i % 5]}`} />
             ))}
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExpenseCategory } from "@template/supabase";
+import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
 
 type CategorySelectProps = {
   categories: ExpenseCategory[];
@@ -43,7 +44,7 @@ type CategoryBadgeProps = {
 
 export function CategoryBadge({ category, compact = false }: CategoryBadgeProps): React.ReactElement {
   const name = category?.name ?? "Other";
-  const color = category?.color ?? "#6b7280";
+  const color = category?.color ?? DEFAULT_CATEGORY_COLOR;
 
   return (
     <span

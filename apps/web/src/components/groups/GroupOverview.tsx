@@ -113,14 +113,7 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
       <div className="mx-auto max-w-lg flex flex-col gap-6 animate-fade-in">
         {/* Gradient hero */}
         <div className="bg-gradient-to-br from-brand-600 to-violet-600 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
-          <div
-            className="absolute inset-0 opacity-10"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 80% 20%, white 1px, transparent 1px), radial-gradient(circle at 20% 80%, white 1px, transparent 1px)",
-              backgroundSize: "32px 32px",
-            }}
-          />
+          <div className="absolute inset-0 opacity-10 bg-dot-grid" />
           <div className="relative">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-white/70">Group Summary</span>

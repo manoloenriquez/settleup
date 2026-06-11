@@ -2,7 +2,7 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
-import { expenseCategoryInputSchema, updateExpenseCategorySchema } from "@template/shared";
+import { expenseCategoryInputSchema, updateExpenseCategorySchema, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { ExpenseCategory } from "@template/supabase";
 import { z } from "zod";
@@ -63,7 +63,7 @@ export async function createExpenseCategory(input: unknown): Promise<ApiResponse
       p_group_id: parsed.data.group_id,
       p_name: parsed.data.name,
       p_icon: parsed.data.icon ?? "circle-ellipsis",
-      p_color: parsed.data.color ?? "#6b7280",
+      p_color: parsed.data.color ?? DEFAULT_CATEGORY_COLOR,
     });
 
     if (error) return { data: null, error: error.message };
@@ -92,7 +92,7 @@ export async function updateExpenseCategory(input: unknown): Promise<ApiResponse
       p_category_id: parsed.data.category_id,
       p_name: parsed.data.name,
       p_icon: parsed.data.icon ?? "circle-ellipsis",
-      p_color: parsed.data.color ?? "#6b7280",
+      p_color: parsed.data.color ?? DEFAULT_CATEGORY_COLOR,
       p_sort_order: parsed.data.sort_order ?? null,
     });
 

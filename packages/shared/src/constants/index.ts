@@ -76,3 +76,6 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
 ] as const;
 
 export type DefaultExpenseCategorySlug = (typeof DEFAULT_EXPENSE_CATEGORIES)[number]["slug"];
+
+/** Fallback color for new/uncategorized expense categories (matches "Other"). */
+export const DEFAULT_CATEGORY_COLOR = "#6b7280";

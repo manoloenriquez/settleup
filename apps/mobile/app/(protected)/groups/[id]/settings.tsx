@@ -13,6 +13,7 @@ import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
+import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -27,7 +28,7 @@ export default function GroupSettingsScreen() {
   const [renamingMemberId, setRenamingMemberId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryColor, setNewCategoryColor] = useState("#6b7280");
+  const [newCategoryColor, setNewCategoryColor] = useState<string>(DEFAULT_CATEGORY_COLOR);
   const [renamingCategoryId, setRenamingCategoryId] = useState<string | null>(null);
   const [renamingCategoryName, setRenamingCategoryName] = useState("");
 
@@ -214,7 +215,7 @@ export default function GroupSettingsScreen() {
     const result = await createCategory.mutateAsync({ name, color: newCategoryColor });
     if (result.error) { toast.error(result.error); return; }
     setNewCategoryName("");
-    setNewCategoryColor("#6b7280");
+    setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
@@ -224,7 +225,7 @@ export default function GroupSettingsScreen() {
   }
 
   function nextCategoryColor(current: string): string {
-    const palette = ["#6b7280", "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+    const palette = [DEFAULT_CATEGORY_COLOR, "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
     const index = palette.indexOf(current);
     return palette[(index + 1) % palette.length] ?? palette[0]!;
   }
@@ -525,7 +526,7 @@ export default function GroupSettingsScreen() {
             </View>
             <TouchableOpacity
               style={[styles.colorSwatch, { backgroundColor: newCategoryColor }]}
-              onPress={() => setNewCategoryColor(newCategoryColor === "#6b7280" ? "#ef4444" : newCategoryColor === "#ef4444" ? "#3b82f6" : "#6b7280")}
+              onPress={() => setNewCategoryColor(nextCategoryColor(newCategoryColor))}
             />
             <AppButton title="Add" onPress={handleCreateCategory} isLoading={createCategory.isPending} disabled={!newCategoryName.trim()} />
           </View>

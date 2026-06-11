@@ -34,7 +34,7 @@ export default function DashboardScreen() {
   const settled = netCents === 0;
 
   const heroColor = owes ? colors.warning : isOwed ? colors.success : colors.primary;
-  const heroBg = owes ? "#fef3c7" : isOwed ? "#d1fae5" : colors.primaryLight;
+  const heroBg = owes ? colors.warningLight : isOwed ? colors.successLight : colors.primaryLight;
   const heroBorder = owes ? colors.warning + "60" : isOwed ? colors.success + "60" : colors.primary + "60";
   const heroLabel = isOwed ? "You are owed" : owes ? "You owe" : "All settled";
   const heroAmount = settled ? "₱0.00" : formatCents(Math.abs(netCents));
@@ -57,8 +57,8 @@ export default function DashboardScreen() {
     {
       icon: "people-outline",
       label: "All Groups",
-      color: "#8b5cf6",
-      bg: "#ede9fe",
+      color: colors.violet,
+      bg: colors.violetLight,
       onPress: () => router.push("/groups"),
     },
   ];
@@ -259,8 +259,8 @@ const styles = StyleSheet.create({
   groupCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, marginBottom: 2 },
   groupName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900, flex: 1 },
   groupMeta: { fontSize: fontSize.sm, color: colors.gray400 },
-  groupBadgeWarn: { backgroundColor: "#fef3c7", borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: colors.warning + "60" },
-  groupBadgeWarnText: { fontSize: fontSize.xs, color: "#92400e", fontWeight: fontWeight.semibold },
+  groupBadgeWarn: { backgroundColor: colors.warningLight, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: colors.warning + "60" },
+  groupBadgeWarnText: { fontSize: fontSize.xs, color: colors.warningDark, fontWeight: fontWeight.semibold },
   groupBadgeOk: { backgroundColor: colors.successLight, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: colors.success + "60" },
-  groupBadgeOkText: { fontSize: fontSize.xs, color: "#065f46", fontWeight: fontWeight.semibold },
+  groupBadgeOkText: { fontSize: fontSize.xs, color: colors.successDark, fontWeight: fontWeight.semibold },
 });

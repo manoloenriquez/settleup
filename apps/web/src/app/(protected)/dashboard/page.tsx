@@ -73,9 +73,7 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
       {/* Hero */}
       <div className={`${heroConfig.bg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}>
         {/* Background texture */}
-        <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: "radial-gradient(circle at 80% 20%, white 1px, transparent 1px), radial-gradient(circle at 20% 80%, white 1px, transparent 1px)", backgroundSize: "32px 32px" }}
-        />
+        <div className="absolute inset-0 opacity-10 bg-dot-grid" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-white/80">
@@ -193,8 +191,7 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
                           {Array.from({ length: Math.min(group.member_count, 4) }).map((_, i) => (
                             <div
                               key={i}
-                              className="h-6 w-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold"
-                              style={{ backgroundColor: ["#6366f1","#8b5cf6","#ec4899","#10b981"][i % 4], color: "white" }}
+                              className={`h-6 w-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white ${["bg-brand-500", "bg-violet-500", "bg-pink-500", "bg-emerald-500"][i % 4]}`}
                             >
                               {i + 1}
                             </div>
