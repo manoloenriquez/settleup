@@ -5,10 +5,14 @@ import { getAiApiBase } from "@/lib/api-base";
 
 let cachedProvider: MobileLLMProvider | null = null;
 
+export const AI_UNAVAILABLE_MESSAGE = __DEV__
+  ? "AI is unavailable: no Apple Intelligence on this device and no API URL configured. Set EXPO_PUBLIC_AI_API_URL (or EXPO_PUBLIC_API_URL) in apps/mobile/.env."
+  : "AI features aren't available in this build. You can still add expenses manually.";
+
 const noneProvider: MobileLLMProvider = {
   name: "none",
   isAvailable: async () => false,
-  generate: async () => ({ data: null, error: "AI is not available on this device" }),
+  generate: async () => ({ data: null, error: AI_UNAVAILABLE_MESSAGE }),
 };
 
 /**

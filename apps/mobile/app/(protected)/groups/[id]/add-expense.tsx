@@ -19,7 +19,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useConversationAI } from "@/hooks/useConversationAI";
 import { useSmartSplit } from "@/hooks/useSmartSplit";
 import { useReceiptScan } from "@/hooks/useReceiptScan";
-import { AmountInput, ChipGroup, SegmentedControl, AppButton } from "@/components/ui";
+import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailability";
+import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner } from "@/components/ui";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
@@ -47,6 +48,7 @@ export default function AddExpenseScreen() {
   const conversationAI = useConversationAI({ groupId, members });
   const smartSplit = useSmartSplit({ groupId });
   const receiptScan = useReceiptScan();
+  const aiAvailability = useAiAvailability();
   const [showSmartSplit, setShowSmartSplit] = useState(false);
 
   const [mode, setMode] = useState<Mode>("quick");
@@ -454,6 +456,7 @@ export default function AddExpenseScreen() {
           {/* ---- CHAT MODE ---- */}
           {mode === "chat" && (
             <View style={styles.form}>
+              {aiAvailability === "unavailable" && <ErrorBanner message={AI_UNAVAILABLE_MESSAGE} />}
               <View style={styles.chatHistory}>
                 {conversationAI.messages.length === 0 && (
                   <Text style={styles.chatHint}>Try: "Lunch 500 split with Manolo and Ana"</Text>
@@ -482,7 +485,7 @@ export default function AddExpenseScreen() {
                 <View style={styles.chatTextInput}>
                   <AppTextInput value={chatInput} onChangeText={setChatInput} placeholder="Describe the expense…" onSubmitEditing={() => void handleChatSend()} returnKeyType="send" />
                 </View>
-                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing}>
+                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing || aiAvailability === "unavailable"}>
                   <Text style={styles.sendBtnText}>{"\u2192"}</Text>
                 </TouchableOpacity>
               </View>
@@ -667,7 +670,13 @@ export default function AddExpenseScreen() {
                 <View style={styles.customSplitSection}>
                   <TouchableOpacity
                     style={styles.smartSplitBtn}
-                    onPress={() => setShowSmartSplit(true)}
+                    onPress={() => {
+                      if (aiAvailability === "unavailable") {
+                        Alert.alert("Smart Split unavailable", AI_UNAVAILABLE_MESSAGE);
+                        return;
+                      }
+                      setShowSmartSplit(true);
+                    }}
                     activeOpacity={0.7}
                     disabled={!itemName.trim() || amountCents <= 0}
                   >

@@ -1,9 +1,10 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { getGroupInsights } from "@/services/insights";
 import { useGroups } from "@/hooks/useGroups";
 import { useInsightsAI } from "@/hooks/useInsightsAI";
+import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailability";
 import { formatCents } from "@template/shared";
 import { Card, SectionHeader, SkeletonCard } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
@@ -21,8 +22,13 @@ export default function InsightsScreen() {
   });
 
   const { summary, isGenerating, generate } = useInsightsAI();
+  const aiAvailability = useAiAvailability();
 
   function handleGenerateSummary() {
+    if (aiAvailability === "unavailable") {
+      Alert.alert("AI Summary unavailable", AI_UNAVAILABLE_MESSAGE);
+      return;
+    }
     if (!insights || !group) return;
     void generate({
       groupId,

@@ -110,7 +110,16 @@ export default function GroupDetailScreen() {
     : (membersQ.data ?? []).filter((m) => m.user_id === null && m.role !== "owner");
 
   async function handleShareGroup() {
-    if (!group?.share_token || !WEB_ORIGIN) {
+    if (!WEB_ORIGIN) {
+      Alert.alert(
+        "Sharing unavailable",
+        __DEV__
+          ? "Share links need the web app URL. Set EXPO_PUBLIC_WEB_URL in apps/mobile/.env."
+          : "Share links aren't available in this build.",
+      );
+      return;
+    }
+    if (!group?.share_token) {
       Alert.alert("Share not available", "Share link could not be generated.");
       return;
     }
@@ -189,7 +198,7 @@ export default function GroupDetailScreen() {
       { text: "Public overview", onPress: () => router.push(`/(protected)/groups/${id}/overview`) },
       { text: "Copy summary", onPress: () => void handleCopyGroupSummary() },
       { text: "Undo my last payment", style: "destructive", onPress: handleUndoPayment },
-      ...(WEB_ORIGIN ? [{ text: "Share group", onPress: () => void handleShareGroup() }] : []),
+      { text: "Share group", onPress: () => void handleShareGroup() },
       { text: "Settings", onPress: () => router.push(`/(protected)/groups/${id}/settings`) },
       { text: "Cancel", style: "cancel" },
     ]);
