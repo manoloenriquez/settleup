@@ -17,7 +17,7 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
-import { SegmentedControl, Card, ErrorBanner, useToast } from "@/components/ui";
+import { SegmentedControl, Card, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
@@ -363,9 +363,11 @@ export default function GroupDetailScreen() {
       />
 
       {isLoading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScrollView>
       ) : (
         <ScrollView
           style={styles.scroll}

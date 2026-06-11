@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { addExpense } from "@/app/actions/expenses";
 import { parseExpenseText, fuzzyMatchMember, formatCents } from "@template/shared";
 import { Button } from "@/components/ui/Button";
@@ -67,6 +68,7 @@ export function ChatExpenseInput({ groupId, members }: Props): React.ReactElemen
       if (result.error) {
         setError(result.error);
       } else {
+        toast.success("Expense added!");
         setText("");
         setParsed(null);
         setResolvedIds([]);
@@ -82,7 +84,10 @@ export function ChatExpenseInput({ groupId, members }: Props): React.ReactElemen
           className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           rows={2}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setError(null);
+          }}
           placeholder="e.g. Wahunori 8703.39 split Manolo Yao"
         />
         <Button type="button" variant="secondary" size="sm" onClick={handleParse}>

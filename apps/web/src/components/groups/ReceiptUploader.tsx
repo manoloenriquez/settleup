@@ -26,6 +26,7 @@ export function ReceiptUploader({ onParsed }: Props): React.ReactElement {
       return;
     }
     setFile(f);
+    if (preview) URL.revokeObjectURL(preview);
     const url = URL.createObjectURL(f);
     setPreview(url);
   }
@@ -43,6 +44,7 @@ export function ReceiptUploader({ onParsed }: Props): React.ReactElement {
 
   function clearFile(): void {
     setFile(null);
+    if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
     setError(null);
     if (inputRef.current) inputRef.current.value = "";

@@ -115,12 +115,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories }
               <button
                 key={m.id}
                 type="button"
-                onClick={() => {
-                  setMode(m.id);
-                  setDraft(null);
-                  setDraftCategoryId(null);
-                  setReceipt(null);
-                }}
+                onClick={() => setMode(m.id)}
                 className={[
                   "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors",
                   active

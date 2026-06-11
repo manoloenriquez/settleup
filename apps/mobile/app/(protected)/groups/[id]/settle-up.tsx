@@ -70,6 +70,11 @@ export default function SettleUpScreen() {
             onChangeText={setAmount}
             style={{ marginTop: spacing.xl }}
           />
+          {initCents > 0 && (
+            <Text style={styles.suggested}>
+              Suggested: ₱{(initCents / 100).toFixed(2)} (full amount owed)
+            </Text>
+          )}
 
           <AppButton
             title={recordPayment.isPending ? "Saving…" : "Confirm Payment"}
@@ -91,4 +96,5 @@ const styles = StyleSheet.create({
   label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.5 },
   name: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900, marginTop: spacing.xs },
   arrow: { alignItems: "center", paddingVertical: spacing.sm },
+  suggested: { fontSize: fontSize.sm, color: colors.gray500, marginTop: spacing.xs },
 });
