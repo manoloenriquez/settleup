@@ -1,6 +1,6 @@
 import { Alert, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { Avatar, Badge } from "@/components/ui";
+import { Avatar, Badge, useToast } from "@/components/ui";
 import { formatCents } from "@template/shared";
 import type { MemberBalance } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
@@ -12,6 +12,7 @@ type MemberRowProps = {
 };
 
 export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowProps) {
+  const toast = useToast();
   const net = member.net_cents;
   const isSettled = Math.abs(net) < 1;
   const isOwed = net > 0;
@@ -37,7 +38,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
         text: "Copy Share Link",
         onPress: async () => {
           await Clipboard.setStringAsync(link);
-          Alert.alert("Copied", `Share link for ${member.display_name} copied`);
+          toast.success(`Share link for ${member.display_name} copied`);
         },
       });
 
@@ -52,7 +53,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
         onPress: async () => {
           const msg = `${balanceText}\n\nView details: ${link}`;
           await Clipboard.setStringAsync(msg);
-          Alert.alert("Copied", "Balance message copied");
+          toast.success("Balance message copied");
         },
       });
     }

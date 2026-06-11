@@ -1,13 +1,15 @@
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { useJoinGroup } from "@/hooks/useCollaboration";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
+import { useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function JoinGroupScreen() {
+  const toast = useToast();
   const router = useRouter();
   const [inviteCode, setInviteCode] = useState("");
   const joinGroup = useJoinGroup();
@@ -15,21 +17,22 @@ export default function JoinGroupScreen() {
   async function handleJoin() {
     const code = inviteCode.trim();
     if (!code) {
-      Alert.alert("Error", "Please enter an invite code");
+      toast.error("Please enter an invite code");
       return;
     }
 
     const result = await joinGroup.mutateAsync(code);
     if (result.error) {
-      Alert.alert("Could not join", result.error);
+      toast.error(result.error);
       return;
     }
     if (!result.data) {
-      Alert.alert("Could not join", "Group data was not returned.");
+      toast.error("Group data was not returned.");
       return;
     }
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Joined group");
     const groupId = result.data.group.id;
     router.replace(`/(protected)/groups/${groupId}`);
   }

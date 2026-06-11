@@ -1,10 +1,10 @@
-import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useGroupOverview } from "@/hooks/useOverview";
 import { useGroups } from "@/hooks/useGroups";
-import { Card, Avatar, Badge, EmptyState } from "@/components/ui";
+import { Card, Avatar, Badge, EmptyState, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { formatCents, buildSuggestedSettlements } from "@template/shared";
 import type { GroupOverviewPayload, SuggestedSettlement, CreditorPaymentProfile } from "@template/shared";
@@ -132,6 +132,7 @@ function PaymentDetails({ profile }: { profile: CreditorPaymentProfile }): React
 }
 
 export default function GroupOverviewScreen(): React.ReactElement {
+  const toast = useToast();
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
@@ -142,12 +143,12 @@ export default function GroupOverviewScreen(): React.ReactElement {
     if (!payload) return;
     const text = buildSummaryText(payload);
     await Clipboard.setStringAsync(text);
-    Alert.alert("Copied", "Group summary copied to clipboard");
+    toast.success("Group summary copied to clipboard");
   }
 
   async function handleShareLink(): Promise<void> {
     if (!group?.share_token || !WEB_ORIGIN) {
-      Alert.alert("Share not available", "Share link could not be generated.");
+      toast.error("Share link could not be generated.");
       return;
     }
     const url = `${WEB_ORIGIN}/g/${group.share_token}`;

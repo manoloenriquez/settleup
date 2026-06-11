@@ -6,6 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ToastProvider } from "@/components/ui/Toast";
 import { queryClient } from "@/lib/queryClient";
 import { colors } from "@/theme";
 
@@ -109,9 +110,11 @@ function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <StatusBar style="auto" />
-            <RouteGuard />
-            <RootStack />
+            <ToastProvider>
+              <StatusBar style="auto" />
+              <RouteGuard />
+              <RootStack />
+            </ToastProvider>
           </AuthProvider>
         </QueryClientProvider>
       </GestureHandlerRootView>

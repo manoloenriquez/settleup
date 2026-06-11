@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { GroupWithStats } from "@template/shared";
 import { useCreateGroup } from "@/hooks/useGroups";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { AppButton } from "@/components/ui";
+import { AppButton, useToast } from "@/components/ui";
 
 type GroupPickerProps = {
   groups: GroupWithStats[];
@@ -14,6 +14,7 @@ type GroupPickerProps = {
 };
 
 export function GroupPicker({ groups, isLoading, onSelect, onBack }: GroupPickerProps): React.ReactElement {
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -31,7 +32,7 @@ export function GroupPicker({ groups, isLoading, onSelect, onBack }: GroupPicker
 
     const result = await createGroup.mutateAsync(name);
     if (result.error) {
-      Alert.alert("Error", result.error);
+      toast.error(result.error);
       return;
     }
     if (result.data) {

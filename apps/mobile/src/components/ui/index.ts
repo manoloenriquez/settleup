@@ -11,3 +11,4 @@ export * from "./SegmentedControl";
 export * from "./SectionHeader";
 export * from "./Button";
 export * from "./TextInput";
+export * from "./Toast";

@@ -4,12 +4,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { Avatar, Badge, Card, ListItem, SkeletonCard } from "@/components/ui";
+import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { BETA_SUPPORT_EMAIL } from "@template/shared";
 
 export default function AccountScreen() {
+  const toast = useToast();
   const router = useRouter();
   const { session, signOut } = useAuth();
   const { data: profile, isLoading } = useProfile();
@@ -40,14 +41,14 @@ export default function AccountScreen() {
           onPress: async () => {
             const accessToken = session?.access_token;
             if (!accessToken) {
-              Alert.alert("Not signed in", "Please sign in again before deleting your account.");
+              toast.error("Please sign in again before deleting your account.");
               return;
             }
             setDeleting(true);
             const res = await deleteAccount(accessToken);
             setDeleting(false);
             if (res.error) {
-              Alert.alert("Couldn't delete account", res.error);
+              toast.error(res.error);
               return;
             }
             await signOut();

@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { AppButton } from "@/components/ui";
+import { AppButton, useToast } from "@/components/ui";
 import { colors, spacing } from "@/theme";
 
 export default function EditProfileScreen() {
+  const toast = useToast();
   const router = useRouter();
   const { data: profile } = useProfile();
   const updateProfile = useUpdateProfile();
@@ -17,16 +18,17 @@ export default function EditProfileScreen() {
   async function handleSave() {
     const trimmed = fullName.trim();
     if (!trimmed) {
-      Alert.alert("Validation", "Name cannot be empty.");
+      toast.error("Name cannot be empty.");
       return;
     }
 
     const result = await updateProfile.mutateAsync({ full_name: trimmed });
     if (result.error) {
-      Alert.alert("Error", result.error);
+      toast.error(result.error);
       return;
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Profile updated");
     router.back();
   }
 

@@ -5,9 +5,10 @@ import { Stack, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
 import { formatCents } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { Badge, EmptyState, SkeletonCard } from "@/components/ui";
+import { Badge, EmptyState, SkeletonCard, useToast } from "@/components/ui";
 
 export default function GroupsScreen() {
+  const toast = useToast();
   const router = useRouter();
   const { data: groups, isLoading, isFetching, refetch } = useGroupsWithStats();
   const { data: archivedGroups } = useArchivedGroups();
@@ -28,7 +29,7 @@ export default function GroupsScreen() {
         text: "Restore",
         onPress: async () => {
           const r = await restoreGroup.mutateAsync(groupId);
-          if (r.error) Alert.alert("Error", r.error);
+          if (r.error) toast.error(r.error);
         },
       },
     ]);

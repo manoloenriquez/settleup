@@ -11,7 +11,7 @@ import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory 
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { Card, ListItem, Avatar, Skeleton } from "@/components/ui";
+import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
@@ -20,6 +20,7 @@ export default function GroupSettingsScreen() {
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const toast = useToast();
   const [newMemberName, setNewMemberName] = useState("");
   const [groupNameInput, setGroupNameInput] = useState<string | null>(null);
   const [batchMode, setBatchMode] = useState(false);
@@ -74,7 +75,7 @@ export default function GroupSettingsScreen() {
           style: "destructive",
           onPress: async () => {
             const r = await leaveGroupMutation.mutateAsync(groupId);
-            if (r.error) { Alert.alert("Error", r.error); return; }
+            if (r.error) { toast.error(r.error); return; }
             router.replace("/(protected)/(tabs)/groups");
           },
         },
@@ -86,7 +87,7 @@ export default function GroupSettingsScreen() {
     const name = groupNameValue.trim();
     if (!name || name === group?.name) return;
     const r = await renameGroupMutation.mutateAsync({ groupId, name });
-    if (r.error) { Alert.alert("Error", r.error); return; }
+    if (r.error) { toast.error(r.error); return; }
     setGroupNameInput(null); // reset local state; query will refresh
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
@@ -95,14 +96,14 @@ export default function GroupSettingsScreen() {
     if (!group?.invite_code) return;
     await Clipboard.setStringAsync(group.invite_code);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert("Copied", "Invite code copied to clipboard");
+    toast.success("Invite code copied to clipboard");
   }
 
   async function handleCopyInviteLink() {
     if (!inviteLink) return;
     await Clipboard.setStringAsync(inviteLink);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert("Copied", "Invite link copied to clipboard");
+    toast.success("Invite link copied to clipboard");
   }
 
   async function handleRegenerateCode() {
@@ -115,7 +116,7 @@ export default function GroupSettingsScreen() {
           text: "Regenerate",
           onPress: async () => {
             const r = await regenerateCode.mutateAsync(groupId);
-            if (r.error) { Alert.alert("Error", r.error); return; }
+            if (r.error) { toast.error(r.error); return; }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -129,12 +130,12 @@ export default function GroupSettingsScreen() {
       const names = newMemberName.split(",").map((n) => n.trim()).filter(Boolean);
       if (names.length === 0) return;
       const result = await addMembersBatch.mutateAsync(names);
-      if (result.error) { Alert.alert("Error", result.error); return; }
+      if (result.error) { toast.error(result.error); return; }
       setNewMemberName("");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       const result = await addMember.mutateAsync(newMemberName.trim());
-      if (result.error) { Alert.alert("Error", result.error); return; }
+      if (result.error) { toast.error(result.error); return; }
       setNewMemberName("");
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -151,7 +152,7 @@ export default function GroupSettingsScreen() {
           style: "destructive",
           onPress: async () => {
             const r = await transferOwnershipMutation.mutateAsync({ groupId, memberId });
-            if (r.error) { Alert.alert("Error", r.error); return; }
+            if (r.error) { toast.error(r.error); return; }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -172,7 +173,7 @@ export default function GroupSettingsScreen() {
     }
     const r = await renameMemberMutation.mutateAsync({ memberId, newName });
     if (r.error) {
-      Alert.alert("Error", r.error);
+      toast.error(r.error);
     } else {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setRenamingMemberId(null);
@@ -199,7 +200,7 @@ export default function GroupSettingsScreen() {
           text: label,
           onPress: async () => {
             const r = await promoteMemberMutation.mutateAsync({ memberId, role: newRole });
-            if (r.error) { Alert.alert("Error", r.error); return; }
+            if (r.error) { toast.error(r.error); return; }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -211,7 +212,7 @@ export default function GroupSettingsScreen() {
     const name = newCategoryName.trim();
     if (!name) return;
     const result = await createCategory.mutateAsync({ name, color: newCategoryColor });
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     setNewCategoryName("");
     setNewCategoryColor("#6b7280");
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -247,7 +248,7 @@ export default function GroupSettingsScreen() {
       color,
       sortOrder,
     });
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     setRenamingCategoryId(null);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
@@ -267,7 +268,7 @@ export default function GroupSettingsScreen() {
         style: "destructive",
         onPress: async () => {
           const r = await archiveGroupMutation.mutateAsync(groupId);
-          if (r.error) { Alert.alert("Error", r.error); return; }
+          if (r.error) { toast.error(r.error); return; }
           router.replace("/(protected)/(tabs)/groups");
         },
       },

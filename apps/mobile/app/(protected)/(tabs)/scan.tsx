@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,12 +20,13 @@ import { useAddExpense, useAddItemizedExpense } from "@/hooks/useExpenses";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptItemEditor, type EditableLineItem } from "@/components/scan/ReceiptItemEditor";
 import { GroupPicker } from "@/components/scan/GroupPicker";
-import { AppButton, ChipGroup } from "@/components/ui";
+import { AppButton, ChipGroup, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type Step = "scan" | "review" | "group-select" | "configure-split" | "confirm";
 
 export default function ScanScreen(): React.ReactElement {
+  const toast = useToast();
   const { session } = useAuth();
   const receiptScan = useReceiptScan();
   const { data: groups, isLoading: groupsLoading } = useGroups();
@@ -130,11 +130,11 @@ export default function ScanScreen(): React.ReactElement {
 
   function handleConfigReview(): void {
     if (selectedMembers.size === 0) {
-      Alert.alert("No participants", "Select at least one member to split with.");
+      toast.error("Select at least one member to split with.");
       return;
     }
     if (!effectivePayerId) {
-      Alert.alert("No payer", "Select who paid for this expense.");
+      toast.error("Select who paid for this expense.");
       return;
     }
     setStep("confirm");
@@ -156,7 +156,7 @@ export default function ScanScreen(): React.ReactElement {
         })),
       });
       if (result.error) {
-        Alert.alert("Error", result.error);
+        toast.error(result.error);
         return;
       }
     } else {
@@ -169,12 +169,13 @@ export default function ScanScreen(): React.ReactElement {
         createdByUserId: session.user.id,
       });
       if (result.error) {
-        Alert.alert("Error", result.error);
+        toast.error(result.error);
         return;
       }
     }
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Expense added");
     resetAll();
   }
 

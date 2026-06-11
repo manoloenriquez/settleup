@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRecordPayment } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
-import { AmountInput, AppButton } from "@/components/ui";
+import { AmountInput, AppButton, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function SettleUpScreen() {
+  const toast = useToast();
   const { id: groupId, fromId, toId, amount: initialAmount } = useLocalSearchParams<{
     id: string;
     fromId?: string;
@@ -29,7 +30,7 @@ export default function SettleUpScreen() {
   async function handleConfirm() {
     const amountCents = Math.round(parseFloat(amount) * 100);
     if (!fromId || !toId || amountCents <= 0) {
-      Alert.alert("Error", "Invalid payment details");
+      toast.error("Invalid payment details");
       return;
     }
 
@@ -40,8 +41,9 @@ export default function SettleUpScreen() {
       amountCents,
     });
 
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Payment recorded");
     router.back();
   }
 

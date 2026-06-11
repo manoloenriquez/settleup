@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,7 +19,7 @@ import { useConversationAI } from "@/hooks/useConversationAI";
 import { useSmartSplit } from "@/hooks/useSmartSplit";
 import { useReceiptScan } from "@/hooks/useReceiptScan";
 import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailability";
-import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner } from "@/components/ui";
+import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner, useToast } from "@/components/ui";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
@@ -37,6 +36,7 @@ export default function AddExpenseScreen() {
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { session } = useAuth();
+  const toast = useToast();
 
   const membersQ = useMembers(groupId);
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
@@ -130,7 +130,7 @@ export default function AddExpenseScreen() {
     if (!multiPayer) return true;
     const sum = getPayersArray().reduce((s, p) => s + p.paidCents, 0);
     if (sum !== amountCents) {
-      Alert.alert("Payer mismatch", `Payer total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Payer total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
       return false;
     }
     return true;
@@ -139,7 +139,7 @@ export default function AddExpenseScreen() {
   function validateCustomSplitSum(amountCents: number): boolean {
     const sum = [...selectedMembers].reduce((s, id) => s + (parsePHPAmount(customShares[id] ?? "0") ?? 0), 0);
     if (sum !== amountCents) {
-      Alert.alert("Split mismatch", `Custom split total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Custom split total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
       return false;
     }
     return true;
@@ -147,28 +147,28 @@ export default function AddExpenseScreen() {
 
   function handleQuickReview() {
     if (!itemName.trim()) {
-      Alert.alert("Missing item name", "Please enter what this expense was for.");
+      toast.error("Please enter what this expense was for.");
       return;
     }
     const amountCents = parsePHPAmount(amount);
     if (amountCents === null) {
-      Alert.alert("Missing amount", "Please enter the expense amount.");
+      toast.error("Please enter the expense amount.");
       return;
     }
     if (amountCents < 0) {
-      Alert.alert("Invalid amount", "Amount must be positive. To record a refund, edit an existing expense.");
+      toast.error("Amount must be positive. To record a refund, edit an existing expense.");
       return;
     }
     if (amountCents === 0) {
-      Alert.alert("Invalid amount", "Amount must be greater than zero.");
+      toast.error("Amount must be greater than zero.");
       return;
     }
     if (selectedMembers.size === 0) {
-      Alert.alert("No members", "Please select at least one member to split this with.");
+      toast.error("Please select at least one member to split this with.");
       return;
     }
     if (!effectivePayerId) {
-      Alert.alert("No payer", "Please select who paid for this.");
+      toast.error("Please select who paid for this.");
       return;
     }
     setConfirming(true);
@@ -185,37 +185,38 @@ export default function AddExpenseScreen() {
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
     });
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Expense added");
     router.back();
   }
 
   function handleDetailedReview() {
     if (!itemName.trim()) {
-      Alert.alert("Missing item name", "Please enter what this expense was for.");
+      toast.error("Please enter what this expense was for.");
       return;
     }
     const amountCents = parsePHPAmount(amount);
     if (amountCents === null) {
-      Alert.alert("Missing amount", "Please enter the expense amount.");
+      toast.error("Please enter the expense amount.");
       return;
     }
     if (amountCents < 0) {
-      Alert.alert("Invalid amount", "Amount must be positive. To record a refund, edit an existing expense.");
+      toast.error("Amount must be positive. To record a refund, edit an existing expense.");
       return;
     }
     if (amountCents === 0) {
-      Alert.alert("Invalid amount", "Amount must be greater than zero.");
+      toast.error("Amount must be greater than zero.");
       return;
     }
     if (selectedMembers.size === 0) {
-      Alert.alert("No members", "Please select at least one member to split this with.");
+      toast.error("Please select at least one member to split this with.");
       return;
     }
     if (!validatePayerSum(amountCents)) return;
     if (splitMode === "custom" && !validateCustomSplitSum(amountCents)) return;
     if (getPayersArray().length === 0) {
-      Alert.alert("No payer", "Please select who paid.");
+      toast.error("Please select who paid.");
       return;
     }
     setConfirming(true);
@@ -230,12 +231,13 @@ export default function AddExpenseScreen() {
         shareCents: parsePHPAmount(customShares[id] ?? "0") ?? 0,
       }));
       const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers });
-      if (result.error) { Alert.alert("Error", result.error); return; }
+      if (result.error) { toast.error(result.error); return; }
     } else {
       const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "" });
-      if (result.error) { Alert.alert("Error", result.error); return; }
+      if (result.error) { toast.error(result.error); return; }
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Expense added");
     router.back();
   }
 
@@ -266,7 +268,7 @@ export default function AddExpenseScreen() {
   async function handleChatSave() {
     const amountCents = parsePHPAmount(draftAmount) ?? 0;
     if (!draftItem || amountCents <= 0) {
-      Alert.alert("Missing info", "Could not extract expense details. Please fill in manually.");
+      toast.error("Could not extract expense details. Please fill in manually.");
       return;
     }
     const memberIds = draftMembers.size > 0 ? [...draftMembers] : members.map((m) => m.id);
@@ -279,8 +281,9 @@ export default function AddExpenseScreen() {
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
     });
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Expense added");
     router.back();
   }
 
@@ -303,22 +306,22 @@ export default function AddExpenseScreen() {
   function handleItemizedReview() {
     const amountCents = parsePHPAmount(amount) ?? 0;
     if (!itemName.trim() || amountCents <= 0) {
-      Alert.alert("Missing info", "Please fill in expense name and total amount.");
+      toast.error("Please fill in expense name and total amount.");
       return;
     }
     const filled = lineItems.filter((li) => li.name.trim() && (parsePHPAmount(li.amountStr) ?? 0) > 0);
     if (filled.length === 0) {
-      Alert.alert("No items", "Add at least one line item with a name and amount.");
+      toast.error("Add at least one line item with a name and amount.");
       return;
     }
     const liTotal = filled.reduce((s, li) => s + (parsePHPAmount(li.amountStr) ?? 0), 0);
     if (liTotal !== amountCents) {
-      Alert.alert("Amount mismatch", `Line items total ₱${(liTotal / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Line items total ₱${(liTotal / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
       return;
     }
     if (!validatePayerSum(amountCents)) return;
     if (getPayersArray().length === 0) {
-      Alert.alert("No payer", "Please select who paid.");
+      toast.error("Please select who paid.");
       return;
     }
     setConfirming(true);
@@ -340,8 +343,9 @@ export default function AddExpenseScreen() {
         participantIds: li.participantIds.length > 0 ? li.participantIds : members.map((m) => m.id),
       })),
     });
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Expense added");
     router.back();
   }
 
@@ -672,7 +676,7 @@ export default function AddExpenseScreen() {
                     style={styles.smartSplitBtn}
                     onPress={() => {
                       if (aiAvailability === "unavailable") {
-                        Alert.alert("Smart Split unavailable", AI_UNAVAILABLE_MESSAGE);
+                        toast.error(AI_UNAVAILABLE_MESSAGE);
                         return;
                       }
                       setShowSmartSplit(true);

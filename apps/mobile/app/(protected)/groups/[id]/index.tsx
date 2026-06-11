@@ -17,7 +17,7 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
-import { SegmentedControl, Card, ErrorBanner } from "@/components/ui";
+import { SegmentedControl, Card, ErrorBanner, useToast } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
@@ -80,6 +80,7 @@ export default function GroupDetailScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("balances");
   const { user } = useAuth();
+  const toast = useToast();
 
   const balancesQ = useMembersWithBalances(id);
   const creditorProfilesQ = useCreditorProfiles(id);
@@ -111,8 +112,7 @@ export default function GroupDetailScreen() {
 
   async function handleShareGroup() {
     if (!WEB_ORIGIN) {
-      Alert.alert(
-        "Sharing unavailable",
+      toast.error(
         __DEV__
           ? "Share links need the web app URL. Set EXPO_PUBLIC_WEB_URL in apps/mobile/.env."
           : "Share links aren't available in this build.",
@@ -120,7 +120,7 @@ export default function GroupDetailScreen() {
       return;
     }
     if (!group?.share_token) {
-      Alert.alert("Share not available", "Share link could not be generated.");
+      toast.error("Share link could not be generated.");
       return;
     }
     const url = `${WEB_ORIGIN}/g/${group.share_token}`;
@@ -134,19 +134,19 @@ export default function GroupDetailScreen() {
   async function handleCopyGroupSummary() {
     const members = balancesQ.data ?? [];
     if (members.length === 0) {
-      Alert.alert("No data", "No balance data to copy.");
+      toast.info("No balance data to copy.");
       return;
     }
     const debts = simplifyDebts(members);
     if (debts.length === 0) {
       await Clipboard.setStringAsync("All settled up! 🎉");
-      Alert.alert("Copied", "Group summary copied to clipboard");
+      toast.success("Group summary copied to clipboard");
       return;
     }
     const lines = debts.map((d) => `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`);
     const text = `${group?.name ?? "Group"} Balances:\n${lines.join("\n")}`;
     await Clipboard.setStringAsync(text);
-    Alert.alert("Copied", "Group summary copied to clipboard");
+    toast.success("Group summary copied to clipboard");
   }
 
   function handleUndoPayment() {
@@ -161,9 +161,9 @@ export default function GroupDetailScreen() {
           onPress: () => {
             undoPayment.mutate(undefined, {
               onSuccess: (res) => {
-                if (res.error) Alert.alert("Error", res.error);
+                if (res.error) toast.error(res.error);
               },
-              onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to undo payment"),
+              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
         },
@@ -183,9 +183,9 @@ export default function GroupDetailScreen() {
           onPress: () => {
             undoMemberPayment.mutate(member.member_id, {
               onSuccess: (res) => {
-                if (res.error) Alert.alert("Error", res.error);
+                if (res.error) toast.error(res.error);
               },
-              onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to undo payment"),
+              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
         },
@@ -222,7 +222,7 @@ export default function GroupDetailScreen() {
 
   function openEditExpense(expense: ExpenseWithDetails): void {
     if (expense.amount_cents < 0) {
-      Alert.alert("Editing unavailable", "Credits are not editable from this screen yet.");
+      toast.info("Credits are not editable from this screen yet.");
       return;
     }
 
@@ -236,18 +236,19 @@ export default function GroupDetailScreen() {
     if (!editingExpense) return;
     const amountCents = parsePHPAmount(editAmount);
     if (!amountCents || amountCents <= 0) {
-      Alert.alert("Error", "Please enter a valid amount");
+      toast.error("Please enter a valid amount");
       return;
     }
 
     const onSuccess = (res: { error: string | null }) => {
       if (res.error) {
-        Alert.alert("Error", res.error);
+        toast.error(res.error);
         return;
       }
       setEditingExpense(null);
+      toast.success("Expense updated");
     };
-    const onError = (e: unknown) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to update");
+    const onError = (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update");
 
     const payerAmounts = scalePositiveAmounts(
       editingExpense.payers.map((payer) => payer.paid_cents),
@@ -255,7 +256,7 @@ export default function GroupDetailScreen() {
     );
 
     if (!payerAmounts) {
-      Alert.alert("Error", "Amount is too small to preserve payer contributions.");
+      toast.error("Amount is too small to preserve payer contributions.");
       return;
     }
 
@@ -267,7 +268,7 @@ export default function GroupDetailScreen() {
       );
 
       if (!itemAmounts) {
-        Alert.alert("Error", "Amount is too small to preserve itemized shares.");
+        toast.error("Amount is too small to preserve itemized shares.");
         return;
       }
 
@@ -316,7 +317,7 @@ export default function GroupDetailScreen() {
       amountCents,
     );
     if (!customSplitAmounts) {
-      Alert.alert("Error", "Amount is too small to preserve custom splits.");
+      toast.error("Amount is too small to preserve custom splits.");
       return;
     }
 
@@ -435,7 +436,7 @@ export default function GroupDetailScreen() {
                           {
                             text: "Claim",
                             onPress: () => claimMember.mutate(m.id, {
-                              onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to claim member"),
+                              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to claim member"),
                             }),
                           },
                         ],
