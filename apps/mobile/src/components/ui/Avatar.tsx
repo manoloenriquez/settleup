@@ -17,6 +17,8 @@ export function Avatar({ name, size = 36 }: AvatarProps) {
 
   return (
     <View
+      accessibilityRole="image"
+      accessibilityLabel={name}
       style={[
         styles.circle,
         { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },

@@ -23,6 +23,10 @@ export function ChipGroup({ chips, selected, onToggle, label }: ChipGroupProps) 
               style={[styles.chip, active && styles.chipActive]}
               onPress={() => onToggle(chip.id)}
               activeOpacity={0.7}
+              hitSlop={6}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: active }}
+              accessibilityLabel={chip.label}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{chip.label}</Text>
             </TouchableOpacity>

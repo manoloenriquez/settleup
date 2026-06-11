@@ -41,6 +41,7 @@ export function ContentDialog({
     <dialog
       ref={dialogRef}
       onClose={onClose}
+      aria-label={title}
       className={`mx-4 sm:mx-auto backdrop:bg-black/40 rounded-2xl border border-slate-200 bg-white p-0 shadow-lg w-full ${sizes[size]} animate-scale-in`}
     >
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">

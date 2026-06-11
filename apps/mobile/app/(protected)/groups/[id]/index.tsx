@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -354,7 +354,7 @@ export default function GroupDetailScreen() {
           title: group?.name ?? "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
-              <TouchableOpacity onPress={handleGroupActions} hitSlop={8}>
+              <TouchableOpacity onPress={handleGroupActions} hitSlop={8} accessibilityRole="button" accessibilityLabel="Group actions">
                 <Ionicons name="ellipsis-horizontal" size={22} color={colors.gray600} />
               </TouchableOpacity>
             </View>

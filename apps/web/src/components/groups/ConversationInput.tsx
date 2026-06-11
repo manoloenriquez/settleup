@@ -73,6 +73,9 @@ export function ConversationInput({ groupId, members, onDraft }: Props): React.R
       {/* Chat messages */}
       <div
         ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-label="Conversation"
         className="flex flex-col gap-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3"
       >
         {messages.length === 0 && (

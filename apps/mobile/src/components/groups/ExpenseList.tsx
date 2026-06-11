@@ -44,12 +44,12 @@ export function ExpenseList({ expenses, onDelete, onEdit }: ExpenseListProps) {
           <View style={styles.rowRight}>
             <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
             {onEdit && (
-              <TouchableOpacity onPress={() => onEdit(exp)} hitSlop={8}>
+              <TouchableOpacity onPress={() => onEdit(exp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${exp.item_name}`}>
                 <Ionicons name="pencil" size={16} color={colors.gray400} />
               </TouchableOpacity>
             )}
             {onDelete && (
-              <TouchableOpacity onPress={() => confirmDelete(exp.id)} hitSlop={8}>
+              <TouchableOpacity onPress={() => confirmDelete(exp.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete ${exp.item_name}`}>
                 <Ionicons name="close" size={16} color={colors.gray400} />
               </TouchableOpacity>
             )}

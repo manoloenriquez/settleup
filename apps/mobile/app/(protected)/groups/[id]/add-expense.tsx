@@ -447,7 +447,7 @@ export default function AddExpenseScreen() {
                 <Text style={styles.label}>Paid by</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                   {members.map((m) => (
-                    <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7}>
+                    <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
                       <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
                     </TouchableOpacity>
                   ))}
@@ -610,7 +610,7 @@ export default function AddExpenseScreen() {
                 {!multiPayer ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                     {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7}>
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
                         <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
                       </TouchableOpacity>
                     ))}
@@ -621,7 +621,7 @@ export default function AddExpenseScreen() {
                       <View key={m.id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} />
+                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
                         </View>
                       </View>
                     ))}
@@ -694,7 +694,7 @@ export default function AddExpenseScreen() {
                       <View key={id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={customShares[id] ?? ""} onChangeText={(v) => setCustomShares((prev) => ({ ...prev, [id]: v }))} />
+                          <AmountInput value={customShares[id] ?? ""} onChangeText={(v) => setCustomShares((prev) => ({ ...prev, [id]: v }))} accessibilityLabel={`Share for ${m.display_name}`} />
                         </View>
                       </View>
                     );
@@ -726,7 +726,7 @@ export default function AddExpenseScreen() {
                 {!multiPayer ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                     {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7}>
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
                         <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
                       </TouchableOpacity>
                     ))}
@@ -737,7 +737,7 @@ export default function AddExpenseScreen() {
                       <View key={m.id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} />
+                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
                         </View>
                       </View>
                     ))}
