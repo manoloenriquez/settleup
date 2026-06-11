@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 
 const memberIdSchema = z.string().uuid("Invalid member ID.");
+const groupIdSchema = z.string().uuid("Invalid group ID.");
 
 export async function recordPayment(input: unknown): Promise<ApiResponse<Payment>> {
   try {
@@ -55,6 +56,28 @@ export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse
       p_from_member_id: parsed.data,
     });
     if (error) return { data: null, error: "Failed to undo payment." };
+    const parsedResult = parseSuccessRpcResult(result);
+    if (parsedResult.error) return { data: null, error: "Failed to undo payment." };
+    return { data: undefined, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function undoMyLastPayment(groupId: string): Promise<ApiResponse<void>> {
+  try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
+    await assertAuth();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    const { data: result, error } = await db.rpc("undo_last_payment", {
+      p_group_id: parsed.data,
+    });
+    if (error) return { data: null, error: "No payment of yours found to undo." };
     const parsedResult = parseSuccessRpcResult(result);
     if (parsedResult.error) return { data: null, error: "Failed to undo payment." };
     return { data: undefined, error: null };

@@ -3,7 +3,7 @@
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { recordPayment, undoLastPayment } from "@/app/actions/payments";
+import { recordPayment, undoLastPayment, undoMyLastPayment } from "@/app/actions/payments";
 import { deleteMember } from "@/app/actions/members";
 import { formatCents, parsePHPAmount, simplifyDebts } from "@template/shared";
 import { CopyButton } from "./CopyButton";
@@ -100,6 +100,7 @@ export function BalanceSummary({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GroupMember | null>(null);
   const [undoTarget, setUndoTarget] = useState<MemberBalance | null>(null);
+  const [showUndoMine, setShowUndoMine] = useState(false);
   const router = useRouter();
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
@@ -160,6 +161,18 @@ export function BalanceSummary({
     });
   }
 
+  function handleUndoMine(): void {
+    startTransition(async () => {
+      const result = await undoMyLastPayment(groupId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Your last payment was undone");
+        router.refresh();
+      }
+    });
+  }
+
   function handleDeleteMember(): void {
     if (!deleteTarget) return;
     startTransition(async () => {
@@ -188,6 +201,14 @@ export function BalanceSummary({
             onClick={() => setShowPaymentForm(!showPaymentForm)}
           >
             {showPaymentForm ? "Cancel" : "Record Payment"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={Undo2}
+            onClick={() => setShowUndoMine(true)}
+          >
+            Undo
           </Button>
           <CopyButton text={groupMessage} label="Copy All" />
         </div>
@@ -365,12 +386,27 @@ export function BalanceSummary({
         open={undoTarget !== null}
         onClose={() => setUndoTarget(null)}
         title="Undo last payment"
-        description={`Undo the most recent payment for ${undoTarget?.display_name ?? ""}? This will reverse the last recorded payment.`}
+        description={`Undo the most recent payment from ${undoTarget?.display_name ?? ""}? You can undo payments you recorded, or any payment if you're a group admin.`}
         confirmLabel="Undo payment"
         confirmVariant="danger"
         onConfirm={() => {
           if (undoTarget) handleUndo(undoTarget);
           setUndoTarget(null);
+        }}
+        isLoading={isPending}
+      />
+
+      {/* Undo my last payment confirmation dialog */}
+      <Dialog
+        open={showUndoMine}
+        onClose={() => setShowUndoMine(false)}
+        title="Undo my last payment"
+        description="Undo the most recent payment you recorded in this group? Payments recorded by others are not affected."
+        confirmLabel="Undo payment"
+        confirmVariant="danger"
+        onConfirm={() => {
+          handleUndoMine();
+          setShowUndoMine(false);
         }}
         isLoading={isPending}
       />

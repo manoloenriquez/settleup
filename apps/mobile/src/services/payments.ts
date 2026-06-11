@@ -44,3 +44,14 @@ export async function undoLastPayment(groupId: string): Promise<ApiResponse<null
   if (parsed.error) return { data: null, error: parsed.error };
   return { data: null, error: null };
 }
+
+export async function undoLastPaymentForMember(memberId: string): Promise<ApiResponse<null>> {
+  const { data, error } = await supabase
+    .schema("settleup")
+    .rpc("undo_last_payment_for_member", { p_from_member_id: memberId });
+
+  if (error || !data) return { data: null, error: error?.message ?? "No payment found" };
+  const parsed = parseSuccessRpcResult(data);
+  if (parsed.error) return { data: null, error: parsed.error };
+  return { data: null, error: null };
+}

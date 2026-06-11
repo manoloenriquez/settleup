@@ -8,9 +8,10 @@ import { colors, fontSize, fontWeight, spacing } from "@/theme";
 type MemberRowProps = {
   member: MemberBalance;
   webOrigin?: string;
+  onUndoLastPayment?: (member: MemberBalance) => void;
 };
 
-export function MemberRow({ member, webOrigin }: MemberRowProps) {
+export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowProps) {
   const net = member.net_cents;
   const isSettled = Math.abs(net) < 1;
   const isOwed = net > 0;
@@ -56,10 +57,17 @@ export function MemberRow({ member, webOrigin }: MemberRowProps) {
       });
     }
 
-    if (options.length === 0) return;
+    if (options.length === 0 && !onUndoLastPayment) return;
 
     Alert.alert(member.display_name, undefined, [
       ...options.map((o) => ({ text: o.text, onPress: o.onPress })),
+      ...(onUndoLastPayment
+        ? [{
+            text: "Undo last payment",
+            style: "destructive" as const,
+            onPress: () => onUndoLastPayment(member),
+          }]
+        : []),
       { text: "Cancel", style: "cancel" as const },
     ]);
   }

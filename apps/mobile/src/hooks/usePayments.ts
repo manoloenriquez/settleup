@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { recordPayment, undoLastPayment } from "@/services/payments";
+import { recordPayment, undoLastPayment, undoLastPaymentForMember } from "@/services/payments";
 
 type RecordPaymentParams = {
   groupId: string;
@@ -24,6 +24,18 @@ export function useUndoLastPayment(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => undoLastPayment(groupId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["activity", groupId] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useUndoLastPaymentForMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (memberId: string) => undoLastPaymentForMember(memberId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });

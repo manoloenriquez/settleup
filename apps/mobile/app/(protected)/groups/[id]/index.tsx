@@ -7,7 +7,7 @@ import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances
 import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
-import { useUndoLastPayment } from "@/hooks/usePayments";
+import { useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useClaimMember } from "@/hooks/useCollaboration";
@@ -21,7 +21,7 @@ import { SegmentedControl, Card, ErrorBanner } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
-import type { SimplifiedDebt } from "@template/shared";
+import type { MemberBalance, SimplifiedDebt } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -90,6 +90,7 @@ export default function GroupDetailScreen() {
   const updateCustomExpenseMut = useUpdateExpenseCustomSplit(id);
   const updateItemizedExpenseMut = useUpdateItemizedExpense(id);
   const undoPayment = useUndoLastPayment(id);
+  const undoMemberPayment = useUndoLastPaymentForMember(id);
 
   // Edit expense modal state
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);
@@ -141,8 +142,8 @@ export default function GroupDetailScreen() {
 
   function handleUndoPayment() {
     Alert.alert(
-      "Undo Last Payment",
-      "This will delete the most recent payment recorded for this group. Continue?",
+      "Undo My Last Payment",
+      "This will delete the most recent payment you recorded in this group. Payments recorded by others are not affected. Continue?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -150,6 +151,31 @@ export default function GroupDetailScreen() {
           style: "destructive",
           onPress: () => {
             undoPayment.mutate(undefined, {
+              onSuccess: (res) => {
+                if (res.error) Alert.alert("Error", res.error);
+              },
+              onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to undo payment"),
+            });
+          },
+        },
+      ],
+    );
+  }
+
+  function handleUndoMemberPayment(member: MemberBalance) {
+    Alert.alert(
+      "Undo Last Payment",
+      `Undo the most recent payment from ${member.display_name}? You can undo payments you recorded, or any payment if you're a group admin.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Undo",
+          style: "destructive",
+          onPress: () => {
+            undoMemberPayment.mutate(member.member_id, {
+              onSuccess: (res) => {
+                if (res.error) Alert.alert("Error", res.error);
+              },
               onError: (e) => Alert.alert("Error", e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
@@ -162,7 +188,7 @@ export default function GroupDetailScreen() {
     Alert.alert("Group actions", undefined, [
       { text: "Public overview", onPress: () => router.push(`/(protected)/groups/${id}/overview`) },
       { text: "Copy summary", onPress: () => void handleCopyGroupSummary() },
-      { text: "Undo last payment", style: "destructive", onPress: handleUndoPayment },
+      { text: "Undo my last payment", style: "destructive", onPress: handleUndoPayment },
       ...(WEB_ORIGIN ? [{ text: "Share group", onPress: () => void handleShareGroup() }] : []),
       { text: "Settings", onPress: () => router.push(`/(protected)/groups/${id}/settings`) },
       { text: "Cancel", style: "cancel" },
@@ -431,7 +457,11 @@ export default function GroupDetailScreen() {
             <Card padding={0}>
               {(balancesQ.data ?? []).map((m, i) => (
                 <View key={m.member_id}>
-                  <MemberRow member={m} webOrigin={WEB_ORIGIN || undefined} />
+                  <MemberRow
+                    member={m}
+                    webOrigin={WEB_ORIGIN || undefined}
+                    onUndoLastPayment={handleUndoMemberPayment}
+                  />
                   {i < (balancesQ.data ?? []).length - 1 && <View style={styles.divider} />}
                 </View>
               ))}
