@@ -443,6 +443,7 @@ export type Database = {
           from_member_id: string;
           to_member_id: string;
           created_by_user_id: string | null;
+          note: string | null;
           created_at: string;
         };
         Insert: {
@@ -453,6 +454,7 @@ export type Database = {
           from_member_id: string;
           to_member_id: string;
           created_by_user_id?: string | null;
+          note?: string | null;
           created_at?: string;
         };
         Update: {
@@ -463,6 +465,7 @@ export type Database = {
           from_member_id?: string;
           to_member_id?: string;
           created_by_user_id?: string | null;
+          note?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -630,6 +633,23 @@ export type Database = {
       };
       undo_last_payment_for_member: {
         Args: { p_from_member_id: string };
+        Returns: Json;
+      };
+      submit_friend_payment: {
+        Args: {
+          p_share_token: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+          p_note?: string;
+        };
+        Returns: Json;
+      };
+      confirm_payment: {
+        Args: { p_payment_id: string };
+        Returns: Json;
+      };
+      reject_payment: {
+        Args: { p_payment_id: string };
         Returns: Json;
       };
       rename_group: {

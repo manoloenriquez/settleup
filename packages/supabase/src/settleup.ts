@@ -102,6 +102,7 @@ const paymentSchema = z.object({
   from_member_id: z.string().uuid(),
   to_member_id: z.string().uuid(),
   created_by_user_id: z.string().uuid().nullable(),
+  note: z.string().nullable().default(null),
   created_at: z.string(),
 });
 
