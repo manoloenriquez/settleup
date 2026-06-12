@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { addExpense } from "@/app/actions/expenses";
 import { parsePHPAmount } from "@template/shared";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { CategorySelect } from "./CategoryControls";
 import { Plus } from "lucide-react";
@@ -15,10 +16,11 @@ type Props = {
   groupId: string;
   members: GroupMember[];
   categories: ExpenseCategory[];
+  currentUserId: string;
   onClose?: () => void;
 };
 
-export function QuickAddExpense({ groupId, members, categories, onClose }: Props): React.ReactElement {
+export function QuickAddExpense({ groupId, members, categories, currentUserId, onClose }: Props): React.ReactElement {
   const [itemName, setItemName] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(categories.find((category) => category.slug === "other")?.id ?? null);
@@ -26,7 +28,8 @@ export function QuickAddExpense({ groupId, members, categories, onClose }: Props
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const firstMemberId = members[0]?.id;
+  const myMemberId = members.find((m) => m.user_id === currentUserId)?.id ?? members[0]?.id ?? "";
+  const [payerId, setPayerId] = useState(myMemberId);
   const allMemberIds = members.map((m) => m.id);
 
   function handleSubmit(e: React.FormEvent): void {
@@ -42,7 +45,7 @@ export function QuickAddExpense({ groupId, members, categories, onClose }: Props
       setError("Enter a valid amount");
       return;
     }
-    if (!firstMemberId) {
+    if (!payerId) {
       setError("No members in group");
       return;
     }
@@ -54,7 +57,7 @@ export function QuickAddExpense({ groupId, members, categories, onClose }: Props
         item_name: itemName.trim(),
         amount_cents: amountCents,
         participant_ids: allMemberIds,
-        payers: [{ member_id: firstMemberId, paid_cents: amountCents }],
+        payers: [{ member_id: payerId, paid_cents: amountCents }],
       });
       if (result.error) {
         setError(result.error);
@@ -72,7 +75,7 @@ export function QuickAddExpense({ groupId, members, categories, onClose }: Props
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <p className="text-xs text-slate-500">
-        Paid by you, split equally among all {members.length} members
+        Split equally among all {members.length} members. Use Detailed mode for multiple payers or custom splits.
       </p>
       <div className="flex gap-2">
         <div className="flex-1">
@@ -94,7 +97,21 @@ export function QuickAddExpense({ groupId, members, categories, onClose }: Props
           Add
         </Button>
       </div>
-      <CategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Select label="Paid by" value={payerId} onChange={(e) => setPayerId(e.target.value)}>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.display_name}
+                {m.user_id === currentUserId ? " (you)" : ""}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex-1">
+          <CategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
+        </div>
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </form>
   );

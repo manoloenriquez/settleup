@@ -158,6 +158,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         memberCount={members.length}
         members={members}
         categories={categories}
+        currentUserId={currentUserId}
       />
 
       <GroupSetupChecklist groupId={groupId} items={setupItems} />

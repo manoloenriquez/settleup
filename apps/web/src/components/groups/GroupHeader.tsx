@@ -13,6 +13,7 @@ type Props = {
   memberCount: number;
   members: GroupMember[];
   categories: ExpenseCategory[];
+  currentUserId: string;
 };
 
 export function GroupHeader({
@@ -21,6 +22,7 @@ export function GroupHeader({
   memberCount,
   members,
   categories,
+  currentUserId,
 }: Props): React.ReactElement {
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
 
@@ -88,6 +90,7 @@ export function GroupHeader({
         groupId={groupId}
         members={members}
         categories={categories}
+        currentUserId={currentUserId}
       />
     </>
   );

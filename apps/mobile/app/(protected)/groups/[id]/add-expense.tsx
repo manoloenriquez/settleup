@@ -247,7 +247,7 @@ export default function AddExpenseScreen() {
         itemName: itemName.trim(),
         amountCents,
         categoryId,
-        payerMemberId: payers[0]?.memberId ?? effectivePayerId,
+        payers,
         participantMemberIds: [...selectedMembers],
         cadence: repeats,
         createdByUserId: session?.user.id ?? "",

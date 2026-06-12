@@ -300,14 +300,21 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
       // Save recurring templates for items marked weekly/monthly
       for (const item of wholeItems) {
         if (item.repeats === "none") continue;
+        const amountCents = parsePHPAmount(item.amountStr)!;
+        const recurringPayers = item.splitPayer
+          ? item.payers
+              .filter((p) => p.memberId)
+              .map((p) => ({ member_id: p.memberId, paid_cents: parsePHPAmount(p.amountStr) ?? 0 }))
+          : [{ member_id: item.payers[0]!.memberId, paid_cents: amountCents }];
         const recurringResult = await createRecurringExpense({
           group_id: groupId,
           item_name: item.itemName.trim(),
-          amount_cents: parsePHPAmount(item.amountStr)!,
+          amount_cents: amountCents,
           category_id: item.categoryId,
-          payer_member_id: item.payers[0]!.memberId,
+          payer_member_id: recurringPayers[0]!.member_id,
           participant_member_ids: item.selectedIds,
           cadence: item.repeats,
+          payers: recurringPayers,
         });
         if (recurringResult.error) {
           toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: ${recurringResult.error}`);

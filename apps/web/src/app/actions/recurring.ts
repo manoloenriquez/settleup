@@ -5,15 +5,25 @@ import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import type { ApiResponse } from "@template/shared";
 import { z } from "zod";
 
-const createSchema = z.object({
-  group_id: z.string().uuid(),
-  item_name: z.string().trim().min(1).max(120),
-  amount_cents: z.number().int().positive().max(100_000_000),
-  category_id: z.string().uuid().nullable().optional(),
-  payer_member_id: z.string().uuid(),
-  participant_member_ids: z.array(z.string().uuid()).min(1),
-  cadence: z.enum(["weekly", "monthly"]),
-});
+const createSchema = z
+  .object({
+    group_id: z.string().uuid(),
+    item_name: z.string().trim().min(1).max(120),
+    amount_cents: z.number().int().positive().max(100_000_000),
+    category_id: z.string().uuid().nullable().optional(),
+    payer_member_id: z.string().uuid(),
+    participant_member_ids: z.array(z.string().uuid()).min(1),
+    cadence: z.enum(["weekly", "monthly"]),
+    payers: z
+      .array(z.object({ member_id: z.string().uuid(), paid_cents: z.number().int().positive() }))
+      .min(1)
+      .optional(),
+  })
+  .refine(
+    (input) =>
+      !input.payers || input.payers.reduce((sum, p) => sum + p.paid_cents, 0) === input.amount_cents,
+    { message: "Payer total must equal the expense amount." },
+  );
 
 const idSchema = z.string().uuid();
 
@@ -28,6 +38,7 @@ export type RecurringExpense = {
   cadence: string;
   next_run_at: string;
   active: boolean;
+  payers: { member_id: string; paid_cents: number }[] | null;
 };
 
 export async function listRecurringExpenses(groupId: string): Promise<ApiResponse<RecurringExpense[]>> {
@@ -40,7 +51,7 @@ export async function listRecurringExpenses(groupId: string): Promise<ApiRespons
     const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
-      .select("id, group_id, item_name, amount_cents, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active")
+      .select("id, group_id, item_name, amount_cents, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
@@ -78,10 +89,11 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
         item_name: parsed.data.item_name,
         amount_cents: parsed.data.amount_cents,
         category_id: parsed.data.category_id ?? null,
-        payer_member_id: parsed.data.payer_member_id,
+        payer_member_id: parsed.data.payers?.[0]?.member_id ?? parsed.data.payer_member_id,
         participant_member_ids: parsed.data.participant_member_ids,
         cadence: parsed.data.cadence,
         next_run_at: next.toISOString().slice(0, 10),
+        payers: parsed.data.payers && parsed.data.payers.length > 1 ? parsed.data.payers : null,
         created_by_user_id: user.id,
       });
 

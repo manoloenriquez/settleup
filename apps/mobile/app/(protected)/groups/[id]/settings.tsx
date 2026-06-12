@@ -641,7 +641,7 @@ export default function GroupSettingsScreen() {
               <View key={item.id}>
                 <ListItem
                   title={`${item.item_name} · ${formatCents(item.amount_cents)}`}
-                  subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
+                  subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"}${item.payers && item.payers.length > 1 ? ` · ${item.payers.length} payers` : ""} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
                   right={
                     <View style={{ flexDirection: "row", gap: spacing.sm }}>
                       <Text style={styles.renameBtn} onPress={() => handleToggleRecurring(item.id, item.active)}>

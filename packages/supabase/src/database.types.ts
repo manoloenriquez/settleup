@@ -493,6 +493,7 @@ export type Database = {
           cadence: string;
           next_run_at: string;
           active: boolean;
+          payers: Json | null;
           created_by_user_id: string | null;
           created_at: string;
         };
@@ -507,6 +508,7 @@ export type Database = {
           cadence: string;
           next_run_at: string;
           active?: boolean;
+          payers?: Json | null;
           created_by_user_id?: string | null;
           created_at?: string;
         };
@@ -521,6 +523,7 @@ export type Database = {
           cadence?: string;
           next_run_at?: string;
           active?: boolean;
+          payers?: Json | null;
           created_by_user_id?: string | null;
           created_at?: string;
         };

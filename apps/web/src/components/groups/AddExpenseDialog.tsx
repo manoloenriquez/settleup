@@ -23,6 +23,7 @@ type Props = {
   groupId: string;
   members: GroupMember[];
   categories: ExpenseCategory[];
+  currentUserId: string;
 };
 
 type Mode = "quick" | "chat" | "receipt" | "detailed";
@@ -34,7 +35,8 @@ const modes: { id: Mode; label: string; icon: typeof Zap }[] = [
   { id: "detailed", label: "Detailed", icon: SlidersHorizontal },
 ];
 
-export function AddExpenseDialog({ open, onClose, groupId, members, categories }: Props): React.ReactElement {
+export function AddExpenseDialog({ open, onClose, groupId, members, categories, currentUserId }: Props): React.ReactElement {
+  const myMemberId = members.find((m) => m.user_id === currentUserId)?.id ?? members[0]?.id;
   const [mode, setMode] = useState<Mode>("quick");
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
   const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
@@ -64,8 +66,8 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories }
         : members.map((m) => m.id);
 
     const payerId = draft.payer_name
-      ? fuzzyMatchMember(draft.payer_name, members) ?? members[0]?.id
-      : members[0]?.id;
+      ? fuzzyMatchMember(draft.payer_name, members) ?? myMemberId
+      : myMemberId;
 
     if (!payerId || participantIds.length === 0) {
       toast.error("Could not resolve members");
@@ -155,7 +157,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories }
         {!draft && (
           <>
             {mode === "quick" && (
-              <QuickAddExpense groupId={groupId} members={members} categories={categories} onClose={handleClose} />
+              <QuickAddExpense groupId={groupId} members={members} categories={categories} currentUserId={currentUserId} onClose={handleClose} />
             )}
             {mode === "chat" && (
               <ConversationInput groupId={groupId} members={members} onDraft={handleDraft} />

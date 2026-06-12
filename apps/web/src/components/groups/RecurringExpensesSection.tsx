@@ -68,7 +68,8 @@ export function RecurringExpensesSection({ recurring, members }: Props): React.R
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {item.cadence === "weekly" ? "Weekly" : "Monthly"} · paid by{" "}
-                  {memberMap.get(item.payer_member_id) ?? "Unknown"} · next{" "}
+                  {memberMap.get(item.payer_member_id) ?? "Unknown"}
+                  {item.payers && item.payers.length > 1 ? ` +${item.payers.length - 1}` : ""} · next{" "}
                   {new Date(item.next_run_at).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
                   {!item.active && " · paused"}
                 </p>
