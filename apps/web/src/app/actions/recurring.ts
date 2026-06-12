@@ -17,12 +17,18 @@ const createSchema = z
     payers: z
       .array(z.object({ member_id: z.string().uuid(), paid_cents: z.number().int().positive() }))
       .min(1)
+      .max(20)
       .optional(),
   })
   .refine(
     (input) =>
       !input.payers || input.payers.reduce((sum, p) => sum + p.paid_cents, 0) === input.amount_cents,
     { message: "Payer total must equal the expense amount." },
+  )
+  .refine(
+    (input) =>
+      !input.payers || new Set(input.payers.map((p) => p.member_id)).size === input.payers.length,
+    { message: "Each member can only appear once as a payer." },
   );
 
 const idSchema = z.string().uuid();

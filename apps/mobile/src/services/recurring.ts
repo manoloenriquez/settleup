@@ -41,6 +41,7 @@ export async function listRecurringExpenses(groupId: string): Promise<ApiRespons
 export async function createRecurringExpense(params: CreateRecurringParams): Promise<ApiResponse<null>> {
   const firstPayer = params.payers[0];
   if (!firstPayer) return { data: null, error: "At least one payer is required" };
+  if (params.payers.length > 20) return { data: null, error: "Too many payers" };
   const payerSum = params.payers.reduce((sum, p) => sum + p.paidCents, 0);
   if (payerSum !== params.amountCents) {
     return { data: null, error: "Payer total must equal the expense amount" };

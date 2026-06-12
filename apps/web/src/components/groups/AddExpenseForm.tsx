@@ -305,7 +305,12 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           ? item.payers
               .filter((p) => p.memberId)
               .map((p) => ({ member_id: p.memberId, paid_cents: parsePHPAmount(p.amountStr) ?? 0 }))
+              .filter((p) => p.paid_cents > 0)
           : [{ member_id: item.payers[0]!.memberId, paid_cents: amountCents }];
+        if (recurringPayers.length === 0) {
+          toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: no valid payers.`);
+          continue;
+        }
         const recurringResult = await createRecurringExpense({
           group_id: groupId,
           item_name: item.itemName.trim(),

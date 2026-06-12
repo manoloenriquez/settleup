@@ -39,67 +39,77 @@ BEGIN
       ORDER BY gm.id
     ) INTO v_member_ids;
 
-    -- Resolve payers: stored multi-payer split, or single payer paying all
-    v_payers := COALESCE(
-      v_template.payers,
-      jsonb_build_array(jsonb_build_object(
-        'member_id', v_template.payer_member_id,
-        'paid_cents', v_template.amount_cents
-      ))
-    );
+    -- Everything below is per-template fault isolation: `payers` JSONB is
+    -- member-writable via the API, so malformed content (bad UUIDs, null
+    -- amounts, duplicate members hitting the expense_payers PK) must
+    -- deactivate that one template — never abort the whole cron run.
+    BEGIN
+      -- Resolve payers: stored multi-payer split, or single payer paying all
+      v_payers := COALESCE(
+        v_template.payers,
+        jsonb_build_array(jsonb_build_object(
+          'member_id', v_template.payer_member_id,
+          'paid_cents', v_template.amount_cents
+        ))
+      );
 
-    SELECT
-      COALESCE(SUM((p->>'paid_cents')::BIGINT), 0),
-      COALESCE(BOOL_AND(
-        (p->>'paid_cents')::BIGINT > 0
-        AND EXISTS (
-          SELECT 1 FROM group_members gm
-          WHERE gm.id = (p->>'member_id')::UUID
-            AND gm.group_id = v_template.group_id
-        )
-      ), FALSE)
-    INTO v_payer_sum, v_payers_valid
-    FROM jsonb_array_elements(v_payers) p;
+      SELECT
+        COALESCE(SUM((p->>'paid_cents')::BIGINT), 0),
+        COALESCE(BOOL_AND(
+          (p->>'paid_cents')::BIGINT IS NOT NULL
+          AND (p->>'paid_cents')::BIGINT > 0
+          AND EXISTS (
+            SELECT 1 FROM group_members gm
+            WHERE gm.id = (p->>'member_id')::UUID
+              AND gm.group_id = v_template.group_id
+          )
+        ), FALSE)
+        AND COUNT(*) <= 20
+        AND COUNT(*) = COUNT(DISTINCT p->>'member_id')
+      INTO v_payer_sum, v_payers_valid
+      FROM jsonb_array_elements(v_payers) p;
 
-    IF array_length(v_member_ids, 1) IS NULL
-       OR NOT v_payers_valid
-       OR v_payer_sum <> v_template.amount_cents
-    THEN
-      -- Template no longer valid; deactivate instead of failing forever
+      IF array_length(v_member_ids, 1) IS NULL
+         OR NOT v_payers_valid
+         OR v_payer_sum <> v_template.amount_cents
+      THEN
+        UPDATE recurring_expenses SET active = FALSE WHERE id = v_template.id;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO expenses (group_id, category_id, item_name, amount_cents, notes, created_by_user_id)
+      VALUES (
+        v_template.group_id,
+        v_template.category_id,
+        v_template.item_name,
+        v_template.amount_cents,
+        'Auto · ' || v_template.cadence,
+        v_template.created_by_user_id
+      )
+      RETURNING id INTO v_expense_id;
+
+      FOR v_payer IN SELECT * FROM jsonb_array_elements(v_payers) LOOP
+        INSERT INTO expense_payers (expense_id, member_id, paid_cents)
+        VALUES (v_expense_id, (v_payer->>'member_id')::UUID, (v_payer->>'paid_cents')::BIGINT);
+      END LOOP;
+
+      v_shares := settleup.equal_split(v_template.amount_cents, array_length(v_member_ids, 1));
+      FOR i IN 1..array_length(v_member_ids, 1) LOOP
+        INSERT INTO expense_participants (expense_id, member_id, share_cents)
+        VALUES (v_expense_id, v_member_ids[i], v_shares[i]);
+      END LOOP;
+
+      UPDATE recurring_expenses
+      SET next_run_at = CASE cadence
+        WHEN 'weekly' THEN next_run_at + INTERVAL '7 days'
+        ELSE next_run_at + INTERVAL '1 month'
+      END
+      WHERE id = v_template.id;
+
+      v_count := v_count + 1;
+    EXCEPTION WHEN OTHERS THEN
       UPDATE recurring_expenses SET active = FALSE WHERE id = v_template.id;
-      CONTINUE;
-    END IF;
-
-    INSERT INTO expenses (group_id, category_id, item_name, amount_cents, notes, created_by_user_id)
-    VALUES (
-      v_template.group_id,
-      v_template.category_id,
-      v_template.item_name,
-      v_template.amount_cents,
-      'Auto · ' || v_template.cadence,
-      v_template.created_by_user_id
-    )
-    RETURNING id INTO v_expense_id;
-
-    FOR v_payer IN SELECT * FROM jsonb_array_elements(v_payers) LOOP
-      INSERT INTO expense_payers (expense_id, member_id, paid_cents)
-      VALUES (v_expense_id, (v_payer->>'member_id')::UUID, (v_payer->>'paid_cents')::BIGINT);
-    END LOOP;
-
-    v_shares := settleup.equal_split(v_template.amount_cents, array_length(v_member_ids, 1));
-    FOR i IN 1..array_length(v_member_ids, 1) LOOP
-      INSERT INTO expense_participants (expense_id, member_id, share_cents)
-      VALUES (v_expense_id, v_member_ids[i], v_shares[i]);
-    END LOOP;
-
-    UPDATE recurring_expenses
-    SET next_run_at = CASE cadence
-      WHEN 'weekly' THEN next_run_at + INTERVAL '7 days'
-      ELSE next_run_at + INTERVAL '1 month'
-    END
-    WHERE id = v_template.id;
-
-    v_count := v_count + 1;
+    END;
   END LOOP;
 
   RETURN v_count;
