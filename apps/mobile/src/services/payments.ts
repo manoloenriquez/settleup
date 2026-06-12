@@ -45,6 +45,42 @@ export async function undoLastPayment(groupId: string): Promise<ApiResponse<null
   return { data: null, error: null };
 }
 
+export type PendingPayment = {
+  id: string;
+  group_id: string;
+  from_member_id: string;
+  to_member_id: string;
+  amount_cents: number;
+  note: string | null;
+  created_at: string;
+};
+
+export async function listPendingPayments(groupId: string): Promise<ApiResponse<PendingPayment[]>> {
+  const { data, error } = await supabase
+    .schema("settleup")
+    .from("payments")
+    .select("id, group_id, from_member_id, to_member_id, amount_cents, note, created_at")
+    .eq("group_id", groupId)
+    .eq("status", "PENDING")
+    .order("created_at", { ascending: false });
+
+  if (error) return { data: null, error: error.message };
+  return { data: (data ?? []) as PendingPayment[], error: null };
+}
+
+export async function resolvePendingPayment(
+  paymentId: string,
+  action: "confirm" | "reject",
+): Promise<ApiResponse<null>> {
+  const { data, error } =
+    action === "confirm"
+      ? await supabase.schema("settleup").rpc("confirm_payment", { p_payment_id: paymentId })
+      : await supabase.schema("settleup").rpc("reject_payment", { p_payment_id: paymentId });
+
+  if (error || !data) return { data: null, error: error?.message ?? `Failed to ${action} payment` };
+  return { data: null, error: null };
+}
+
 export async function undoLastPaymentForMember(memberId: string): Promise<ApiResponse<null>> {
   const { data, error } = await supabase
     .schema("settleup")

@@ -7,12 +7,13 @@ import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances
 import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
-import { useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
+import { usePendingPayments, useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useClaimMember } from "@/hooks/useCollaboration";
 import { useAuth } from "@/context/AuthContext";
 import { DebtSummary } from "@/components/groups/DebtSummary";
+import { PendingPaymentsCard } from "@/components/groups/PendingPaymentsCard";
 import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
@@ -92,6 +93,7 @@ export default function GroupDetailScreen() {
   const updateItemizedExpenseMut = useUpdateItemizedExpense(id);
   const undoPayment = useUndoLastPayment(id);
   const undoMemberPayment = useUndoLastPaymentForMember(id);
+  const pendingPaymentsQ = usePendingPayments(id);
 
   // Edit expense modal state
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);
@@ -211,6 +213,7 @@ export default function GroupDetailScreen() {
     void balancesQ.refetch();
     void expensesQ.refetch();
     void activityQ.refetch();
+    void pendingPaymentsQ.refetch();
   }
 
   function handleSettle(debt: SimplifiedDebt) {
@@ -452,6 +455,14 @@ export default function GroupDetailScreen() {
               </View>
             </View>
           )}
+
+          {/* Pending friend-reported payments */}
+          <PendingPaymentsCard
+            groupId={id}
+            pending={pendingPaymentsQ.data ?? []}
+            members={membersQ.data ?? []}
+            currentUserId={user?.id}
+          />
 
           {/* Debt Summary */}
           <View style={styles.sectionHeader}>

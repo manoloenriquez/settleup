@@ -18,6 +18,7 @@ export async function getGroupActivity(groupId: string): Promise<ApiResponse<Act
       .from("payments")
       .select("id, amount_cents, created_at, from_member_id")
       .eq("group_id", groupId)
+      .eq("status", "PAID")
       .order("created_at", { ascending: false })
       .limit(30),
   ]);
