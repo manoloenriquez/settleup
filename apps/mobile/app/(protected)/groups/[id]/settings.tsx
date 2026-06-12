@@ -8,13 +8,14 @@ import { useArchiveGroup, useGroups, useRenameGroup, useTransferOwnership } from
 import { useAddMember, useAddMembersBatch, useMembers, useDeleteMember, useRenameMember } from "@/hooks/useMembers";
 import { useRegenerateInviteCode, useLeaveGroup, usePromoteMember } from "@/hooks/useCollaboration";
 import { useRecurringExpenses, useSetRecurringActive, useDeleteRecurringExpense } from "@/hooks/useRecurring";
+import { useSetGroupBudget } from "@/hooks/useGroups";
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
-import { DEFAULT_CATEGORY_COLOR, formatCents } from "@template/shared";
+import { DEFAULT_CATEGORY_COLOR, formatCents, parsePHPAmount } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -51,6 +52,8 @@ export default function GroupSettingsScreen() {
   const recurringQ = useRecurringExpenses(groupId);
   const setRecurringActive = useSetRecurringActive(groupId);
   const deleteRecurring = useDeleteRecurringExpense(groupId);
+  const setBudget = useSetGroupBudget();
+  const [budgetInput, setBudgetInput] = useState<string | null>(null);
 
   // Get current group to show invite code
   const groupsQ = useGroups();
@@ -68,6 +71,32 @@ export default function GroupSettingsScreen() {
   const isOwner = currentMember?.role === "owner";
   const isAdmin = currentMember?.role === "admin";
   const isAdminOrOwner = isOwner || isAdmin;
+
+  function handleSaveBudget() {
+    const raw = budgetInput ?? "";
+    const cents = parsePHPAmount(raw);
+    if (!cents || cents <= 0) {
+      toast.error("Enter a valid budget amount");
+      return;
+    }
+    setBudget.mutate({ groupId, budgetCents: cents }, {
+      onSuccess: (res) => {
+        if (res.error) { toast.error(res.error); return; }
+        setBudgetInput(null);
+        toast.success("Budget saved");
+      },
+    });
+  }
+
+  function handleRemoveBudget() {
+    setBudget.mutate({ groupId, budgetCents: null }, {
+      onSuccess: (res) => {
+        if (res.error) { toast.error(res.error); return; }
+        setBudgetInput(null);
+        toast.success("Budget removed");
+      },
+    });
+  }
 
   function handleToggleRecurring(id: string, active: boolean) {
     setRecurringActive.mutate({ id, active: !active }, {
@@ -559,6 +588,33 @@ export default function GroupSettingsScreen() {
             />
             <AppButton title="Add" onPress={handleCreateCategory} isLoading={createCategory.isPending} disabled={!newCategoryName.trim()} />
           </View>
+        )}
+
+        {/* Budget */}
+        {isAdminOrOwner && (
+          <>
+            <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+              <Ionicons name="wallet-outline" size={12} color={colors.gray400} />
+              <Text style={styles.sectionLabel}>BUDGET</Text>
+            </View>
+            <View style={styles.addRow}>
+              <View style={{ flex: 1 }}>
+                <AppTextInput
+                  value={budgetInput ?? (group?.budget_cents ? String(group.budget_cents / 100) : "")}
+                  onChangeText={setBudgetInput}
+                  placeholder="e.g. 30000"
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveBudget}
+                />
+              </View>
+              <AppButton title="Save" onPress={handleSaveBudget} isLoading={setBudget.isPending} />
+              {group?.budget_cents != null && (
+                <AppButton title="Remove" variant="secondary" onPress={handleRemoveBudget} disabled={setBudget.isPending} />
+              )}
+            </View>
+            <Text style={styles.batchHint}>Optional spending cap shown on the group page.</Text>
+          </>
         )}
 
         {/* Recurring expenses */}

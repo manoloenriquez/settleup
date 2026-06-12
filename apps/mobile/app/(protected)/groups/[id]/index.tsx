@@ -406,7 +406,7 @@ export default function GroupDetailScreen() {
               <View style={styles.statsRow}>
                 <View style={[styles.statCard, isSettled ? styles.statCardGreen : styles.statCardAmber]}>
                   <Text style={[styles.statLabel, { color: isSettled ? colors.success : colors.warning }]}>Outstanding</Text>
-                  <Text style={[styles.statValue, { color: isSettled ? "#065f46" : "#92400e" }]}>
+                  <Text style={[styles.statValue, { color: isSettled ? colors.successDark : colors.warningDark }]}>
                     {isSettled ? "Settled" : formatCents(totalOwed)}
                   </Text>
                 </View>
@@ -417,6 +417,34 @@ export default function GroupDetailScreen() {
                 <View style={styles.statCard}>
                   <Text style={styles.statLabel}>Pending</Text>
                   <Text style={[styles.statValue, pendingCount > 0 && { color: colors.warning }]}>{pendingCount}</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* Budget progress */}
+          {group?.budget_cents != null && group.budget_cents > 0 && (() => {
+            const spent = (expensesQ.data ?? []).reduce((s, e) => s + Math.max(0, e.amount_cents), 0);
+            const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
+            const over = spent > group.budget_cents;
+            const warn = !over && pct >= 80;
+            const barColor = over ? colors.danger : warn ? colors.warning : colors.primary;
+            return (
+              <View style={styles.budgetCard}>
+                <View style={styles.budgetHeader}>
+                  <Text style={styles.budgetLabel}>BUDGET</Text>
+                  <Text style={[styles.budgetValue, over && { color: colors.danger }]}>
+                    {formatCents(spent)} of {formatCents(group.budget_cents)}
+                    {over ? " · over" : ` · ${pct}%`}
+                  </Text>
+                </View>
+                <View
+                  style={styles.budgetTrack}
+                  accessibilityRole="progressbar"
+                  accessibilityValue={{ min: 0, max: 100, now: pct }}
+                  accessibilityLabel="Budget used"
+                >
+                  <View style={[styles.budgetFill, { width: `${pct}%`, backgroundColor: barColor }]} />
                 </View>
               </View>
             );
@@ -583,6 +611,12 @@ const styles = StyleSheet.create({
   headerBtns: { flexDirection: "row", gap: spacing.md },
 
   statsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.base },
+  budgetCard: { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.base },
+  budgetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  budgetLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
+  budgetValue: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
+  budgetTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden" },
+  budgetFill: { height: "100%", borderRadius: borderRadius.full },
   statCard: {
     flex: 1,
     backgroundColor: colors.surface,

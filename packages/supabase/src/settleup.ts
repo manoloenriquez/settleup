@@ -69,6 +69,7 @@ const groupSchema = z.object({
   invite_code: z.string(),
   is_archived: z.boolean(),
   share_token: z.string(),
+  budget_cents: z.number().int().nullable().default(null),
   created_at: z.string(),
 });
 

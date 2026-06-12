@@ -172,6 +172,7 @@ export type GroupWithStats = {
   invite_code: string;
   is_archived: boolean;
   share_token: string;
+  budget_cents: number | null;
   created_at: string;
   // Computed
   member_count: number;

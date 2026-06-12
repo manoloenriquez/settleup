@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { archiveGroup, createGroup, deleteGroup, listArchivedGroups, listGroupsWithStats, renameGroup, restoreGroup, transferOwnership } from "@/services/groups";
+import { archiveGroup, createGroup, deleteGroup, listArchivedGroups, listGroupsWithStats, renameGroup, restoreGroup, setGroupBudget, transferOwnership } from "@/services/groups";
 import type { GroupWithStats } from "@template/shared";
 
 export function useGroupsWithStats() {
@@ -112,6 +112,17 @@ export function useRenameGroup() {
   return useMutation({
     mutationFn: ({ groupId, name }: { groupId: string; name: string }) =>
       renameGroup(groupId, name),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}
+
+export function useSetGroupBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { groupId: string; budgetCents: number | null }) =>
+      setGroupBudget(params.groupId, params.budgetCents),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["groups"] });
     },

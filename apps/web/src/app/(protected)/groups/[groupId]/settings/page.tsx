@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/supabase/guards";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { GroupSettingsClient } from "@/components/groups/GroupSettingsClient";
 import { RecurringExpensesSection } from "@/components/groups/RecurringExpensesSection";
+import { BudgetSection } from "@/components/groups/BudgetSection";
 import { listRecurringExpenses } from "@/app/actions/recurring";
 
 type Props = {
@@ -21,7 +22,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const [{ data: group }, { data: members }, { data: categories }] = await Promise.all([
     db
       .from("groups")
-      .select("id, name, owner_user_id, invite_code, share_token")
+      .select("id, name, owner_user_id, invite_code, share_token, budget_cents")
       .eq("id", groupId)
       .single(),
     db
@@ -66,6 +67,8 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         isAdminOrOwner={isAdminOrOwner}
         currentUserId={user.id}
       />
+
+      <BudgetSection groupId={groupId} budgetCents={group.budget_cents} canEdit={isAdminOrOwner} />
 
       <RecurringExpensesSection
         recurring={(await recurringPromise).data ?? []}

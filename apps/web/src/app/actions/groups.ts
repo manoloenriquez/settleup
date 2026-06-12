@@ -247,3 +247,27 @@ export async function deleteGroup(groupId: string): Promise<ApiResponse<void>> {
     return { data: null, error: "Something went wrong." };
   }
 }
+
+export async function setGroupBudget(groupId: string, budgetCents: number | null): Promise<ApiResponse<void>> {
+  try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+    if (budgetCents !== null && (!Number.isInteger(budgetCents) || budgetCents <= 0 || budgetCents > 1_000_000_000)) {
+      return { data: null, error: "Budget must be a positive amount." };
+    }
+
+    await assertAuth();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+    const { error } = await db.rpc("set_group_budget", {
+      p_group_id: parsed.data,
+      p_budget_cents: budgetCents,
+    });
+
+    if (error) return { data: null, error: "Failed to update budget." };
+    return { data: undefined, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}

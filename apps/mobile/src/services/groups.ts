@@ -57,6 +57,15 @@ export async function listGroupsWithStats(_userId?: string): Promise<ApiResponse
   return parsed;
 }
 
+export async function setGroupBudget(groupId: string, budgetCents: number | null): Promise<ApiResponse<null>> {
+  const { data, error } = await supabase
+    .schema("settleup")
+    .rpc("set_group_budget", { p_group_id: groupId, p_budget_cents: budgetCents });
+
+  if (error || !data) return { data: null, error: error?.message ?? "Failed to update budget" };
+  return { data: null, error: null };
+}
+
 export async function renameGroup(groupId: string, name: string): Promise<ApiResponse<null>> {
   const trimmed = name.trim();
   if (!trimmed) return { data: null, error: "Name is required" };

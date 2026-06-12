@@ -10,6 +10,7 @@ import { listExpenseCategories } from "@/app/actions/categories";
 import { listPendingPayments } from "@/app/actions/friend-payments";
 import { PendingPayments } from "@/components/groups/PendingPayments";
 import { GroupRealtimeRefresher } from "@/components/groups/GroupRealtimeRefresher";
+import { BudgetProgress } from "@/components/groups/BudgetProgress";
 import { simplifyDebts, formatCents } from "@template/shared";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
@@ -61,7 +62,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const { data: group } = await supabase
     .schema("settleup")
     .from("groups")
-    .select("id, name, share_token, owner_user_id")
+    .select("id, name, share_token, owner_user_id, budget_cents")
     .eq("id", groupId)
     .single();
 
@@ -100,6 +101,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const isAdminOrOwner = isOwner || currentMember?.role === "admin";
   const debts = simplifyDebts(balances);
   const pendingMembers = balances.filter((b) => b.net_cents < 0).length;
+  const totalSpentCents = expenses.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
   const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
 
   const headersList = await headers();
@@ -196,6 +198,11 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
           )}
         </div>
       </div>
+
+      {/* Budget progress */}
+      {group.budget_cents !== null && group.budget_cents > 0 && (
+        <BudgetProgress budgetCents={group.budget_cents} spentCents={totalSpentCents} />
+      )}
 
       {/* Share link — secondary, subtle */}
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">

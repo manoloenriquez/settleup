@@ -135,6 +135,7 @@ export type Database = {
           is_archived: boolean;
           share_token: string;
           created_at: string;
+          budget_cents: number | null;
         };
         Insert: {
           id?: string;
@@ -144,6 +145,7 @@ export type Database = {
           is_archived?: boolean;
           share_token?: string;
           created_at?: string;
+          budget_cents?: number | null;
         };
         Update: {
           id?: string;
@@ -153,6 +155,7 @@ export type Database = {
           is_archived?: boolean;
           share_token?: string;
           created_at?: string;
+          budget_cents?: number | null;
         };
         Relationships: [
           {
@@ -720,6 +723,10 @@ export type Database = {
       };
       rename_group: {
         Args: { p_group_id: string; p_name: string };
+        Returns: Json;
+      };
+      set_group_budget: {
+        Args: { p_group_id: string; p_budget_cents: number | null };
         Returns: Json;
       };
       get_creditor_profiles: {
