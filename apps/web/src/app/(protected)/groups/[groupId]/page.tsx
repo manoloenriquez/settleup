@@ -219,7 +219,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
               currentUserId={currentUserId}
               isAdminOrOwner={isAdminOrOwner}
             />
-            <DebtSummary debts={debts} groupId={groupId} />
+            <DebtSummary debts={debts} groupId={groupId} groupName={group.name} balances={balances} origin={origin} />
             <BalanceSummary
               members={members}
               balances={balances}

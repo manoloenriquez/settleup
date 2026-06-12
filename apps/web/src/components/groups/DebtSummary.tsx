@@ -1,17 +1,35 @@
 "use client";
 
-import { formatCents } from "@template/shared";
+import { toast } from "sonner";
+import { formatCents, buildNudgeMessage } from "@template/shared";
 import { Avatar } from "@/components/ui/Avatar";
 import { SettleUpButton } from "./SettleUpButton";
-import { ArrowRight, CheckCircle } from "lucide-react";
-import type { SimplifiedDebt } from "@template/shared";
+import { ArrowRight, CheckCircle, BellRing } from "lucide-react";
+import type { SimplifiedDebt, MemberBalance } from "@template/shared";
 
 type Props = {
   debts: SimplifiedDebt[];
   groupId: string;
+  groupName?: string;
+  balances?: MemberBalance[];
+  origin?: string;
 };
 
-export function DebtSummary({ debts, groupId }: Props): React.ReactElement {
+export function DebtSummary({ debts, groupId, groupName, balances, origin }: Props): React.ReactElement {
+  const tokenByMemberId = new Map((balances ?? []).map((b) => [b.member_id, b.share_token]));
+
+  function handleRemind(debt: SimplifiedDebt): void {
+    const token = tokenByMemberId.get(debt.from_member_id);
+    const message = buildNudgeMessage({
+      debtorName: debt.from_display_name,
+      creditorName: debt.to_display_name,
+      amountCents: debt.amount_cents,
+      groupName: groupName ?? "your group",
+      link: token && origin ? `${origin}/p/${token}` : null,
+    });
+    void navigator.clipboard.writeText(message);
+    toast.success(`Reminder for ${debt.from_display_name} copied — paste it in your group chat`);
+  }
   if (debts.length === 0) {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
@@ -58,6 +76,17 @@ export function DebtSummary({ debts, groupId }: Props): React.ReactElement {
             <span className="text-sm font-bold text-amber-700 whitespace-nowrap bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
               {formatCents(debt.amount_cents)}
             </span>
+            {balances && (
+              <button
+                type="button"
+                onClick={() => handleRemind(debt)}
+                className="rounded-xl p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                title={`Copy reminder for ${debt.from_display_name}`}
+                aria-label={`Copy reminder for ${debt.from_display_name}`}
+              >
+                <BellRing size={15} />
+              </button>
+            )}
             <SettleUpButton debt={debt} groupId={groupId} />
           </div>
         ))}

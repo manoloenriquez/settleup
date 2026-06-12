@@ -468,7 +468,13 @@ export default function GroupDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>WHO OWES WHO</Text>
           </View>
-          <DebtSummary members={balancesQ.data ?? []} creditorProfiles={creditorProfilesQ.data} onSettle={handleSettle} />
+          <DebtSummary
+            members={balancesQ.data ?? []}
+            creditorProfiles={creditorProfilesQ.data}
+            onSettle={handleSettle}
+            groupName={group?.name}
+            webOrigin={WEB_ORIGIN || undefined}
+          />
 
           {/* Segmented Tabs */}
           <View style={styles.segmentWrapper}>
