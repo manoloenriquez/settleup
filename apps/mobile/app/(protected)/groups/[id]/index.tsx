@@ -8,6 +8,7 @@ import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustom
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
 import { usePendingPayments, useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
+import { useGroupRealtime } from "@/hooks/useGroupRealtime";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useClaimMember } from "@/hooks/useCollaboration";
@@ -94,6 +95,7 @@ export default function GroupDetailScreen() {
   const undoPayment = useUndoLastPayment(id);
   const undoMemberPayment = useUndoLastPaymentForMember(id);
   const pendingPaymentsQ = usePendingPayments(id);
+  useGroupRealtime(id);
 
   // Edit expense modal state
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);

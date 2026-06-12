@@ -9,6 +9,7 @@ import { getGroupActivity } from "@/app/actions/activity";
 import { listExpenseCategories } from "@/app/actions/categories";
 import { listPendingPayments } from "@/app/actions/friend-payments";
 import { PendingPayments } from "@/components/groups/PendingPayments";
+import { GroupRealtimeRefresher } from "@/components/groups/GroupRealtimeRefresher";
 import { simplifyDebts, formatCents } from "@template/shared";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
@@ -147,6 +148,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
+      <GroupRealtimeRefresher groupId={groupId} />
       {/* Group header with breadcrumb + CTAs */}
       <GroupHeader
         groupId={groupId}
