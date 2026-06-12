@@ -57,6 +57,7 @@ export async function getGroupActivity(
         .from("payments")
         .select("id, amount_cents, from_member_id, to_member_id, created_at")
         .eq("group_id", parsed.data)
+        .eq("status", "PAID")
         .order("created_at", { ascending: false })
         .limit(50),
     ]);

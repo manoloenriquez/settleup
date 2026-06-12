@@ -1,14 +1,16 @@
 import { formatCents, buildSuggestedSettlements } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
+import { IvePaidButton } from "./IvePaidButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Receipt, CheckCircle2, TrendingDown, ArrowUpRight, Smartphone, Landmark } from "lucide-react";
-import type { FriendViewPayload, CreditorPaymentProfile } from "@template/shared";
+import type { FriendViewPayload, CreditorPaymentProfile, SuggestedSettlement } from "@template/shared";
 
 type Props = {
   payload: FriendViewPayload;
   shareLink: string;
+  shareToken: string;
 };
 
 /**
@@ -68,8 +70,76 @@ function buildMessage(payload: FriendViewPayload, link: string): string {
   return lines.join("\n");
 }
 
-export function FriendView({ payload, shareLink }: Props): React.ReactElement {
+function ProfilePaymentDetails({ pp }: { pp: CreditorPaymentProfile }): React.ReactElement {
+  return (
+    <>
+      {(pp.gcash_name || pp.gcash_number) && (
+        <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Smartphone size={16} className="text-blue-500" />
+            <span className="text-sm font-semibold text-slate-700">GCash</span>
+          </div>
+          {pp.gcash_number && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono text-slate-900">{pp.gcash_number}</span>
+              {pp.gcash_name && <span className="text-slate-400">({pp.gcash_name})</span>}
+              <CopyButton text={pp.gcash_number} label="Copy" className="ml-auto" />
+            </div>
+          )}
+          {pp.gcash_qr_url && (
+            <div className="mt-3 flex justify-center">
+              <img
+                src={pp.gcash_qr_url}
+                alt="GCash QR"
+                className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {(pp.bank_name || pp.bank_account_number) && (
+        <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Landmark size={16} className="text-brand-500" />
+            <span className="text-sm font-semibold text-slate-700">
+              {pp.bank_name ?? "Bank Transfer"}
+            </span>
+          </div>
+          {pp.bank_account_number && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono text-slate-900">{pp.bank_account_number}</span>
+              {pp.bank_account_name && (
+                <span className="text-slate-400">({pp.bank_account_name})</span>
+              )}
+              <CopyButton text={pp.bank_account_number} label="Copy" className="ml-auto" />
+            </div>
+          )}
+          {pp.bank_qr_url && (
+            <div className="mt-3 flex justify-center">
+              <img
+                src={pp.bank_qr_url}
+                alt="Bank QR"
+                className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {pp.notes && <p className="text-sm text-slate-500 italic">{pp.notes}</p>}
+    </>
+  );
+}
+
+export function FriendView({ payload, shareLink, shareToken }: Props): React.ReactElement {
   const creditorProfiles = resolveCreditorProfiles(payload);
+  const mySettlements: SuggestedSettlement[] =
+    payload.all_balances?.length
+      ? buildSuggestedSettlements(payload.all_balances, payload.creditor_profiles ?? []).filter(
+          (s) => s.from_member_id === payload.member.id,
+        )
+      : [];
   const message = buildMessage(payload, shareLink);
   const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
   const isPaid = owedAmount === 0;
@@ -118,8 +188,34 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
           </div>
         </div>
 
-        {/* Payment details — per creditor */}
-        {owes && creditorProfiles.length > 0 && creditorProfiles.map((pp, idx) => (
+        {/* Payment details — per settlement (with "I've paid" reporting) */}
+        {owes && mySettlements.length > 0 && mySettlements.map((s) => (
+          <Card key={s.to_member_id}>
+            <CardHeader>
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Pay {s.to_display_name} · {formatCents(s.amount_cents)}
+              </h2>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {s.creditor_profile ? (
+                <ProfilePaymentDetails pp={s.creditor_profile} />
+              ) : (
+                <p className="text-sm text-slate-500">
+                  {s.to_display_name} hasn&apos;t added payment details yet — ask them how they&apos;d like to be paid.
+                </p>
+              )}
+              <IvePaidButton
+                shareToken={shareToken}
+                toMemberId={s.to_member_id}
+                creditorName={s.to_display_name}
+                suggestedAmountCents={s.amount_cents}
+              />
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Fallback: owner payment profile only (no per-member settlements available) */}
+        {owes && mySettlements.length === 0 && creditorProfiles.map((pp, idx) => (
           <Card key={pp.member_id || idx}>
             <CardHeader>
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -127,61 +223,7 @@ export function FriendView({ payload, shareLink }: Props): React.ReactElement {
               </h2>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              {(pp.gcash_name || pp.gcash_number) && (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Smartphone size={16} className="text-blue-500" />
-                    <span className="text-sm font-semibold text-slate-700">GCash</span>
-                  </div>
-                  {pp.gcash_number && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-mono text-slate-900">{pp.gcash_number}</span>
-                      {pp.gcash_name && <span className="text-slate-400">({pp.gcash_name})</span>}
-                      <CopyButton text={pp.gcash_number} label="Copy" className="ml-auto" />
-                    </div>
-                  )}
-                  {pp.gcash_qr_url && (
-                    <div className="mt-3 flex justify-center">
-                      <img
-                        src={pp.gcash_qr_url}
-                        alt="GCash QR"
-                        className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {(pp.bank_name || pp.bank_account_number) && (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Landmark size={16} className="text-brand-500" />
-                    <span className="text-sm font-semibold text-slate-700">
-                      {pp.bank_name ?? "Bank Transfer"}
-                    </span>
-                  </div>
-                  {pp.bank_account_number && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-mono text-slate-900">{pp.bank_account_number}</span>
-                      {pp.bank_account_name && (
-                        <span className="text-slate-400">({pp.bank_account_name})</span>
-                      )}
-                      <CopyButton text={pp.bank_account_number} label="Copy" className="ml-auto" />
-                    </div>
-                  )}
-                  {pp.bank_qr_url && (
-                    <div className="mt-3 flex justify-center">
-                      <img
-                        src={pp.bank_qr_url}
-                        alt="Bank QR"
-                        className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {pp.notes && <p className="text-sm text-slate-500 italic">{pp.notes}</p>}
+              <ProfilePaymentDetails pp={pp} />
             </CardContent>
           </Card>
         ))}

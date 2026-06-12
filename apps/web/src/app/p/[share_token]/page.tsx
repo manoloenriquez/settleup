@@ -49,5 +49,5 @@ export default async function FriendPage({ params }: Props): Promise<React.React
   const origin = `${protocol}://${host}`;
   const shareLink = `${origin}/p/${share_token}`;
 
-  return <FriendView payload={payload} shareLink={shareLink} />;
+  return <FriendView payload={payload} shareLink={shareLink} shareToken={share_token} />;
 }

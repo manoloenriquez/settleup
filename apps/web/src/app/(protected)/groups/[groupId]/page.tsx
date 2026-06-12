@@ -7,6 +7,8 @@ import { getMembersWithBalances, getCreditorProfiles } from "@/app/actions/balan
 import { getPaymentProfile } from "@/app/actions/payment-profiles";
 import { getGroupActivity } from "@/app/actions/activity";
 import { listExpenseCategories } from "@/app/actions/categories";
+import { listPendingPayments } from "@/app/actions/friend-payments";
+import { PendingPayments } from "@/components/groups/PendingPayments";
 import { simplifyDebts, formatCents } from "@template/shared";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
@@ -64,13 +66,14 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
   if (!group) notFound();
 
-  const [balancesResult, expensesResult, profileResult, activityResult, creditorProfilesResult, categoriesResult] = await Promise.all([
+  const [balancesResult, expensesResult, profileResult, activityResult, creditorProfilesResult, categoriesResult, pendingPaymentsResult] = await Promise.all([
     getMembersWithBalances(groupId),
     listExpenses(groupId),
     getPaymentProfile(),
     getGroupActivity(groupId),
     getCreditorProfiles(groupId),
     listExpenseCategories(groupId),
+    listPendingPayments(groupId),
   ]);
 
   const balances = balancesResult.data ?? [];
@@ -210,6 +213,12 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
       <GroupDetailTabs
         balancesContent={
           <div className="flex flex-col gap-6">
+            <PendingPayments
+              pending={pendingPaymentsResult.data ?? []}
+              members={members}
+              currentUserId={currentUserId}
+              isAdminOrOwner={isAdminOrOwner}
+            />
             <DebtSummary debts={debts} groupId={groupId} />
             <BalanceSummary
               members={members}
