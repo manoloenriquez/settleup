@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
+import { getRegisteredPushToken, registerForPush, unregisterFromPush } from "@/services/push";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { BETA_SUPPORT_EMAIL } from "@template/shared";
 
@@ -15,6 +16,36 @@ export default function AccountScreen() {
   const { session, signOut } = useAuth();
   const { data: profile, isLoading } = useProfile();
   const [deleting, setDeleting] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    void getRegisteredPushToken().then((token) => setPushEnabled(token !== null));
+  }, []);
+
+  async function handleTogglePush(next: boolean) {
+    const userId = session?.user.id;
+    if (!userId || pushBusy) return;
+    setPushBusy(true);
+    if (next) {
+      const res = await registerForPush(userId);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setPushEnabled(true);
+        toast.success("Push notifications on");
+      }
+    } else {
+      const res = await unregisterFromPush(userId);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setPushEnabled(false);
+        toast.success("Push notifications off");
+      }
+    }
+    setPushBusy(false);
+  }
 
   async function handleSignOut() {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -114,6 +145,21 @@ export default function AccountScreen() {
             left={<Ionicons name="pencil-outline" size={20} color={colors.gray600 ?? colors.gray400} />}
             showChevron
             onPress={() => router.push("/(protected)/account/edit-profile")}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Push Notifications"
+            subtitle="New expenses and payment confirmations"
+            left={<Ionicons name="notifications-outline" size={20} color={colors.warning} />}
+            right={
+              <Switch
+                value={pushEnabled}
+                onValueChange={(v) => void handleTogglePush(v)}
+                disabled={pushBusy}
+                trackColor={{ true: colors.primary }}
+                accessibilityLabel="Push notifications"
+              />
+            }
           />
           <View style={styles.divider} />
           <ListItem

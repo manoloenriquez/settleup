@@ -4,11 +4,22 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import * as Notifications from "expo-notifications";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { queryClient } from "@/lib/queryClient";
 import { colors } from "@/theme";
+
+// Show push notifications as banners while the app is foregrounded.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 // Initialize Sentry as early as possible. No-op if no DSN is configured.
 const sentryDsn = process.env["EXPO_PUBLIC_SENTRY_DSN"];

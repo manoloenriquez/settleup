@@ -478,6 +478,27 @@ export type Database = {
           },
         ];
       };
+      push_tokens: {
+        Row: {
+          user_id: string;
+          token: string;
+          platform: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          token: string;
+          platform: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          token?: string;
+          platform?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       user_payment_profiles: {
         Row: {
           user_id: string;
