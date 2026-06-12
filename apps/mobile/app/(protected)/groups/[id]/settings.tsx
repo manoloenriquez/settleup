@@ -9,6 +9,7 @@ import { useAddMember, useAddMembersBatch, useMembers, useDeleteMember, useRenam
 import { useRegenerateInviteCode, useLeaveGroup, usePromoteMember } from "@/hooks/useCollaboration";
 import { useRecurringExpenses, useSetRecurringActive, useDeleteRecurringExpense } from "@/hooks/useRecurring";
 import { useSetGroupBudget } from "@/hooks/useGroups";
+import { shareGroupLedger } from "@/services/export";
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
@@ -54,6 +55,7 @@ export default function GroupSettingsScreen() {
   const deleteRecurring = useDeleteRecurringExpense(groupId);
   const setBudget = useSetGroupBudget();
   const [budgetInput, setBudgetInput] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Get current group to show invite code
   const groupsQ = useGroups();
@@ -96,6 +98,13 @@ export default function GroupSettingsScreen() {
         toast.success("Budget removed");
       },
     });
+  }
+
+  async function handleExportLedger() {
+    setExporting(true);
+    const res = await shareGroupLedger(groupId, group?.name ?? "group");
+    setExporting(false);
+    if (res.error) toast.error(res.error);
   }
 
   function handleToggleRecurring(id: string, active: boolean) {
@@ -649,6 +658,19 @@ export default function GroupSettingsScreen() {
             ))}
           </Card>
         )}
+
+        {/* Export */}
+        <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+          <Ionicons name="download-outline" size={12} color={colors.gray400} />
+          <Text style={styles.sectionLabel}>EXPORT</Text>
+        </View>
+        <AppButton
+          title="Share Ledger (CSV)"
+          variant="secondary"
+          onPress={() => void handleExportLedger()}
+          isLoading={exporting}
+        />
+        <Text style={styles.batchHint}>Full expense and payment history as a spreadsheet.</Text>
 
         {/* Leave group (non-owners only) */}
         {!isOwner && (

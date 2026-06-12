@@ -5,6 +5,7 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { GroupSettingsClient } from "@/components/groups/GroupSettingsClient";
 import { RecurringExpensesSection } from "@/components/groups/RecurringExpensesSection";
 import { BudgetSection } from "@/components/groups/BudgetSection";
+import { ExportSection } from "@/components/groups/ExportSection";
 import { listRecurringExpenses } from "@/app/actions/recurring";
 
 type Props = {
@@ -74,6 +75,8 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         recurring={(await recurringPromise).data ?? []}
         members={members ?? []}
       />
+
+      <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
     </div>
   );
 }
