@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/supabase/guards";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { GroupSettingsClient } from "@/components/groups/GroupSettingsClient";
+import { RecurringExpensesSection } from "@/components/groups/RecurringExpensesSection";
+import { listRecurringExpenses } from "@/app/actions/recurring";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -15,6 +17,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const supabase = await createSettleUpDb();
   const db = supabase.schema("settleup");
 
+  const recurringPromise = listRecurringExpenses(groupId);
   const [{ data: group }, { data: members }, { data: categories }] = await Promise.all([
     db
       .from("groups")
@@ -62,6 +65,11 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         isAdmin={isAdmin}
         isAdminOrOwner={isAdminOrOwner}
         currentUserId={user.id}
+      />
+
+      <RecurringExpensesSection
+        recurring={(await recurringPromise).data ?? []}
+        members={members ?? []}
       />
     </div>
   );

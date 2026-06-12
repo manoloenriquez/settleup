@@ -7,13 +7,14 @@ import { useState } from "react";
 import { useArchiveGroup, useGroups, useRenameGroup, useTransferOwnership } from "@/hooks/useGroups";
 import { useAddMember, useAddMembersBatch, useMembers, useDeleteMember, useRenameMember } from "@/hooks/useMembers";
 import { useRegenerateInviteCode, useLeaveGroup, usePromoteMember } from "@/hooks/useCollaboration";
+import { useRecurringExpenses, useSetRecurringActive, useDeleteRecurringExpense } from "@/hooks/useRecurring";
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
-import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { DEFAULT_CATEGORY_COLOR, formatCents } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -47,6 +48,9 @@ export default function GroupSettingsScreen() {
   const createCategory = useCreateCategory(groupId);
   const updateCategory = useUpdateCategory(groupId);
   const deleteCategory = useDeleteCategory(groupId);
+  const recurringQ = useRecurringExpenses(groupId);
+  const setRecurringActive = useSetRecurringActive(groupId);
+  const deleteRecurring = useDeleteRecurringExpense(groupId);
 
   // Get current group to show invite code
   const groupsQ = useGroups();
@@ -64,6 +68,31 @@ export default function GroupSettingsScreen() {
   const isOwner = currentMember?.role === "owner";
   const isAdmin = currentMember?.role === "admin";
   const isAdminOrOwner = isOwner || isAdmin;
+
+  function handleToggleRecurring(id: string, active: boolean) {
+    setRecurringActive.mutate({ id, active: !active }, {
+      onSuccess: (res) => {
+        if (res.error) { toast.error(res.error); return; }
+        toast.success(active ? "Recurring expense paused" : "Recurring expense resumed");
+      },
+    });
+  }
+
+  function confirmDeleteRecurring(id: string, name: string) {
+    Alert.alert(`Delete "${name}"?`, "Future expenses will no longer be added automatically.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteRecurring.mutate(id, {
+          onSuccess: (res) => {
+            if (res.error) { toast.error(res.error); return; }
+            toast.success("Recurring expense removed");
+          },
+        }),
+      },
+    ]);
+  }
 
   function confirmLeaveGroup() {
     Alert.alert(
@@ -530,6 +559,39 @@ export default function GroupSettingsScreen() {
             />
             <AppButton title="Add" onPress={handleCreateCategory} isLoading={createCategory.isPending} disabled={!newCategoryName.trim()} />
           </View>
+        )}
+
+        {/* Recurring expenses */}
+        <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+          <Ionicons name="repeat-outline" size={12} color={colors.gray400} />
+          <Text style={styles.sectionLabel}>RECURRING EXPENSES</Text>
+        </View>
+        {(recurringQ.data ?? []).length === 0 ? (
+          <Text style={styles.batchHint}>
+            None yet — create one from Add Expense, Detailed mode, "Repeats".
+          </Text>
+        ) : (
+          <Card padding={0}>
+            {(recurringQ.data ?? []).map((item, i) => (
+              <View key={item.id}>
+                <ListItem
+                  title={`${item.item_name} · ${formatCents(item.amount_cents)}`}
+                  subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
+                  right={
+                    <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                      <Text style={styles.renameBtn} onPress={() => handleToggleRecurring(item.id, item.active)}>
+                        {item.active ? "Pause" : "Resume"}
+                      </Text>
+                      <Text style={styles.removeBtn} onPress={() => confirmDeleteRecurring(item.id, item.item_name)}>
+                        Delete
+                      </Text>
+                    </View>
+                  }
+                />
+                {i < (recurringQ.data ?? []).length - 1 && <View style={styles.divider} />}
+              </View>
+            ))}
+          </Card>
         )}
 
         {/* Leave group (non-owners only) */}

@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
+import { useCreateRecurringExpense } from "@/hooks/useRecurring";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
@@ -45,6 +46,7 @@ export default function AddExpenseScreen() {
   const addExpense = useAddExpense(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
+  const createRecurring = useCreateRecurringExpense(groupId);
   const conversationAI = useConversationAI({ groupId, members });
   const smartSplit = useSmartSplit({ groupId });
   const receiptScan = useReceiptScan();
@@ -63,6 +65,9 @@ export default function AddExpenseScreen() {
   // Detailed mode split state
   const [splitMode, setSplitMode] = useState<SplitMode>("equal");
   const [customShares, setCustomShares] = useState<Record<string, string>>({});
+
+  // Recurring (detailed mode)
+  const [repeats, setRepeats] = useState<"none" | "weekly" | "monthly">("none");
 
   // Multi-payer state
   const [multiPayer, setMultiPayer] = useState(false);
@@ -235,6 +240,21 @@ export default function AddExpenseScreen() {
     } else {
       const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "" });
       if (result.error) { toast.error(result.error); return; }
+    }
+    if (repeats !== "none") {
+      const recurringResult = await createRecurring.mutateAsync({
+        groupId,
+        itemName: itemName.trim(),
+        amountCents,
+        categoryId,
+        payerMemberId: payers[0]?.memberId ?? effectivePayerId,
+        participantMemberIds: [...selectedMembers],
+        cadence: repeats,
+        createdByUserId: session?.user.id ?? "",
+      });
+      if (recurringResult.error) {
+        toast.error(`Expense added, but the ${repeats} repeat could not be saved`);
+      }
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
@@ -651,6 +671,20 @@ export default function AddExpenseScreen() {
               <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
+
+              {/* Recurring cadence */}
+              <View>
+                <Text style={styles.label}>Repeats</Text>
+                <SegmentedControl
+                  segments={[
+                    { value: "none" as const, label: "Never" },
+                    { value: "weekly" as const, label: "Weekly" },
+                    { value: "monthly" as const, label: "Monthly" },
+                  ]}
+                  value={repeats}
+                  onChange={setRepeats}
+                />
+              </View>
 
               {/* Participant chips */}
               <ChipGroup label="Split with" chips={memberChips} selected={selectedMembers} onToggle={toggleMember} />

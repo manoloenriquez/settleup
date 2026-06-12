@@ -478,6 +478,51 @@ export type Database = {
           },
         ];
       };
+      recurring_expenses: {
+        Row: {
+          id: string;
+          group_id: string;
+          item_name: string;
+          amount_cents: number;
+          category_id: string | null;
+          payer_member_id: string;
+          participant_member_ids: string[];
+          cadence: string;
+          next_run_at: string;
+          active: boolean;
+          created_by_user_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          item_name: string;
+          amount_cents: number;
+          category_id?: string | null;
+          payer_member_id: string;
+          participant_member_ids: string[];
+          cadence: string;
+          next_run_at: string;
+          active?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          item_name?: string;
+          amount_cents?: number;
+          category_id?: string | null;
+          payer_member_id?: string;
+          participant_member_ids?: string[];
+          cadence?: string;
+          next_run_at?: string;
+          active?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       push_tokens: {
         Row: {
           user_id: string;

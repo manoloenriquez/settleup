@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
+import { createRecurringExpense } from "@/app/actions/recurring";
 import { parsePHPAmount, formatCents, equalSplit } from "@template/shared";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -37,6 +38,7 @@ type ItemState = {
   splitPayer: boolean;
   expenseMode: "whole" | "itemized";
   lineItems: LineItemState[];
+  repeats: "none" | "weekly" | "monthly";
 };
 
 function makeEmptyItem(
@@ -56,6 +58,7 @@ function makeEmptyItem(
     splitPayer: false,
     expenseMode: "whole",
     lineItems: [{ name: "", amountStr: "", participantIds: allMemberIds }],
+    repeats: "none",
   };
 }
 
@@ -294,6 +297,23 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
         }
       }
 
+      // Save recurring templates for items marked weekly/monthly
+      for (const item of wholeItems) {
+        if (item.repeats === "none") continue;
+        const recurringResult = await createRecurringExpense({
+          group_id: groupId,
+          item_name: item.itemName.trim(),
+          amount_cents: parsePHPAmount(item.amountStr)!,
+          category_id: item.categoryId,
+          payer_member_id: item.payers[0]!.memberId,
+          participant_member_ids: item.selectedIds,
+          cadence: item.repeats,
+        });
+        if (recurringResult.error) {
+          toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: ${recurringResult.error}`);
+        }
+      }
+
       setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
       setShowAdvanced({});
       setConfirming(false);
@@ -466,6 +486,21 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                     {m.display_name}
                   </option>
                 ))}
+              </Select>
+            )}
+
+            {/* Repeats (whole mode only) */}
+            {item.expenseMode === "whole" && (
+              <Select
+                label="Repeats"
+                value={item.repeats}
+                onChange={(e) =>
+                  updateItem(index, { repeats: e.target.value as ItemState["repeats"] })
+                }
+              >
+                <option value="none">Doesn&apos;t repeat</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
               </Select>
             )}
 
