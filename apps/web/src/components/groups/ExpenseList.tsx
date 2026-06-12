@@ -9,7 +9,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { CategoryBadge, CategorySelect } from "./CategoryControls";
-import { Search, CreditCard, Users, Trash2, Pencil, Receipt, Clock, List, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, CreditCard, Users, Trash2, Pencil, Receipt, Clock, List, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { CommentThread } from "./CommentThread";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
@@ -102,6 +103,16 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
   const [editAmount, setEditAmount] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [commentIds, setCommentIds] = useState<Set<string>>(new Set());
+
+  function toggleComments(id: string): void {
+    setCommentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function toggleExpanded(id: string): void {
     setExpandedIds((prev) => {
@@ -366,8 +377,18 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
                       )}
                     </div>
 
-                    {/* Edit + Delete */}
+                    {/* Comments + Edit + Delete */}
                     <div className="flex gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleComments(expense.id)}
+                        className={`rounded-xl p-1.5 transition-colors ${commentIds.has(expense.id) ? "text-brand-600 bg-brand-50" : "text-slate-300 hover:text-brand-600 hover:bg-brand-50"}`}
+                        title="Comments"
+                        aria-label={`Comments on ${expense.item_name}`}
+                        aria-expanded={commentIds.has(expense.id)}
+                      >
+                        <MessageCircle size={15} />
+                      </button>
                       {canEditExpense(expense) && (
                         <button
                           type="button"
@@ -416,6 +437,11 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
                         );
                       })}
                     </div>
+                  )}
+
+                  {/* Comment thread */}
+                  {commentIds.has(expense.id) && (
+                    <CommentThread expenseId={expense.id} members={members} currentUserId={currentUserId} />
                   )}
                 </div>
               );

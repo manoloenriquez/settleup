@@ -15,6 +15,7 @@ import { useClaimMember } from "@/hooks/useCollaboration";
 import { useAuth } from "@/context/AuthContext";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { PendingPaymentsCard } from "@/components/groups/PendingPaymentsCard";
+import { CommentThreadModal } from "@/components/groups/CommentThreadModal";
 import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
@@ -102,6 +103,7 @@ export default function GroupDetailScreen() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [commentsExpense, setCommentsExpense] = useState<ExpenseWithDetails | null>(null);
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
   const membersQ = useMembers(id);
@@ -529,6 +531,7 @@ export default function GroupDetailScreen() {
 
           {tab === "expenses" && (
             <ExpenseList
+              onComments={setCommentsExpense}
               expenses={expensesQ.data ?? []}
               onEdit={openEditExpense}
               onDelete={(expId) => deleteExpense.mutate(expId)}
@@ -550,6 +553,15 @@ export default function GroupDetailScreen() {
         <Ionicons name="add" size={20} color={colors.white} />
         <Text style={styles.fabText}>Add Expense</Text>
       </TouchableOpacity>
+
+      {/* Expense comments */}
+      <CommentThreadModal
+        expenseId={commentsExpense?.id ?? null}
+        expenseName={commentsExpense?.item_name ?? ""}
+        members={membersQ.data ?? []}
+        currentUserId={user?.id}
+        onClose={() => setCommentsExpense(null)}
+      />
 
       {/* Edit Expense Modal */}
       <Modal

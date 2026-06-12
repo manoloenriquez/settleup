@@ -10,9 +10,10 @@ type ExpenseListProps = {
   expenses: ExpenseWithDetails[];
   onDelete?: (id: string) => void;
   onEdit?: (expense: ExpenseWithDetails) => void;
+  onComments?: (expense: ExpenseWithDetails) => void;
 };
 
-export function ExpenseList({ expenses, onDelete, onEdit }: ExpenseListProps) {
+export function ExpenseList({ expenses, onDelete, onEdit, onComments }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
       <EmptyState
@@ -43,6 +44,11 @@ export function ExpenseList({ expenses, onDelete, onEdit }: ExpenseListProps) {
           </View>
           <View style={styles.rowRight}>
             <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
+            {onComments && (
+              <TouchableOpacity onPress={() => onComments(exp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Comments on ${exp.item_name}`}>
+                <Ionicons name="chatbubble-outline" size={16} color={colors.gray400} />
+              </TouchableOpacity>
+            )}
             {onEdit && (
               <TouchableOpacity onPress={() => onEdit(exp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${exp.item_name}`}>
                 <Ionicons name="pencil" size={16} color={colors.gray400} />

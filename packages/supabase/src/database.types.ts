@@ -526,6 +526,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      expense_comments: {
+        Row: {
+          id: string;
+          expense_id: string;
+          author_user_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          expense_id: string;
+          author_user_id: string;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          expense_id?: string;
+          author_user_id?: string;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       push_tokens: {
         Row: {
           user_id: string;
