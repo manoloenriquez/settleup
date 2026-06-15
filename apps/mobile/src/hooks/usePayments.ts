@@ -16,6 +16,7 @@ export function useRecordPayment(groupId: string) {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -28,6 +29,7 @@ export function useUndoLastPayment(groupId: string) {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -51,6 +53,7 @@ export function useResolvePendingPayment(groupId: string) {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -63,6 +66,7 @@ export function useUndoLastPaymentForMember(groupId: string) {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }

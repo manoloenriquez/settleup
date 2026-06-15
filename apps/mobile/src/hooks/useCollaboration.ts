@@ -7,6 +7,7 @@ export function useJoinGroup() {
     mutationFn: (inviteCode: string) => joinGroupByInvite(inviteCode),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
@@ -16,7 +17,12 @@ export function useClaimMember(groupId: string) {
   return useMutation({
     mutationFn: (memberId: string) => claimMember(memberId),
     onSuccess: () => {
+      // Claiming links a placeholder member to the current user, which changes
+      // balance attribution and the dashboard/groups totals — invalidate all.
       void queryClient.invalidateQueries({ queryKey: ["members", groupId] });
+      void queryClient.invalidateQueries({ queryKey: ["balances", groupId] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }

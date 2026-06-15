@@ -534,7 +534,18 @@ export default function GroupDetailScreen() {
               onComments={setCommentsExpense}
               expenses={expensesQ.data ?? []}
               onEdit={openEditExpense}
-              onDelete={(expId) => deleteExpense.mutate(expId)}
+              onDelete={(expId) =>
+                deleteExpense.mutate(expId, {
+                  onSuccess: (res) => {
+                    if (res.error) {
+                      toast.error(res.error);
+                      return;
+                    }
+                    toast.success("Expense deleted");
+                  },
+                  onError: () => toast.error("Failed to delete expense."),
+                })
+              }
             />
           )}
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -13,7 +13,14 @@ export default function EditProfileScreen() {
   const { data: profile } = useProfile();
   const updateProfile = useUpdateProfile();
 
-  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [fullName, setFullName] = useState("");
+
+  // useProfile resolves async — seed the field once the profile loads so the
+  // user's existing name appears instead of a blank box (which they could
+  // otherwise overwrite by accident). Stable full_name won't fight typing.
+  useEffect(() => {
+    if (profile?.full_name) setFullName(profile.full_name);
+  }, [profile?.full_name]);
 
   async function handleSave() {
     const trimmed = fullName.trim();

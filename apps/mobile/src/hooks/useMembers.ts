@@ -21,6 +21,7 @@ export function useAddMember(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -32,6 +33,7 @@ export function useAddMembersBatch(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -43,6 +45,8 @@ export function useDeleteMember(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
@@ -55,6 +59,7 @@ export function useRenameMember(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
