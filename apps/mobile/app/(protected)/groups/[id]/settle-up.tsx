@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import { useRecordPayment } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
 import { AmountInput, AppButton, useToast } from "@/components/ui";
+import { parsePHPAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function SettleUpScreen() {
@@ -21,16 +22,17 @@ export default function SettleUpScreen() {
   const members = membersQ.data ?? [];
   const recordPayment = useRecordPayment(groupId);
 
-  const initCents = parseInt(initialAmount ?? "0");
+  const initCents = parseInt(initialAmount ?? "0", 10);
   const [amount, setAmount] = useState(initCents > 0 ? String(initCents / 100) : "");
 
   const fromMember = members.find((m) => m.id === fromId);
   const toMember = members.find((m) => m.id === toId);
 
   async function handleConfirm() {
-    const amountCents = Math.round(parseFloat(amount) * 100);
-    if (!fromId || !toId || amountCents <= 0) {
-      toast.error("Invalid payment details");
+    if (recordPayment.isPending) return; // guard against double-submit
+    const amountCents = parsePHPAmount(amount);
+    if (!fromId || !toId || amountCents === null || amountCents <= 0) {
+      toast.error("Enter a valid payment amount");
       return;
     }
 
