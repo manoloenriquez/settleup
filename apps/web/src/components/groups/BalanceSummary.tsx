@@ -119,6 +119,7 @@ export function BalanceSummary({
   }
 
   function handleRecordPayment(): void {
+    if (isPending) return; // guard against double-submit creating duplicate payments
     setPaymentError(null);
     const amount_cents = parsePHPAmount(paymentAmountStr);
     if (!fromMemberId || !toMemberId || !amount_cents || amount_cents <= 0) {

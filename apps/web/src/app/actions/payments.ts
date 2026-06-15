@@ -2,6 +2,7 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { logServerError } from "@/lib/log";
 import { recordPaymentSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import {
@@ -35,10 +36,14 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
       p_amount_cents: amount_cents,
     });
 
-    if (error) return { data: null, error: "Failed to record payment." };
+    if (error) {
+      logServerError("record_payment", error);
+      return { data: null, error: "Failed to record payment." };
+    }
     return parseRecordPaymentRpcResult(result);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
+    logServerError("recordPayment", e);
     return { data: null, error: "Something went wrong." };
   }
 }

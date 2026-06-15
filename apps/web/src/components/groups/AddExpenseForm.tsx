@@ -176,7 +176,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
   function isItemValid(item: ItemState): boolean {
     const amountCents = parsePHPAmount(item.amountStr) ?? 0;
-    if (!item.itemName.trim() || amountCents === 0) return false;
+    if (!item.itemName.trim() || amountCents <= 0) return false;
     if (item.payers.length === 0) return false;
     if (item.payers.some((p) => !p.memberId)) return false;
 
@@ -213,6 +213,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   }
 
   function handleConfirm(): void {
+    if (isPending) return; // guard against double-submit creating duplicate expenses
     setError(null);
 
     // Separate itemized from whole expenses
@@ -259,7 +260,11 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
         const result = await addExpensesBatch({ group_id: groupId, items: batchItems });
         if (result.error) {
+          // Batch inserts are not atomic server-side, so some items may already be
+          // committed. Refresh so the user sees what actually saved instead of
+          // assuming nothing did and re-submitting (which would duplicate them).
           setError(result.error);
+          router.refresh();
           return;
         }
       }

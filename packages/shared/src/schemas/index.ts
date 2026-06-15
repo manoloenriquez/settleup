@@ -96,7 +96,7 @@ export const addExpenseSchema = z
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
-    amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
+    amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
     payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -120,13 +120,13 @@ export const addMembersBatchSchema = z.object({
 const expenseItemSchema = z.object({
   category_id: expenseCategoryIdSchema,
   item_name: z.string().trim().min(1, "Item name is required").max(200),
-  amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
+  amount_cents: z.number().int().positive("Amount must be positive"),
   notes: z.string().optional(),
   split_mode: z.enum(["equal", "custom"]),
   participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
   custom_splits: z
     .array(
-      z.object({ member_id: z.string().uuid(), share_cents: z.number().int() }),
+      z.object({ member_id: z.string().uuid(), share_cents: z.number().int().nonnegative("Share cannot be negative") }),
     )
     .optional(),
   payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -209,12 +209,12 @@ export const updateExpenseSchema = z
     expense_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
-    amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
+    amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
     split_mode: z.enum(["equal", "custom"]),
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
     custom_splits: z
-      .array(z.object({ member_id: z.string().uuid(), share_cents: z.number().int() }))
+      .array(z.object({ member_id: z.string().uuid(), share_cents: z.number().int().nonnegative("Share cannot be negative") }))
       .optional(),
     payers: z.array(payerSchema).min(1, "At least one payer required"),
   })

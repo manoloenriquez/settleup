@@ -3,6 +3,7 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
+import { logServerError } from "@/lib/log";
 import { addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema, updateExpenseSchema, updateItemizedExpenseSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import {
@@ -67,7 +68,10 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       }),
     });
 
-    if (error) return { data: null, error: "Failed to add expense." };
+    if (error) {
+      logServerError("create_expense", error);
+      return { data: null, error: "Failed to add expense." };
+    }
 
     const expenseResult = parseCreateExpenseRpcResult(result);
     if (expenseResult.error) return { data: null, error: "Failed to add expense." };
@@ -75,6 +79,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
     return expenseResult;
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
+    logServerError("addExpense", e);
     return { data: null, error: "Something went wrong." };
   }
 }

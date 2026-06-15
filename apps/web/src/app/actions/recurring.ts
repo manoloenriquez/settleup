@@ -2,6 +2,7 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { logServerError } from "@/lib/log";
 import type { ApiResponse } from "@template/shared";
 import { z } from "zod";
 
@@ -86,6 +87,9 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
     const next = new Date();
     if (parsed.data.cadence === "weekly") next.setDate(next.getDate() + 7);
     else next.setMonth(next.getMonth() + 1);
+    // Format as a local YYYY-MM-DD date (not UTC) so the next-run day matches the
+    // user's "one week/month from today" intent regardless of server timezone.
+    const nextRunAt = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
 
     const { error } = await supabase
       .schema("settleup")
@@ -98,15 +102,19 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
         payer_member_id: parsed.data.payers?.[0]?.member_id ?? parsed.data.payer_member_id,
         participant_member_ids: parsed.data.participant_member_ids,
         cadence: parsed.data.cadence,
-        next_run_at: next.toISOString().slice(0, 10),
+        next_run_at: nextRunAt,
         payers: parsed.data.payers && parsed.data.payers.length > 1 ? parsed.data.payers : null,
         created_by_user_id: user.id,
       });
 
-    if (error) return { data: null, error: "Failed to save recurring expense." };
+    if (error) {
+      logServerError("createRecurringExpense", error);
+      return { data: null, error: "Failed to save recurring expense." };
+    }
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
+    logServerError("createRecurringExpense", e);
     return { data: null, error: "Something went wrong." };
   }
 }
