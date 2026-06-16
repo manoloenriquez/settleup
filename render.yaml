@@ -1,0 +1,29 @@
+# Render Blueprint for the SettleUp AI API (apps/api).
+# Alternative to Railway — the same Dockerfile is used. Use the "starter" (paid)
+# plan so the service does not spin down (free tier cold-starts ~30-60s, which
+# would time out AI requests).
+services:
+  - type: web
+    name: settleup-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LLM_ENABLED
+        value: "true"
+      # Secrets — set these in the Render dashboard (sync:false keeps them out of the repo)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
