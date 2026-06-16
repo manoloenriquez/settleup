@@ -1,0 +1,19 @@
+# Keep the Docker build context small and force a clean install in the image.
+**/node_modules
+**/.next
+**/.expo
+**/.turbo
+**/dist
+**/coverage
+
+# Mobile native build dirs (huge, not needed by the API)
+apps/mobile/ios
+apps/mobile/android
+
+# VCS / local / logs / env
+.git
+.gitignore
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
