@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { ROUTES } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { AppNav } from "@/components/layout/AppNav";
+import { BottomNav } from "@/components/layout/BottomNav";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
@@ -18,8 +20,11 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         }}
       />
 
-      {/* Page content */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">{children}</main>
+      {/* Page content — extra bottom padding on mobile so the tab bar never overlaps content */}
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-28 md:pb-8">{children}</main>
+
+      <BottomNav />
+      <InstallPrompt />
     </div>
   );
 }

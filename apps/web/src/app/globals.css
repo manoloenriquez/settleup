@@ -24,13 +24,44 @@
     box-sizing: border-box;
   }
 
+  html {
+    /* Prevent iOS from auto-inflating text in landscape — keeps layout app-like. */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
+    /* Native feel: kill the tap-highlight flash and rubber-band overscroll. */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
   }
 
   ::selection {
     @apply bg-brand-100;
   }
+
+  /* When installed as a PWA, prevent accidental text selection on chrome/nav. */
+  @media (display-mode: standalone) {
+    nav,
+    header {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  }
+}
+
+/* ─── Safe-area utilities (notch / home indicator) ────────────────────────
+   Enabled by `viewport-fit: cover` in the root viewport export.
+   ──────────────────────────────────────────────────────────────────────── */
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ─── Brand surfaces ──────────────────────────────────────────────────────

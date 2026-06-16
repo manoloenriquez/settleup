@@ -21,6 +21,7 @@ export const ROUTES = {
   SETTINGS: "/settings",
   GROUPS: "/groups",
   GROUP_NEW: "/groups/new",
+  ACCOUNT: "/account",
   PAYMENT_SETTINGS: "/account/payment",
   GROUP_INSIGHTS: "/groups/:groupId/insights",
   PRIVACY: "/privacy",
