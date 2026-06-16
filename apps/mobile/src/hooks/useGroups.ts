@@ -1,23 +1,46 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createGroup, deleteGroup, listGroupsWithStats } from "@/services/groups";
 import { useAuth } from "@/context/AuthContext";
+import { archiveGroup, createGroup, deleteGroup, listArchivedGroups, listGroupsWithStats, renameGroup, restoreGroup, setGroupBudget, transferOwnership } from "@/services/groups";
+import type { GroupWithStats } from "@template/shared";
 
 export function useGroupsWithStats() {
   const { session } = useAuth();
   return useQuery({
     queryKey: ["groups"],
-    queryFn: () => listGroupsWithStats(session!.user.id),
+    queryFn: async () => {
+      const res = await listGroupsWithStats();
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!session,
-    select: (res) => res.data ?? [],
   });
 }
 
+// Alias for convenience (same data)
+export const useGroups = useGroupsWithStats;
+
 export function useCreateGroup() {
-  const { session } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => createGroup(name, session!.user.id),
-    onSuccess: () => {
+    mutationFn: (name: string) => createGroup(name),
+    onSuccess: (result) => {
+      if (result.data) {
+        qc.setQueryData<GroupWithStats[]>(["groups"], (existing = []) => {
+          if (existing.some((group) => group.id === result.data?.id)) {
+            return existing;
+          }
+
+          return [
+            {
+              ...result.data,
+              member_count: 1,
+              pending_count: 0,
+              total_owed_cents: 0,
+            },
+            ...existing,
+          ];
+        });
+      }
       void qc.invalidateQueries({ queryKey: ["groups"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -31,6 +54,77 @@ export function useDeleteGroup() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["groups"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useArchiveGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => archiveGroup(groupId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      void qc.invalidateQueries({ queryKey: ["archivedGroups"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useArchivedGroups() {
+  const { session } = useAuth();
+  return useQuery({
+    queryKey: ["archivedGroups"],
+    queryFn: async () => {
+      const res = await listArchivedGroups();
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
+    enabled: !!session,
+  });
+}
+
+export function useRestoreGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => restoreGroup(groupId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      void qc.invalidateQueries({ queryKey: ["archivedGroups"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useTransferOwnership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, memberId }: { groupId: string; memberId: string }) =>
+      transferOwnership(groupId, memberId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      void qc.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+export function useRenameGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, name }: { groupId: string; name: string }) =>
+      renameGroup(groupId, name),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}
+
+export function useSetGroupBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { groupId: string; budgetCents: number | null }) =>
+      setGroupBudget(params.groupId, params.budgetCents),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }

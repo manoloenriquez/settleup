@@ -1,5 +1,7 @@
 import { formatCents } from "@template/shared";
-import { Receipt, Banknote } from "lucide-react";
+import { Receipt, Banknote, Clock } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { CategoryBadge } from "./CategoryControls";
 import type { ActivityItem } from "@/app/actions/activity";
 
 type Props = {
@@ -24,27 +26,31 @@ function relativeTime(dateStr: string): string {
 export function ActivityTimeline({ activities }: Props): React.ReactElement {
   if (activities.length === 0) {
     return (
-      <p className="text-sm text-slate-400 py-4">No activity yet.</p>
+      <EmptyState
+        icon={Clock}
+        title="No activity yet"
+        description="Activity will appear once expenses or payments are recorded."
+      />
     );
   }
 
   return (
     <div className="space-y-1">
-      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+      <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">
         Recent Activity
       </h4>
       <div className="relative">
         {/* Vertical line */}
         <div className="absolute left-3.5 top-2 bottom-2 w-px bg-slate-200" />
 
-        <div className="space-y-3">
+        <div className="space-y-1">
           {activities.map((activity) => (
-            <div key={activity.id} className="flex items-start gap-3 relative">
+            <div key={activity.id} className="flex items-start gap-3 relative rounded-xl px-2 -mx-2 hover:bg-slate-50 transition-colors py-1.5">
               {/* Dot/Icon */}
               <div
                 className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
                   activity.type === "expense"
-                    ? "bg-indigo-100 text-indigo-600"
+                    ? "bg-brand-100 text-brand-600"
                     : "bg-emerald-100 text-emerald-600"
                 }`}
               >
@@ -67,6 +73,8 @@ export function ActivityTimeline({ activities }: Props): React.ReactElement {
                         {" "}split {activity.participant_count} ways
                       </span>
                     )}
+                    {" "}
+                    <CategoryBadge category={activity.category} compact />
                   </p>
                 ) : (
                   <p className="text-sm text-slate-700">

@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { generateShareToken } from "@/lib/tokens";
 import { addMemberSchema, addMembersBatchSchema, generateSlug } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
-import type { GroupMember } from "@template/supabase";
+import { parseRenameMemberRpcResult, type GroupMember } from "@template/supabase";
 
 export async function addMember(groupId: string, displayName: string): Promise<ApiResponse<GroupMember>> {
   const parsed = addMemberSchema.safeParse({ group_id: groupId, display_name: displayName });
@@ -80,4 +80,17 @@ export async function deleteMember(memberId: string): Promise<ApiResponse<null>>
 
   if (error) return { data: null, error: error.message };
   return { data: null, error: null };
+}
+
+export async function renameMember(memberId: string, newName: string): Promise<ApiResponse<GroupMember>> {
+  const trimmed = newName.trim();
+  if (!trimmed) return { data: null, error: "Name is required" };
+  if (trimmed.length > 80) return { data: null, error: "Name must be at most 80 characters" };
+
+  const { data: result, error } = await supabase
+    .schema("settleup")
+    .rpc("rename_member", { p_member_id: memberId, p_new_name: trimmed });
+
+  if (error) return { data: null, error: error.message };
+  return parseRenameMemberRpcResult(result);
 }

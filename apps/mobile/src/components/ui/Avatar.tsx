@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, fontSize, fontWeight } from "@/theme";
+import { colors, fontWeight } from "@/theme";
 import { getAvatarColor } from "@/theme";
 
 type AvatarProps = {
@@ -17,6 +17,8 @@ export function Avatar({ name, size = 36 }: AvatarProps) {
 
   return (
     <View
+      accessibilityRole="image"
+      accessibilityLabel={name}
       style={[
         styles.circle,
         { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },

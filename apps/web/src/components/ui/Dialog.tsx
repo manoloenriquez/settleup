@@ -9,6 +9,7 @@ type DialogProps = {
   onClose: () => void;
   title: string;
   description?: string;
+  children?: React.ReactNode;
   confirmLabel?: string;
   confirmVariant?: "primary" | "danger";
   onConfirm: () => void;
@@ -20,6 +21,7 @@ export function Dialog({
   onClose,
   title,
   description,
+  children,
   confirmLabel = "Confirm",
   confirmVariant = "primary",
   onConfirm,
@@ -41,13 +43,15 @@ export function Dialog({
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="m-auto backdrop:bg-black/40 rounded-xl border border-slate-200 bg-white p-0 shadow-lg w-full max-w-md animate-scale-in"
+      aria-label={title}
+      className="m-auto backdrop:bg-black/40 rounded-xl border border-slate-200 bg-white p-0 shadow-lg w-full max-w-md max-h-[90dvh] animate-scale-in"
     >
-      <div className="p-6">
+      <div className="p-6 max-h-[85dvh] overflow-y-auto">
         <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
         {description && (
           <p className="mt-2 text-sm text-slate-500">{description}</p>
         )}
+        {children}
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
             Cancel

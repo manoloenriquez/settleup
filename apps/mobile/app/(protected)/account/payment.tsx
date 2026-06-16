@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Stack } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
 import { getPaymentProfile, upsertPaymentProfile, uploadQRImage } from "@/services/payment-profiles";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { Card, SectionHeader } from "@/components/ui";
+import { Card, SectionHeader, ErrorBanner, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function PaymentSettingsScreen() {
+  const toast = useToast();
   const { session } = useAuth();
   const userId = session?.user.id ?? "";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [gcashName, setGcashName] = useState("");
   const [gcashNumber, setGcashNumber] = useState("");
@@ -29,8 +31,11 @@ export default function PaymentSettingsScreen() {
     async function load() {
       if (!userId) return;
       setLoading(true);
+      setLoadError(null);
       const res = await getPaymentProfile(userId);
-      if (res.data) {
+      if (res.error) {
+        setLoadError(res.error);
+      } else if (res.data) {
         setGcashName(res.data.gcash_name ?? "");
         setGcashNumber(res.data.gcash_number ?? "");
         setGcashQrUrl(res.data.gcash_qr_url ?? null);
@@ -58,27 +63,42 @@ export default function PaymentSettingsScreen() {
       notes: notes || null,
     });
     setSaving(false);
-    if (res.error) { Alert.alert("Error", res.error); return; }
+    if (res.error) { toast.error(res.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Saved", "Payment settings updated.");
+    toast.success("Payment settings updated");
   }
 
   async function handleUploadQR(type: "gcash" | "bank") {
     const res = await uploadQRImage(userId, type);
-    if (res.error && res.error !== "Cancelled") { Alert.alert("Error", res.error); return; }
+    if (res.error && res.error !== "Cancelled") { toast.error(res.error); return; }
     if (res.data) {
       if (type === "gcash") setGcashQrUrl(res.data);
       else setBankQrUrl(res.data);
     }
   }
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Payment Settings", headerShown: true }} />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      </>
+    );
+  }
 
   return (
     <>
       <Stack.Screen options={{ title: "Payment Settings", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          {loadError && (
+            <ErrorBanner
+              message={`Couldn't load your payment settings: ${loadError}`}
+              onDismiss={() => setLoadError(null)}
+            />
+          )}
           <SectionHeader title="GCash" />
           <Card>
             <View style={styles.fieldGroup}>

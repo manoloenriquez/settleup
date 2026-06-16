@@ -2,7 +2,8 @@
 
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
-import { computeInsights, generateInsightsSummary } from "@/lib/ai/insights";
+import { computeInsights, generateInsightsSummary } from "@template/ai";
+import { checkRateLimit } from "@/lib/ai/rate-limit";
 import type { ApiResponse } from "@template/shared/types";
 import type { InsightsSummary } from "@template/shared/types";
 import { z } from "zod";
@@ -22,28 +23,36 @@ export async function getGroupInsights(
     const db = supabase.schema("settleup");
 
     // Fetch group name
-    const { data: group } = await db
+    const { data: group, error: groupError } = await db
       .from("groups")
       .select("name")
       .eq("id", parsed.data)
       .single();
+
+    if (groupError) {
+      return { data: null, error: "Failed to load group." };
+    }
 
     if (!group) {
       return { data: null, error: "Group not found" };
     }
 
     // Fetch expenses with payers
-    const { data: expenses } = await db
+    const { data: expenses, error: expensesError } = await db
       .from("expenses")
-      .select("item_name, amount_cents, created_at, expense_payers(member_id)")
+      .select("item_name, amount_cents, created_at, category:expense_categories(id, name, slug, icon, color), expense_payers(member_id)")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
     // Fetch members
-    const { data: members } = await db
+    const { data: members, error: membersError } = await db
       .from("group_members")
       .select("id, display_name")
       .eq("group_id", parsed.data);
+
+    if (expensesError || membersError) {
+      return { data: null, error: "Failed to load insights." };
+    }
 
     const memberMap = new Map((members ?? []).map((m) => [m.id, m.display_name]));
 
@@ -52,23 +61,16 @@ export async function getGroupInsights(
       amount_cents: e.amount_cents,
       created_at: e.created_at,
       payer_names: (e.expense_payers ?? []).map((p) => memberMap.get(p.member_id) ?? "Unknown"),
+      category: e.category,
     }));
 
-    // Fetch balance data
-    const { data: balances } = await db.rpc("get_member_balances", {
-      p_group_id: parsed.data,
-    });
+    const insights = computeInsights(expenseData);
 
-    const balanceRows = (balances ?? []) as unknown as { display_name: string; net_cents: number }[];
-    const memberData = balanceRows.map((b) => ({
-      display_name: b.display_name,
-      net_cents: b.net_cents,
-    }));
-
-    const insights = computeInsights(expenseData, memberData);
-
-    // Optional LLM summary
-    const llmSummary = await generateInsightsSummary(insights, group.name, user.id);
+    // Optional LLM summary — only call the rate limiter if we're actually going to invoke the LLM
+    const rate = await checkRateLimit(user.id);
+    const llmSummary = rate.allowed
+      ? await generateInsightsSummary(insights, group.name)
+      : null;
 
     return {
       data: { ...insights, llm_summary: llmSummary },

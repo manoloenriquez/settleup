@@ -24,6 +24,7 @@ export function SettleUpButton({ debt, groupId }: Props): React.ReactElement {
   const router = useRouter();
 
   function handleSubmit(): void {
+    if (isPending) return; // guard against double-submit creating duplicate payments
     setError(null);
     const amountCents = parsePHPAmount(amountStr);
     if (!amountCents || amountCents <= 0) {

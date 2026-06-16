@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRecordPayment } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
-import { AmountInput, AppButton } from "@/components/ui";
+import { AmountInput, AppButton, useToast } from "@/components/ui";
+import { parsePHPAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function SettleUpScreen() {
+  const toast = useToast();
   const { id: groupId, fromId, toId, amount: initialAmount } = useLocalSearchParams<{
     id: string;
     fromId?: string;
@@ -19,16 +22,17 @@ export default function SettleUpScreen() {
   const members = membersQ.data ?? [];
   const recordPayment = useRecordPayment(groupId);
 
-  const initCents = parseInt(initialAmount ?? "0");
+  const initCents = parseInt(initialAmount ?? "0", 10);
   const [amount, setAmount] = useState(initCents > 0 ? String(initCents / 100) : "");
 
   const fromMember = members.find((m) => m.id === fromId);
   const toMember = members.find((m) => m.id === toId);
 
   async function handleConfirm() {
-    const amountCents = Math.round(parseFloat(amount) * 100);
-    if (!fromId || !toId || amountCents <= 0) {
-      Alert.alert("Error", "Invalid payment details");
+    if (recordPayment.isPending) return; // guard against double-submit
+    const amountCents = parsePHPAmount(amount);
+    if (!fromId || !toId || amountCents === null || amountCents <= 0) {
+      toast.error("Enter a valid payment amount");
       return;
     }
 
@@ -39,8 +43,9 @@ export default function SettleUpScreen() {
       amountCents,
     });
 
-    if (result.error) { Alert.alert("Error", result.error); return; }
+    if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Payment recorded");
     router.back();
   }
 
@@ -54,7 +59,7 @@ export default function SettleUpScreen() {
             <Text style={styles.name}>{fromMember?.display_name ?? fromId ?? "\u2014"}</Text>
           </View>
           <View style={styles.arrow}>
-            <Text style={styles.arrowText}>{"\u2193"}</Text>
+            <Ionicons name="arrow-down" size={24} color={colors.gray300} />
           </View>
           <View style={styles.card}>
             <Text style={styles.label}>To</Text>
@@ -67,6 +72,11 @@ export default function SettleUpScreen() {
             onChangeText={setAmount}
             style={{ marginTop: spacing.xl }}
           />
+          {initCents > 0 && (
+            <Text style={styles.suggested}>
+              Suggested: ₱{(initCents / 100).toFixed(2)} (full amount owed)
+            </Text>
+          )}
 
           <AppButton
             title={recordPayment.isPending ? "Saving…" : "Confirm Payment"}
@@ -88,5 +98,5 @@ const styles = StyleSheet.create({
   label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.5 },
   name: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900, marginTop: spacing.xs },
   arrow: { alignItems: "center", paddingVertical: spacing.sm },
-  arrowText: { fontSize: 24, color: colors.gray300 },
+  suggested: { fontSize: fontSize.sm, color: colors.gray500, marginTop: spacing.xs },
 });

@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useCreateGroup } from "@/hooks/useGroups";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { useToast } from "@/components/ui";
+import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function NewGroupScreen() {
+  const toast = useToast();
   const router = useRouter();
   const [name, setName] = useState("");
   const createGroup = useCreateGroup();
@@ -17,12 +19,17 @@ export default function NewGroupScreen() {
 
     const result = await createGroup.mutateAsync(name.trim());
     if (result.error) {
-      Alert.alert("Error", result.error);
+      toast.error(result.error);
       return;
     }
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace(`/(protected)/groups/${result.data!.id}`);
+    if (!result.data) {
+      toast.error("Group data was not returned.");
+      return;
+    }
+
+    router.replace(`/(protected)/groups/${result.data.id}`);
   }
 
   return (

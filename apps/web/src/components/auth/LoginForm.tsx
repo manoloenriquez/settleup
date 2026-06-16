@@ -5,9 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { signIn } from "@/app/actions/auth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { APP_NAME, ROUTES } from "@template/shared";
+import { ROUTES } from "@template/shared";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import Link from "next/link";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export function LoginForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
@@ -15,6 +16,7 @@ export function LoginForm(): React.ReactElement {
   const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "";
+  const expired = searchParams.get("expired") === "1";
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
@@ -29,10 +31,14 @@ export function LoginForm(): React.ReactElement {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-slate-900">{APP_NAME}</h2>
-        <p className="mt-1 text-sm text-slate-500">Sign in to your account</p>
-      </div>
+      {expired && !error && (
+        <div
+          role="status"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          Your session expired. Please sign in again to continue.
+        </div>
+      )}
 
       {error && (
         <div
@@ -77,7 +83,7 @@ export function LoginForm(): React.ReactElement {
         <div className="text-right">
           <Link
             href={ROUTES.FORGOT_PASSWORD}
-            className="text-xs text-indigo-600 hover:underline"
+            className="text-xs text-brand-600 hover:text-brand-700 font-medium"
           >
             Forgot password?
           </Link>
@@ -87,6 +93,17 @@ export function LoginForm(): React.ReactElement {
       <Button type="submit" isLoading={pending} leftIcon={LogIn} className="w-full" size="lg">
         Sign in
       </Button>
+
+      <div className="relative my-1">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-white px-2 text-slate-400">or</span>
+        </div>
+      </div>
+
+      <GoogleSignInButton />
     </form>
   );
 }

@@ -1,11 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
-import { getMembersWithBalances } from "@/services/balances";
+import { getMembersWithBalances, getCreditorProfiles } from "@/services/balances";
 
 export function useMembersWithBalances(groupId: string) {
   return useQuery({
     queryKey: ["balances", groupId],
-    queryFn: () => getMembersWithBalances(groupId),
+    queryFn: async () => {
+      const res = await getMembersWithBalances(groupId);
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!groupId,
-    select: (res) => res.data ?? [],
+  });
+}
+
+export function useCreditorProfiles(groupId: string) {
+  return useQuery({
+    queryKey: ["creditor-profiles", groupId],
+    queryFn: async () => {
+      const res = await getCreditorProfiles(groupId);
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
+    enabled: !!groupId,
   });
 }

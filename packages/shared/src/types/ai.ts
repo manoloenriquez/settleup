@@ -8,6 +8,7 @@ export type ExpenseDraft = {
   confidence: number; // 0–1
   participant_names: string[]; // raw names, resolved via fuzzyMatchMember
   payer_name: string | null;
+  category_slug: string | null;
   notes: string | null;
   source: "receipt" | "conversation" | "manual";
 };
@@ -54,6 +55,16 @@ export type InsightsSummary = {
   average_expense_cents: number;
   top_spender: { name: string; amount_cents: number } | null;
   most_common_item: { name: string; count: number } | null;
+  top_category: { name: string; slug: string; amount_cents: number } | null;
+  categories: {
+    id: string | null;
+    name: string;
+    slug: string;
+    icon: string;
+    color: string;
+    amount_cents: number;
+    expense_count: number;
+  }[];
   period: { first_expense: string; last_expense: string } | null;
   llm_summary: string | null;
 };

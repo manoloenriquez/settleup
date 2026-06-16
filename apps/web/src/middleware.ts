@@ -33,18 +33,24 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   const { pathname } = request.nextUrl;
 
-  // Unauthenticated user hitting a protected route → login
+  // Unauthenticated user hitting a protected route → login.
+  // If they're carrying a Supabase auth cookie, treat it as expiry and surface a message;
+  // otherwise it's a normal "not signed in" redirect.
   const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
   if (!user && isProtected) {
+    const hasAuthCookie = request.cookies.getAll().some((c) =>
+      c.name.startsWith("sb-") && c.name.includes("auth-token"),
+    );
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirectTo", pathname);
+    if (hasAuthCookie) url.searchParams.set("expired", "1");
     return NextResponse.redirect(url);
   }
 
-  // Authenticated user hitting an auth route or "/" → groups
+  // Authenticated user hitting an auth route → groups
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
-  if (user && (isAuthRoute || pathname === "/")) {
+  if (user && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/groups";
     return NextResponse.redirect(url);

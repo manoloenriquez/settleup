@@ -33,6 +33,7 @@ supabase/
 - `packages/supabase` must not import from `apps/*`
 - Server secrets (`SERVICE_ROLE_KEY`) must never be imported in server components or actions
 - All database mutations go through Supabase RLS — never bypass with service role
+- Exception: `apps/api` may use `SUPABASE_SERVICE_ROLE_KEY` only for `auth.admin.deleteUser` in the authenticated self-account-deletion route; never use it in web, mobile, Server Actions, or client bundles
 
 ---
 
@@ -89,7 +90,7 @@ supabase/
 
 ### Security
 
-- Never ship `SUPABASE_SERVICE_ROLE_KEY` to client or use in app code
+- Never ship `SUPABASE_SERVICE_ROLE_KEY` to client or use outside the narrow `apps/api` self-account-deletion boundary
 - Validate file uploads (MIME type + size) before storage
 - Public share endpoints: minimal data, anon-safe RPCs only
 - AI: validate all output with Zod, rate limit per user, no raw LLM text to DB
@@ -147,7 +148,7 @@ supabase/
 ## Definition of Done
 
 - [ ] RLS policies exist and are tested for user and admin roles
-- [ ] No `service_role` key used in application code
+- [ ] No `service_role` key outside the approved `apps/api` self-account-deletion route
 - [ ] All Server Actions return `ApiResponse<T>`, never throw to client
 - [ ] New tables/columns reflected in `database.types.ts`
 - [ ] Zod validation in all Server Actions before DB operations

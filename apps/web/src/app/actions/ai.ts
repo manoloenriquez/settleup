@@ -1,14 +1,34 @@
 "use server";
 
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
-import { parseReceiptImage } from "@/lib/ai/receipt";
-import { suggestSplit } from "@/lib/ai/smart-split";
-import { parseConversation } from "@/lib/ai/conversation";
+import { createClient } from "@/lib/supabase/server";
+import { parseReceiptImage, suggestSplit, parseConversation } from "@template/ai";
+import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { AI_LIMITS } from "@template/shared/constants";
 import { conversationMessageSchema } from "@template/shared/schemas";
 import type { ApiResponse } from "@template/shared/types";
 import type { ParsedReceipt, SmartSplitResult, ExpenseDraft } from "@template/shared/types";
 import { z } from "zod";
+
+async function assertGroupMember(userId: string, groupId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .schema("settleup")
+    .from("group_members")
+    .select("id")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data !== null;
+}
+
+async function enforceRateLimit(userId: string): Promise<string | null> {
+  const rate = await checkRateLimit(userId);
+  if (!rate.allowed) {
+    return `Rate limited. Try again in ${Math.ceil(rate.retryAfterMs / 1000)}s.`;
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Receipt parsing
@@ -20,6 +40,9 @@ export async function parseReceipt(
   try {
     const user = await assertAuth();
 
+    const rateError = await enforceRateLimit(user.id);
+    if (rateError) return { data: null, error: rateError };
+
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return { data: null, error: "No file provided" };
@@ -29,15 +52,15 @@ export async function parseReceipt(
       return { data: null, error: `File too large. Max ${AI_LIMITS.MAX_FILE_SIZE_BYTES / 1024 / 1024}MB.` };
     }
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
     if (!allowedTypes.includes(file.type)) {
-      return { data: null, error: "Unsupported file type. Use JPEG, PNG, or WebP." };
+      return { data: null, error: "Unsupported file type. Use JPEG, PNG, WebP, HEIC, or HEIF." };
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    return await parseReceiptImage(buffer, user.id);
+    return await parseReceiptImage(buffer, file.type);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };
@@ -67,12 +90,19 @@ export async function getSmartSplit(
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
 
+    const isMember = await assertGroupMember(user.id, parsed.data.group_id);
+    if (!isMember) {
+      return { data: null, error: "You are not a member of this group." };
+    }
+
+    const rateError = await enforceRateLimit(user.id);
+    if (rateError) return { data: null, error: rateError };
+
     return await suggestSplit({
       item_name: parsed.data.item_name,
       amount_cents: parsed.data.amount_cents,
       member_names: parsed.data.member_names,
       context: parsed.data.context,
-      userId: user.id,
     });
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
@@ -101,10 +131,17 @@ export async function parseConversationMessage(
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
 
+    const isMember = await assertGroupMember(user.id, parsed.data.group_id);
+    if (!isMember) {
+      return { data: null, error: "You are not a member of this group." };
+    }
+
+    const rateError = await enforceRateLimit(user.id);
+    if (rateError) return { data: null, error: rateError };
+
     return await parseConversation({
       messages: parsed.data.messages,
       member_names: parsed.data.member_names,
-      userId: user.id,
     });
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

@@ -1,0 +1,3 @@
+api.settleup.app {
+	reverse_proxy localhost:4000
+}

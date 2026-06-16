@@ -1,10 +1,12 @@
 {
-  "name": "prototype-template",
+  "name": "settleup",
   "private": true,
   "scripts": {
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@template/web",
     "dev:mobile": "turbo run dev --filter=@template/mobile",
+    "dev:mobile:ios": "pnpm --filter @template/mobile ios",
+    "dev:api": "pnpm --filter @template/api dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -28,6 +30,12 @@
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "19.1.0",
+      "react-dom": "19.1.0"
+    }
   },
   "packageManager": "pnpm@9.15.0"
 }

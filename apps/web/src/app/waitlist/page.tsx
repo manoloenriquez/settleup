@@ -32,7 +32,7 @@ export default function WaitlistPage(): React.ReactElement {
 
         <p className="mt-6 text-center text-xs text-slate-400">
           Already have an account?{" "}
-          <Link href={ROUTES.LOGIN} className="text-indigo-600 hover:underline">
+          <Link href={ROUTES.LOGIN} className="text-brand-600 hover:underline">
             Sign in
           </Link>
         </p>

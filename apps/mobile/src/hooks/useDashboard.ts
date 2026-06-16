@@ -6,8 +6,11 @@ export function useDashboardSummary() {
   const { session } = useAuth();
   return useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => getDashboardSummary(session!.user.id),
+    queryFn: async () => {
+      const res = await getDashboardSummary();
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
     enabled: !!session,
-    select: (res) => res.data,
   });
 }

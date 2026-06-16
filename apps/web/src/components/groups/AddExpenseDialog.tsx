@@ -10,8 +10,9 @@ import { ReceiptUploader } from "./ReceiptUploader";
 import { ReceiptReviewForm } from "./ReceiptReviewForm";
 import { ExpenseDraftCard } from "./ExpenseDraftCard";
 import { AddExpenseForm } from "./AddExpenseForm";
+import { CategorySelect } from "./CategoryControls";
 import { Zap, MessageSquare, Camera, SlidersHorizontal } from "lucide-react";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseDraft, ParsedReceipt } from "@template/shared/types";
 import { fuzzyMatchMember } from "@template/shared";
 import { addExpense } from "@/app/actions/expenses";
@@ -21,6 +22,8 @@ type Props = {
   onClose: () => void;
   groupId: string;
   members: GroupMember[];
+  categories: ExpenseCategory[];
+  currentUserId: string;
 };
 
 type Mode = "quick" | "chat" | "receipt" | "detailed";
@@ -32,15 +35,19 @@ const modes: { id: Mode; label: string; icon: typeof Zap }[] = [
   { id: "detailed", label: "Detailed", icon: SlidersHorizontal },
 ];
 
-export function AddExpenseDialog({ open, onClose, groupId, members }: Props): React.ReactElement {
+export function AddExpenseDialog({ open, onClose, groupId, members, categories, currentUserId }: Props): React.ReactElement {
+  const myMemberId = members.find((m) => m.user_id === currentUserId)?.id ?? members[0]?.id;
   const [mode, setMode] = useState<Mode>("quick");
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
   const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
+  const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   function handleDraft(d: ExpenseDraft): void {
     setDraft(d);
+    const suggested = categories.find((category) => category.is_default && category.slug === d.category_slug);
+    setDraftCategoryId(suggested?.id ?? null);
   }
 
   function handleReceipt(r: ParsedReceipt): void {
@@ -59,8 +66,8 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
         : members.map((m) => m.id);
 
     const payerId = draft.payer_name
-      ? fuzzyMatchMember(draft.payer_name, members) ?? members[0]?.id
-      : members[0]?.id;
+      ? fuzzyMatchMember(draft.payer_name, members) ?? myMemberId
+      : myMemberId;
 
     if (!payerId || participantIds.length === 0) {
       toast.error("Could not resolve members");
@@ -72,6 +79,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
         group_id: groupId,
         item_name: draft.item_name,
         amount_cents: draft.amount_cents,
+        category_id: draftCategoryId,
         notes: draft.notes ?? undefined,
         participant_ids: participantIds,
         payers: [{ member_id: payerId, paid_cents: draft.amount_cents }],
@@ -81,6 +89,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
       } else {
         toast.success("Expense added!");
         setDraft(null);
+        setDraftCategoryId(null);
         setReceipt(null);
         onClose();
         router.refresh();
@@ -90,6 +99,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
 
   function handleClose(): void {
     setDraft(null);
+    setDraftCategoryId(null);
     setReceipt(null);
     setMode("quick");
     onClose();
@@ -107,11 +117,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
               <button
                 key={m.id}
                 type="button"
-                onClick={() => {
-                  setMode(m.id);
-                  setDraft(null);
-                  setReceipt(null);
-                }}
+                onClick={() => setMode(m.id)}
                 className={[
                   "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors",
                   active
@@ -128,23 +134,30 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
 
         {/* Draft card (shown for any mode) */}
         {draft && (
-          <ExpenseDraftCard
-            draft={draft}
-            onAccept={acceptDraft}
-            onEdit={() => {
-              setMode("detailed");
-              setDraft(null);
-            }}
-            onDismiss={() => setDraft(null)}
-            isLoading={isPending}
-          />
+          <div className="flex flex-col gap-3">
+            <ExpenseDraftCard
+              draft={draft}
+              onAccept={acceptDraft}
+              onEdit={() => {
+                setMode("detailed");
+                setDraft(null);
+                setDraftCategoryId(null);
+              }}
+              onDismiss={() => {
+                setDraft(null);
+                setDraftCategoryId(null);
+              }}
+              isLoading={isPending}
+            />
+            <CategorySelect categories={categories} value={draftCategoryId} onChange={setDraftCategoryId} />
+          </div>
         )}
 
         {/* Mode content */}
         {!draft && (
           <>
             {mode === "quick" && (
-              <QuickAddExpense groupId={groupId} members={members} onClose={handleClose} />
+              <QuickAddExpense groupId={groupId} members={members} categories={categories} currentUserId={currentUserId} onClose={handleClose} />
             )}
             {mode === "chat" && (
               <ConversationInput groupId={groupId} members={members} onDraft={handleDraft} />
@@ -160,7 +173,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members }: Props): Re
               />
             )}
             {mode === "detailed" && (
-              <AddExpenseForm groupId={groupId} members={members} />
+              <AddExpenseForm groupId={groupId} members={members} categories={categories} />
             )}
           </>
         )}

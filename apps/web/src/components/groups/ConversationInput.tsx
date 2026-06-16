@@ -73,11 +73,14 @@ export function ConversationInput({ groupId, members, onDraft }: Props): React.R
       {/* Chat messages */}
       <div
         ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-label="Conversation"
         className="flex flex-col gap-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3"
       >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-6 text-center">
-            <Sparkles size={20} className="text-indigo-400 mb-2" />
+            <Sparkles size={20} className="text-brand-400 mb-2" />
             <p className="text-sm text-slate-500">
               Describe an expense in plain language
             </p>
@@ -91,7 +94,7 @@ export function ConversationInput({ groupId, members, onDraft }: Props): React.R
             key={i}
             className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
               msg.role === "user"
-                ? "self-end bg-indigo-600 text-white"
+                ? "self-end bg-brand-600 text-white"
                 : "self-start bg-white border border-slate-200 text-slate-700"
             }`}
           >
@@ -117,7 +120,7 @@ export function ConversationInput({ groupId, members, onDraft }: Props): React.R
               key={chip}
               type="button"
               onClick={() => handleSend(chip)}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:border-brand-300 hover:bg-brand-50 transition-colors"
             >
               {chip}
             </button>
@@ -133,7 +136,7 @@ export function ConversationInput({ groupId, members, onDraft }: Props): React.R
           onKeyDown={handleKeyDown}
           placeholder="Type an expense..."
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
         />
         <Button
           onClick={() => handleSend()}

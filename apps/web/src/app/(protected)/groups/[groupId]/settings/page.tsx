@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/supabase/guards";
+import { createSettleUpDb } from "@/lib/supabase/settleup";
+import { GroupSettingsClient } from "@/components/groups/GroupSettingsClient";
+import { RecurringExpensesSection } from "@/components/groups/RecurringExpensesSection";
+import { BudgetSection } from "@/components/groups/BudgetSection";
+import { ExportSection } from "@/components/groups/ExportSection";
+import { listRecurringExpenses } from "@/app/actions/recurring";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -8,39 +14,69 @@ type Props = {
 
 export default async function GroupSettingsPage({ params }: Props): Promise<React.ReactElement> {
   const { groupId } = await params;
-  const supabase = await createClient();
+  const user = await requireAuth();
 
-  const { data: group } = await supabase
-    .schema("settleup")
-    .from("groups")
-    .select("id, name")
-    .eq("id", groupId)
-    .single();
+  const supabase = await createSettleUpDb();
+  const db = supabase.schema("settleup");
+
+  const recurringPromise = listRecurringExpenses(groupId);
+  const [{ data: group }, { data: members }, { data: categories }] = await Promise.all([
+    db
+      .from("groups")
+      .select("id, name, owner_user_id, invite_code, share_token, budget_cents")
+      .eq("id", groupId)
+      .single(),
+    db
+      .from("group_members")
+      .select("*")
+      .eq("group_id", groupId)
+      .order("created_at", { ascending: true }),
+    db
+      .from("expense_categories")
+      .select("*")
+      .or(`group_id.is.null,group_id.eq.${groupId}`)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+  ]);
 
   if (!group) notFound();
+
+  const isOwner = group.owner_user_id === user.id;
+  const currentMember = (members ?? []).find((m) => m.user_id === user.id);
+  const isAdmin = currentMember?.role === "admin";
+  const isAdminOrOwner = isOwner || isAdmin;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
-        <Link href={`/groups/${groupId}`} className="text-sm text-slate-500 hover:text-slate-700">
+        <Link
+          href={`/groups/${groupId}`}
+          className="text-sm text-slate-500 hover:text-slate-700"
+        >
           ← {group.name}
         </Link>
         <span className="text-slate-300">/</span>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col gap-3">
-        <h2 className="text-base font-semibold text-slate-700">Payment Details</h2>
-        <p className="text-sm text-slate-500">
-          Payment details are now shared across all your groups.
-        </p>
-        <Link
-          href="/account/payment"
-          className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-        >
-          Manage payment details →
-        </Link>
-      </div>
+      <GroupSettingsClient
+        group={group}
+        members={members ?? []}
+        categories={categories ?? []}
+        isOwner={isOwner}
+        isAdmin={isAdmin}
+        isAdminOrOwner={isAdminOrOwner}
+        currentUserId={user.id}
+      />
+
+      <BudgetSection groupId={groupId} budgetCents={group.budget_cents} canEdit={isAdminOrOwner} />
+
+      <RecurringExpensesSection
+        recurring={(await recurringPromise).data ?? []}
+        members={members ?? []}
+      />
+
+      <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
     </div>
   );
 }

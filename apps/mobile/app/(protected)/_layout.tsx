@@ -1,14 +1,18 @@
 import { Stack } from "expo-router";
+import { colors, fontWeight, fontSize } from "@/theme";
 
 export default function ProtectedLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: "#fff" },
-        headerTintColor: "#111827",
-        headerTitleStyle: { fontWeight: "700", fontSize: 17 },
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.gray900,
+        headerTitleStyle: { fontWeight: fontWeight.bold, fontSize: fontSize.lg },
         headerShadowVisible: false,
+        headerBackTitle: " ",
       }}
-    />
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "" }} />
+    </Stack>
   );
 }

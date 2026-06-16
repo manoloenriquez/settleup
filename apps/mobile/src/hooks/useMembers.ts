@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addMember, addMembersBatch, deleteMember, listMembers } from "@/services/members";
+import { addMember, addMembersBatch, deleteMember, listMembers, renameMember } from "@/services/members";
 
 
 export function useMembers(groupId: string) {
   return useQuery({
     queryKey: ["members", groupId],
-    queryFn: () => listMembers(groupId),
+    queryFn: async () => {
+      const res = await listMembers(groupId);
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
     enabled: !!groupId,
-    select: (res) => res.data ?? [],
   });
 }
 
@@ -18,6 +21,7 @@ export function useAddMember(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -29,6 +33,7 @@ export function useAddMembersBatch(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
@@ -40,6 +45,21 @@ export function useDeleteMember(groupId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useRenameMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, newName }: { memberId: string; newName: string }) =>
+      renameMember(memberId, newName),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["members", groupId] });
+      void qc.invalidateQueries({ queryKey: ["balances", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }

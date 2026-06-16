@@ -7,10 +7,16 @@ export const colors = {
   // Semantic
   success: "#10b981",
   successLight: "#d1fae5",
+  successDark: "#065f46",
   warning: "#f59e0b",
   warningLight: "#fef3c7",
+  warningDark: "#92400e",
   danger: "#ef4444",
   dangerLight: "#fee2e2",
+
+  // Accent (quick actions, decorative)
+  violet: "#8b5cf6",
+  violetLight: "#ede9fe",
 
   // Neutral
   black: "#000000",

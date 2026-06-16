@@ -35,11 +35,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test (shared)
-        run: pnpm --filter @template/shared test --run
+      - name: Test
+        run: pnpm test
 
-      - name: Build (web)
-        run: pnpm --filter @template/web build
+      - name: Build
+        run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

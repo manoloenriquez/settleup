@@ -35,7 +35,7 @@ export type DeepPartial<T> = T extends object
   : T;
 
 // ---------------------------------------------------------------------------
-// SettleUp Lite domain types
+// SettleUp domain types
 // ---------------------------------------------------------------------------
 
 export type SimplifiedDebt = {
@@ -46,12 +46,64 @@ export type SimplifiedDebt = {
   amount_cents: number;
 };
 
+export type CreditorPaymentProfile = {
+  member_id: string;
+  display_name: string;
+  gcash_name: string | null;
+  gcash_number: string | null;
+  gcash_qr_url: string | null;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_qr_url: string | null;
+  notes: string | null;
+};
+
+export type SuggestedSettlement = SimplifiedDebt & {
+  creditor_profile: CreditorPaymentProfile | null;
+};
+
+export type MemberRole = "owner" | "admin" | "member";
+
+export type ExpenseCategory = {
+  id: string;
+  group_id: string | null;
+  name: string;
+  slug: string;
+  icon: string;
+  color: string;
+  sort_order: number;
+  is_default: boolean;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpenseCategoryInput = {
+  group_id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+};
+
+export type ExpenseCategorySummary = Pick<
+  ExpenseCategory,
+  "id" | "name" | "slug" | "icon" | "color" | "is_default"
+>;
+
+export type CategorySpendingSummary = ExpenseCategorySummary & {
+  amount_cents: number;
+  expense_count: number;
+};
+
 export type MemberBalance = {
   member_id: string;
   display_name: string;
   slug: string;
   share_token: string;
   user_id: string | null;
+  role?: MemberRole;
   net_cents: number;
   owed_cents: number;
   is_paid: boolean;
@@ -64,6 +116,7 @@ export type GroupOverviewPayload = {
     item_name: string;
     amount_cents: number;
     created_at: string;
+    category: ExpenseCategorySummary | null;
     participants: { display_name: string; share_cents: number }[];
     items?: { name: string; amount_cents: number }[];
   }[];
@@ -78,6 +131,7 @@ export type GroupOverviewPayload = {
     bank_qr_url: string | null;
     notes: string | null;
   } | null;
+  creditor_profiles?: CreditorPaymentProfile[];
   error?: string;
 };
 
@@ -97,10 +151,13 @@ export type FriendViewPayload = {
     gcash_qr_url: string | null;
     bank_qr_url: string | null;
   } | null;
+  all_balances?: { member_id: string; display_name: string; net_cents: number }[];
+  creditor_profiles?: CreditorPaymentProfile[];
   expenses: {
     item_name: string;
     share_cents: number;
     created_at: string;
+    category: ExpenseCategorySummary | null;
     items?: { name: string; share_cents: number }[];
   }[];
   error?: string;
@@ -115,9 +172,27 @@ export type GroupWithStats = {
   invite_code: string;
   is_archived: boolean;
   share_token: string;
+  budget_cents: number | null;
   created_at: string;
   // Computed
   member_count: number;
   pending_count: number;
   total_owed_cents: number;
+};
+
+export type DashboardGroupSummary = {
+  id: string;
+  name: string;
+  member_count: number;
+  pending_count: number;
+  total_owed_cents: number;
+  created_at: string;
+};
+
+export type DashboardSummary = {
+  net_balance_cents: number;
+  total_groups: number;
+  total_unsettled_cents: number;
+  pending_members: number;
+  groups: DashboardGroupSummary[];
 };

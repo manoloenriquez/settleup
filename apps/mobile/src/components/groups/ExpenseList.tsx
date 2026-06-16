@@ -1,19 +1,23 @@
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, TouchableOpacity, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
-import type { Expense } from "@template/supabase";
+import { CategoryPill } from "@/components/groups/CategoryPicker";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { EmptyState } from "@/components/ui";
+import type { ExpenseWithDetails } from "@/services/expenses";
 
 type ExpenseListProps = {
-  expenses: Expense[];
+  expenses: ExpenseWithDetails[];
   onDelete?: (id: string) => void;
+  onEdit?: (expense: ExpenseWithDetails) => void;
+  onComments?: (expense: ExpenseWithDetails) => void;
 };
 
-export function ExpenseList({ expenses, onDelete }: ExpenseListProps) {
+export function ExpenseList({ expenses, onDelete, onEdit, onComments }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
       <EmptyState
-        icon="🧾"
+        icon="receipt-outline"
         title="No expenses yet"
         description="Add the first expense to start tracking"
       />
@@ -33,13 +37,26 @@ export function ExpenseList({ expenses, onDelete }: ExpenseListProps) {
         <View key={exp.id} style={styles.row}>
           <View style={styles.rowInfo}>
             <Text style={styles.name} numberOfLines={1}>{exp.item_name}</Text>
-            <Text style={styles.date}>{new Date(exp.created_at).toLocaleDateString("en-PH")}</Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.date}>{new Date(exp.created_at).toLocaleDateString("en-PH")}</Text>
+              <CategoryPill category={exp.category} />
+            </View>
           </View>
           <View style={styles.rowRight}>
             <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
+            {onComments && (
+              <TouchableOpacity onPress={() => onComments(exp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Comments on ${exp.item_name}`}>
+                <Ionicons name="chatbubble-outline" size={16} color={colors.gray400} />
+              </TouchableOpacity>
+            )}
+            {onEdit && (
+              <TouchableOpacity onPress={() => onEdit(exp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${exp.item_name}`}>
+                <Ionicons name="pencil" size={16} color={colors.gray400} />
+              </TouchableOpacity>
+            )}
             {onDelete && (
-              <TouchableOpacity onPress={() => confirmDelete(exp.id)} hitSlop={8}>
-                <Text style={styles.deleteBtn}>✕</Text>
+              <TouchableOpacity onPress={() => confirmDelete(exp.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete ${exp.item_name}`}>
+                <Ionicons name="close" size={16} color={colors.gray400} />
               </TouchableOpacity>
             )}
           </View>
@@ -54,8 +71,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   rowInfo: { flex: 1, gap: 2 },
   name: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: colors.gray900 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
   date: { fontSize: fontSize.xs, color: colors.gray400 },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   amount: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
-  deleteBtn: { fontSize: fontSize.sm, color: colors.gray400 },
 });

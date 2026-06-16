@@ -75,9 +75,45 @@ export type Database = {
           },
         ];
       };
+      ai_rate_limits: {
+        Row: {
+          user_id: string;
+          window_started_at: string;
+          request_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          window_started_at?: string;
+          request_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          window_started_at?: string;
+          request_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ai_rate_limits_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      consume_ai_rate_limit: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       is_admin: {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
@@ -99,6 +135,7 @@ export type Database = {
           is_archived: boolean;
           share_token: string;
           created_at: string;
+          budget_cents: number | null;
         };
         Insert: {
           id?: string;
@@ -108,6 +145,7 @@ export type Database = {
           is_archived?: boolean;
           share_token?: string;
           created_at?: string;
+          budget_cents?: number | null;
         };
         Update: {
           id?: string;
@@ -117,6 +155,7 @@ export type Database = {
           is_archived?: boolean;
           share_token?: string;
           created_at?: string;
+          budget_cents?: number | null;
         };
         Relationships: [
           {
@@ -136,6 +175,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id: string | null;
+          role: "owner" | "admin" | "member";
           created_at: string;
         };
         Insert: {
@@ -145,6 +185,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id?: string | null;
+          role?: "owner" | "admin" | "member";
           created_at?: string;
         };
         Update: {
@@ -154,6 +195,7 @@ export type Database = {
           slug?: string;
           share_token?: string;
           user_id?: string | null;
+          role?: "owner" | "admin" | "member";
           created_at?: string;
         };
         Relationships: [
@@ -166,10 +208,61 @@ export type Database = {
           },
         ];
       };
+      expense_categories: {
+        Row: {
+          id: string;
+          group_id: string | null;
+          name: string;
+          slug: string;
+          icon: string;
+          color: string;
+          sort_order: number;
+          is_default: boolean;
+          created_by_user_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id?: string | null;
+          name: string;
+          slug: string;
+          icon?: string;
+          color?: string;
+          sort_order?: number;
+          is_default?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string | null;
+          name?: string;
+          slug?: string;
+          icon?: string;
+          color?: string;
+          sort_order?: number;
+          is_default?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       expenses: {
         Row: {
           id: string;
           group_id: string;
+          category_id: string | null;
           item_name: string;
           amount_cents: number;
           notes: string | null;
@@ -179,6 +272,7 @@ export type Database = {
         Insert: {
           id?: string;
           group_id: string;
+          category_id?: string | null;
           item_name: string;
           amount_cents: number;
           notes?: string | null;
@@ -188,6 +282,7 @@ export type Database = {
         Update: {
           id?: string;
           group_id?: string;
+          category_id?: string | null;
           item_name?: string;
           amount_cents?: number;
           notes?: string | null;
@@ -200,6 +295,13 @@ export type Database = {
             columns: ["group_id"];
             isOneToOne: false;
             referencedRelation: "groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "expenses_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "expense_categories";
             referencedColumns: ["id"];
           },
         ];
@@ -341,9 +443,10 @@ export type Database = {
           group_id: string;
           amount_cents: number;
           status: string;
-          from_member_id: string | null;
-          to_member_id: string | null;
+          from_member_id: string;
+          to_member_id: string;
           created_by_user_id: string | null;
+          note: string | null;
           created_at: string;
         };
         Insert: {
@@ -351,9 +454,10 @@ export type Database = {
           group_id: string;
           amount_cents: number;
           status?: string;
-          from_member_id?: string | null;
-          to_member_id?: string | null;
+          from_member_id: string;
+          to_member_id: string;
           created_by_user_id?: string | null;
+          note?: string | null;
           created_at?: string;
         };
         Update: {
@@ -361,9 +465,10 @@ export type Database = {
           group_id?: string;
           amount_cents?: number;
           status?: string;
-          from_member_id?: string | null;
-          to_member_id?: string | null;
+          from_member_id?: string;
+          to_member_id?: string;
           created_by_user_id?: string | null;
+          note?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -375,6 +480,99 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      recurring_expenses: {
+        Row: {
+          id: string;
+          group_id: string;
+          item_name: string;
+          amount_cents: number;
+          category_id: string | null;
+          payer_member_id: string;
+          participant_member_ids: string[];
+          cadence: string;
+          next_run_at: string;
+          active: boolean;
+          payers: Json | null;
+          created_by_user_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          item_name: string;
+          amount_cents: number;
+          category_id?: string | null;
+          payer_member_id: string;
+          participant_member_ids: string[];
+          cadence: string;
+          next_run_at: string;
+          active?: boolean;
+          payers?: Json | null;
+          created_by_user_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          item_name?: string;
+          amount_cents?: number;
+          category_id?: string | null;
+          payer_member_id?: string;
+          participant_member_ids?: string[];
+          cadence?: string;
+          next_run_at?: string;
+          active?: boolean;
+          payers?: Json | null;
+          created_by_user_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      expense_comments: {
+        Row: {
+          id: string;
+          expense_id: string;
+          author_user_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          expense_id: string;
+          author_user_id: string;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          expense_id?: string;
+          author_user_id?: string;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      push_tokens: {
+        Row: {
+          user_id: string;
+          token: string;
+          platform: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          token: string;
+          platform: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          token?: string;
+          platform?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       user_payment_profiles: {
         Row: {
@@ -441,8 +639,133 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      get_dashboard_summary: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       get_member_balances: {
         Args: { p_group_id: string };
+        Returns: Json;
+      };
+      create_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      create_itemized_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      create_group_with_owner: {
+        Args: { p_name: string };
+        Returns: Json;
+      };
+      create_expense_category: {
+        Args: {
+          p_group_id: string;
+          p_name: string;
+          p_icon?: string;
+          p_color?: string;
+        };
+        Returns: Json;
+      };
+      update_expense_category: {
+        Args: {
+          p_category_id: string;
+          p_name: string;
+          p_icon: string;
+          p_color: string;
+          p_sort_order?: number | null;
+        };
+        Returns: Json;
+      };
+      delete_expense_category: {
+        Args: { p_category_id: string };
+        Returns: Json;
+      };
+      join_group_by_invite: {
+        Args: { p_invite_code: string };
+        Returns: Json;
+      };
+      claim_member: {
+        Args: { p_member_id: string };
+        Returns: Json;
+      };
+      rotate_member_share_token: {
+        Args: { p_member_id: string };
+        Returns: Json;
+      };
+      regenerate_invite_code: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      leave_group: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      rename_member: {
+        Args: { p_member_id: string; p_new_name: string };
+        Returns: Json;
+      };
+      transfer_group_ownership: {
+        Args: { p_group_id: string; p_new_owner_member_id: string };
+        Returns: Json;
+      };
+      promote_member: {
+        Args: { p_member_id: string; p_role: string };
+        Returns: Json;
+      };
+      record_payment: {
+        Args: {
+          p_group_id: string;
+          p_from_member_id: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+        };
+        Returns: Json;
+      };
+      undo_last_payment: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      undo_last_payment_for_member: {
+        Args: { p_from_member_id: string };
+        Returns: Json;
+      };
+      submit_friend_payment: {
+        Args: {
+          p_share_token: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+          p_note?: string;
+        };
+        Returns: Json;
+      };
+      confirm_payment: {
+        Args: { p_payment_id: string };
+        Returns: Json;
+      };
+      reject_payment: {
+        Args: { p_payment_id: string };
+        Returns: Json;
+      };
+      rename_group: {
+        Args: { p_group_id: string; p_name: string };
+        Returns: Json;
+      };
+      set_group_budget: {
+        Args: { p_group_id: string; p_budget_cents: number | null };
+        Returns: Json;
+      };
+      get_creditor_profiles: {
+        Args: { p_group_id: string };
+        Returns: Json;
+      };
+      update_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      update_itemized_expense: {
+        Args: { p_input: Json };
         Returns: Json;
       };
     };
@@ -491,6 +814,10 @@ export type Waitlist = Tables<"waitlist">;
 export type WaitlistInsert = TablesInsert<"waitlist">;
 export type WaitlistUpdate = TablesUpdate<"waitlist">;
 
+export type AiRateLimit = Tables<"ai_rate_limits">;
+export type AiRateLimitInsert = TablesInsert<"ai_rate_limits">;
+export type AiRateLimitUpdate = TablesUpdate<"ai_rate_limits">;
+
 export type UserRole = Enums<"user_role">;
 
 // ---------------------------------------------------------------------------
@@ -504,6 +831,10 @@ export type GroupUpdate = SettleUpTablesUpdate<"groups">;
 export type GroupMember = SettleUpTables<"group_members">;
 export type GroupMemberInsert = SettleUpTablesInsert<"group_members">;
 export type GroupMemberUpdate = SettleUpTablesUpdate<"group_members">;
+
+export type ExpenseCategory = SettleUpTables<"expense_categories">;
+export type ExpenseCategoryInsert = SettleUpTablesInsert<"expense_categories">;
+export type ExpenseCategoryUpdate = SettleUpTablesUpdate<"expense_categories">;
 
 export type Expense = SettleUpTables<"expenses">;
 export type ExpenseInsert = SettleUpTablesInsert<"expenses">;

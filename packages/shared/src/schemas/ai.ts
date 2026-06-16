@@ -28,6 +28,7 @@ export const expenseDraftSchema = z.object({
   confidence: z.number().min(0).max(1),
   participant_names: z.array(z.string()),
   payer_name: z.string().nullable(),
+  category_slug: z.string().nullable().default(null),
   notes: z.string().nullable(),
   source: z.enum(["receipt", "conversation", "manual"]),
 });
@@ -50,6 +51,10 @@ export const conversationMessageSchema = z.object({
   content: z.string().min(1),
 });
 
+export const llmSummarySchema = z.object({
+  summary: z.string(),
+});
+
 export const insightsSummarySchema = z.object({
   total_expenses: z.number().int().nonnegative(),
   total_amount_cents: z.number().int(),
@@ -60,6 +65,20 @@ export const insightsSummarySchema = z.object({
   most_common_item: z
     .object({ name: z.string(), count: z.number().int().positive() })
     .nullable(),
+  top_category: z
+    .object({ name: z.string(), slug: z.string(), amount_cents: z.number().int() })
+    .nullable(),
+  categories: z.array(
+    z.object({
+      id: z.string().uuid().nullable(),
+      name: z.string(),
+      slug: z.string(),
+      icon: z.string(),
+      color: z.string(),
+      amount_cents: z.number().int(),
+      expense_count: z.number().int().nonnegative(),
+    }),
+  ),
   period: z
     .object({ first_expense: z.string(), last_expense: z.string() })
     .nullable(),
@@ -77,3 +96,4 @@ export type SplitSuggestionInput = z.infer<typeof splitSuggestionSchema>;
 export type SmartSplitResultInput = z.infer<typeof smartSplitResultSchema>;
 export type ConversationMessageInput = z.infer<typeof conversationMessageSchema>;
 export type InsightsSummaryInput = z.infer<typeof insightsSummarySchema>;
+export type LlmSummaryInput = z.infer<typeof llmSummarySchema>;

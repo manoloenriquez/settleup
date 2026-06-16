@@ -4,7 +4,7 @@ export default function DashboardLoading(): React.ReactElement {
   return (
     <div className="space-y-8 animate-pulse">
       {/* Hero card skeleton */}
-      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50 p-8">
+      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-brand-50 p-8">
         <Skeleton className="h-4 w-40 mb-3" />
         <div className="flex items-center gap-3">
           <Skeleton className="h-8 w-8 rounded-full" />

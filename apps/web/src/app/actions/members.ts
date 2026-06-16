@@ -2,10 +2,10 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
-import { addMemberSchema, addMembersBatchSchema, generateSlug } from "@template/shared";
+import { addMemberSchema, addMembersBatchSchema, generateSlug, renameMemberSchema } from "@template/shared";
 import { generateShareToken } from "@/lib/tokens";
 import type { ApiResponse } from "@template/shared";
-import type { GroupMember } from "@template/supabase";
+import { parseRenameMemberRpcResult, type GroupMember } from "@template/supabase";
 import { z } from "zod";
 
 const idSchema = z.string().uuid("Invalid ID.");
@@ -124,6 +124,31 @@ export async function listMembers(groupId: string): Promise<ApiResponse<GroupMem
 
     if (error) return { data: null, error: "Failed to load members." };
     return { data: data ?? [], error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function renameMember(input: unknown): Promise<ApiResponse<GroupMember>> {
+  try {
+    await assertAuth();
+
+    const parsed = renameMemberSchema.safeParse(input);
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    const { data: result, error } = await db.rpc("rename_member", {
+      p_member_id: parsed.data.member_id,
+      p_new_name: parsed.data.display_name,
+    });
+
+    if (error) return { data: null, error: error.message };
+    return parseRenameMemberRpcResult(result);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };

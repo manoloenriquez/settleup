@@ -1,4 +1,4 @@
-# SettleUp Lite Audit Action Plan
+# SettleUp Audit Action Plan
 
 Date: March 1, 2026
 

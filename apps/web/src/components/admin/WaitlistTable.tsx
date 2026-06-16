@@ -41,7 +41,7 @@ function ApproveButton({ id, approved }: { id: string; approved: boolean }) {
             }
           })
         }
-        className="text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+        className="text-sm font-medium text-brand-600 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
       >
         {pending ? "Approving…" : "Approve"}
       </button>

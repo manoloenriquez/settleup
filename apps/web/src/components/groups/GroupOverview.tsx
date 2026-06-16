@@ -1,13 +1,13 @@
 "use client";
 
-import { formatCents } from "@template/shared";
+import { formatCents, buildSuggestedSettlements } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Receipt, Users, Smartphone, Landmark } from "lucide-react";
-import type { GroupOverviewPayload } from "@template/shared";
+import { Receipt, Users, Smartphone, Landmark, CheckCircle2, ArrowRight } from "lucide-react";
+import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
 
 type Props = {
   payload: GroupOverviewPayload;
@@ -38,15 +38,21 @@ function sortedMembers(members: GroupOverviewPayload["members"]): MemberWithNet[
     });
 }
 
+function computeSettlements(payload: GroupOverviewPayload): SuggestedSettlement[] {
+  if (payload.creditor_profiles?.length) {
+    return buildSuggestedSettlements(payload.members, payload.creditor_profiles);
+  }
+  return [];
+}
+
 function buildSummaryText(payload: GroupOverviewPayload): string {
-  const pp = payload.payment_profile;
   const lines: string[] = [`GROUP SUMMARY — ${payload.group.name}`, "", "WHO OWES:"];
 
   for (const m of payload.members) {
     const net = m.net_cents ?? 0;
     const owed = m.owed_cents ?? Math.max(0, -net);
     if (net === 0) {
-      lines.push(`${m.display_name} — Settled ✓`);
+      lines.push(`${m.display_name} — Settled`);
     } else if (net > 0) {
       lines.push(`${m.display_name} — is owed ${formatCents(net)}`);
     } else {
@@ -57,13 +63,25 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   lines.push("", `Total outstanding: ${formatCents(totalOwed)}`);
 
-  if (pp) {
-    if (pp.payer_display_name) lines.push("", `Pay to: ${pp.payer_display_name}`);
-    if (pp.gcash_number) lines.push(`GCash: ${pp.gcash_number}`);
-    if (pp.bank_name && pp.bank_account_number) {
-      lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+  // Suggested settlements
+  const settlements = computeSettlements(payload);
+  if (settlements.length > 0) {
+    lines.push("", "SUGGESTED SETTLEMENTS:");
+    for (const s of settlements) {
+      lines.push(`${s.from_display_name} pays ${formatCents(s.amount_cents)} to ${s.to_display_name}`);
+      const pp = s.creditor_profile;
+      if (pp?.gcash_number) lines.push(`  GCash: ${pp.gcash_number}`);
+      if (pp?.bank_name && pp?.bank_account_number) lines.push(`  Bank: ${pp.bank_name} ${pp.bank_account_number}`);
     }
-    if (pp.notes) lines.push(pp.notes);
+  } else {
+    // Fallback to owner profile
+    const pp = payload.payment_profile;
+    if (pp) {
+      if (pp.payer_display_name) lines.push("", `Pay to: ${pp.payer_display_name}`);
+      if (pp.gcash_number) lines.push(`GCash: ${pp.gcash_number}`);
+      if (pp.bank_name && pp.bank_account_number) lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+      if (pp.notes) lines.push(pp.notes);
+    }
   }
 
   if (payload.expenses.length > 0) {
@@ -84,6 +102,7 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
 }
 
 export function GroupOverview({ payload }: Props): React.ReactElement {
+  const settlements = computeSettlements(payload);
   const pp = payload.payment_profile;
   const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   const summaryText = buildSummaryText(payload);
@@ -92,28 +111,40 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-lg flex flex-col gap-6 animate-fade-in">
-        {/* Header */}
-        <Card>
-          <CardContent className="py-6">
-            <h1 className="text-2xl font-bold text-slate-900">{payload.group.name}</h1>
-            <p className="text-sm text-slate-500 mt-1">Expense Summary</p>
-            <div className="mt-4 flex justify-end">
+        {/* Gradient hero */}
+        <div className="bg-gradient-to-br from-brand-600 to-violet-600 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-dot-grid" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-white/70">Group Summary</span>
+              {totalOwed === 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-white/20">
+                  <CheckCircle2 size={13} className="text-white/80" />
+                  All settled
+                </span>
+              )}
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{payload.group.name}</h1>
+            {totalOwed > 0 && (
+              <p className="mt-1 text-sm text-white/70">{formatCents(totalOwed)} outstanding</p>
+            )}
+            <div className="mt-4">
               <CopyButton text={summaryText} label="Copy Summary" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Member balances */}
         <Card>
           <CardHeader>
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Who owes</h2>
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Who owes</h2>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
               {sorted.map((m) => (
                 <div
                   key={m.member_id}
-                  className={`flex items-center justify-between text-sm rounded-lg px-3 py-2 border-l-4 ${
+                  className={`flex items-center justify-between text-sm rounded-xl px-3 py-2.5 border-l-4 hover:shadow-sm transition-all ${
                     m._net < 0
                       ? "border-l-amber-400 bg-amber-50/50"
                       : m._net > 0
@@ -144,8 +175,65 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
           </CardContent>
         </Card>
 
-        {/* Payment info */}
-        {pp && (pp.gcash_number ?? pp.bank_account_number) && (
+        {/* Suggested settlements */}
+        {settlements.length > 0 && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Settle Up</h2>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {settlements.map((s, idx) => (
+                <div key={idx} className="rounded-xl border border-slate-100 p-4">
+                  <div className="flex items-center gap-2 text-sm mb-3">
+                    <Avatar name={s.from_display_name} size="sm" />
+                    <span className="font-medium text-slate-700">{s.from_display_name}</span>
+                    <ArrowRight size={14} className="text-slate-400" />
+                    <Avatar name={s.to_display_name} size="sm" />
+                    <span className="font-medium text-slate-700">{s.to_display_name}</span>
+                    <span className="ml-auto font-bold text-slate-900">{formatCents(s.amount_cents)}</span>
+                  </div>
+                  {!s.creditor_profile && (
+                    <p className="text-xs text-slate-400 italic mt-1">
+                      No payment details set — creditor can add them in Account &rarr; Payment Settings
+                    </p>
+                  )}
+                  {s.creditor_profile && (
+                    <div className="flex flex-col gap-2 pl-2 border-l-2 border-brand-100">
+                      {s.creditor_profile.gcash_number && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Smartphone size={12} className="text-blue-500" />
+                          <span className="font-mono text-slate-700">{s.creditor_profile.gcash_number}</span>
+                          {s.creditor_profile.gcash_name && <span className="text-slate-400">({s.creditor_profile.gcash_name})</span>}
+                        </div>
+                      )}
+                      {s.creditor_profile.gcash_qr_url && (
+                        <div className="mt-2 flex justify-center">
+                          <img src={s.creditor_profile.gcash_qr_url} alt="GCash QR" className="w-full max-w-[240px] object-contain bg-white p-3 rounded-xl border border-slate-200 shadow-sm" />
+                        </div>
+                      )}
+                      {s.creditor_profile.bank_name && s.creditor_profile.bank_account_number && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Landmark size={12} className="text-brand-500" />
+                          <span className="font-mono text-slate-700">{s.creditor_profile.bank_account_number}</span>
+                          <span className="text-slate-400">({s.creditor_profile.bank_name})</span>
+                        </div>
+                      )}
+                      {s.creditor_profile.bank_qr_url && (
+                        <div className="mt-2 flex justify-center">
+                          <img src={s.creditor_profile.bank_qr_url} alt="Bank QR" className="w-full max-w-[240px] object-contain bg-white p-3 rounded-xl border border-slate-200 shadow-sm" />
+                        </div>
+                      )}
+                      {s.creditor_profile.notes && <p className="text-xs text-slate-400 italic">{s.creditor_profile.notes}</p>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Fallback: owner payment info (when no creditor profiles available) */}
+        {settlements.length === 0 && pp && (pp.gcash_number ?? pp.bank_account_number) && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -160,7 +248,7 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {pp.gcash_number && (
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Smartphone size={16} className="text-blue-500" />
                     <span className="text-sm font-semibold text-slate-700">GCash</span>
@@ -172,20 +260,15 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                   </div>
                   {pp.gcash_qr_url && (
                     <div className="mt-3 flex justify-center">
-                      <img
-                        src={pp.gcash_qr_url}
-                        alt="GCash QR"
-                        className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
-                      />
+                      <img src={pp.gcash_qr_url} alt="GCash QR" className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm" />
                     </div>
                   )}
                 </div>
               )}
-
               {pp.bank_name && pp.bank_account_number && (
-                <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Landmark size={16} className="text-indigo-500" />
+                    <Landmark size={16} className="text-brand-500" />
                     <span className="text-sm font-semibold text-slate-700">{pp.bank_name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
@@ -195,16 +278,11 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                   </div>
                   {pp.bank_qr_url && (
                     <div className="mt-3 flex justify-center">
-                      <img
-                        src={pp.bank_qr_url}
-                        alt="Bank QR"
-                        className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
-                      />
+                      <img src={pp.bank_qr_url} alt="Bank QR" className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm" />
                     </div>
                   )}
                 </div>
               )}
-
               {pp.notes && <p className="text-xs text-slate-400 italic">{pp.notes}</p>}
             </CardContent>
           </Card>
@@ -237,13 +315,19 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                         <span>{exp.participants.length} participant{exp.participants.length !== 1 ? "s" : ""}</span>
                       </div>
                     )}
+                    {exp.category && (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: exp.category.color }} />
+                        {exp.category.name}
+                      </div>
+                    )}
                     {exp.participants.length > 0 && (
                       <p className="mt-1 text-xs text-slate-400">
                         {exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ")}
                       </p>
                     )}
                     {exp.items && exp.items.length > 0 && (
-                      <div className="mt-2 ml-3 border-l-2 border-indigo-100 pl-3 flex flex-col gap-0.5">
+                      <div className="mt-2 ml-3 border-l-2 border-brand-100 pl-3 flex flex-col gap-0.5">
                         {exp.items.map((item, j) => (
                           <div key={j} className="flex items-center justify-between text-xs text-slate-500">
                             <span>{item.name}</span>
@@ -262,7 +346,12 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
         </Card>
 
         {/* Footer */}
-        <p className="text-center text-xs text-slate-400 py-2">Powered by SettleUp</p>
+        <div className="flex items-center justify-center gap-2 py-2 text-xs text-slate-400">
+          <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
+            <span className="text-white text-[10px] font-bold">S</span>
+          </div>
+          <span>Powered by SettleUp</span>
+        </div>
       </div>
     </div>
   );

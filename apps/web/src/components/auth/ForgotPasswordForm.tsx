@@ -9,13 +9,18 @@ import { Mail } from "lucide-react";
 export function ForgotPasswordForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      await forgotPassword(null, formData);
+      const result = await forgotPassword(null, formData);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
       setSubmitted(true);
     });
   }
@@ -42,6 +47,12 @@ export function ForgotPasswordForm(): React.ReactElement {
           Enter your email and we&apos;ll send you a reset link.
         </p>
       </div>
+
+      {error && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <Input
         name="email"

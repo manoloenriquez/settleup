@@ -54,6 +54,7 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
       confidence: receipt.confidence,
       participant_names: [],
       payer_name: null,
+      category_slug: "other",
       notes: items.map((i) => `${i.description}: ₱${i.totalStr}`).join("; "),
       source: "receipt",
     };
@@ -131,7 +132,7 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
           <button
             type="button"
             onClick={addItem}
-            className="self-start text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+            className="self-start text-xs text-brand-600 hover:text-brand-800 font-medium flex items-center gap-1"
           >
             <Plus size={12} /> Add line item
           </button>

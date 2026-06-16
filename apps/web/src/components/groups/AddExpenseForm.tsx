@@ -4,13 +4,15 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
+import { createRecurringExpense } from "@/app/actions/recurring";
 import { parsePHPAmount, formatCents, equalSplit } from "@template/shared";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { SplitModeToggle } from "./SplitModeToggle";
+import { CategoryBadge, CategorySelect } from "./CategoryControls";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-import type { GroupMember } from "@template/supabase";
+import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
 type SplitMode = "equal" | "custom";
 
@@ -26,6 +28,7 @@ type LineItemState = {
 };
 
 type ItemState = {
+  categoryId: string | null;
   itemName: string;
   amountStr: string;
   selectedIds: string[];
@@ -35,10 +38,17 @@ type ItemState = {
   splitPayer: boolean;
   expenseMode: "whole" | "itemized";
   lineItems: LineItemState[];
+  repeats: "none" | "weekly" | "monthly";
 };
 
-function makeEmptyItem(allMemberIds: string[], firstMemberId: string, previousSelectedIds?: string[]): ItemState {
+function makeEmptyItem(
+  allMemberIds: string[],
+  firstMemberId: string,
+  categoryId: string | null,
+  previousSelectedIds?: string[],
+): ItemState {
   return {
+    categoryId,
     itemName: "",
     amountStr: "",
     selectedIds: previousSelectedIds ?? allMemberIds,
@@ -48,6 +58,7 @@ function makeEmptyItem(allMemberIds: string[], firstMemberId: string, previousSe
     splitPayer: false,
     expenseMode: "whole",
     lineItems: [{ name: "", amountStr: "", participantIds: allMemberIds }],
+    repeats: "none",
   };
 }
 
@@ -58,15 +69,18 @@ function makeEmptyLineItem(allMemberIds: string[]): LineItemState {
 type Props = {
   groupId: string;
   members: GroupMember[];
+  categories: ExpenseCategory[];
 };
 
-export function AddExpenseForm({ groupId, members }: Props): React.ReactElement {
+export function AddExpenseForm({ groupId, members, categories }: Props): React.ReactElement {
   const allMemberIds = members.map((m) => m.id);
   const firstMemberId = members[0]?.id ?? "";
-  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId)]);
+  const defaultCategoryId = categories.find((category) => category.slug === "other")?.id ?? null;
+  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
+  const [confirming, setConfirming] = useState(false);
   const router = useRouter();
 
   function updateItem(index: number, patch: Partial<ItemState>): void {
@@ -90,7 +104,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
   function addItem(): void {
     setItems((prev) => {
       const last = prev[prev.length - 1];
-      return [...prev, makeEmptyItem(allMemberIds, firstMemberId, last?.selectedIds)];
+      return [...prev, makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId, last?.selectedIds)];
     });
   }
 
@@ -162,7 +176,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
 
   function isItemValid(item: ItemState): boolean {
     const amountCents = parsePHPAmount(item.amountStr) ?? 0;
-    if (!item.itemName.trim() || amountCents === 0) return false;
+    if (!item.itemName.trim() || amountCents <= 0) return false;
     if (item.payers.length === 0) return false;
     if (item.payers.some((p) => !p.memberId)) return false;
 
@@ -192,8 +206,14 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
 
   const allValid = items.every(isItemValid);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
+  function handleReview(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
+    setError(null);
+    setConfirming(true);
+  }
+
+  function handleConfirm(): void {
+    if (isPending) return; // guard against double-submit creating duplicate expenses
     setError(null);
 
     // Separate itemized from whole expenses
@@ -218,6 +238,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
             return {
               item_name: item.itemName.trim(),
               amount_cents,
+              category_id: item.categoryId,
               split_mode: "equal" as const,
               participant_ids: item.selectedIds,
               payers,
@@ -226,6 +247,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
           return {
             item_name: item.itemName.trim(),
             amount_cents,
+            category_id: item.categoryId,
             split_mode: "custom" as const,
             participant_ids: item.selectedIds,
             custom_splits: item.selectedIds.map((id) => ({
@@ -238,7 +260,11 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
 
         const result = await addExpensesBatch({ group_id: groupId, items: batchItems });
         if (result.error) {
+          // Batch inserts are not atomic server-side, so some items may already be
+          // committed. Refresh so the user sees what actually saved instead of
+          // assuming nothing did and re-submitting (which would duplicate them).
           setError(result.error);
+          router.refresh();
           return;
         }
       }
@@ -265,6 +291,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
           group_id: groupId,
           item_name: item.itemName.trim(),
           amount_cents,
+          category_id: item.categoryId,
           payers,
           line_items,
         });
@@ -275,15 +302,105 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
         }
       }
 
-      setItems([makeEmptyItem(allMemberIds, firstMemberId)]);
+      // Save recurring templates for items marked weekly/monthly
+      for (const item of wholeItems) {
+        if (item.repeats === "none") continue;
+        const amountCents = parsePHPAmount(item.amountStr)!;
+        const recurringPayers = item.splitPayer
+          ? item.payers
+              .filter((p) => p.memberId)
+              .map((p) => ({ member_id: p.memberId, paid_cents: parsePHPAmount(p.amountStr) ?? 0 }))
+              .filter((p) => p.paid_cents > 0)
+          : [{ member_id: item.payers[0]!.memberId, paid_cents: amountCents }];
+        if (recurringPayers.length === 0) {
+          toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: no valid payers.`);
+          continue;
+        }
+        const recurringResult = await createRecurringExpense({
+          group_id: groupId,
+          item_name: item.itemName.trim(),
+          amount_cents: amountCents,
+          category_id: item.categoryId,
+          payer_member_id: recurringPayers[0]!.member_id,
+          participant_member_ids: item.selectedIds,
+          cadence: item.repeats,
+          payers: recurringPayers,
+        });
+        if (recurringResult.error) {
+          toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: ${recurringResult.error}`);
+        }
+      }
+
+      setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
       setShowAdvanced({});
+      setConfirming(false);
       toast.success("Expense added!");
       router.refresh();
     });
   }
 
+  if (confirming) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+          <p className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Review</p>
+          {items.map((item, i) => {
+            const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+            const payerName = item.splitPayer
+              ? item.payers.filter((p) => p.memberId).map((p) => members.find((m) => m.id === p.memberId)?.display_name ?? p.memberId).join(", ")
+              : (members.find((m) => m.id === item.payers[0]?.memberId)?.display_name ?? "—");
+            return (
+              <div key={i} className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-900">{item.itemName}</span>
+                  <span className="font-semibold text-brand-700">{formatCents(amountCents)}</span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  <CategoryBadge category={categories.find((category) => category.id === item.categoryId) ?? null} compact />
+                  {" · "}
+                  Paid by <span className="font-medium text-slate-700">{payerName}</span>
+                  {item.expenseMode === "whole" && (
+                    <> · {item.splitMode === "equal" ? `Split equally ${item.selectedIds.length} ways` : "Custom split"}</>
+                  )}
+                  {item.expenseMode === "itemized" && (
+                    <> · {item.lineItems.length} line item{item.lineItems.length !== 1 ? "s" : ""}</>
+                  )}
+                </p>
+                {item.expenseMode === "itemized" && (
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {item.lineItems.map((li, j) => (
+                      <li key={j} className="text-xs text-slate-600 flex justify-between">
+                        <span>{li.name || `Item ${j + 1}`}</span>
+                        <span>{formatCents(parsePHPAmount(li.amountStr) ?? 0)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Back to Edit
+          </button>
+          <Button type="button" isLoading={isPending} disabled={isPending} onClick={handleConfirm} className="flex-1">
+            Confirm &amp; Add
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleReview} className="flex flex-col gap-4">
       {items.map((item, index) => {
         const amountCents = parsePHPAmount(item.amountStr) ?? 0;
         const customSum = getCustomSum(item);
@@ -327,7 +444,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                   onClick={() => updateItem(index, { expenseMode: "whole" })}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     item.expenseMode === "whole"
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-brand-600 text-white"
                       : "bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -338,7 +455,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                   onClick={() => updateItem(index, { expenseMode: "itemized" })}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     item.expenseMode === "itemized"
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-brand-600 text-white"
                       : "bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -364,6 +481,12 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
               />
             </div>
 
+            <CategorySelect
+              categories={categories}
+              value={item.categoryId}
+              onChange={(categoryId) => updateItem(index, { categoryId })}
+            />
+
             {/* Paid by — always visible */}
             {!item.splitPayer && (
               <Select
@@ -380,6 +503,21 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                     {m.display_name}
                   </option>
                 ))}
+              </Select>
+            )}
+
+            {/* Repeats (whole mode only) */}
+            {item.expenseMode === "whole" && (
+              <Select
+                label="Repeats"
+                value={item.repeats}
+                onChange={(e) =>
+                  updateItem(index, { repeats: e.target.value as ItemState["repeats"] })
+                }
+              >
+                <option value="none">Doesn&apos;t repeat</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
               </Select>
             )}
 
@@ -439,7 +577,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                               onClick={() => toggleLineItemMember(index, liIndex, m.id)}
                               className={`rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors ${
                                 li.participantIds.includes(m.id)
-                                  ? "bg-indigo-600 text-white border-indigo-600"
+                                  ? "bg-brand-600 text-white border-brand-600"
                                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
                               }`}
                             >
@@ -457,7 +595,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                 <button
                   type="button"
                   onClick={() => addLineItem(index)}
-                  className="self-start text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  className="self-start text-xs font-medium text-brand-600 hover:text-brand-800 flex items-center gap-1"
                 >
                   <Plus size={12} /> Add line item
                 </button>
@@ -476,7 +614,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((prev) => ({ ...prev, [index]: !advanced }))}
-                  className="self-start text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                  className="self-start text-xs text-brand-600 hover:text-brand-800 font-medium flex items-center gap-1"
                 >
                   {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   {advanced ? "Less options" : "More options"}
@@ -495,7 +633,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
                             onClick={() => toggleMember(index, m.id)}
                             className={`rounded-full px-3 py-1 text-sm font-medium border transition-colors ${
                               item.selectedIds.includes(m.id)
-                                ? "bg-indigo-600 text-white border-indigo-600"
+                                ? "bg-brand-600 text-white border-brand-600"
                                 : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
                             }`}
                           >
@@ -584,7 +722,7 @@ export function AddExpenseForm({ groupId, members }: Props): React.ReactElement 
         <button
           type="button"
           onClick={addItem}
-          className="self-start text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+          className="self-start text-sm font-medium text-brand-600 hover:text-brand-800 flex items-center gap-1"
         >
           <Plus size={14} /> Add another item
         </button>
@@ -630,7 +768,7 @@ function PayerSection({ item, index, members, firstMemberId, amountCents, update
               updateItem(index, { splitPayer: true });
             }
           }}
-          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+          className="text-xs text-brand-600 hover:text-brand-800 font-medium"
         >
           {item.splitPayer ? "Single payer" : "Split payment"}
         </button>
@@ -691,7 +829,7 @@ function PayerSection({ item, index, members, firstMemberId, amountCents, update
                 payers: [...item.payers, { memberId: "", amountStr: "" }],
               })
             }
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium self-start flex items-center gap-1"
+            className="text-xs text-brand-600 hover:text-brand-800 font-medium self-start flex items-center gap-1"
           >
             <Plus size={12} /> Add payer
           </button>

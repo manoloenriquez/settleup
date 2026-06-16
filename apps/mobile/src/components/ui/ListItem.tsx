@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity, View, type ViewStyle } from "react-native";
-import { colors, fontSize, spacing, borderRadius } from "@/theme";
+import { colors, fontSize, spacing } from "@/theme";
 
 type ListItemProps = {
   left?: React.ReactNode;

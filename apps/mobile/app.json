@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SettleUp Lite",
-    "slug": "settleup-lite",
+    "name": "SettleUp",
+    "slug": "settleup",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,21 +13,19 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.settleuplite.app"
+      "bundleIdentifier": "com.settleup.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6366f1"
       },
-      "package": "com.settleuplite.app"
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/favicon.png"
+      "package": "com.settleup.app"
     },
     "plugins": [
       "expo-router",
@@ -41,7 +39,8 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

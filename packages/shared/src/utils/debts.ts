@@ -1,4 +1,4 @@
-import type { SimplifiedDebt } from "../types";
+import type { CreditorPaymentProfile, SimplifiedDebt, SuggestedSettlement } from "../types";
 
 type BalanceInput = {
   member_id: string;
@@ -59,4 +59,19 @@ export function simplifyDebts(balances: BalanceInput[]): SimplifiedDebt[] {
   }
 
   return result;
+}
+
+/**
+ * Compute simplified debts and attach each creditor's payment profile.
+ */
+export function buildSuggestedSettlements(
+  balances: BalanceInput[],
+  creditorProfiles: CreditorPaymentProfile[],
+): SuggestedSettlement[] {
+  const debts = simplifyDebts(balances);
+  const profileMap = new Map(creditorProfiles.map((p) => [p.member_id, p]));
+  return debts.map((debt) => ({
+    ...debt,
+    creditor_profile: profileMap.get(debt.to_member_id) ?? null,
+  }));
 }

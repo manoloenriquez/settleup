@@ -1,4 +1,4 @@
-# SettleUp Lite Monorepo Audit Report
+# SettleUp Monorepo Audit Report
 
 Date: March 1, 2026  
 Scope: `apps/web`, `apps/mobile`, `packages/*`, `supabase/migrations/*`, workspace tooling/docs

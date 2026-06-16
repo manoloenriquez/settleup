@@ -59,4 +59,16 @@ describe("parsePHPAmount", () => {
   it("returns null for zero", () => {
     expect(parsePHPAmount("0")).toBeNull();
   });
+
+  it("returns null for trailing garbage (parseFloat leniency)", () => {
+    expect(parsePHPAmount("100abc")).toBeNull();
+  });
+
+  it("returns null for more than 2 decimal places", () => {
+    expect(parsePHPAmount("100.005")).toBeNull();
+  });
+
+  it("returns null for malformed numbers", () => {
+    expect(parsePHPAmount("1.2.3")).toBeNull();
+  });
 });

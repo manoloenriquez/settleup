@@ -3,7 +3,7 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import type { ApiResponse, MemberBalance } from "@template/shared";
+import type { ApiResponse, CreditorPaymentProfile, MemberBalance } from "@template/shared";
 import { z } from "zod";
 
 const groupIdSchema = z.string().uuid("Invalid group ID.");
@@ -50,6 +50,33 @@ export async function getMembersWithBalances(
     }));
 
     return { data: balances, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+/**
+ * Fetches unmasked payment profiles for creditors (members with positive net_cents).
+ */
+export async function getCreditorProfiles(
+  groupId: string,
+): Promise<ApiResponse<CreditorPaymentProfile[]>> {
+  try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+
+    await cachedAuth();
+    const supabase = await createSettleUpDb();
+    const db = supabase.schema("settleup");
+
+    const { data, error } = await db.rpc("get_creditor_profiles", {
+      p_group_id: parsed.data,
+    });
+
+    if (error) return { data: null, error: "Failed to load creditor profiles." };
+
+    return { data: (data ?? []) as CreditorPaymentProfile[], error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };

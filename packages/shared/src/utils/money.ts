@@ -27,7 +27,11 @@ export function formatCents(cents: number): string {
  */
 export function parsePHPAmount(input: string): number | null {
   const cleaned = input.replace(/[₱,\s]/g, "");
+  // Require a well-formed number with at most 2 decimal places. This rejects
+  // trailing garbage ("100abc"), extra dots ("1.2.3"), and sub-cent precision
+  // ("100.005") that parseFloat would otherwise silently accept or round away.
+  if (!/^-?\d+(\.\d{1,2})?$/.test(cleaned)) return null;
   const parsed = parseFloat(cleaned);
-  if (isNaN(parsed) || parsed === 0) return null;
+  if (parsed === 0) return null;
   return Math.round(parsed * 100);
 }

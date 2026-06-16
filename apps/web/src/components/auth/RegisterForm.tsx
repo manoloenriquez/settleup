@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
 import { Eye, EyeOff, UserPlus, Mail } from "lucide-react";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 function ConfirmEmailState(): React.ReactElement {
   return (
     <div className="text-center py-4">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100">
-        <Mail size={24} className="text-indigo-600" />
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100">
+        <Mail size={24} className="text-brand-600" />
       </div>
       <h3 className="text-lg font-semibold text-slate-900">Check your email</h3>
       <p className="mt-2 text-sm text-slate-600">
@@ -101,6 +102,17 @@ export function RegisterForm(): React.ReactElement {
       <Button type="submit" isLoading={pending} leftIcon={UserPlus} className="w-full" size="lg">
         Create account
       </Button>
+
+      <div className="relative my-1">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-white px-2 text-slate-400">or</span>
+        </div>
+      </div>
+
+      <GoogleSignInButton label="Sign up with Google" />
     </form>
   );
 }

@@ -51,7 +51,7 @@ function RoleButton({
         <button
           disabled={pending}
           onClick={() => changeRole("admin")}
-          className="text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+          className="text-sm font-medium text-brand-600 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
         >
           {pending ? "Promoting…" : "Promote to admin"}
         </button>

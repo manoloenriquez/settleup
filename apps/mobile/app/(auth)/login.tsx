@@ -13,6 +13,8 @@ import { useAuth } from "@/context/AuthContext";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
+import { signInWithGoogle } from "@/lib/google-auth";
+import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -20,6 +22,18 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function handleGoogleSignIn(): Promise<void> {
+    setError(null);
+    setGoogleLoading(true);
+    const result = await signInWithGoogle();
+    if (result.error) {
+      setError(result.error);
+      setGoogleLoading(false);
+    }
+    // On success: onAuthStateChange fires → RouteGuard navigates to home.
+  }
 
   async function handleSignIn() {
     if (!email.trim() || !password) {
@@ -94,6 +108,19 @@ export default function LoginScreen() {
             isLoading={loading}
             style={styles.submitBtn}
           />
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <AppButton
+            title="Continue with Google"
+            onPress={handleGoogleSignIn}
+            isLoading={googleLoading}
+            variant="secondary"
+          />
         </View>
 
         {/* Footer */}
@@ -118,71 +145,85 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#f8fafc" },
+  flex: { flex: 1, backgroundColor: colors.background },
   scroll: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 24,
+    padding: spacing.xl,
   },
   header: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: spacing["2xl"],
   },
   brand: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#111827",
+    color: colors.gray900,
     letterSpacing: -0.5,
   },
   title: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 6,
+    fontSize: fontSize.base,
+    color: colors.gray500,
+    marginTop: spacing.sm,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    // Shadow
-    shadowColor: "#000",
+    borderColor: colors.border,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
   errorBox: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: colors.dangerLight,
     borderWidth: 1,
-    borderColor: "#fecaca",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+    borderColor: colors.danger,
+    borderRadius: borderRadius.sm + 2,
+    padding: spacing.md,
+    marginBottom: spacing.base,
   },
   errorText: {
-    fontSize: 13,
-    color: "#dc2626",
+    fontSize: fontSize.sm,
+    color: colors.danger,
   },
   fieldGap: {
-    marginTop: 16,
+    marginTop: spacing.base,
   },
   submitBtn: {
-    marginTop: 24,
+    marginTop: spacing.xl,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: spacing.base,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontSize: fontSize.sm,
+    color: colors.gray400,
+    marginHorizontal: spacing.md,
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
+    marginTop: spacing.xl,
   },
   footerText: {
-    fontSize: 13,
-    color: "#6b7280",
+    fontSize: fontSize.sm,
+    color: colors.gray500,
   },
   link: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6366f1",
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.primary,
   },
 });
