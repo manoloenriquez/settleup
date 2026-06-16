@@ -1,9 +1,22 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import withSerwistInit from "@serwist/next";
 
 // Sentry's connect-src ingestion endpoint (sentry.io) — only added to CSP when a DSN is configured.
 const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN;
 const sentryConnectSrc = sentryDsn ? " https://*.sentry.io" : "";
+
+// PWA service worker. Disabled in dev (Turbopack) — test via `next build && next start`.
+// Bump OFFLINE_REVISION whenever the /~offline page changes to refresh its precache.
+const OFFLINE_REVISION = "offline-1";
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+  reloadOnOnline: true,
+  // Precache the offline fallback so it's available with zero network.
+  additionalPrecacheEntries: [{ url: "/~offline", revision: OFFLINE_REVISION }],
+});
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -27,6 +40,11 @@ const nextConfig: NextConfig = {
   // 2E: Security headers
   async headers() {
     return [
+      {
+        // Never stale-cache the service worker itself, so updates roll out promptly.
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
       {
         source: "/(.*)",
         headers: [
@@ -56,10 +74,13 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Inject the PWA service worker into the base config.
+const configWithPwa = withSerwist(nextConfig);
+
 // Wrap with Sentry only when a DSN is configured. Otherwise withSentryConfig is a passthrough,
 // but we skip it to avoid the build-time source-map upload step that requires SENTRY_AUTH_TOKEN.
 export default sentryDsn
-  ? withSentryConfig(nextConfig, {
+  ? withSentryConfig(configWithPwa, {
       silent: !process.env.CI,
       // Source-map upload — only runs if SENTRY_AUTH_TOKEN + org/project are set.
       org: process.env.SENTRY_ORG,
@@ -69,4 +90,4 @@ export default sentryDsn
       sourcemaps: { disable: false },
       disableLogger: true,
     })
-  : nextConfig;
+  : configWithPwa;

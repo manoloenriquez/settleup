@@ -9,6 +9,11 @@ build
 .next
 out
 
+# Serwist service worker (generated at build time)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/swe-worker-*.js
+
 # Expo
 .expo
 *.orig.*

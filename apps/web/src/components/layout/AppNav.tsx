@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LayoutDashboard, Users, Shield, LogOut, ChevronDown, User } from "lucide-react";
+import { LayoutDashboard, Users, Shield, LogOut, ChevronDown, User } from "lucide-react";
 import { APP_NAME, ROUTES } from "@template/shared";
 import { signOut } from "@/app/actions/auth";
 
@@ -33,7 +33,6 @@ function getInitials(name: string | null, email: string): string {
 }
 
 export function AppNav({ profile }: Props): React.ReactElement {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -46,7 +45,7 @@ export function AppNav({ profile }: Props): React.ReactElement {
   const displayName = profile.full_name ?? profile.email;
 
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30">
+    <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 pt-safe">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
 
         {/* Brand */}
@@ -144,71 +143,15 @@ export function AppNav({ profile }: Props): React.ReactElement {
           </div>
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          type="button"
-          className="md:hidden rounded-lg p-2 text-slate-600 hover:bg-slate-100 transition-colors"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+        {/* Mobile: brand-only header; primary nav lives in the bottom tab bar */}
+        <Link
+          href={ROUTES.ACCOUNT}
+          aria-label="Account"
+          className="md:hidden w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center"
         >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+          <span className="text-white text-xs font-semibold">{initials}</span>
+        </Link>
       </nav>
-
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white animate-slide-down">
-          <div className="px-4 py-3 space-y-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const active = isActive(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={[
-                    "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                    active ? "text-brand-700 bg-brand-50" : "text-slate-700 hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  <Icon size={18} />
-                  {link.label}
-                </Link>
-              );
-            })}
-            {profile.role === "admin" && (
-              <Link
-                href={ROUTES.ADMIN}
-                onClick={() => setMobileOpen(false)}
-                className={[
-                  "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive(ROUTES.ADMIN) ? "text-brand-700 bg-brand-50" : "text-slate-700 hover:bg-slate-50",
-                ].join(" ")}
-              >
-                <Shield size={18} />
-                Admin
-              </Link>
-            )}
-          </div>
-          <div className="border-t border-slate-100 px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center">
-                <span className="text-white text-xs font-semibold">{initials}</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-800 truncate max-w-[160px]">{displayName}</p>
-                <p className="text-xs text-slate-400 truncate max-w-[160px]">{profile.email}</p>
-              </div>
-            </div>
-            <form action={signOut}>
-              <button type="submit" className="text-slate-400 hover:text-slate-700 transition-colors">
-                <LogOut size={18} />
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

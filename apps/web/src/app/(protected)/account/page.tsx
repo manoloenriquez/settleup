@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CreditCard, ChevronRight, MessageCircle } from "lucide-react";
+import { CreditCard, ChevronRight, MessageCircle, Shield, LogOut } from "lucide-react";
 import { BETA_SUPPORT_EMAIL, ROUTES } from "@template/shared";
 import { requireAuth } from "@/lib/supabase/guards";
+import { cachedProfile } from "@/lib/supabase/queries";
+import { signOut } from "@/app/actions/auth";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 
 export const metadata: Metadata = { title: "Account" };
 
 export default async function AccountPage(): Promise<React.ReactElement> {
   await requireAuth();
+  const profile = await cachedProfile();
+  const isAdmin = profile?.role === "admin";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
@@ -44,6 +48,35 @@ export default async function AccountPage(): Promise<React.ReactElement> {
             </div>
             <ChevronRight size={16} className="text-slate-300" />
           </a>
+          {isAdmin && (
+            <Link
+              href={ROUTES.ADMIN}
+              className="flex items-center gap-3 border-t border-slate-100 px-4 py-3.5 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                <Shield size={18} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-900">Admin</p>
+                <p className="text-xs text-slate-500">Manage the platform</p>
+              </div>
+              <ChevronRight size={16} className="text-slate-300" />
+            </Link>
+          )}
+          <form action={signOut} className="border-t border-slate-100">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                <LogOut size={18} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-900">Sign out</p>
+                <p className="text-xs text-slate-500">{profile?.email}</p>
+              </div>
+            </button>
+          </form>
         </div>
       </section>
 
