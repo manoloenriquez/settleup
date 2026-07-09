@@ -13,6 +13,18 @@ export function equalSplit(totalCents: number, n: number): number[] {
 }
 
 /**
+ * Whether a set of resolved shares looks like an equal split.
+ * Splits are stored as resolved cents per member, so an equal split of an
+ * amount that doesn't divide evenly leaves at most a 1-cent spread.
+ *
+ * Example: isEqualShareSplit([34, 33, 33]) → true
+ */
+export function isEqualShareSplit(shareCents: number[]): boolean {
+  if (shareCents.length === 0) return false;
+  return Math.max(...shareCents) - Math.min(...shareCents) <= 1;
+}
+
+/**
  * Generate a URL-safe slug from a display name, guaranteed unique among `existing`.
  * Appends -2, -3 etc. until a non-conflicting slug is found.
  *

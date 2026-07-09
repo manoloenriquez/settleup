@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { equalSplit, generateSlug } from "../utils/split";
+import { equalSplit, generateSlug, isEqualShareSplit } from "../utils/split";
 
 describe("equalSplit", () => {
   it("splits evenly when divisible", () => {
@@ -38,6 +38,28 @@ describe("equalSplit", () => {
 
   it("throws for n=0", () => {
     expect(() => equalSplit(100, 0)).toThrow();
+  });
+});
+
+describe("isEqualShareSplit", () => {
+  it("returns false for empty shares", () => {
+    expect(isEqualShareSplit([])).toBe(false);
+  });
+
+  it("returns true for a single participant", () => {
+    expect(isEqualShareSplit([500])).toBe(true);
+  });
+
+  it("returns true for identical shares", () => {
+    expect(isEqualShareSplit([100, 100, 100])).toBe(true);
+  });
+
+  it("tolerates 1-cent rounding spread", () => {
+    expect(isEqualShareSplit([34, 33, 33])).toBe(true);
+  });
+
+  it("returns false for custom splits", () => {
+    expect(isEqualShareSplit([600, 400])).toBe(false);
   });
 });
 

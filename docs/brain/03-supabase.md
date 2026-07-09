@@ -193,7 +193,7 @@ All SettleUp tables live in the **`settleup` schema**. Query with `.schema("sett
 |---------------------------------------|----------|-----------------------------------------------------|
 | `get_member_balances(p_group_id)`     | Authed   | Returns balance per member: `net_cents`, `owed_cents` |
 | `get_friend_view(p_share_token)`      | Anon     | Public share page data — minimal member + payer info |
-| `get_group_overview(p_share_token)`   | Anon     | Group-level overview via share token                |
+| `get_group_overview(p_share_token)`   | Anon     | Group-level overview via share token: balances, expenses (with payers, participant `member_id`s, per-item participants), PAID payments, masked creditor/owner payment profiles |
 | `get_groups_with_stats()`             | Authed   | All groups for current user with expense totals     |
 
 ### Balance Formula

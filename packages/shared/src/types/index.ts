@@ -113,12 +113,26 @@ export type GroupOverviewPayload = {
   group: { id: string; name: string };
   members: { member_id: string; display_name: string; net_cents: number; owed_cents: number }[];
   expenses: {
+    id?: string;
     item_name: string;
     amount_cents: number;
     created_at: string;
     category: ExpenseCategorySummary | null;
-    participants: { display_name: string; share_cents: number }[];
-    items?: { name: string; amount_cents: number }[];
+    payers?: { member_id: string; display_name: string; paid_cents: number }[];
+    participants: { member_id?: string; display_name: string; share_cents: number }[];
+    items?: {
+      name: string;
+      amount_cents: number;
+      participants?: { member_id: string; display_name: string; share_cents: number }[];
+    }[];
+  }[];
+  payments?: {
+    from_member_id: string;
+    from_display_name: string;
+    to_member_id: string;
+    to_display_name: string;
+    amount_cents: number;
+    created_at: string;
   }[];
   payment_profile: {
     payer_display_name: string | null;

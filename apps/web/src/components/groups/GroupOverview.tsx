@@ -2,41 +2,17 @@
 
 import { formatCents, buildSuggestedSettlements } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
+import { OverviewMemberBreakdown } from "@/components/groups/OverviewMemberBreakdown";
+import { OverviewSettleUpCard } from "@/components/groups/OverviewSettleUpCard";
+import { OverviewExpenseList } from "@/components/groups/OverviewExpenseList";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Receipt, Users, Smartphone, Landmark, CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "lucide-react";
 import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
 
 type Props = {
   payload: GroupOverviewPayload;
 };
-
-type MemberWithNet = GroupOverviewPayload["members"][number] & {
-  _net: number;
-  _owed: number;
-};
-
-function sortedMembers(members: GroupOverviewPayload["members"]): MemberWithNet[] {
-  return members
-    .map((m) => {
-      const net = m.net_cents ?? 0;
-      const owed = m.owed_cents ?? Math.max(0, -net);
-      return { ...m, _net: net, _owed: owed };
-    })
-    .sort((a, b) => {
-      // owes first (negative net, largest debt first)
-      if (a._net < 0 && b._net >= 0) return -1;
-      if (b._net < 0 && a._net >= 0) return 1;
-      if (a._net < 0 && b._net < 0) return a._net - b._net; // more negative first
-      // then owed (positive net, largest first)
-      if (a._net > 0 && b._net === 0) return -1;
-      if (b._net > 0 && a._net === 0) return 1;
-      if (a._net > 0 && b._net > 0) return b._net - a._net;
-      return 0;
-    });
-}
 
 function computeSettlements(payload: GroupOverviewPayload): SuggestedSettlement[] {
   if (payload.creditor_profiles?.length) {
@@ -84,11 +60,22 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
     }
   }
 
+  const payments = payload.payments ?? [];
+  if (payments.length > 0) {
+    lines.push("", "PAYMENTS RECORDED:");
+    for (const p of payments) {
+      lines.push(`${p.from_display_name} paid ${p.to_display_name} ${formatCents(p.amount_cents)}`);
+    }
+  }
+
   if (payload.expenses.length > 0) {
     lines.push("", "EXPENSES:");
     for (const exp of payload.expenses) {
       const parts = exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ");
       lines.push(`• ${exp.item_name} — ${formatCents(exp.amount_cents)}`);
+      if (exp.payers && exp.payers.length > 0) {
+        lines.push(`  Paid by ${exp.payers.map((p) => `${p.display_name} (${formatCents(p.paid_cents)})`).join(", ")}`);
+      }
       if (parts) lines.push(`  ${parts}`);
       if (exp.items && exp.items.length > 0) {
         for (const item of exp.items) {
@@ -101,12 +88,15 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   return lines.join("\n");
 }
 
+function formatPaymentDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+}
+
 export function GroupOverview({ payload }: Props): React.ReactElement {
   const settlements = computeSettlements(payload);
-  const pp = payload.payment_profile;
+  const payments = payload.payments ?? [];
   const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   const summaryText = buildSummaryText(payload);
-  const sorted = sortedMembers(payload.members);
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
@@ -134,216 +124,45 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
           </div>
         </div>
 
-        {/* Member balances */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Who owes</h2>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-2">
-              {sorted.map((m) => (
-                <div
-                  key={m.member_id}
-                  className={`flex items-center justify-between text-sm rounded-xl px-3 py-2.5 border-l-4 hover:shadow-sm transition-all ${
-                    m._net < 0
-                      ? "border-l-amber-400 bg-amber-50/50"
-                      : m._net > 0
-                        ? "border-l-emerald-400 bg-emerald-50/50"
-                        : "border-l-slate-200 bg-slate-50/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Avatar name={m.display_name} size="sm" />
-                    <span className="text-slate-700">{m.display_name}</span>
-                  </div>
-                  {m._net === 0 ? (
-                    <Badge variant="success">Settled</Badge>
-                  ) : m._net > 0 ? (
-                    <Badge variant="success">owed {formatCents(m._net)}</Badge>
-                  ) : (
-                    <Badge variant="warning">owes {formatCents(m._owed)}</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-            {totalOwed > 0 && (
-              <div className="mt-4 border-t border-slate-100 pt-3 flex justify-between text-sm">
-                <span className="font-medium text-slate-600">Total outstanding</span>
-                <span className="font-bold text-slate-900">{formatCents(totalOwed)}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Member balances with per-member "why" breakdown */}
+        <OverviewMemberBreakdown members={payload.members} expenses={payload.expenses} payments={payments} />
 
-        {/* Suggested settlements */}
-        {settlements.length > 0 && (
+        {/* How to settle up (or owner fallback payment info) */}
+        <OverviewSettleUpCard
+          groupName={payload.group.name}
+          settlements={settlements}
+          ownerProfile={payload.payment_profile}
+        />
+
+        {/* Recorded payments */}
+        {payments.length > 0 && (
           <Card>
             <CardHeader>
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Settle Up</h2>
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Payments recorded</h2>
+              <p className="mt-1 text-xs text-slate-400 normal-case">
+                Already paid? These settlements are counted in the balances above.
+              </p>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {settlements.map((s, idx) => (
-                <div key={idx} className="rounded-xl border border-slate-100 p-4">
-                  <div className="flex items-center gap-2 text-sm mb-3">
-                    <Avatar name={s.from_display_name} size="sm" />
-                    <span className="font-medium text-slate-700">{s.from_display_name}</span>
-                    <ArrowRight size={14} className="text-slate-400" />
-                    <Avatar name={s.to_display_name} size="sm" />
-                    <span className="font-medium text-slate-700">{s.to_display_name}</span>
-                    <span className="ml-auto font-bold text-slate-900">{formatCents(s.amount_cents)}</span>
-                  </div>
-                  {!s.creditor_profile && (
-                    <p className="text-xs text-slate-400 italic mt-1">
-                      No payment details set — creditor can add them in Account &rarr; Payment Settings
-                    </p>
-                  )}
-                  {s.creditor_profile && (
-                    <div className="flex flex-col gap-2 pl-2 border-l-2 border-brand-100">
-                      {s.creditor_profile.gcash_number && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Smartphone size={12} className="text-blue-500" />
-                          <span className="font-mono text-slate-700">{s.creditor_profile.gcash_number}</span>
-                          {s.creditor_profile.gcash_name && <span className="text-slate-400">({s.creditor_profile.gcash_name})</span>}
-                        </div>
-                      )}
-                      {s.creditor_profile.gcash_qr_url && (
-                        <div className="mt-2 flex justify-center">
-                          <img src={s.creditor_profile.gcash_qr_url} alt="GCash QR" className="w-full max-w-[240px] object-contain bg-white p-3 rounded-xl border border-slate-200 shadow-sm" />
-                        </div>
-                      )}
-                      {s.creditor_profile.bank_name && s.creditor_profile.bank_account_number && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Landmark size={12} className="text-brand-500" />
-                          <span className="font-mono text-slate-700">{s.creditor_profile.bank_account_number}</span>
-                          <span className="text-slate-400">({s.creditor_profile.bank_name})</span>
-                        </div>
-                      )}
-                      {s.creditor_profile.bank_qr_url && (
-                        <div className="mt-2 flex justify-center">
-                          <img src={s.creditor_profile.bank_qr_url} alt="Bank QR" className="w-full max-w-[240px] object-contain bg-white p-3 rounded-xl border border-slate-200 shadow-sm" />
-                        </div>
-                      )}
-                      {s.creditor_profile.notes && <p className="text-xs text-slate-400 italic">{s.creditor_profile.notes}</p>}
-                    </div>
-                  )}
+            <CardContent className="flex flex-col gap-2">
+              {payments.map((p, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm rounded-xl bg-slate-50/70 border border-slate-100 px-3 py-2.5">
+                  <Avatar name={p.from_display_name} size="sm" />
+                  <span className="text-slate-700 min-w-0 truncate">{p.from_display_name}</span>
+                  <ArrowRight size={13} className="text-slate-400 shrink-0" />
+                  <Avatar name={p.to_display_name} size="sm" />
+                  <span className="text-slate-700 min-w-0 truncate">{p.to_display_name}</span>
+                  <span className="ml-auto text-right shrink-0">
+                    <span className="block font-semibold text-slate-900">{formatCents(p.amount_cents)}</span>
+                    <span className="block text-[11px] text-slate-400">{formatPaymentDate(p.created_at)}</span>
+                  </span>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Fallback: owner payment info (when no creditor profiles available) */}
-        {settlements.length === 0 && pp && (pp.gcash_number ?? pp.bank_account_number) && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">How to pay</h2>
-                {pp.payer_display_name && (
-                  <div className="flex items-center gap-2">
-                    <Avatar name={pp.payer_display_name} size="sm" />
-                    <span className="text-sm font-medium text-slate-700">{pp.payer_display_name}</span>
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {pp.gcash_number && (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Smartphone size={16} className="text-blue-500" />
-                    <span className="text-sm font-semibold text-slate-700">GCash</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-mono text-slate-900">{pp.gcash_number}</span>
-                    {pp.gcash_name && <span className="text-slate-400">({pp.gcash_name})</span>}
-                    <CopyButton text={pp.gcash_number} label="Copy" className="ml-auto" />
-                  </div>
-                  {pp.gcash_qr_url && (
-                    <div className="mt-3 flex justify-center">
-                      <img src={pp.gcash_qr_url} alt="GCash QR" className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm" />
-                    </div>
-                  )}
-                </div>
-              )}
-              {pp.bank_name && pp.bank_account_number && (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Landmark size={16} className="text-brand-500" />
-                    <span className="text-sm font-semibold text-slate-700">{pp.bank_name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-mono text-slate-900">{pp.bank_account_number}</span>
-                    {pp.bank_account_name && <span className="text-slate-400">({pp.bank_account_name})</span>}
-                    <CopyButton text={pp.bank_account_number} label="Copy" className="ml-auto" />
-                  </div>
-                  {pp.bank_qr_url && (
-                    <div className="mt-3 flex justify-center">
-                      <img src={pp.bank_qr_url} alt="Bank QR" className="w-full max-w-[280px] object-contain bg-white p-4 rounded-xl border border-slate-200 shadow-sm" />
-                    </div>
-                  )}
-                </div>
-              )}
-              {pp.notes && <p className="text-xs text-slate-400 italic">{pp.notes}</p>}
             </CardContent>
           </Card>
         )}
 
         {/* Expense breakdown */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Expenses</h2>
-          </CardHeader>
-          <CardContent>
-            {payload.expenses.length > 0 ? (
-              <div className="flex flex-col gap-4">
-                {payload.expenses.map((exp, i) => (
-                  <div key={i} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-800">
-                        {exp.item_name}
-                        {exp.amount_cents < 0 && (
-                          <Badge variant="success" className="ml-2">Credit</Badge>
-                        )}
-                      </span>
-                      <span className={`font-semibold ${exp.amount_cents < 0 ? "text-green-600" : "text-slate-700"}`}>
-                        {formatCents(exp.amount_cents)}
-                      </span>
-                    </div>
-                    {exp.participants.length > 0 && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-                        <Users size={12} />
-                        <span>{exp.participants.length} participant{exp.participants.length !== 1 ? "s" : ""}</span>
-                      </div>
-                    )}
-                    {exp.category && (
-                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: exp.category.color }} />
-                        {exp.category.name}
-                      </div>
-                    )}
-                    {exp.participants.length > 0 && (
-                      <p className="mt-1 text-xs text-slate-400">
-                        {exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ")}
-                      </p>
-                    )}
-                    {exp.items && exp.items.length > 0 && (
-                      <div className="mt-2 ml-3 border-l-2 border-brand-100 pl-3 flex flex-col gap-0.5">
-                        {exp.items.map((item, j) => (
-                          <div key={j} className="flex items-center justify-between text-xs text-slate-500">
-                            <span>{item.name}</span>
-                            <span>{formatCents(item.amount_cents)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState icon={Receipt} title="No expenses yet" description="Expenses will appear here once added." />
-            )}
-          </CardContent>
-        </Card>
+        <OverviewExpenseList expenses={payload.expenses} />
 
         {/* Footer */}
         <div className="flex items-center justify-center gap-2 py-2 text-xs text-slate-400">
