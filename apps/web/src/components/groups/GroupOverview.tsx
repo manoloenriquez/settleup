@@ -1,8 +1,9 @@
 "use client";
 
-import { formatCents, buildSuggestedSettlements } from "@template/shared";
+import { formatCents, buildSuggestedSettlements, computePairwiseDebts } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { OverviewMemberBreakdown } from "@/components/groups/OverviewMemberBreakdown";
+import { OverviewPairwiseDebts } from "@/components/groups/OverviewPairwiseDebts";
 import { OverviewSettleUpCard } from "@/components/groups/OverviewSettleUpCard";
 import { OverviewExpenseList } from "@/components/groups/OverviewExpenseList";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
@@ -38,6 +39,17 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
 
   const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
   lines.push("", `Total outstanding: ${formatCents(totalOwed)}`);
+
+  // Direct pairwise debts (before netting)
+  if (payload.expenses.every((e) => Array.isArray(e.payers))) {
+    const pairwise = computePairwiseDebts(payload.expenses, payload.payments ?? []);
+    if (pairwise.length > 0) {
+      lines.push("", "WHO OWES WHOM (before netting):");
+      for (const d of pairwise) {
+        lines.push(`${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`);
+      }
+    }
+  }
 
   // Suggested settlements
   const settlements = computeSettlements(payload);
@@ -126,6 +138,9 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
 
         {/* Member balances with per-member "why" breakdown */}
         <OverviewMemberBreakdown members={payload.members} expenses={payload.expenses} payments={payments} />
+
+        {/* Direct pairwise debts, before netting into the Settle Up plan */}
+        <OverviewPairwiseDebts expenses={payload.expenses} payments={payments} />
 
         {/* How to settle up (or owner fallback payment info) */}
         <OverviewSettleUpCard
