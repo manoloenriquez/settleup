@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Upload, Camera, X } from "lucide-react";
 import type { ParsedReceipt } from "@template/shared/types";
 import { AI_LIMITS } from "@template/shared/constants";
+import { IconButton } from "@/components/ui/IconButton";
 
 type Props = {
   onParsed: (receipt: ParsedReceipt) => void;
@@ -68,10 +69,16 @@ export function ReceiptUploader({ onParsed }: Props): React.ReactElement {
     <div className="flex flex-col gap-3">
       {!file ? (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Upload receipt image"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center hover:border-brand-400 hover:bg-brand-50/50 transition-colors cursor-pointer"
           onClick={() => inputRef.current?.click()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") inputRef.current?.click();
+          }}
         >
           <div className="rounded-full bg-brand-100 p-3 mb-3">
             <Camera size={24} className="text-brand-600" />
@@ -107,13 +114,11 @@ export function ReceiptUploader({ onParsed }: Props): React.ReactElement {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
+              <IconButton
+                label="Remove receipt"
+                icon={X}
                 onClick={clearFile}
-                className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X size={16} />
-              </button>
+              />
             </div>
             <Button
               onClick={handleUpload}

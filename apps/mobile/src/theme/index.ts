@@ -1,22 +1,26 @@
+import { DESIGN_TOKENS } from "@template/shared";
+
+const design = DESIGN_TOKENS;
+
 export const colors = {
   // Brand
-  primary: "#6366f1",
-  primaryLight: "#e0e7ff",
-  primaryDark: "#4f46e5",
+  primary: design.color.brand,
+  primaryLight: design.color.brandSoft,
+  primaryDark: design.color.brandStrong,
 
   // Semantic
-  success: "#10b981",
-  successLight: "#d1fae5",
-  successDark: "#065f46",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  warningDark: "#92400e",
-  danger: "#ef4444",
-  dangerLight: "#fee2e2",
+  success: design.color.positive,
+  successLight: design.color.positiveSoft,
+  successDark: "#0D5D50",
+  warning: design.color.outgoing,
+  warningLight: design.color.outgoingSoft,
+  warningDark: "#79440A",
+  danger: design.color.danger,
+  dangerLight: design.color.dangerSoft,
 
   // Accent (quick actions, decorative)
-  violet: "#8b5cf6",
-  violetLight: "#ede9fe",
+  violet: design.color.ai,
+  violetLight: design.color.aiSoft,
 
   // Neutral
   black: "#000000",
@@ -26,16 +30,17 @@ export const colors = {
   gray200: "#e5e7eb",
   gray300: "#d1d5db",
   gray400: "#9ca3af",
-  gray500: "#6b7280",
+  gray500: design.color.textMuted,
   gray600: "#4b5563",
   gray700: "#374151",
   gray800: "#1f2937",
-  gray900: "#111827",
+  gray900: design.color.text,
 
   // Background
-  background: "#f8fafc",
-  surface: "#ffffff",
-  border: "#e5e7eb",
+  background: design.color.canvas,
+  surface: design.color.surface,
+  surfaceMuted: design.color.surfaceMuted,
+  border: design.color.border,
 } as const;
 
 export const spacing = {
@@ -51,9 +56,9 @@ export const spacing = {
 
 export const borderRadius = {
   sm: 8,
-  md: 12,
+  md: design.radius.control,
   lg: 16,
-  xl: 20,
+  xl: design.radius.card,
   full: 9999,
 } as const;
 

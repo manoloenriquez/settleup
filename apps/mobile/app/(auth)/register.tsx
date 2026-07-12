@@ -16,6 +16,7 @@ import { AppButton } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
 import { signInWithGoogle } from "@/lib/google-auth";
 import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 function ConfirmEmailState() {
   return (
@@ -108,7 +109,7 @@ export default function RegisterScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.brand}>{APP_NAME}</Text>
+          <View style={styles.brandRow}><BrandMark size={42} /><Text style={styles.brand}>{APP_NAME}</Text></View>
           <Text style={styles.title}>Create your account</Text>
         </View>
 
@@ -209,6 +210,7 @@ const styles = StyleSheet.create({
     color: colors.gray900,
     letterSpacing: -0.5,
   },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   title: {
     fontSize: fontSize.base,
     color: colors.gray500,

@@ -9,10 +9,12 @@ import {
 import { colors, borderRadius, spacing, fontSize, fontWeight } from "@/theme";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonSize = "sm" | "md" | "lg";
 
 export interface AppButtonProps extends TouchableOpacityProps {
   title: string;
   variant?: ButtonVariant;
+  size?: ButtonSize;
   isLoading?: boolean;
   style?: ViewStyle;
 }
@@ -20,6 +22,7 @@ export interface AppButtonProps extends TouchableOpacityProps {
 export function AppButton({
   title,
   variant = "primary",
+  size = "md",
   isLoading = false,
   disabled,
   style,
@@ -29,9 +32,11 @@ export function AppButton({
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, busy: isLoading }}
       activeOpacity={0.75}
       disabled={isDisabled}
-      style={[styles.base, variantStyles[variant].container, isDisabled && styles.disabled, style]}
+      style={[styles.base, sizeStyles[size], variantStyles[variant].container, isDisabled && styles.disabled, style]}
       {...props}
     >
       {isLoading ? (
@@ -80,4 +85,10 @@ const variantStyles: Record<ButtonVariant, { container: ViewStyle; label: object
     container: { backgroundColor: colors.danger },
     label: { color: colors.white },
   },
+};
+
+const sizeStyles: Record<ButtonSize, ViewStyle> = {
+  sm: { height: 40, paddingHorizontal: spacing.base },
+  md: { height: 48 },
+  lg: { height: 52, paddingHorizontal: spacing["2xl"] },
 };

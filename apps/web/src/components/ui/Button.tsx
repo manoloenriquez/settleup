@@ -2,16 +2,16 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 
 const variants = {
-  primary: "bg-brand-600 text-white border-transparent hover:bg-brand-700",
-  secondary: "bg-white text-slate-700 border-slate-300 hover:bg-slate-50",
-  ghost: "bg-transparent text-slate-700 border-transparent hover:bg-slate-100",
-  danger: "bg-red-600 text-white border-transparent hover:bg-red-700",
+  primary: "bg-brand-600 text-white border-transparent shadow-sm hover:bg-brand-700 hover:shadow-card",
+  secondary: "bg-surface text-ink border-border-subtle hover:bg-surface-muted",
+  ghost: "bg-transparent text-muted border-transparent hover:bg-surface-muted hover:text-ink",
+  danger: "bg-danger text-white border-transparent hover:brightness-90",
 } as const;
 
 const sizes = {
-  sm: "px-3 py-1.5 text-xs",
-  md: "px-4 py-2 text-sm",
-  lg: "px-6 py-3 text-base",
+  sm: "min-h-9 px-3 py-1.5 text-xs",
+  md: "min-h-11 px-4 py-2 text-sm",
+  lg: "min-h-12 px-6 py-3 text-base",
 } as const;
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -39,8 +39,8 @@ export function Button({
     <button
       disabled={disabled ?? isLoading}
       className={[
-        "inline-flex items-center justify-center rounded-lg border font-medium",
-        "transition-colors focus-visible:outline-none focus-visible:ring-2",
+        "inline-flex items-center justify-center rounded-control border font-semibold",
+        "transition-[color,background-color,border-color,box-shadow,transform] active:translate-y-px focus-visible:outline-none focus-visible:ring-2",
         "focus-visible:ring-brand-500 focus-visible:ring-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],

@@ -6,7 +6,8 @@ import { formatCents } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { getDashboardSummary } from "@/app/actions/dashboard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Card } from "@/components/ui/Card";
 import {
   Users,
   Plus,
@@ -39,44 +40,39 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
   const owes = summary.net_balance_cents < 0;
   const settled = summary.net_balance_cents === 0;
 
-  // Hero gradient config
   const heroConfig = owes
     ? {
-        gradient: "from-amber-500 to-orange-500",
-        bg: "bg-gradient-to-br from-amber-500 to-orange-500",
-        badge: "bg-white/20 text-white",
+        badge: "bg-outgoing-soft text-outgoing",
         label: "Total you owe",
-        icon: <TrendingDown size={20} className="text-white/80" />,
+        icon: <TrendingDown size={16} />,
         pill: "You owe",
+        amount: "text-outgoing",
       }
     : isOwed
       ? {
-          gradient: "from-emerald-500 to-teal-500",
-          bg: "bg-gradient-to-br from-emerald-500 to-teal-500",
-          badge: "bg-white/20 text-white",
+          badge: "bg-positive-soft text-positive",
           label: "Total owed to you",
-          icon: <ArrowUpRight size={20} className="text-white/80" />,
+          icon: <ArrowUpRight size={16} />,
           pill: "You're owed",
+          amount: "text-positive",
         }
       : {
-          gradient: "from-brand-600 to-violet-600",
-          bg: "bg-gradient-to-br from-brand-600 to-violet-600",
-          badge: "bg-white/20 text-white",
+          badge: "bg-brand-100 text-brand-700",
           label: "Net balance",
-          icon: <CheckCircle2 size={20} className="text-white/80" />,
+          icon: <CheckCircle2 size={16} />,
           pill: "All settled",
+          amount: "text-brand-700",
         };
 
   return (
     <div className="space-y-6 animate-fade-in">
 
       {/* Hero */}
-      <div className={`${heroConfig.bg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}>
-        {/* Background texture */}
-        <div className="absolute inset-0 opacity-10 bg-dot-grid" />
+      <Card variant="metric" className="relative overflow-hidden p-6 sm:p-8">
+        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-brand-200/50 blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-medium text-white/80">
+            <span className="text-sm font-semibold text-muted">
               Welcome back{profile.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}
             </span>
             <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${heroConfig.badge}`}>
@@ -85,12 +81,12 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
             </span>
           </div>
 
-          <p className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+          <p className={`text-amount text-4xl font-extrabold sm:text-5xl ${heroConfig.amount}`}>
             {settled ? "All clear" : formatCents(Math.abs(summary.net_balance_cents))}
           </p>
-          <p className="mt-1.5 text-sm text-white/70">{heroConfig.label}</p>
+          <p className="mt-1.5 text-sm text-muted">{heroConfig.label}</p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-white/70">
+          <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-muted">
             <span className="flex items-center gap-1">
               <Users size={14} />
               {summary.total_groups} group{summary.total_groups !== 1 ? "s" : ""}
@@ -103,7 +99,7 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Quick actions */}
       <div className="grid grid-cols-3 gap-3">
@@ -112,7 +108,7 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
             href: ROUTES.GROUP_NEW,
             icon: <Plus size={22} />,
             label: "New Group",
-            color: "text-brand-600",
+            color: "text-brand-700",
             bg: "bg-brand-50 group-hover:bg-brand-100",
             border: "hover:border-brand-200",
           },
@@ -120,9 +116,9 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
             href: ROUTES.PAYMENT_SETTINGS,
             icon: <CreditCard size={22} />,
             label: "Payment Info",
-            color: "text-emerald-600",
-            bg: "bg-emerald-50 group-hover:bg-emerald-100",
-            border: "hover:border-emerald-200",
+            color: "text-positive",
+            bg: "bg-positive-soft",
+            border: "hover:border-positive/20",
           },
           {
             href: ROUTES.GROUPS,
@@ -133,13 +129,13 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
             border: "hover:border-violet-200",
           },
         ].map((action) => (
-          <Link key={action.href} href={action.href} className="group">
-            <div className={`bg-white rounded-2xl border border-slate-200 ${action.border} p-4 flex flex-col items-center gap-2.5 transition-all hover:shadow-md`}>
+          <Link key={action.href} href={action.href} className="group rounded-card focus-visible:ring-2 focus-visible:ring-brand-500">
+            <Card variant="interactive" className={`h-full ${action.border} p-4 flex flex-col items-center gap-2.5`}>
               <div className={`${action.bg} ${action.color} p-3 rounded-xl transition-colors`}>
                 {action.icon}
               </div>
               <span className="text-xs font-semibold text-slate-700 text-center leading-tight">{action.label}</span>
-            </div>
+            </Card>
           </Link>
         ))}
       </div>
@@ -152,9 +148,7 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
             title="No groups yet"
             description="Create your first group to start splitting expenses with friends."
             action={
-              <Link href={ROUTES.GROUP_NEW}>
-                <Button leftIcon={Plus} size="sm">Create Group</Button>
-              </Link>
+              <ButtonLink href={ROUTES.GROUP_NEW} leftIcon={Plus} size="sm">Create Group</ButtonLink>
             }
           />
         </div>
@@ -175,11 +169,11 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-slate-900 truncate leading-tight">{group.name}</h3>
                       {hasDebt ? (
-                        <span className="shrink-0 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        <span className="shrink-0 text-xs font-semibold text-outgoing bg-outgoing-soft border border-outgoing/20 px-2 py-0.5 rounded-full">
                           {formatCents(group.total_owed_cents)}
                         </span>
                       ) : (
-                        <span className="shrink-0 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <span className="shrink-0 text-xs font-semibold text-positive bg-positive-soft border border-positive/20 px-2 py-0.5 rounded-full">
                           Settled
                         </span>
                       )}

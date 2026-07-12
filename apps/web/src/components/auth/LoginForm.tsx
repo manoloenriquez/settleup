@@ -9,6 +9,7 @@ import { ROUTES } from "@template/shared";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import Link from "next/link";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { IconButton } from "@/components/ui/IconButton";
 
 export function LoginForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
@@ -71,14 +72,12 @@ export function LoginForm(): React.ReactElement {
             required
             autoComplete="current-password"
           />
-          <button
-            type="button"
+          <IconButton
+            label={showPassword ? "Hide password" : "Show password"}
+            icon={showPassword ? EyeOff : Eye}
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-8 text-slate-400 hover:text-slate-600 transition-colors"
-            tabIndex={-1}
-          >
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
+            className="absolute right-0 top-6 h-11 w-11 border-transparent"
+          />
         </div>
         <div className="text-right">
           <Link

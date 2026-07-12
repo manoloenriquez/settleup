@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ROUTES } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
-import { AppNav } from "@/components/layout/AppNav";
+import { AppNav, MobileBottomNav } from "@/components/layout/AppNav";
 
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
@@ -9,7 +9,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   if (!profile) redirect(ROUTES.LOGIN);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-canvas">
       <AppNav
         profile={{
           email: profile.email,
@@ -19,7 +19,8 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       />
 
       {/* Page content */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-8 pb-28 sm:px-6 md:pb-8">{children}</main>
+      <MobileBottomNav />
     </div>
   );
 }

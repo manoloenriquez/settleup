@@ -6,6 +6,7 @@ import { useDashboardSummary } from "@/hooks/useDashboard";
 import { formatCents, APP_NAME } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { SkeletonCard, ErrorBanner } from "@/components/ui";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 type QuickAction = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -34,8 +35,6 @@ export default function DashboardScreen() {
   const settled = netCents === 0;
 
   const heroColor = owes ? colors.warning : isOwed ? colors.success : colors.primary;
-  const heroBg = owes ? colors.warningLight : isOwed ? colors.successLight : colors.primaryLight;
-  const heroBorder = owes ? colors.warning + "60" : isOwed ? colors.success + "60" : colors.primary + "60";
   const heroLabel = isOwed ? "You are owed" : owes ? "You owe" : "All settled";
   const heroAmount = settled ? "₱0.00" : formatCents(Math.abs(netCents));
 
@@ -65,7 +64,7 @@ export default function DashboardScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: APP_NAME, headerShown: true }} />
+      <Stack.Screen options={{ title: APP_NAME, headerShown: true, headerTitle: () => <View style={styles.brandTitle}><BrandMark size={28} /><Text style={styles.brandTitleText}>{APP_NAME}</Text></View> }} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -78,7 +77,7 @@ export default function DashboardScreen() {
           />
         )}
         {/* Hero Balance Card */}
-        <View style={[styles.heroCard, { backgroundColor: heroBg, borderColor: heroBorder }]}>
+        <View style={styles.heroCard}>
           <View style={[styles.heroPill, { backgroundColor: heroColor + "20" }]}>
             <Ionicons
               name={owes ? "trending-down-outline" : isOwed ? "trending-up-outline" : "checkmark-circle-outline"}
@@ -87,7 +86,7 @@ export default function DashboardScreen() {
             />
             <Text style={[styles.heroPillText, { color: heroColor }]}>{heroLabel}</Text>
           </View>
-          <Text style={[styles.heroAmount, { color: owes ? colors.gray900 : heroColor }]}>
+          <Text style={[styles.heroAmount, { color: heroColor }]}>
             {heroAmount}
           </Text>
           {(summary?.total_groups ?? 0) > 0 && (
@@ -193,6 +192,8 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     marginBottom: spacing.base,
     borderWidth: 1,
+    borderColor: colors.primary + "28",
+    backgroundColor: colors.primaryLight,
     alignItems: "flex-start",
   },
   heroPill: {
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   heroPillText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, letterSpacing: 0.2 },
-  heroAmount: { fontSize: fontSize["3xl"], fontWeight: fontWeight.bold, letterSpacing: -0.5, marginBottom: spacing.xs },
+  heroAmount: { fontSize: 38, fontWeight: fontWeight.bold, fontVariant: ["tabular-nums"], letterSpacing: -1.2, marginBottom: spacing.xs },
   heroMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
   heroMetaText: { fontSize: fontSize.xs, color: colors.gray400 },
 
@@ -263,4 +264,6 @@ const styles = StyleSheet.create({
   groupBadgeWarnText: { fontSize: fontSize.xs, color: colors.warningDark, fontWeight: fontWeight.semibold },
   groupBadgeOk: { backgroundColor: colors.successLight, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: colors.success + "60" },
   groupBadgeOkText: { fontSize: fontSize.xs, color: colors.successDark, fontWeight: fontWeight.semibold },
+  brandTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  brandTitleText: { fontSize: fontSize.lg, color: colors.gray900, fontWeight: fontWeight.bold, letterSpacing: -0.4 },
 });

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { listGroupsWithStats, listArchivedGroups } from "@/app/actions/groups";
 import { GroupList } from "@/components/groups/GroupList";
 import { ArchivedGroupsSection } from "@/components/groups/ArchivedGroupsSection";
-import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
 import { ROUTES } from "@template/shared";
@@ -21,9 +20,7 @@ export default async function GroupsPage(): Promise<React.ReactElement> {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Your Groups</h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage expenses across all your groups</p>
         </div>
-        <Link href={ROUTES.GROUP_NEW}>
-          <Button leftIcon={Plus}>New Group</Button>
-        </Link>
+        <ButtonLink href={ROUTES.GROUP_NEW} leftIcon={Plus}>New Group</ButtonLink>
       </div>
 
       {result.error && (
@@ -37,9 +34,7 @@ export default async function GroupsPage(): Promise<React.ReactElement> {
             title="No groups yet"
             description="Create your first group to start splitting expenses."
             action={
-              <Link href={ROUTES.GROUP_NEW}>
-                <Button leftIcon={Plus} size="sm">Create Group</Button>
-              </Link>
+              <ButtonLink href={ROUTES.GROUP_NEW} leftIcon={Plus} size="sm">Create Group</ButtonLink>
             }
           />
         </Card>

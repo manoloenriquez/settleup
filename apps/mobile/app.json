@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FAF8F3"
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -23,7 +23,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#6366f1"
+        "backgroundColor": "#5145CD"
       },
       "package": "com.settleup.app"
     },
@@ -36,7 +36,7 @@
           "image": "./assets/splash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#FAF8F3"
         }
       ],
       "expo-image-picker",

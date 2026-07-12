@@ -165,18 +165,18 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
       {/* Stats hero */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className={`rounded-2xl p-4 col-span-2 ${isFullySettled ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${isFullySettled ? "text-emerald-600" : "text-amber-600"}`}>
+        <div className={`rounded-card p-4 col-span-2 border ${isFullySettled ? "bg-positive-soft border-positive/20" : "bg-outgoing-soft border-outgoing/20"}`}>
+          <p className={`text-xs font-semibold uppercase tracking-wider ${isFullySettled ? "text-positive" : "text-outgoing"}`}>
             Outstanding Balance
           </p>
-          <p className={`mt-1 text-2xl font-extrabold tracking-tight ${isFullySettled ? "text-emerald-800" : "text-amber-900"}`}>
+          <p className={`text-amount mt-1 text-2xl font-extrabold ${isFullySettled ? "text-positive" : "text-outgoing"}`}>
             {isFullySettled ? "All settled" : formatCents(totalOutstandingCents)}
           </p>
           {isFullySettled && (
-            <p className="text-xs text-emerald-600 mt-0.5">No outstanding debts</p>
+            <p className="text-xs text-positive mt-0.5">No outstanding debts</p>
           )}
         </div>
-        <div className="rounded-2xl p-4 bg-white border border-slate-200">
+        <div className="rounded-card p-4 bg-surface border border-border-subtle">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Members</p>
           <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{members.length}</p>
           <div className="flex -space-x-1.5 mt-1.5">
@@ -185,17 +185,17 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
             ))}
           </div>
         </div>
-        <div className="rounded-2xl p-4 bg-white border border-slate-200">
+        <div className="rounded-card p-4 bg-surface border border-border-subtle">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending</p>
           <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{pendingMembers}</p>
           {pendingMembers > 0 && (
-            <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-0.5">
+            <p className="text-xs text-outgoing mt-0.5 flex items-center gap-0.5">
               <AlertCircle size={10} />
               unsettled
             </p>
           )}
           {pendingMembers === 0 && (
-            <p className="text-xs text-emerald-600 mt-0.5">all clear</p>
+            <p className="text-xs text-positive mt-0.5">all clear</p>
           )}
         </div>
       </div>

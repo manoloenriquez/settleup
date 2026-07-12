@@ -1,225 +1,72 @@
 import Link from "next/link";
+import { ArrowDown, ArrowRight, Camera, Check, LockKeyhole, ReceiptText, Sparkles, Users } from "lucide-react";
 import { APP_NAME, ROUTES } from "@template/shared";
-import { Scan, Zap, Link2, Shield, Users, ArrowRight } from "lucide-react";
+import { BrandLockup } from "@/components/brand/BrandLockup";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+
+const proof = [
+  { icon: Camera, eyebrow: "Capture", title: "From receipt to shared expense", description: "Scan a receipt or add an expense in a few taps. SettleUp keeps the details clear without turning dinner into data entry." },
+  { icon: Sparkles, eyebrow: "Understand", title: "Know the fair split instantly", description: "See who paid, who owes, and the simplest way to settle—with amounts that stay easy to audit." },
+  { icon: Check, eyebrow: "Settle", title: "Close the loop without awkwardness", description: "Share a private balance link and payment details. Friends can check what they owe without creating an account." },
+] as const;
+
+function ProductPreview(): React.ReactElement {
+  return (
+    <div className="relative mx-auto w-full max-w-md rounded-panel border border-border-subtle bg-surface p-5 shadow-floating sm:p-6">
+      <div className="flex items-center justify-between border-b border-border-subtle pb-4">
+        <div><p className="text-xs font-semibold text-muted">Palawan weekend</p><p className="mt-0.5 text-sm font-bold text-ink">4 friends · 8 expenses</p></div>
+        <div className="flex -space-x-2">{["ME", "JL", "AN"].map((name) => <span key={name} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-brand-100 text-[9px] font-bold text-brand-700">{name}</span>)}</div>
+      </div>
+      <div className="py-6">
+        <span className="rounded-full bg-positive-soft px-2.5 py-1 text-xs font-semibold text-positive">You&apos;re owed</span>
+        <p className="mt-3 text-amount text-4xl font-extrabold text-ink">₱2,480.00</p>
+        <p className="mt-1 text-sm text-muted">across two simple payments</p>
+      </div>
+      <div className="space-y-2">
+        {[{ name: "Jamie pays you", value: "₱1,650" }, { name: "Anna pays you", value: "₱830" }].map((row) => (
+          <div key={row.name} className="flex items-center justify-between rounded-control bg-surface-muted px-4 py-3 text-sm"><span className="font-medium text-ink">{row.name}</span><span className="text-amount font-bold text-positive">{row.value}</span></div>
+        ))}
+      </div>
+      <div className="absolute -right-3 -top-3 flex h-10 w-10 rotate-6 items-center justify-center rounded-control bg-outgoing-soft text-outgoing shadow-card"><ReceiptText size={19} /></div>
+    </div>
+  );
+}
 
 export default function LandingPage(): React.ReactElement {
   return (
-    <div className="min-h-screen bg-white">
-      {/* Nav */}
-      <header className="absolute top-0 left-0 right-0 z-30">
-        <nav className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
-              <span className="text-white text-sm font-bold">S</span>
-            </div>
-            <span className="text-lg font-bold text-slate-900">{APP_NAME}</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link
-              href={ROUTES.LOGIN}
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Sign in
-            </Link>
-            <Link
-              href={ROUTES.REGISTER}
-              className="rounded-full bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
-            >
-              Get started
-            </Link>
-          </div>
+    <div className="min-h-screen bg-canvas text-ink">
+      <header className="relative z-30 border-b border-border-subtle/70 bg-canvas/80 backdrop-blur-md">
+        <nav className="mx-auto flex h-18 max-w-6xl items-center justify-between px-5 sm:px-6">
+          <BrandLockup compact />
+          <div className="flex items-center gap-2 sm:gap-3"><Link href={ROUTES.LOGIN} className="px-3 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink">Sign in</Link><ButtonLink href={ROUTES.REGISTER} size="sm">Get started</ButtonLink></div>
         </nav>
       </header>
 
-      {/* Hero */}
-      <section
-        className="relative min-h-[100dvh] flex items-center justify-center bg-hero-gradient"
-      >
-        <div className="max-w-2xl px-6 text-center animate-fade-in">
-          <p className="text-sm font-medium text-brand-600 tracking-wide uppercase mb-4">
-            Group expense splitting
-          </p>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-semibold text-slate-900 leading-[1.1] tracking-tighter">
-            Split it fair.
-            <br />
-            Settle it simple.
-          </h1>
-          <p className="mt-6 text-lg text-slate-500 max-w-md mx-auto leading-relaxed">
-            Track balances and settle debts with your group. No spreadsheets, no awkward math.
-          </p>
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href={ROUTES.REGISTER}
-              className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-8 py-3.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-            >
-              Get started &mdash; it&apos;s free
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-          <p className="mt-4 text-sm text-slate-400">
-            Already have an account?{" "}
-            <Link
-              href={ROUTES.LOGIN}
-              className="font-medium text-brand-600 hover:text-brand-700 transition-colors"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
-
-        {/* Scroll hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-300">
-          <span className="text-xs tracking-wider uppercase">Learn more</span>
-          <div className="w-px h-6 bg-slate-200" />
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="border-t border-slate-100">
-        <div className="mx-auto max-w-3xl px-6 py-24">
-          <p className="text-sm font-medium text-brand-600 tracking-wide uppercase text-center mb-2">
-            How it works
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900 tracking-tight text-center">
-            Three steps to fair splits
-          </h2>
-          <div className="mt-16 flex flex-col gap-0">
-            {[
-              {
-                num: "01",
-                title: "Create a group & add members",
-                desc: "Start a group for any occasion — a trip, dinner, rent, or anything shared. Add friends by name, no sign-up required for them.",
-              },
-              {
-                num: "02",
-                title: "Log expenses as they happen",
-                desc: "Add what was spent and who paid. Split equally, by custom amounts, or let AI parse a receipt and suggest the split for you.",
-              },
-              {
-                num: "03",
-                title: "Settle up with a tap",
-                desc: "See simplified debts at a glance. Record payments, share a balance link with friends, and close the loop.",
-              },
-            ].map((step) => (
-              <div
-                key={step.num}
-                className="group flex items-start gap-6 border-t border-slate-100 first:border-t-0 py-8"
-              >
-                <span className="text-sm font-semibold text-brand-400 tabular-nums pt-0.5 shrink-0">
-                  {step.num}
-                </span>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">{step.title}</h3>
-                  <p className="mt-1.5 text-sm text-slate-500 leading-relaxed max-w-lg">
-                    {step.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="bg-slate-50/50 border-t border-slate-100">
-        <div className="mx-auto max-w-5xl px-6 py-24">
-          <p className="text-sm font-medium text-brand-600 tracking-wide uppercase text-center mb-2">
-            Features
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900 tracking-tight text-center">
-            Everything you need, nothing you don&apos;t
-          </h2>
-          <div className="mt-16 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                icon: Scan,
-                title: "AI receipt scanning",
-                desc: "Snap a photo of any receipt. AI extracts line items, amounts, and suggests how to split.",
-              },
-              {
-                icon: Zap,
-                title: "Smart splits",
-                desc: "Describe an expense in plain language and let AI figure out who owes what.",
-              },
-              {
-                icon: Users,
-                title: "Multi-payer support",
-                desc: "Handle expenses paid by multiple people. Custom shares, equal splits, or itemized — your call.",
-              },
-              {
-                icon: Link2,
-                title: "Shareable balance links",
-                desc: "Send friends a private link to view what they owe. No account needed on their end.",
-              },
-              {
-                icon: Shield,
-                title: "Payment profiles",
-                desc: "Save your GCash or bank details once. They show up automatically when friends view their balance.",
-              },
-              {
-                icon: Zap,
-                title: "Instant balances",
-                desc: "Debts are simplified in real time. Always know exactly who owes whom and how much.",
-              },
-            ].map((f) => {
-              const Icon = f.icon;
-              return (
-                <div key={f.title} className="flex items-start gap-4">
-                  <div className="h-9 w-9 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 mt-0.5">
-                    <Icon size={16} className="text-brand-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">{f.title}</h3>
-                    <p className="mt-1 text-sm text-slate-500 leading-relaxed">{f.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="border-t border-slate-100">
-        <div className="mx-auto max-w-3xl px-6 py-24 text-center">
-          <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900 tracking-tight">
-            Ready to settle up?
-          </h2>
-          <p className="mt-4 text-slate-500 max-w-md mx-auto">
-            Create a free account and start splitting expenses with your group in minutes.
-          </p>
-          <Link
-            href={ROUTES.REGISTER}
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-brand-600 px-8 py-3.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-          >
-            Get started
-            <ArrowRight size={14} />
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-100 py-10">
-        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
-              <span className="text-white text-[10px] font-bold">S</span>
+      <main>
+        <section className="bg-hero-gradient">
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_.95fr] lg:py-24">
+            <div className="max-w-xl animate-fade-in">
+              <p className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700"><Users size={14} />Friendly expense splitting</p>
+              <h1 className="mt-6 text-5xl font-extrabold leading-[1.02] tracking-[-0.055em] text-ink sm:text-6xl">Shared money,<br /><span className="text-brand-600">made clear.</span></h1>
+              <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">Track the group, understand the fair split, and settle without the awkward math. Everyone sees exactly what matters.</p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row"><ButtonLink href={ROUTES.REGISTER} size="lg" rightIcon={ArrowRight}>Start splitting free</ButtonLink><ButtonLink href="#how-it-works" size="lg" variant="secondary" rightIcon={ArrowDown}>See how it works</ButtonLink></div>
+              <p className="mt-5 flex items-center gap-2 text-xs font-medium text-muted"><LockKeyhole size={14} className="text-positive" />Private links · no sign-up needed for friends</p>
             </div>
-            <span className="text-sm font-semibold text-slate-900">{APP_NAME}</span>
+            <ProductPreview />
           </div>
-          <div className="flex gap-4 text-xs text-slate-500">
-            <Link href={ROUTES.PRIVACY} className="hover:text-slate-900 transition-colors">
-              Privacy
-            </Link>
-            <Link href={ROUTES.TERMS} className="hover:text-slate-900 transition-colors">
-              Terms
-            </Link>
+        </section>
+
+        <section id="how-it-works" className="border-y border-border-subtle bg-surface">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-6 sm:py-24">
+            <div className="max-w-xl"><p className="text-sm font-semibold text-brand-700">How it works</p><h2 className="mt-2 text-3xl font-bold tracking-tight text-ink sm:text-4xl">A calmer way to share costs</h2><p className="mt-3 text-muted">Designed around the moments that usually create confusion.</p></div>
+            <div className="mt-12 grid gap-5 lg:grid-cols-3">{proof.map(({ icon: Icon, eyebrow, title, description }, index) => <article key={title} className="rounded-card border border-border-subtle bg-canvas p-6"><div className="flex items-center justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-control bg-brand-100 text-brand-700"><Icon size={20} /></span><span className="text-sm font-bold text-brand-300">0{index + 1}</span></div><p className="mt-7 text-xs font-bold uppercase tracking-[.16em] text-brand-700">{eyebrow}</p><h3 className="mt-2 text-xl font-bold tracking-tight text-ink">{title}</h3><p className="mt-3 text-sm leading-relaxed text-muted">{description}</p></article>)}</div>
           </div>
-          <p className="text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.
-          </p>
-        </div>
-      </footer>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-5 py-20 text-center sm:px-6 sm:py-24"><div className="rounded-panel bg-brand-900 px-6 py-14 text-white shadow-floating sm:px-12"><h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Leave the awkward math to us.</h2><p className="mx-auto mt-4 max-w-md text-brand-200">Create a group and get to one clear answer in minutes.</p><ButtonLink href={ROUTES.REGISTER} size="lg" variant="secondary" className="mt-8">Get started free</ButtonLink></div></section>
+      </main>
+
+      <footer className="border-t border-border-subtle bg-surface"><div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-5 px-6 py-8 sm:flex-row"><BrandLockup compact /><div className="flex gap-5 text-sm text-muted"><Link href={ROUTES.PRIVACY} className="hover:text-ink">Privacy</Link><Link href={ROUTES.TERMS} className="hover:text-ink">Terms</Link></div><p className="text-xs text-muted">© {new Date().getFullYear()} {APP_NAME}</p></div></footer>
     </div>
   );
 }

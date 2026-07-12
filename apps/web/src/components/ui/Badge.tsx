@@ -1,11 +1,14 @@
 import * as React from "react";
 
 const variants = {
-  success: "bg-green-100 text-green-700 border border-green-200",
-  warning: "bg-amber-100 text-amber-700 border border-amber-200",
-  danger: "bg-red-100 text-red-700 border border-red-200",
-  neutral: "bg-slate-100 text-slate-600 border border-slate-200",
+  success: "bg-positive-soft text-positive border border-positive/20",
+  positive: "bg-positive-soft text-positive border border-positive/20",
+  warning: "bg-outgoing-soft text-outgoing border border-outgoing/20",
+  outgoing: "bg-outgoing-soft text-outgoing border border-outgoing/20",
+  danger: "bg-danger-soft text-danger border border-danger/20",
+  neutral: "bg-surface-muted text-muted border border-border-subtle",
   info: "bg-brand-100 text-brand-700 border border-brand-200",
+  ai: "bg-ai-soft text-ai border border-ai/20",
 } as const;
 
 type BadgeProps = {

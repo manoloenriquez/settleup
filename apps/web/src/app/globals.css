@@ -5,16 +5,35 @@
    All UI components reference brand-* instead of hardcoded indigo-*.
    ──────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+  --color-brand-50: #f7f5ff;
+  --color-brand-100: #eeeafe;
+  --color-brand-200: #ddd6fb;
+  --color-brand-300: #beb1f2;
+  --color-brand-400: #9887e3;
+  --color-brand-500: #7563d6;
+  --color-brand-600: #5145cd;
+  --color-brand-700: #4036a8;
+  --color-brand-800: #342e83;
+  --color-brand-900: #2d2969;
+  --color-canvas: #faf8f3;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f2ec;
+  --color-border-subtle: #e6e0d6;
+  --color-ink: #1d1b24;
+  --color-muted: #6f6a76;
+  --color-positive: #16836f;
+  --color-positive-soft: #e4f5ef;
+  --color-outgoing: #b66a13;
+  --color-outgoing-soft: #fff0d8;
+  --color-danger: #c53a4a;
+  --color-danger-soft: #fce8eb;
+  --color-ai: #7557c7;
+  --color-ai-soft: #f0ebff;
+  --radius-control: 0.75rem;
+  --radius-card: 1.25rem;
+  --radius-panel: 1.75rem;
+  --shadow-card: 0 4px 18px rgb(45 41 105 / 0.06);
+  --shadow-floating: 0 12px 36px rgb(45 41 105 / 0.14);
 }
 
 @layer base {
@@ -25,8 +44,10 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-canvas text-ink antialiased;
   }
+
+  button, a, input, select, textarea { @apply focus-visible:outline-none; }
 
   ::selection {
     @apply bg-brand-100;
@@ -39,11 +60,11 @@
    ──────────────────────────────────────────────────────────────────────── */
 
 @utility bg-auth-gradient {
-  background: linear-gradient(135deg, var(--color-brand-50) 0%, #f8faff 40%, #f0fdf4 100%);
+  background: linear-gradient(135deg, var(--color-brand-50) 0%, var(--color-canvas) 46%, var(--color-positive-soft) 120%);
 }
 
 @utility bg-hero-gradient {
-  background: radial-gradient(ellipse at 50% 0%, var(--color-brand-50) 0%, white 70%);
+  background: radial-gradient(ellipse at 70% 15%, var(--color-brand-100) 0%, var(--color-canvas) 62%);
 }
 
 @utility bg-dot-grid {
@@ -93,4 +114,18 @@
 
 @utility animate-pulse-ai {
   animation: pulseAi 1.5s ease-in-out infinite;
+}
+
+@utility text-amount {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

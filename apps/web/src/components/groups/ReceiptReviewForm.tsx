@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { X, Plus, Check } from "lucide-react";
 import type { ParsedReceipt, ExpenseDraft } from "@template/shared/types";
+import { IconButton } from "@/components/ui/IconButton";
 
 type Props = {
   receipt: ParsedReceipt;
@@ -74,13 +75,11 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
             {Math.round(receipt.confidence * 100)}% confidence
           </Badge>
         </div>
-        <button
-          type="button"
+        <IconButton
+          label="Dismiss receipt review"
+          icon={X}
           onClick={onDismiss}
-          className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-        >
-          <X size={16} />
-        </button>
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -120,13 +119,12 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
                   placeholder="0.00"
                 />
               </div>
-              <button
-                type="button"
+              <IconButton
+                label={`Remove line item ${index + 1}`}
+                icon={X}
                 onClick={() => removeItem(index)}
-                className="text-slate-400 hover:text-red-500 pb-2"
-              >
-                <X size={14} />
-              </button>
+                className="mb-0.5"
+              />
             </div>
           ))}
           <button

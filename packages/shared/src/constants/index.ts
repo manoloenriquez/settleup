@@ -6,6 +6,36 @@ export const APP_NAME = "SettleUp" as const;
 export const APP_VERSION = "0.1.0" as const;
 export const BETA_SUPPORT_EMAIL = "hello@settleup.app" as const;
 
+/** Platform-agnostic source of truth for the SettleUp visual system. */
+export const DESIGN_TOKENS = {
+  color: {
+    brand: "#5145CD",
+    brandStrong: "#4036A8",
+    brandSoft: "#EEEAFE",
+    canvas: "#FAF8F3",
+    surface: "#FFFFFF",
+    surfaceMuted: "#F5F2EC",
+    border: "#E6E0D6",
+    text: "#1D1B24",
+    textMuted: "#6F6A76",
+    positive: "#16836F",
+    positiveSoft: "#E4F5EF",
+    outgoing: "#B66A13",
+    outgoingSoft: "#FFF0D8",
+    danger: "#C53A4A",
+    dangerSoft: "#FCE8EB",
+    ai: "#7557C7",
+    aiSoft: "#F0EBFF",
+  },
+  spacing: { xs: 4, sm: 8, md: 12, base: 16, lg: 20, xl: 24, "2xl": 32, "3xl": 48 },
+  radius: { control: 12, card: 20, panel: 28, full: 9999 },
+  type: { caption: 12, body: 15, title: 20, pageTitle: 30, amount: 42 },
+  elevation: {
+    card: { opacity: 0.06, radius: 12, y: 4 },
+    floating: { opacity: 0.12, radius: 24, y: 10 },
+  },
+} as const;
+
 // ---------------------------------------------------------------------------
 // Navigation routes — keep in sync across web and mobile
 // ---------------------------------------------------------------------------
@@ -21,6 +51,7 @@ export const ROUTES = {
   SETTINGS: "/settings",
   GROUPS: "/groups",
   GROUP_NEW: "/groups/new",
+  EXPENSE_NEW: "/expenses/new",
   PAYMENT_SETTINGS: "/account/payment",
   GROUP_INSIGHTS: "/groups/:groupId/insights",
   PRIVACY: "/privacy",
