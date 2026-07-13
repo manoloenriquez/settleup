@@ -4,12 +4,14 @@ import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { deleteExpense, updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { formatCents, parsePHPAmount, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
-import { CategoryBadge, CategorySelect } from "./CategoryControls";
-import { Search, CreditCard, Users, Trash2, Pencil, Receipt, Clock, List, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { Avatar } from "@/components/ui/Avatar";
+import { CategorySelect } from "./CategoryControls";
+import { CategoryIconTile } from "./CategoryIcon";
+import { Search, Trash2, Pencil, Receipt, List, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 import { CommentThread } from "./CommentThread";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
@@ -318,6 +320,15 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
 
               const isCredit = expense.amount_cents < 0;
               const isExpanded = expandedIds.has(expense.id);
+              const participantNames = expense.participants.map(
+                (p) => memberMap.get(p.member_id) ?? "Unknown",
+              );
+              const splitLabel =
+                (expense.items?.length ?? 0) > 0
+                  ? "Itemized"
+                  : isEqualSplit(expense)
+                    ? "Split equally"
+                    : "Custom split";
 
               return (
                 <div
@@ -325,10 +336,12 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
                   className="rounded-2xl border border-slate-200 bg-white overflow-hidden hover:border-slate-300 hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center gap-3 p-4">
-                    {/* Icon area */}
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${isCredit ? "bg-emerald-50" : "bg-brand-50"}`}>
-                      <Receipt size={18} className={isCredit ? "text-emerald-500" : "text-brand-500"} />
-                    </div>
+                    {/* Category icon tile */}
+                    <CategoryIconTile
+                      icon={isCredit ? "receipt" : expense.category?.icon}
+                      color={isCredit ? "#059669" : expense.category?.color ?? DEFAULT_CATEGORY_COLOR}
+                      size="sm"
+                    />
 
                     {/* Name + meta */}
                     <div className="flex-1 min-w-0">
@@ -342,20 +355,16 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <CreditCard size={11} />
-                          {payerNames}
+                      <p className="mt-0.5 truncate text-xs text-slate-400">
+                        {payerNames} paid · {relativeTime(expense.created_at)}
+                      </p>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="flex -space-x-1">
+                          {participantNames.slice(0, 4).map((name, i) => (
+                            <Avatar key={i} name={name} size="xs" className="ring-1 ring-white" />
+                          ))}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Users size={11} />
-                          {expense.participants.length}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock size={11} />
-                          {relativeTime(expense.created_at)}
-                        </span>
-                        <CategoryBadge category={expense.category} compact />
+                        <span className="text-xs text-slate-400">{splitLabel}</span>
                       </div>
                     </div>
 

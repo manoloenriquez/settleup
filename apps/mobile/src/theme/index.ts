@@ -1,8 +1,8 @@
 export const colors = {
   // Brand
-  primary: "#6366f1",
-  primaryLight: "#e0e7ff",
-  primaryDark: "#4f46e5",
+  primary: "#059669",
+  primaryLight: "#d1fae5",
+  primaryDark: "#047857",
 
   // Semantic
   success: "#10b981",
@@ -11,8 +11,8 @@ export const colors = {
   warning: "#f59e0b",
   warningLight: "#fef3c7",
   warningDark: "#92400e",
-  danger: "#ef4444",
-  dangerLight: "#fee2e2",
+  danger: "#e11d48",
+  dangerLight: "#ffe4e6",
 
   // Accent (quick actions, decorative)
   violet: "#8b5cf6",
@@ -77,7 +77,7 @@ export const fontWeight = {
 
 // Member avatar colors (hash-based, matching web)
 export const AVATAR_COLORS = [
-  "#6366f1", // indigo
+  "#059669", // emerald (brand)
   "#8b5cf6", // violet
   "#ec4899", // pink
   "#f59e0b", // amber

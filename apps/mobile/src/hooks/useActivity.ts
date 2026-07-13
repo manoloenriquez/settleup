@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getGroupActivity } from "@/services/activity";
+import { getGroupActivity, getRecentActivity } from "@/services/activity";
 
 export function useGroupActivity(groupId: string) {
   return useQuery({
@@ -10,5 +10,16 @@ export function useGroupActivity(groupId: string) {
       return res.data ?? [];
     },
     enabled: !!groupId,
+  });
+}
+
+export function useRecentActivity(limit = 10) {
+  return useQuery({
+    queryKey: ["activity", "recent", limit],
+    queryFn: async () => {
+      const res = await getRecentActivity(limit);
+      if (res.error) throw new Error(res.error);
+      return res.data ?? [];
+    },
   });
 }

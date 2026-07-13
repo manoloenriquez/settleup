@@ -285,7 +285,7 @@ export function BalanceSummary({
             key={balance.member_id}
             className={`flex items-center gap-3 rounded-2xl border p-4 transition-all hover:shadow-sm ${
               owes
-                ? "border-amber-200 bg-amber-50/60"
+                ? "border-rose-200 bg-rose-50/60"
                 : isOwed
                   ? "border-emerald-200 bg-emerald-50/60"
                   : "border-slate-200 bg-white"
@@ -298,7 +298,7 @@ export function BalanceSummary({
                 <p className="text-xs text-emerald-600 font-medium">All settled</p>
               )}
               {owes && (
-                <p className="text-xs text-amber-700 font-medium">
+                <p className="text-xs text-rose-700 font-medium">
                   Owes {formatCents(Math.abs(balance.net_cents))}
                 </p>
               )}
@@ -317,7 +317,7 @@ export function BalanceSummary({
 
             {/* Amount badge */}
             {owes && (
-              <span className="shrink-0 text-xs font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+              <span className="shrink-0 text-xs font-bold text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full whitespace-nowrap">
                 {formatCents(Math.abs(balance.net_cents))}
               </span>
             )}

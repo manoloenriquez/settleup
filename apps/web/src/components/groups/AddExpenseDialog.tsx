@@ -11,7 +11,7 @@ import { ReceiptReviewForm } from "./ReceiptReviewForm";
 import { ExpenseDraftCard } from "./ExpenseDraftCard";
 import { AddExpenseForm } from "./AddExpenseForm";
 import { CategorySelect } from "./CategoryControls";
-import { Zap, MessageSquare, Camera, SlidersHorizontal } from "lucide-react";
+import { Zap, MessageSquare, Camera, SlidersHorizontal, Sparkles } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseDraft, ParsedReceipt } from "@template/shared/types";
 import { fuzzyMatchMember } from "@template/shared";
@@ -106,8 +106,28 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
   }
 
   return (
-    <ContentDialog open={open} onClose={handleClose} title="Add Expense" size="lg">
+    <ContentDialog open={open} onClose={handleClose} title="Add expense" size="lg">
       <div className="flex flex-col gap-4">
+        {/* Smart add hint — jumps into the natural-language chat mode */}
+        {mode !== "chat" && !draft && (
+          <button
+            type="button"
+            onClick={() => setMode("chat")}
+            className="rounded-2xl border border-brand-100 bg-brand-50/70 p-4 text-left transition-colors hover:bg-brand-50"
+          >
+            <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <Sparkles size={15} className="text-brand-600" />
+              Smart add
+            </span>
+            <span className="mt-1 block text-xs text-slate-500">
+              Try typing something like:{" "}
+              <span className="font-semibold text-brand-700">
+                “Dinner 2400 paid by Manolo, split with Aya and Carlo”
+              </span>
+            </span>
+          </button>
+        )}
+
         {/* Mode tabs */}
         <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
           {modes.map((m) => {
@@ -157,7 +177,14 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
         {!draft && (
           <>
             {mode === "quick" && (
-              <QuickAddExpense groupId={groupId} members={members} categories={categories} currentUserId={currentUserId} onClose={handleClose} />
+              <QuickAddExpense
+                groupId={groupId}
+                members={members}
+                categories={categories}
+                currentUserId={currentUserId}
+                onClose={handleClose}
+                onMoreOptions={() => setMode("detailed")}
+              />
             )}
             {mode === "chat" && (
               <ConversationInput groupId={groupId} members={members} onDraft={handleDraft} />

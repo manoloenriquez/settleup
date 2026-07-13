@@ -200,6 +200,7 @@ export type DashboardGroupSummary = {
   member_count: number;
   pending_count: number;
   total_owed_cents: number;
+  my_net_cents: number;
   created_at: string;
 };
 
@@ -208,5 +209,9 @@ export type DashboardSummary = {
   total_groups: number;
   total_unsettled_cents: number;
   pending_members: number;
+  owed_to_me_cents: number;
+  i_owe_cents: number;
+  owed_counterparty_count: number;
+  owe_counterparty_count: number;
   groups: DashboardGroupSummary[];
 };

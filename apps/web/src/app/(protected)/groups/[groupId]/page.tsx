@@ -20,9 +20,14 @@ import { ExpenseList } from "@/components/groups/ExpenseList";
 import { GroupDetailTabs } from "@/components/groups/GroupDetailTabs";
 import { GroupHeader } from "@/components/groups/GroupHeader";
 import { GroupSetupChecklist, setupChecklistIcons } from "@/components/groups/GroupSetupChecklist";
+import { MemberAvatarRow } from "@/components/groups/MemberAvatarRow";
+import { GroupFab } from "@/components/groups/GroupFab";
+import { InsightsDashboard } from "@/components/groups/InsightsDashboard";
 import { SeedButton } from "@/components/groups/SeedButton";
 import { CopyButton } from "@/components/groups/CopyButton";
-import { AlertCircle, Share2 } from "lucide-react";
+import { computeInsights } from "@template/ai";
+import Link from "next/link";
+import { Share2, Sparkles, ChevronRight } from "lucide-react";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -100,9 +105,28 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const currentMember = members.find((m) => m.user_id === currentUserId);
   const isAdminOrOwner = isOwner || currentMember?.role === "admin";
   const debts = simplifyDebts(balances);
-  const pendingMembers = balances.filter((b) => b.net_cents < 0).length;
   const totalSpentCents = expenses.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
   const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
+  const myNetCents = currentMember
+    ? balances.find((b) => b.member_id === currentMember.id)?.net_cents ?? 0
+    : 0;
+  const settledPct =
+    totalSpentCents > 0
+      ? Math.round((1 - totalOutstandingCents / totalSpentCents) * 100)
+      : 100;
+
+  // Charts tab data — pure computation from already-fetched expenses; the AI
+  // summary stays on the dedicated insights page.
+  const memberNameMap = new Map(members.map((m) => [m.id, m.display_name]));
+  const insights = computeInsights(
+    expenses.map((e) => ({
+      item_name: e.item_name,
+      amount_cents: e.amount_cents,
+      created_at: e.created_at,
+      payer_names: (e.payers ?? []).map((p) => memberNameMap.get(p.member_id) ?? "Unknown"),
+      category: e.category,
+    })),
+  );
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "localhost:3000";
@@ -163,41 +187,38 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
       <GroupSetupChecklist groupId={groupId} items={setupItems} />
 
-      {/* Stats hero */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className={`rounded-2xl p-4 col-span-2 ${isFullySettled ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${isFullySettled ? "text-emerald-600" : "text-amber-600"}`}>
-            Outstanding Balance
-          </p>
-          <p className={`mt-1 text-2xl font-extrabold tracking-tight ${isFullySettled ? "text-emerald-800" : "text-amber-900"}`}>
-            {isFullySettled ? "All settled" : formatCents(totalOutstandingCents)}
-          </p>
-          {isFullySettled && (
-            <p className="text-xs text-emerald-600 mt-0.5">No outstanding debts</p>
-          )}
-        </div>
-        <div className="rounded-2xl p-4 bg-white border border-slate-200">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Members</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{members.length}</p>
-          <div className="flex -space-x-1.5 mt-1.5">
-            {Array.from({ length: Math.min(members.length, 5) }).map((_, i) => (
-              <div key={i} className={`h-5 w-5 rounded-full border-2 border-white ${["bg-brand-500", "bg-violet-500", "bg-pink-500", "bg-emerald-500", "bg-amber-500"][i % 5]}`} />
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl p-4 bg-white border border-slate-200">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-900 tracking-tight">{pendingMembers}</p>
-          {pendingMembers > 0 && (
-            <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-0.5">
-              <AlertCircle size={10} />
-              unsettled
+      {/* Member avatars */}
+      <MemberAvatarRow groupId={groupId} members={members} currentUserId={currentUserId} />
+
+      {/* Group balance card */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-500">Group balance</p>
+            <p className={`mt-1 text-3xl font-extrabold tracking-tight tabular-nums ${isFullySettled ? "text-emerald-600" : "text-slate-900"}`}>
+              {isFullySettled ? "All settled" : formatCents(totalOutstandingCents)}
             </p>
-          )}
-          {pendingMembers === 0 && (
-            <p className="text-xs text-emerald-600 mt-0.5">all clear</p>
-          )}
+            <p className="mt-1 text-sm text-slate-500">
+              {myNetCents > 0 ? (
+                <>You are owed <span className="font-bold text-emerald-600">{formatCents(myNetCents)}</span></>
+              ) : myNetCents < 0 ? (
+                <>You owe <span className="font-bold text-rose-600">{formatCents(-myNetCents)}</span></>
+              ) : (
+                "You’re settled up"
+              )}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+            {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
+          </span>
         </div>
+        <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-brand-500 transition-all duration-300"
+            style={{ width: `${Math.max(0, Math.min(100, settledPct))}%` }}
+          />
+        </div>
+        <p className="mt-1.5 text-xs text-slate-400">{Math.max(0, Math.min(100, settledPct))}% settled</p>
       </div>
 
       {/* Budget progress */}
@@ -219,8 +240,11 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         </div>
       </div>
 
-      {/* Tabbed content (Balances + Expenses only) */}
+      {/* Tabbed content: Expenses | Balances | Charts */}
       <GroupDetailTabs
+        expensesContent={
+          <ExpenseList expenses={expenses} members={members} categories={categories} currentUserId={currentUserId} isAdminOrOwner={isAdminOrOwner} />
+        }
         balancesContent={
           <div className="flex flex-col gap-6">
             <PendingPayments
@@ -229,7 +253,14 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
               currentUserId={currentUserId}
               isAdminOrOwner={isAdminOrOwner}
             />
-            <DebtSummary debts={debts} groupId={groupId} groupName={group.name} balances={balances} origin={origin} />
+            <DebtSummary
+              debts={debts}
+              groupId={groupId}
+              groupName={group.name}
+              balances={balances}
+              origin={origin}
+              currentMemberId={currentMember?.id ?? null}
+            />
             <BalanceSummary
               members={members}
               balances={balances}
@@ -247,10 +278,24 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
             </div>
           </div>
         }
-        expensesContent={
-          <ExpenseList expenses={expenses} members={members} categories={categories} currentUserId={currentUserId} isAdminOrOwner={isAdminOrOwner} />
+        chartsContent={
+          <div className="flex flex-col gap-4">
+            <InsightsDashboard insights={{ ...insights, llm_summary: null }} />
+            <Link
+              href={`/groups/${groupId}/insights`}
+              className="flex items-center justify-between rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 transition-colors hover:bg-brand-50"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-brand-700">
+                <Sparkles size={15} />
+                Full insights with AI summary
+              </span>
+              <ChevronRight size={16} className="text-brand-400" />
+            </Link>
+          </div>
         }
       />
+
+      <GroupFab groupId={groupId} />
     </div>
   );
 }

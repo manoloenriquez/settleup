@@ -322,6 +322,64 @@ describe("dashboardSummarySchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("defaults v2 fields when parsing a v1 payload", () => {
+    const result = dashboardSummarySchema.safeParse({
+      net_balance_cents: 500,
+      total_groups: 1,
+      total_unsettled_cents: 500,
+      pending_members: 1,
+      groups: [
+        {
+          id: GROUP_ID,
+          name: "Trip",
+          member_count: 2,
+          pending_count: 1,
+          total_owed_cents: 500,
+          created_at: "2026-04-06T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.owed_to_me_cents).toBe(0);
+      expect(result.data.i_owe_cents).toBe(0);
+      expect(result.data.owed_counterparty_count).toBe(0);
+      expect(result.data.owe_counterparty_count).toBe(0);
+      expect(result.data.groups[0]?.my_net_cents).toBe(0);
+    }
+  });
+
+  it("accepts v2 fields when present", () => {
+    const result = dashboardSummarySchema.safeParse({
+      net_balance_cents: 500,
+      total_groups: 1,
+      total_unsettled_cents: 500,
+      pending_members: 1,
+      owed_to_me_cents: 800,
+      i_owe_cents: 300,
+      owed_counterparty_count: 2,
+      owe_counterparty_count: 1,
+      groups: [
+        {
+          id: GROUP_ID,
+          name: "Trip",
+          member_count: 2,
+          pending_count: 1,
+          total_owed_cents: 500,
+          my_net_cents: -300,
+          created_at: "2026-04-06T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.owed_to_me_cents).toBe(800);
+      expect(result.data.groups[0]?.my_net_cents).toBe(-300);
+    }
+  });
+
   it("rejects groups with invalid IDs", () => {
     const result = dashboardSummarySchema.safeParse({
       net_balance_cents: 0,

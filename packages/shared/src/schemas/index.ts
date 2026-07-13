@@ -312,6 +312,8 @@ export const dashboardGroupSummarySchema = z.object({
   member_count: z.number().int(),
   pending_count: z.number().int(),
   total_owed_cents: z.number().int(),
+  // Defaults keep clients working against a DB that predates the v2 RPC.
+  my_net_cents: z.number().int().default(0),
   created_at: z.string(),
 });
 
@@ -320,6 +322,10 @@ export const dashboardSummarySchema = z.object({
   total_groups: z.number().int(),
   total_unsettled_cents: z.number().int(),
   pending_members: z.number().int(),
+  owed_to_me_cents: z.number().int().default(0),
+  i_owe_cents: z.number().int().default(0),
+  owed_counterparty_count: z.number().int().default(0),
+  owe_counterparty_count: z.number().int().default(0),
   groups: z.array(dashboardGroupSummarySchema),
 });
 

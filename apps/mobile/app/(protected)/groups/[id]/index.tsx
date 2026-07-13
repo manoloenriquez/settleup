@@ -20,7 +20,7 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
-import { SegmentedControl, Card, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
+import { SegmentedControl, Card, ErrorBanner, SkeletonCard, useToast, Avatar } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
@@ -28,7 +28,7 @@ import type { MemberBalance, SimplifiedDebt } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
-type Tab = "balances" | "expenses" | "activity";
+type Tab = "expenses" | "balances" | "charts";
 
 function scalePositiveAmounts(weights: number[], totalCents: number): number[] | null {
   if (weights.length === 0) return [];
@@ -81,7 +81,7 @@ function isEqualSplit(expense: ExpenseWithDetails): boolean {
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("balances");
+  const [tab, setTab] = useState<Tab>("expenses");
   const { user } = useAuth();
   const toast = useToast();
 
@@ -348,10 +348,13 @@ export default function GroupDetailScreen() {
   }
 
   const segments: { value: Tab; label: string }[] = [
-    { value: "balances", label: "Balances" },
     { value: "expenses", label: "Expenses" },
-    { value: "activity", label: "Activity" },
+    { value: "balances", label: "Balances" },
+    { value: "charts", label: "Charts" },
   ];
+
+  const currentMemberId =
+    (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
 
   return (
     <>
@@ -398,28 +401,72 @@ export default function GroupDetailScreen() {
               }}
             />
           )}
-          {/* Balance Stats */}
+          {/* Member avatar row */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.avatarRow}
+          >
+            {(membersQ.data ?? []).map((m) => {
+              const isYou = m.user_id === user?.id;
+              return (
+                <View key={m.id} style={styles.avatarItem}>
+                  <View style={[styles.avatarRing, isYou && styles.avatarRingYou]}>
+                    <Avatar name={m.display_name} size={46} />
+                  </View>
+                  <Text style={styles.avatarName} numberOfLines={1}>
+                    {isYou ? "You" : m.display_name.split(" ")[0]}
+                  </Text>
+                </View>
+              );
+            })}
+            <TouchableOpacity
+              style={styles.avatarItem}
+              onPress={() => router.push(`/(protected)/groups/${id}/settings`)}
+              accessibilityLabel="Add member"
+            >
+              <View style={styles.avatarAdd}>
+                <Ionicons name="add" size={20} color={colors.gray400} />
+              </View>
+              <Text style={styles.avatarName}>Add</Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* Group balance card */}
           {(() => {
             const members = balancesQ.data ?? [];
             const totalOwed = members.reduce((s, m) => s + m.owed_cents, 0);
-            const pendingCount = members.filter((m) => m.net_cents < 0).length;
+            const totalSpent = (expensesQ.data ?? []).reduce((s, e) => s + Math.max(0, e.amount_cents), 0);
+            const settledPct = totalSpent > 0 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100))) : 100;
             const isSettled = totalOwed === 0;
+            const myNet = members.find((m) => m.member_id === currentMemberId)?.net_cents ?? 0;
+            const expenseCount = (expensesQ.data ?? []).length;
             return (
-              <View style={styles.statsRow}>
-                <View style={[styles.statCard, isSettled ? styles.statCardGreen : styles.statCardAmber]}>
-                  <Text style={[styles.statLabel, { color: isSettled ? colors.success : colors.warning }]}>Outstanding</Text>
-                  <Text style={[styles.statValue, { color: isSettled ? colors.successDark : colors.warningDark }]}>
-                    {isSettled ? "Settled" : formatCents(totalOwed)}
-                  </Text>
+              <View style={styles.balanceCard}>
+                <View style={styles.balanceTop}>
+                  <View style={styles.balanceBody}>
+                    <Text style={styles.balanceLabel}>Group balance</Text>
+                    <Text style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
+                      {isSettled ? "All settled" : formatCents(totalOwed)}
+                    </Text>
+                    <Text style={styles.balanceSub}>
+                      {myNet > 0
+                        ? `You are owed ${formatCents(myNet)}`
+                        : myNet < 0
+                          ? `You owe ${formatCents(-myNet)}`
+                          : "You’re settled up"}
+                    </Text>
+                  </View>
+                  <View style={styles.balancePill}>
+                    <Text style={styles.balancePillText}>
+                      {expenseCount} expense{expenseCount !== 1 ? "s" : ""}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>Members</Text>
-                  <Text style={styles.statValue}>{members.length}</Text>
+                <View style={styles.balanceTrack}>
+                  <View style={[styles.balanceFill, { width: `${settledPct}%` }]} />
                 </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>Pending</Text>
-                  <Text style={[styles.statValue, pendingCount > 0 && { color: colors.warning }]}>{pendingCount}</Text>
-                </View>
+                <Text style={styles.balancePct}>{settledPct}% settled</Text>
               </View>
             );
           })()}
@@ -496,39 +543,12 @@ export default function GroupDetailScreen() {
             currentUserId={user?.id}
           />
 
-          {/* Debt Summary */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>WHO OWES WHO</Text>
-          </View>
-          <DebtSummary
-            members={balancesQ.data ?? []}
-            creditorProfiles={creditorProfilesQ.data}
-            onSettle={handleSettle}
-            groupName={group?.name}
-            webOrigin={WEB_ORIGIN || undefined}
-          />
-
           {/* Segmented Tabs */}
           <View style={styles.segmentWrapper}>
             <SegmentedControl segments={segments} value={tab} onChange={setTab} />
           </View>
 
           {/* Tab Content */}
-          {tab === "balances" && (
-            <Card padding={0}>
-              {(balancesQ.data ?? []).map((m, i) => (
-                <View key={m.member_id}>
-                  <MemberRow
-                    member={m}
-                    webOrigin={WEB_ORIGIN || undefined}
-                    onUndoLastPayment={handleUndoMemberPayment}
-                  />
-                  {i < (balancesQ.data ?? []).length - 1 && <View style={styles.divider} />}
-                </View>
-              ))}
-            </Card>
-          )}
-
           {tab === "expenses" && (
             <ExpenseList
               onComments={setCommentsExpense}
@@ -549,8 +569,53 @@ export default function GroupDetailScreen() {
             />
           )}
 
-          {tab === "activity" && (
-            <ActivityTimeline items={activityQ.data ?? []} />
+          {tab === "balances" && (
+            <>
+              <DebtSummary
+                members={balancesQ.data ?? []}
+                creditorProfiles={creditorProfilesQ.data}
+                onSettle={handleSettle}
+                groupName={group?.name}
+                webOrigin={WEB_ORIGIN || undefined}
+                currentMemberId={currentMemberId}
+              />
+              <View style={styles.tabSection}>
+                <Card padding={0}>
+                  {(balancesQ.data ?? []).map((m, i) => (
+                    <View key={m.member_id}>
+                      <MemberRow
+                        member={m}
+                        webOrigin={WEB_ORIGIN || undefined}
+                        onUndoLastPayment={handleUndoMemberPayment}
+                      />
+                      {i < (balancesQ.data ?? []).length - 1 && <View style={styles.divider} />}
+                    </View>
+                  ))}
+                </Card>
+              </View>
+              <View style={styles.tabSection}>
+                <ActivityTimeline items={activityQ.data ?? []} />
+              </View>
+            </>
+          )}
+
+          {tab === "charts" && (
+            <TouchableOpacity
+              style={styles.chartsCard}
+              onPress={() => router.push(`/(protected)/groups/${id}/insights`)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.chartsIcon}>
+                <Ionicons name="bar-chart-outline" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.chartsBody}>
+                <Text style={styles.chartsTitle}>Spending insights</Text>
+                <Text style={styles.chartsSub}>
+                  Category breakdown, top spender, and an AI summary of this group’s spending.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.gray300} />
+            </TouchableOpacity>
           )}
         </ScrollView>
       )}
@@ -560,9 +625,9 @@ export default function GroupDetailScreen() {
         style={styles.fab}
         onPress={() => router.push(`/(protected)/groups/${id}/add-expense`)}
         activeOpacity={0.85}
+        accessibilityLabel="Add expense"
       >
-        <Ionicons name="add" size={20} color={colors.white} />
-        <Text style={styles.fabText}>Add Expense</Text>
+        <Ionicons name="add" size={26} color={colors.white} />
       </TouchableOpacity>
 
       {/* Expense comments */}
@@ -633,29 +698,65 @@ const styles = StyleSheet.create({
 
   headerBtns: { flexDirection: "row", gap: spacing.md },
 
-  statsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.base },
-  budgetCard: { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.base },
+  avatarRow: { gap: spacing.base, paddingBottom: spacing.xs, marginBottom: spacing.md },
+  avatarItem: { alignItems: "center", gap: 4, width: 56 },
+  avatarRing: { borderRadius: 28, padding: 2, borderWidth: 2, borderColor: colors.gray200 },
+  avatarRingYou: { borderColor: colors.primary },
+  avatarName: { fontSize: fontSize.xs, color: colors.gray600, fontWeight: fontWeight.medium, maxWidth: 56 },
+  avatarAdd: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: colors.gray300,
+    alignItems: "center",
+    justifyContent: "center",
+    margin: 2,
+  },
+
+  balanceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginBottom: spacing.base,
+  },
+  balanceTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  balanceBody: { flex: 1, minWidth: 0 },
+  balanceLabel: { fontSize: fontSize.base, color: colors.gray500, fontWeight: fontWeight.medium },
+  balanceAmount: { fontSize: fontSize["3xl"], fontWeight: fontWeight.bold, color: colors.gray900, letterSpacing: -0.5, marginTop: 2, fontVariant: ["tabular-nums"] },
+  balanceSub: { fontSize: fontSize.base, color: colors.gray500, marginTop: 2 },
+  balancePill: { backgroundColor: colors.gray100, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+  balancePillText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.gray600 },
+  balanceTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden", marginTop: spacing.md },
+  balanceFill: { height: "100%", borderRadius: borderRadius.full, backgroundColor: colors.primary },
+  balancePct: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 4 },
+
+  tabSection: { marginTop: spacing.base },
+
+  chartsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.base,
+  },
+  chartsIcon: { width: 44, height: 44, borderRadius: borderRadius.lg, backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center" },
+  chartsBody: { flex: 1, minWidth: 0 },
+  chartsTitle: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
+  chartsSub: { fontSize: fontSize.sm, color: colors.gray500, marginTop: 2 },
+
+  budgetCard:{ backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.base },
   budgetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
   budgetLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
   budgetValue: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
   budgetTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden" },
   budgetFill: { height: "100%", borderRadius: borderRadius.full },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statCardAmber: { backgroundColor: "#fef3c7", borderColor: colors.warning + "40" },
-  statCardGreen: { backgroundColor: colors.successLight, borderColor: colors.success + "40" },
-  statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.gray400, marginBottom: 2, letterSpacing: 0.3 },
-  statValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900 },
-
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
-  sectionTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
-
   segmentWrapper: { marginVertical: spacing.base },
 
   divider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.base },
@@ -664,21 +765,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 24,
     right: 20,
-    left: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xs,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 6,
   },
-  fabText: { color: colors.white, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
   claimBanner: {
     backgroundColor: colors.primaryLight,

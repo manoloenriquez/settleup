@@ -20,13 +20,13 @@ import { useConversationAI } from "@/hooks/useConversationAI";
 import { useSmartSplit } from "@/hooks/useSmartSplit";
 import { useReceiptScan } from "@/hooks/useReceiptScan";
 import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailability";
-import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner, useToast } from "@/components/ui";
+import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner, useToast, Avatar } from "@/components/ui";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
 import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { formatCents, parsePHPAmount, equalSplit } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type Mode = "quick" | "chat" | "receipt" | "detailed" | "itemized";
@@ -444,6 +444,26 @@ export default function AddExpenseScreen() {
       <Stack.Screen options={{ title: "Add Expense", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {/* Smart add hint — jumps into the natural-language chat mode */}
+          {mode !== "chat" && (
+            <TouchableOpacity
+              style={styles.smartBanner}
+              onPress={() => setMode("chat")}
+              activeOpacity={0.8}
+            >
+              <View style={styles.smartBannerHeader}>
+                <Ionicons name="sparkles" size={14} color={colors.primary} />
+                <Text style={styles.smartBannerTitle}>Smart add</Text>
+              </View>
+              <Text style={styles.smartBannerSub}>
+                Try typing something like:{" "}
+                <Text style={styles.smartBannerExample}>
+                  “Dinner 2400 paid by Manolo, split with Aya and Carlo”
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <SegmentedControl
             segments={[
               { value: "quick" as Mode, label: "Quick" },
@@ -457,25 +477,74 @@ export default function AddExpenseScreen() {
           />
 
           {/* ---- QUICK MODE ---- */}
-          {mode === "quick" && (
-            <View style={styles.form}>
-              <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Lunch, Grab, Hotel" />
-              <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
-              <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
-              <ChipGroup label="Split with" chips={memberChips} selected={selectedMembers} onToggle={toggleMember} />
-              <View>
-                <Text style={styles.label}>Paid by</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                  {members.map((m) => (
-                    <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                      <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+          {mode === "quick" && (() => {
+            const quickAmountCents = parsePHPAmount(amount) ?? 0;
+            const quickSelected = members.filter((m) => selectedMembers.has(m.id));
+            const quickShares = new Map<string, number>();
+            if (quickAmountCents > 0 && quickSelected.length > 0) {
+              const parts = equalSplit(quickAmountCents, quickSelected.length);
+              quickSelected.forEach((m, i) => quickShares.set(m.id, parts[i] ?? 0));
+            }
+            return (
+              <View style={styles.form}>
+                <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+                <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" />
+                <View>
+                  <Text style={styles.label}>Paid by</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                    {members.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                <View>
+                  <View style={styles.splitHeader}>
+                    <Text style={styles.label}>Split between</Text>
+                    <Text style={styles.splitHeaderHint}>Equal split</Text>
+                  </View>
+                  <View style={styles.splitList}>
+                    {members.map((m, i) => {
+                      const selected = selectedMembers.has(m.id);
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[styles.splitRow, i > 0 && styles.splitRowBorder]}
+                          onPress={() => toggleMember(m.id)}
+                          activeOpacity={0.7}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: selected }}
+                          accessibilityLabel={`Split with ${m.display_name}`}
+                        >
+                          <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
+                            {selected && <Ionicons name="checkmark" size={13} color={colors.white} />}
+                          </View>
+                          <Avatar name={m.display_name} size={28} />
+                          <Text style={[styles.splitName, !selected && styles.splitNameOff]} numberOfLines={1}>
+                            {m.display_name}
+                            {m.user_id === session?.user.id ? " (you)" : ""}
+                          </Text>
+                          <Text style={[styles.splitAmount, !selected && styles.splitAmountOff]}>
+                            {formatCents(selected ? quickShares.get(m.id) ?? 0 : 0)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+                <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
+                <View style={styles.quickActionsRow}>
+                  <TouchableOpacity style={styles.moreOptionsBtn} onPress={() => setMode("detailed")} activeOpacity={0.7}>
+                    <Text style={styles.moreOptionsText}>More options</Text>
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <AppButton title="Save expense" onPress={handleQuickReview} disabled={!itemName.trim() || !amount} />
+                  </View>
+                </View>
               </View>
-              <AppButton title="Review" onPress={handleQuickReview} disabled={!itemName.trim() || !amount} />
-            </View>
-          )}
+            );
+          })()}
 
           {/* ---- CHAT MODE ---- */}
           {mode === "chat" && (
@@ -829,6 +898,57 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.base, paddingBottom: spacing["2xl"], gap: spacing.base },
   form: { gap: spacing.md, marginTop: spacing.base },
+
+  smartBanner: {
+    backgroundColor: colors.primaryLight + "80",
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + "30",
+    padding: spacing.base,
+    marginBottom: spacing.md,
+  },
+  smartBannerHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  smartBannerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.gray900 },
+  smartBannerSub: { fontSize: fontSize.sm, color: colors.gray600, marginTop: 4, lineHeight: 18 },
+  smartBannerExample: { fontWeight: fontWeight.semibold, color: colors.primaryDark },
+
+  splitHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  splitHeaderHint: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
+  splitList: {
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  splitRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
+  splitRowBorder: { borderTopWidth: 1, borderTopColor: colors.gray100 },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.gray300,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+  },
+  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  splitName: { flex: 1, minWidth: 0, fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.gray900 },
+  splitNameOff: { color: colors.gray400 },
+  splitAmount: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.gray900, fontVariant: ["tabular-nums"] },
+  splitAmountOff: { color: colors.gray300 },
+  quickActionsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  moreOptionsBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  moreOptionsText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.gray700 },
   label: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700, marginBottom: spacing.xs },
 
   payerRow: { gap: spacing.sm, paddingVertical: spacing.xs },

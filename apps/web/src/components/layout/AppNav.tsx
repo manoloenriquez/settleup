@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Shield, LogOut, ChevronDown, User } from "lucide-react";
+import { LayoutDashboard, Users, Shield, LogOut, ChevronDown, User, Activity } from "lucide-react";
 import { APP_NAME, ROUTES } from "@template/shared";
 import { signOut } from "@/app/actions/auth";
 
@@ -20,6 +20,7 @@ type Props = {
 const navLinks = [
   { href: ROUTES.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
   { href: ROUTES.GROUPS, label: "Groups", icon: Users },
+  { href: ROUTES.ACTIVITY, label: "Activity", icon: Activity },
 ] as const;
 
 function getInitials(name: string | null, email: string): string {

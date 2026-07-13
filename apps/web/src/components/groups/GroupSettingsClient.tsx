@@ -496,7 +496,7 @@ export function GroupSettingsClient({
                             leftIcon={Shield}
                             onClick={() => handlePromoteMember(member, isAdminMember ? "member" : "admin")}
                             isLoading={isPending}
-                            className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            className="text-brand-600 hover:text-brand-700 hover:bg-brand-50"
                             title={isAdminMember ? "Remove admin" : "Make admin"}
                           >
                             {isAdminMember ? "Remove admin" : "Make admin"}

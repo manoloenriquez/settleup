@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
 const ICONS_DIR = join(PUBLIC_DIR, "icons");
 
-const BRAND = "#4f46e5"; // brand-600
+const BRAND = "#059669"; // brand-600
 
 /**
  * Master icon SVG.

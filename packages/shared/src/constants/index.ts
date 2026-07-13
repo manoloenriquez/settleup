@@ -17,6 +17,7 @@ export const ROUTES = {
   REGISTER: "/register",
   FORGOT_PASSWORD: "/forgot-password",
   DASHBOARD: "/dashboard",
+  ACTIVITY: "/activity",
   ADMIN: "/admin",
   SETTINGS: "/settings",
   GROUPS: "/groups",

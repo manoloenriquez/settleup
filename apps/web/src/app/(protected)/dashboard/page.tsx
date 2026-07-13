@@ -5,25 +5,46 @@ import { ROUTES } from "@template/shared";
 import { formatCents } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { getDashboardSummary } from "@/app/actions/dashboard";
+import { getRecentActivity } from "@/app/actions/activity";
+import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Avatar } from "@/components/ui/Avatar";
 import {
   Users,
   Plus,
-  CreditCard,
+  Bell,
+  ArrowDownLeft,
   ArrowUpRight,
-  TrendingDown,
-  CheckCircle2,
   ChevronRight,
+  Info,
 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Dashboard" };
+
+/** Decorative balance sparkline, per the mockup's hero card. */
+function Sparkline({ className = "" }: { className?: string }): React.ReactElement {
+  return (
+    <svg viewBox="0 0 96 40" fill="none" aria-hidden="true" className={className}>
+      <path
+        d="M2 32 C 12 30, 16 22, 24 24 S 38 34, 46 28 S 58 10, 68 12 S 84 6, 94 4"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+      <circle cx="94" cy="4" r="3" fill="currentColor" />
+    </svg>
+  );
+}
 
 export default async function DashboardPage(): Promise<React.ReactElement> {
   const profile = await cachedProfile();
   if (!profile) redirect(ROUTES.LOGIN);
 
-  const result = await getDashboardSummary();
+  const [result, activityResult] = await Promise.all([
+    getDashboardSummary(),
+    getRecentActivity(5),
+  ]);
   const summary = result.data;
 
   if (!summary) {
@@ -35,118 +56,107 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
     );
   }
 
-  const isOwed = summary.net_balance_cents > 0;
-  const owes = summary.net_balance_cents < 0;
-  const settled = summary.net_balance_cents === 0;
-
-  // Hero gradient config
-  const heroConfig = owes
-    ? {
-        gradient: "from-amber-500 to-orange-500",
-        bg: "bg-gradient-to-br from-amber-500 to-orange-500",
-        badge: "bg-white/20 text-white",
-        label: "Total you owe",
-        icon: <TrendingDown size={20} className="text-white/80" />,
-        pill: "You owe",
-      }
-    : isOwed
-      ? {
-          gradient: "from-emerald-500 to-teal-500",
-          bg: "bg-gradient-to-br from-emerald-500 to-teal-500",
-          badge: "bg-white/20 text-white",
-          label: "Total owed to you",
-          icon: <ArrowUpRight size={20} className="text-white/80" />,
-          pill: "You're owed",
-        }
-      : {
-          gradient: "from-brand-600 to-violet-600",
-          bg: "bg-gradient-to-br from-brand-600 to-violet-600",
-          badge: "bg-white/20 text-white",
-          label: "Net balance",
-          icon: <CheckCircle2 size={20} className="text-white/80" />,
-          pill: "All settled",
-        };
+  const firstName = profile.full_name?.split(" ")[0];
+  const net = summary.net_balance_cents;
+  const isOwed = net > 0;
+  const owes = net < 0;
+  const activity = activityResult.data ?? [];
 
   return (
     <div className="space-y-6 animate-fade-in">
 
-      {/* Hero */}
-      <div className={`${heroConfig.bg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}>
-        {/* Background texture */}
-        <div className="absolute inset-0 opacity-10 bg-dot-grid" />
-        <div className="relative">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-medium text-white/80">
-              Welcome back{profile.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}
-            </span>
-            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${heroConfig.badge}`}>
-              {heroConfig.icon}
-              {heroConfig.pill}
-            </span>
+      {/* Greeting */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Avatar name={profile.full_name ?? profile.email} size="md" />
+          <div>
+            <p className="text-xs text-slate-500">Welcome back</p>
+            <p className="text-sm font-bold text-slate-900">{firstName ?? profile.email}</p>
           </div>
+        </div>
+        <Link
+          href={ROUTES.ACTIVITY}
+          aria-label="Activity"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-slate-900 hover:border-slate-300"
+        >
+          <Bell size={16} />
+        </Link>
+      </div>
 
-          <p className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-            {settled ? "All clear" : formatCents(Math.abs(summary.net_balance_cents))}
-          </p>
-          <p className="mt-1.5 text-sm text-white/70">{heroConfig.label}</p>
-
-          <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-white/70">
-            <span className="flex items-center gap-1">
-              <Users size={14} />
-              {summary.total_groups} group{summary.total_groups !== 1 ? "s" : ""}
-            </span>
-            {summary.total_unsettled_cents > 0 && (
-              <span>{formatCents(summary.total_unsettled_cents)} outstanding</span>
-            )}
-            {summary.pending_members > 0 && (
-              <span>{summary.pending_members} pending</span>
-            )}
+      {/* Total balance hero */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
+              Total balance <Info size={13} className="text-slate-300" />
+            </p>
+            <p
+              className={`mt-1 text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl ${
+                isOwed ? "text-brand-700" : owes ? "text-rose-600" : "text-slate-900"
+              }`}
+            >
+              {isOwed ? "+" : ""}
+              {net === 0 ? "All clear" : formatCents(net)}
+            </p>
+            <p className="mt-1.5 text-sm text-slate-500">
+              {owes ? "Time to settle up" : "You’re in good shape! 🎉"}
+            </p>
           </div>
+          <Sparkline className={`mt-2 h-12 w-28 shrink-0 ${owes ? "text-rose-400" : "text-brand-500"}`} />
         </div>
       </div>
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          {
-            href: ROUTES.GROUP_NEW,
-            icon: <Plus size={22} />,
-            label: "New Group",
-            color: "text-brand-600",
-            bg: "bg-brand-50 group-hover:bg-brand-100",
-            border: "hover:border-brand-200",
-          },
-          {
-            href: ROUTES.PAYMENT_SETTINGS,
-            icon: <CreditCard size={22} />,
-            label: "Payment Info",
-            color: "text-emerald-600",
-            bg: "bg-emerald-50 group-hover:bg-emerald-100",
-            border: "hover:border-emerald-200",
-          },
-          {
-            href: ROUTES.GROUPS,
-            icon: <Users size={22} />,
-            label: "All Groups",
-            color: "text-violet-600",
-            bg: "bg-violet-50 group-hover:bg-violet-100",
-            border: "hover:border-violet-200",
-          },
-        ].map((action) => (
-          <Link key={action.href} href={action.href} className="group">
-            <div className={`bg-white rounded-2xl border border-slate-200 ${action.border} p-4 flex flex-col items-center gap-2.5 transition-all hover:shadow-md`}>
-              <div className={`${action.bg} ${action.color} p-3 rounded-xl transition-colors`}>
-                {action.icon}
-              </div>
-              <span className="text-xs font-semibold text-slate-700 text-center leading-tight">{action.label}</span>
-            </div>
-          </Link>
-        ))}
+      {/* Owed / owe split */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
+            <ArrowDownLeft size={15} />
+          </span>
+          <p className="mt-3 text-xs font-medium text-emerald-800">
+            You are <span className="font-bold">owed</span>
+          </p>
+          <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-emerald-900">
+            {formatCents(summary.owed_to_me_cents)}
+          </p>
+          <p className="mt-0.5 text-xs text-emerald-700/80">
+            from {summary.owed_counterparty_count} {summary.owed_counterparty_count === 1 ? "person" : "people"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white">
+            <ArrowUpRight size={15} />
+          </span>
+          <p className="mt-3 text-xs font-medium text-rose-800">
+            You <span className="font-bold">owe</span>
+          </p>
+          <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-rose-900">
+            {formatCents(summary.i_owe_cents)}
+          </p>
+          <p className="mt-0.5 text-xs text-rose-700/80">
+            to {summary.owe_counterparty_count} {summary.owe_counterparty_count === 1 ? "person" : "people"}
+          </p>
+        </div>
       </div>
 
-      {/* Groups */}
+      {/* Recent activity */}
+      <div>
+        <div className="mb-2 flex items-center justify-between px-0.5">
+          <h2 className="text-sm font-bold text-slate-900">Recent activity</h2>
+          <Link
+            href={ROUTES.ACTIVITY}
+            className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
+          >
+            View all <ChevronRight size={13} />
+          </Link>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white px-4 py-1 shadow-sm">
+          <RecentActivityFeed items={activity} />
+        </div>
+      </div>
+
+      {/* Your groups */}
       {summary.groups.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8">
           <EmptyState
             icon={Users}
             title="No groups yet"
@@ -160,48 +170,49 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
         </div>
       ) : (
         <div>
-          <div className="flex items-center justify-between mb-3 px-0.5">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Your Groups</h2>
-            <Link href={ROUTES.GROUPS} className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-0.5">
-              View all <ChevronRight size={13} />
+          <div className="mb-2 flex items-center justify-between px-0.5">
+            <h2 className="text-sm font-bold text-slate-900">Your groups</h2>
+            <Link
+              href={ROUTES.GROUP_NEW}
+              className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
+            >
+              <Plus size={13} /> New
             </Link>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {summary.groups.slice(0, 6).map((group) => {
-              const hasDebt = group.total_owed_cents > 0;
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+            {summary.groups.slice(0, 9).map((group) => {
+              const myNet = group.my_net_cents;
               return (
-                <Link key={group.id} href={`/groups/${group.id}`} className="group">
-                  <div className="bg-white rounded-2xl border border-slate-200 hover:border-brand-200 hover:shadow-md transition-all p-5 h-full flex flex-col gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-slate-900 truncate leading-tight">{group.name}</h3>
-                      {hasDebt ? (
-                        <span className="shrink-0 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                          {formatCents(group.total_owed_cents)}
-                        </span>
+                <Link
+                  key={group.id}
+                  href={`/groups/${group.id}`}
+                  className="group w-40 shrink-0 snap-start sm:w-auto"
+                >
+                  <div className="flex h-full flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 transition-all hover:border-brand-200 hover:shadow-md">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-sm font-bold text-brand-700">
+                      {group.name.trim()[0]?.toUpperCase() ?? "G"}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold leading-tight text-slate-900">
+                        {group.name}
+                      </h3>
+                      {myNet > 0 ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          You’re owed{" "}
+                          <span className="font-bold text-emerald-600 tabular-nums">
+                            {formatCents(myNet)}
+                          </span>
+                        </p>
+                      ) : myNet < 0 ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          You owe{" "}
+                          <span className="font-bold text-rose-600 tabular-nums">
+                            {formatCents(-myNet)}
+                          </span>
+                        </p>
                       ) : (
-                        <span className="shrink-0 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          Settled
-                        </span>
+                        <p className="mt-1 text-xs font-semibold text-slate-400">Settled up</p>
                       )}
-                    </div>
-
-                    <div className="flex items-center justify-between mt-auto">
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-1.5">
-                          {Array.from({ length: Math.min(group.member_count, 4) }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={`h-6 w-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white ${["bg-brand-500", "bg-violet-500", "bg-pink-500", "bg-emerald-500"][i % 4]}`}
-                            >
-                              {i + 1}
-                            </div>
-                          ))}
-                        </div>
-                        <span className="text-xs text-slate-400">
-                          {group.member_count} member{group.member_count !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                      <ChevronRight size={14} className="text-slate-300 group-hover:text-brand-400 transition-colors" />
                     </div>
                   </div>
                 </Link>

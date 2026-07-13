@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { AddExpenseDialog } from "./AddExpenseDialog";
 import { ChevronRight, Plus, BarChart3, CreditCard, Settings, Users } from "lucide-react";
@@ -25,6 +26,18 @@ export function GroupHeader({
   currentUserId,
 }: Props): React.ReactElement {
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // `?add=expense` deep link — used by the bottom-nav center FAB.
+  const addParam = searchParams.get("add");
+  useEffect(() => {
+    if (addParam === "expense") {
+      setShowExpenseDialog(true);
+      router.replace(pathname, { scroll: false });
+    }
+  }, [addParam, pathname, router]);
 
   return (
     <>
