@@ -18,7 +18,7 @@ function TabIcon({ focused, name, label }: TabIconProps) {
         size={22}
         color={focused ? colors.primary : colors.gray400}
       />
-      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
     </View>
   );
 }
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingTop: 8,
   },
-  tabItem: { alignItems: "center", gap: 2 },
+  tabItem: { alignItems: "center", gap: 2, minWidth: 64 },
   tabLabel: { fontSize: 10, color: colors.gray400, fontWeight: "500" },
   tabLabelActive: { color: colors.primary, fontWeight: "700" },
   fabWrap: { alignItems: "center", justifyContent: "center" },
