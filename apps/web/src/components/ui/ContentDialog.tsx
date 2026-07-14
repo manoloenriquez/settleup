@@ -42,9 +42,9 @@ export function ContentDialog({
       ref={dialogRef}
       onClose={onClose}
       aria-label={title}
-      className={`mx-4 sm:mx-auto flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden backdrop:bg-black/40 rounded-2xl border border-slate-200 bg-white p-0 shadow-lg w-full ${sizes[size]} animate-scale-in`}
+      className={`mx-4 sm:mx-auto max-h-[90dvh] backdrop:bg-black/40 rounded-2xl border border-slate-200 bg-white p-0 shadow-lg w-full ${sizes[size]} animate-scale-in`}
     >
-      <div className="flex shrink-0 items-center justify-between px-6 py-4 border-b border-slate-100">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
         <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
         <button
           type="button"
@@ -55,7 +55,7 @@ export function ContentDialog({
           <X size={18} />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">{children}</div>
+      <div className="max-h-[80dvh] overflow-y-auto px-6 py-4">{children}</div>
     </dialog>
   );
 }
