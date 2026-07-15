@@ -10,7 +10,21 @@
 
 ## 1. Executive Summary
 
-*(Filled in after competitive research — see end of drafting pass.)*
+**Verdict: SettleUp is not ready to compete with Splitwise head-on today — but it is closer than most clones, and it is pointed at the right wedge.**
+
+The codebase is genuinely good: correct, well-tested money math; a security-first Supabase architecture; a modern UI that already looks better than Splitwise's; and two real differentiators — AI-assisted expense entry (receipt scan, natural-language chat, smart splits) and a no-account share-link model with GCash/bank payment profiles. Both differentiators map precisely onto Splitwise's two open wounds: its December 2023 free-tier caps/ads backlash (1.8/5 on Trustpilot) and its US/EU-only settlement rails.
+
+Five things stop it from competing today:
+
+1. **PHP-only, hardcoded currency** — no travel groups, the category's #1 acquisition moment.
+2. **No 1:1 friends ledger** — half of Splitwise usage is pairwise, outside groups.
+3. **No offline entry and no expense dates** — trust-breaking gaps in a category where entry happens at restaurants and gets backfilled later.
+4. **The differentiators are switched off** — `LLM_ENABLED=false` everywhere, the default vision model doesn't exist, and share links can't deep-link into the mobile app.
+5. **The name.** "Settle Up" (settleup.io) is a 13-year-old incumbent in this exact category. Launching under "SettleUp" invites app-store rejection, trademark exposure, and permanent ASO/SEO futility. Rename before launch.
+
+**The strategic opportunity is real and specific:** be the *Splitser of the Philippines*. Global apps (Splitwise, Tricount, Splid) track debts but cannot settle in pesos; GCash's KKB feature settles but cannot track (no groups, no ledger, no simplification). A persistent group ledger with utang-aware reminders and two-tap GCash settlement occupies an empty middle in a market with 94M GCash users — the same country-specific playbook that made Splitser (5M+ users) beat Splitwise in the Netherlands. Monetize Splid/Settle Up-style (one-time or group-funded premium, never daily caps), positioning directly against Splitwise's most hated decision.
+
+**Overall readiness: 5.4/10** (scores in §11). Roughly 8–12 weeks of focused work on the Must-Have list (§10) separates the current build from a credible PH-market launch.
 
 ---
 
@@ -86,7 +100,53 @@ That thesis is genuinely differentiated. The problem, detailed below, is that th
 
 ## 3. Competitive Analysis
 
-*(Filled in after competitive research.)*
+### 3.1 Splitwise (the incumbent)
+
+**Scale & moat.** ~2011-vintage, 170+ countries, tens of millions of users, estimated ~60% share of the dedicated splitting market. The moat is (a) the network — "your friends already have it" — and (b) the running-balance model: persistent **friends (1:1) ledgers plus groups**, with the signature **Simplify Debts** graph reduction. Since 2023 it has pivoted into payments: Venmo/PayPal deep links, **Splitwise Pay** wallet + auto-splitting **Mastercard debit card** (US, via Coastal Community Bank), and **Tink pay-by-bank** (UK, and France/Germany/Austria since Oct 2025).
+
+**Free tier:** groups + friends ledgers, all split types (equal / exact / **percentage** / **shares** / **adjustment** / itemized), 100+ currencies (balances kept per-currency; conversion is Pro), simplify debts, comments, categories, recurring expenses, whiteboard, CSV export, Zapier.
+
+**Pro (~$4.99/mo or ~$40/yr; regional variants):** no ads, **no daily expense limits**, receipt scanning + itemization, FX conversion, charts, search, default splits, JSON backups.
+
+**The open wound.** In **December 2023** Splitwise capped free users at ~3–4 expenses/day with a ~10-second ad-wait before each save, and moved previously free features (receipt photos, FX conversion, charts, search) behind Pro. The result: 1.8/5 Trustpilot (~65% one-star), a visible defector ecosystem, and an open-source clone movement (Spliit, split-pro). Top complaints, ranked: daily cap; pre-save ads; paywalled ex-free features; Pro price for a utility; un-disableable Pro upsell notifications; post-update sync/performance issues; slow Splitwise Pay transfers; rigid itemization (items can only be split 0/50/100% per person).
+
+**Most-requested features Splitwise hasn't shipped:** partial payments, bulk edit, per-bill paid status (explicitly declined), richer per-person exports, arbitrary per-item percentages, guest/no-account participation.
+
+**What this means for SettleUp:** the cheapest durable positioning in 2026 is *"unlimited free logging, free receipt scanning, no ads before saving"* — a direct inversion of Splitwise's monetization. SettleUp's architecture already supports this (no caps anywhere); it just needs to say it out loud and never betray it.
+
+### 3.2 Competitor matrix
+
+| | Model | Multi-currency | Offline | No-account join | Receipt OCR | Payments | Standout | Achilles' heel |
+|---|---|---|---|---|---|---|---|---|
+| **Splitwise** | Freemium, ~$40/yr | 100+ (FX = Pro) | Yes | Invite links (account needed to participate) | Pro only | Venmo/Tink/own card | Network + friends ledger | Daily caps + ads backlash |
+| **Tricount** (bunq) | 100% free (bank funnel) | Yes | Yes | View/add via link | No | bunq card auto-capture | Free & simple; auto-capture | 2024–25 rewrite: sync failures, balance bugs, bunq pushiness |
+| **Settle Up** (Step Up Labs) | Freemium ~$40/yr **+ group-funded one-time premium** | Yes | Yes | No | Premium photos (no itemization) | No | Cross-platform incl. watch; 35%-converting contextual trial paywall | Calc-error complaints; aggressive ads |
+| **Splid** | Free + **$4.99 one-time** | 150+ w/ conversion | **Offline-first** | Yes (code/link) | No | No | Travel gold standard; anti-subscription pricing | No realtime sync; occasional balance bugs |
+| **Kittysplit** | Free; ~€3/kitty one-time | Super Kitty only | No | **Total** (web link, zero accounts) | No | No | Lowest onboarding friction anywhere | Link=security; shallow; per-event only |
+| **Spliit** (OSS) | Free, MIT, donations | Yes | No | Yes (URL) | **Yes, free** | No | Open-source trust post-Splitwise-betrayal | PWA only; hobby cadence |
+| **Tab** | Free | — | No | Join by code | **Yes — "claim your items"** | Venmo | The restaurant-bill delight flow | No persistent ledger |
+| **Cino** (€3.5M seed, 2025) | Free | EU cards | — | — | n/a | **Splits at the moment of payment** (shared virtual card) | Kills the ledger concept entirely | EU rails only; group must pre-link cards |
+| **Splitser/WieBetaaltWat** | Freemium | Yes | Yes | Link | No | iDEAL/Tikkie rails | **Proof that country-specific + local rails beats global at home** (5M+ users, NL App of the Year 4×) | NL-only by design |
+| **GCash KKB** (PH) | Free (in super-app) | PHP | No | Everyone's already on GCash | Per-item amounts manual | **Native settlement** | The rail itself | *Request tool, not a ledger*: no groups, no balances, no simplification, scam-request problem |
+
+Also notable: **Apple's iOS 27 Apple Cash receipt-splitting** (announced June 2026) commoditizes receipt itemization UX in the US — little direct PH impact, but it confirms "scan → claim items" as the category's delight bar. A swarm of indie "Splitwise alternative" apps (SplitMyExpenses, Split Circle, SplitterUp, Settlify…) compete on unlimited-free + AI scanning; none has breakout scale.
+
+### 3.3 What users love and hate across the category
+
+**Loved:** no-account link join ("only one person needs the app"); offline-first sync; one-time or group-funded pricing; genuinely unlimited free tiers; receipt scan with claim-your-items; debt simplification (now expected everywhere); auto-capture from cards.
+
+**Hated:** daily caps and retroactive paywalls; **balance calculation bugs** (reported against Tricount, Splid, *and* Settle Up — accuracy is the trust core of the category); sync failures; ads inside a money app; forced ecosystem sign-ups (Tricount→bunq resentment); abandonment (Plates).
+
+**Underserved gaps nobody owns:** offline-first *and* realtime together; settlement in local rails outside US/EU; recurring roommate/household workflows; voice/chat AI entry done well; the social choreography of debt collection ("utang" reminders that preserve friendships).
+
+### 3.4 Philippines market context
+
+- GCash: **94M registered users**, ~80–94% adult penetration, 6M+ merchants. "KKB" (kanya-kanyang bayad) is a cultural institution.
+- GCash KKB splits a single bill as payment requests but keeps **no ledger** — no persistent groups, no running balances, no multi-payer, no simplification; complex splits require "math outside the app." BDO Pay has a similar basic request feature. Local indie **Caban** (2025) is a budget tracker with utang reminders, not a group ledger.
+- PH media currently recommend *global* apps (Splitwise/Splid/Tricount) for barkada trips — none settles in pesos.
+- **Caveats to the GCash thesis:** no public consumer P2P API (integration = deep links / QR Ph, not true API settlement); platform risk that GCash extends KKB into a ledger; and PH price sensitivity favors one-time/group-funded premium over subscriptions.
+
+**Conclusion:** the Splitser playbook — country-specific ledger + local-rail settlement — is open in the Philippines, and SettleUp's existing GCash payment profiles, QR support, and no-account links are exactly the right foundation for it.
 
 ---
 
@@ -227,8 +287,6 @@ Supabase + RLS + RPCs will comfortably carry this to hundreds of thousands of us
 
 ## 7. Missing Features (gap analysis vs. Splitwise)
 
-*(Merged with competitive research — see §3 for the competitor matrix; this section categorizes gaps.)*
-
 ### 7.1 Missing critical features
 
 | Gap | Why it matters | User impact | Competitive impact | Suggested solution |
@@ -263,7 +321,7 @@ Supabase + RLS + RPCs will comfortably carry this to hundreds of thousands of us
 
 ## 8. Feature Recommendations (innovation beyond parity)
 
-*(Sharpened after competitive research; core bets below.)*
+Research-validated context for each bet: receipt "claim your items" is the category's highest-delight flow of 2024–26 (Tab, Spliit, Apple iOS 27); nobody ships voice/chat entry well; nobody settles in SEA rails; and Settle Up publicly documented a ~35%-converting contextual-trial paywall — the monetization pattern to copy if/when premium arrives.
 
 1. **Make AI entry the identity, not a bonus.** Turn `LLM_ENABLED` on, fix the model default, and put "scan → itemized draft → members claim their items" at the center of onboarding. Nobody in the free tier of this market does receipt itemization well; Splitwise locks scanning behind Pro.
 2. **"Claim your items" social flow.** After a receipt scan, share a link where each friend taps the line items they ordered (no account needed — the share-token infrastructure already exists). This converts the app's two differentiators (AI + no-account links) into one viral moment at the table.
@@ -278,9 +336,7 @@ Supabase + RLS + RPCs will comfortably carry this to hundreds of thousands of us
 
 ## 9. Competitive Differentiators
 
-*(Finalized with research in §3; preliminary list.)*
-
-**Already built, unique or rare:**
+**Already built, unique or rare in the market:**
 - No-account share links with payment QR (vs. Splitwise's account wall)
 - AI receipt → itemized draft chain with on-device OCR fallback
 - Natural-language expense chat
@@ -292,21 +348,136 @@ Supabase + RLS + RPCs will comfortably carry this to hundreds of thousands of us
 - Modern stack (RSC, realtime, PWA) vs. Splitwise's legacy surface
 - Costless deterministic fallbacks under every AI feature
 - Clean monorepo able to ship web+mobile in lockstep
+- **Positioning inversion available:** unlimited free logging + free receipt scanning + no ads before saving — everything Splitwise users are angriest about, at zero marginal cost to this architecture
+
+**Where SettleUp cannot differentiate (accept and defer):** the payments-execution layer (Venmo/Tink/debit-card equivalents), the global network effect, and 100+ currency breadth. Win the PH beachhead first.
 
 ---
 
 ## 10. Prioritized Roadmap
 
-*(Ranked Impact × User Value ÷ Dev Cost; finalized after research.)*
+Ranked within each tier by **Impact × User Value ÷ Dev Cost**. Sizes: S ≤ 1 wk · M ≤ 3 wk · L > 3 wk (single engineer).
+
+### 10.1 Must have before launch
+
+| # | Item | Size | Rationale |
+|---|---|---|---|
+| 1 | **Resolve the name** — trademark clearance; rename ("SettleUp" ↔ settleup.io collision) | S–M | App-store rejection / legal exposure / ASO futility. Blocks everything else. |
+| 2 | **Turn AI on in production** — fix phantom `gpt-5.4-mini` default, set env, validate AI sums against totals, `.strict()` schemas | S | The product's identity is currently switched off; sum validation prevents bad money data |
+| 3 | **Expense date field** (schema + forms + sort/insights/export) | S | Ledger correctness; every competitor has it |
+| 4 | **Fix QR unmasking in public share payloads** (signed short-lived URLs or auth-gate the QR) | S | Visible privacy promise currently broken |
+| 5 | **Percentage + shares split modes** (convert to cents at save; DB unchanged) | S–M | Splitwise free-tier parity; rent/couples use cases |
+| 6 | **Mobile deep links + universal links** for `/g/*`, `/p/*`, `/join`; push-tap routing | M | The growth loop currently dumps mobile users into the web app |
+| 7 | **Reminders**: debt-age push/email nudges + weekly digest; notification tap → group | M | The retention loop; "the app that reminds is the app that gets paid back" |
+| 8 | **RLS/RPC integration test suite** (pgTAP or supabase-js harness against local stack) | M | The security model and settlement math are hand-verified today; calc bugs are the category's #1 trust killer |
+| 9 | **Kill the waitlist wall**; landing page that demos scan→split and share links | S | Can't compete from behind a waitlist |
+| 10 | Expense pagination + non-transactional `addExpensesBatch` fix | S | Perf cliff + partial-write corruption on the flagship scan flow |
+
+### 10.2 High-impact improvements (fast follow)
+
+| # | Item | Size | Rationale |
+|---|---|---|---|
+| 11 | **Multi-currency groups + FX** (currency per group & per expense, minor-unit-aware, daily rate snapshot; balances in group home currency) | L | Unlocks travel — the category's #1 acquisition moment. Biggest single competitive unlock |
+| 12 | **Offline expense entry** — mobile: persisted react-query cache + outbound mutation queue; web: IndexedDB draft queue | L | Table stakes (Splid/Tricount/Settle Up all have it); restaurants and islands are dead zones |
+| 13 | **1:1 friends ledger** — hidden two-person groups surfaced as a Friends tab + cross-group person rollup | M–L | Half of Splitwise usage; removes the "fake group" workaround |
+| 14 | **GCash deep-link settlement** (send/request prefilled via deep link + QR Ph InstaPay from settle screen) | M | The Splitser move; nobody settles in PH rails |
+| 15 | **Splitwise/CSV import** | M | Aimed directly at the defector stream Splitwise's caps create |
+| 16 | Global search (expenses, groups, members) | M | QoL that compounds with account age |
+| 17 | Dark mode (web + mobile) | M | Baseline 2026 consumer expectation; top review-complaint category |
+| 18 | Edit history on expenses ("edited by X", change log) | M | Trust in shared money; dispute resolution |
+| 19 | Partial-payment UX (explicit remaining-balance affordance) | S | Splitwise's longest-standing "under review" request |
+| 20 | Web push + notification center | M | Awareness when the PWA is closed |
+
+### 10.3 Delight features
+
+- **"Claim your items"**: post-scan share link where each friend taps their line items, no account needed — fuses the app's two differentiators into one table-side viral moment (the infra — share tokens + itemized expenses — already exists)
+- **Voice/chat quick capture**: surface the existing conversation parser as a one-tap "say the expense" + home-screen widget
+- **Utang-aware reminders with personality**: escalating, Taglish-optional, creditor-approved nudges
+- **Trip mode**: dates, per-day burn, per-head totals, (later) multi-currency rollup
+- **Settle-up celebrations**: the all-settled state is already celebrated; add group "trip wrapped" summaries (top spender, biggest bill, category donut) — shareable
+- **Recurring packs** for roommates/couples: rent/utilities/subscription templates with remembered ratios
+
+### 10.4 Long-term vision
+
+- **Subscription sharing** (track Netflix/Spotify family slots, renewal reminders, auto-recurring splits)
+- **Budgeting + insights across groups** (the deterministic engine already computes most inputs)
+- **True payment execution** if/when PH rails open (GCash partner API, QR Ph interop) — the Cino/Splitwise-Card endgame, PH edition
+- **Group premium, one-time, split-as-an-expense** monetization (Settle Up's documented pattern; anti-subscription, PH-price-sensitive)
+- **Open ecosystem posture**: exports, backups, maybe a public API — the anti-lock-in brand Splitwise abandoned
+- Regional expansion along remittance corridors (SEA neighbors with similar wallet-first rails: GoPay/OVO Indonesia, TrueMoney Thailand)
 
 ---
 
 ## 11. Overall Readiness Score
 
-*(Finalized after research.)*
+| Area | Score /10 | Notes |
+|---|---|---|
+| Feature completeness | **6** | Group ledger is deep (multi-payer, itemized, recurring, comments, budgets); missing currencies, dates, friends ledger, %/shares splits, search |
+| Ease of use | **7** | Quick-add and share links are excellent; email-confirm wall, no deep links, clipboard-only reminders drag it down |
+| Visual design | **7** | Post-redesign UI is modern, consistent, tokenized; no dark mode; fake sparkline; thin charts |
+| Performance | **6** | Lean bundles, single-RPC dashboard, realtime; unpaginated lists and coarse refresh-per-event will bite |
+| Reliability | **5** | Correct tested money math, but zero RLS/RPC/E2E tests, no offline tolerance, non-transactional batch path |
+| Technical quality | **7.5** | Genuinely strong architecture, security discipline, and conventions; docs drift, triple AI surface, in-memory limiters |
+| Mobile experience | **6** | Full feature parity, 5 entry modes, haptics, realtime — undermined by no offline persistence, no deep links, dead-end push taps |
+| User delight | **5** | The delight features exist but are switched off (AI) or unreachable (share links → web on mobile); checklist & celebrations show the right instincts |
+| Competitive differentiation | **5 today / 8 potential** | As shipped: share links + GCash profiles. With AI on + claim-your-items + GCash settlement: category-leading in PH |
+| Growth potential | **7** | Real wedge (PH + Splitwise backlash), viral share-link mechanics, modern stack; capped by name collision and missing travel/multi-currency |
+
+**Overall: 5.4/10 — a strong foundation that is not yet a competitive product.**
+
+### If launched publicly today, why would someone choose this over Splitwise?
+
+Honest answer: **most people wouldn't, yet.** The credible pitch today is: *"unlimited free logging with no ads, your friends see their balance and your GCash QR from a link without installing anything."* That's real — but it only wins the narrow case of a PHP-only group whose organizer tolerates a product with no expense dates, no offline entry, no reminders, and a name that Googles to a competitor. Splitwise still wins on network, friends ledger, currencies, offline, and reminders. **After the Must-Have list ships** (name, AI on, dates, %/shares, deep links, reminders), the pitch becomes *"the only splitter built for how Filipinos actually pay each other — scan the receipt, everyone claims their items, settle in GCash in two taps, unlimited and free"* — and that wins the PH market on merit, because nobody else is even trying to.
+
+### Biggest competitive risks
+
+1. Name/trademark collision with Settle Up (existential for distribution)
+2. GCash extends KKB into a persistent ledger (platform risk — speed matters)
+3. Calculation/sync trust failures at scale with an untested SQL surface (the #1 review-killer across all competitors)
+4. AI cost/quality economics once `LLM_ENABLED` is on for free users (mitigated by on-device OCR + deterministic fallbacks)
+5. Splitwise's payments moat deepening while SettleUp is still on tracking
+
+### Biggest strengths
+
+1. Security-first, correctly-rounded, well-conventioned codebase — rare at this stage
+2. No-account share-link participation model (best onboarding pattern in the category)
+3. AI entry stack with graceful deterministic fallbacks — free-tier receipt itemization would beat Splitwise Pro
+4. PH-native settlement context (GCash/bank QR profiles) in an unserved market
+
+### Biggest opportunities
+
+1. The Splitser-of-the-Philippines position (ledger + local rails + utang culture)
+2. Splitwise's monetization backlash as a permanent acquisition channel (imports + "unlimited free" messaging)
+3. "Claim your items" as the signature viral flow
+4. One-time / group-funded premium as an anti-subscription brand statement
 
 ---
 
 ## 12. Top 20 Highest-Impact Improvements
 
-*(Finalized after research.)*
+Ordered by Impact × User Value ÷ Dev Cost across all sections:
+
+1. **Rename the product** after trademark clearance (§7.3, §11 risks)
+2. **Enable AI in production + fix `gpt-5.4-mini` phantom default** (`packages/ai/src/core/openai.ts:16`)
+3. **Add `expense_date`** to schema, forms, exports, insights
+4. **Validate AI splits/receipts sum to totals; `.strict()` AI schemas** (guards the flagship flow)
+5. **Fix public-payload QR unmasking** (`20260403000006_mask_public_rpc_data.sql`)
+6. **Percentage & shares split modes**
+7. **Mobile universal links + push-tap routing** (close the growth-loop leak)
+8. **Debt reminders + weekly digest** (retention engine)
+9. **Multi-currency groups with FX conversion** (travel unlock)
+10. **Offline expense entry** (mobile persistence + mutation queue)
+11. **1:1 friends ledger** (hidden pair groups + person rollup)
+12. **GCash deep-link / QR Ph settlement from the settle screen**
+13. **"Claim your items" post-scan share flow** (signature feature)
+14. **RLS/RPC/settlement-math integration tests** (trust insurance)
+15. **Splitwise CSV import** (defector funnel)
+16. **Dark mode** (web + mobile)
+17. **Global search**
+18. **Expense pagination + transactional batch insert**
+19. **Edit history / audit trail on expenses**
+20. **Real charts** (replace decorative sparkline; category donut, spend-over-time) **+ kill the waitlist landing page**
+
+---
+
+*Report compiled from: full dev-branch codebase audit (web, mobile, packages, 70 Supabase migrations, `docs/audit-report.md` cross-check) and July 2026 market research on Splitwise, Tricount, Settle Up, Splid, Kittysplit, Spliit, Tab, Cino, Splitser, GCash KKB, and the 2024–26 indie wave. Sources cited in research briefs; key facts: Splitwise Pro ~$40/yr with ~3–4 free expenses/day since Dec 2023; Tricount free under bunq; Splid $4.99 one-time; GCash 94M users.*
