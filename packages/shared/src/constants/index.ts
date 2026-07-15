@@ -38,6 +38,7 @@ export type Route = (typeof ROUTES)[keyof typeof ROUTES];
 export const API_LIMITS = {
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
+  EXPENSES_PAGE_SIZE: 50,
 } as const;
 
 // ---------------------------------------------------------------------------

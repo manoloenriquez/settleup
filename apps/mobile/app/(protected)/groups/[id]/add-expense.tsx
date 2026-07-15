@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
 import { useCreateRecurringExpense } from "@/hooks/useRecurring";
 import { useMembers } from "@/hooks/useMembers";
@@ -26,12 +27,60 @@ import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
 import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { formatCents, parsePHPAmount, equalSplit } from "@template/shared";
+import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type Mode = "quick" | "chat" | "receipt" | "detailed" | "itemized";
-type SplitMode = "equal" | "custom";
+type SplitMode = "equal" | "percent" | "shares" | "custom";
 type LineItem = { name: string; amountStr: string; participantIds: string[] };
+
+/** Local YYYY-MM-DD (never UTC — toISOString is a day off after 8am PH). */
+function localTodayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function isoToLocalDate(iso: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!match) return new Date();
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function dateToISO(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function DateField({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+  const [show, setShow] = useState(false);
+  const date = isoToLocalDate(value);
+  const label = date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  return (
+    <View>
+      <Text style={styles.label}>Date</Text>
+      <TouchableOpacity
+        style={styles.dateBtn}
+        onPress={() => setShow((v) => !v)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Expense date ${label}`}
+      >
+        <Ionicons name="calendar-outline" size={16} color={colors.gray600} />
+        <Text style={styles.dateBtnText}>{label}</Text>
+      </TouchableOpacity>
+      {show && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display={Platform.OS === "ios" ? "inline" : "default"}
+          onChange={(_event, selected) => {
+            setShow(false);
+            if (selected) onChange(dateToISO(selected));
+          }}
+        />
+      )}
+    </View>
+  );
+}
 
 export default function AddExpenseScreen() {
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
@@ -62,9 +111,14 @@ export default function AddExpenseScreen() {
   const [payerMemberId, setPayerMemberId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
 
+  // Shared expense date (all modes)
+  const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
+
   // Detailed mode split state
   const [splitMode, setSplitMode] = useState<SplitMode>("equal");
   const [customShares, setCustomShares] = useState<Record<string, string>>({});
+  const [percentShares, setPercentShares] = useState<Record<string, string>>({});
+  const [shareWeights, setShareWeights] = useState<Record<string, string>>({});
 
   // Recurring (detailed mode)
   const [repeats, setRepeats] = useState<"none" | "weekly" | "monthly">("none");
@@ -141,6 +195,40 @@ export default function AddExpenseScreen() {
     return true;
   }
 
+  function getPercentSum(): number {
+    return [...selectedMembers].reduce((s, id) => s + (Number.parseFloat(percentShares[id] ?? "") || 0), 0);
+  }
+
+  function getShareWeightsArray(): number[] {
+    // Empty weight defaults to 1 share so the mode works with minimal typing.
+    return [...selectedMembers].map((id) => {
+      const raw = shareWeights[id];
+      if (raw === undefined || raw.trim() === "") return 1;
+      return Number.parseFloat(raw);
+    });
+  }
+
+  /** Resolve percent/shares/custom to exact custom-split cents, or null if invalid. */
+  function resolveCustomSplits(amountCents: number): { memberId: string; shareCents: number }[] | null {
+    const ids = [...selectedMembers];
+    try {
+      if (splitMode === "percent") {
+        const cents = percentSplit(amountCents, ids.map((id) => Number.parseFloat(percentShares[id] ?? "") || 0));
+        return ids.map((id, i) => ({ memberId: id, shareCents: cents[i] ?? 0 }));
+      }
+      if (splitMode === "shares") {
+        const cents = sharesSplit(amountCents, getShareWeightsArray());
+        return ids.map((id, i) => ({ memberId: id, shareCents: cents[i] ?? 0 }));
+      }
+    } catch {
+      return null;
+    }
+    if (splitMode === "custom") {
+      return ids.map((id) => ({ memberId: id, shareCents: parsePHPAmount(customShares[id] ?? "0") ?? 0 }));
+    }
+    return null;
+  }
+
   function validateCustomSplitSum(amountCents: number): boolean {
     const sum = [...selectedMembers].reduce((s, id) => s + (parsePHPAmount(customShares[id] ?? "0") ?? 0), 0);
     if (sum !== amountCents) {
@@ -189,6 +277,7 @@ export default function AddExpenseScreen() {
       memberIds: [...selectedMembers],
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
+      expenseDate,
     });
     if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -220,6 +309,14 @@ export default function AddExpenseScreen() {
     }
     if (!validatePayerSum(amountCents)) return;
     if (splitMode === "custom" && !validateCustomSplitSum(amountCents)) return;
+    if (splitMode === "percent" && Math.abs(getPercentSum() - 100) > 0.01) {
+      toast.error(`Percentages must sum to 100 (currently ${getPercentSum().toFixed(2)}).`);
+      return;
+    }
+    if (splitMode === "shares" && getShareWeightsArray().some((w) => !Number.isFinite(w) || w <= 0)) {
+      toast.error("Shares must be positive numbers.");
+      return;
+    }
     if (getPayersArray().length === 0) {
       toast.error("Please select who paid.");
       return;
@@ -230,15 +327,14 @@ export default function AddExpenseScreen() {
   async function handleDetailedSave() {
     const amountCents = parsePHPAmount(amount) ?? 0;
     const payers = getPayersArray();
-    if (splitMode === "custom") {
-      const customSplits = [...selectedMembers].map((id) => ({
-        memberId: id,
-        shareCents: parsePHPAmount(customShares[id] ?? "0") ?? 0,
-      }));
-      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers });
+    if (splitMode !== "equal") {
+      // percent/shares resolve to exact cents and reuse the custom-split path
+      const customSplits = resolveCustomSplits(amountCents);
+      if (!customSplits) { toast.error("Could not resolve the split. Check the values and try again."); return; }
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate });
       if (result.error) { toast.error(result.error); return; }
     } else {
-      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "" });
+      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate });
       if (result.error) { toast.error(result.error); return; }
     }
     if (repeats !== "none") {
@@ -280,6 +376,7 @@ export default function AddExpenseScreen() {
             .map((m) => m.id)
         : members.map((m) => m.id);
       setDraftMembers(new Set(matchedIds));
+      if (aiDraft.date) setExpenseDate(aiDraft.date);
       const suggested = categories.find((category) => category.is_default && category.slug === aiDraft.category_slug);
       if (suggested) setCategoryId(suggested.id);
     }
@@ -300,6 +397,7 @@ export default function AddExpenseScreen() {
       memberIds,
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
+      expenseDate,
     });
     if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -357,6 +455,7 @@ export default function AddExpenseScreen() {
       amountCents,
       categoryId,
       payers,
+      expenseDate,
       lineItems: filledItems.map((li) => ({
         name: li.name.trim(),
         amountCents: parsePHPAmount(li.amountStr) ?? 0,
@@ -403,6 +502,10 @@ export default function AddExpenseScreen() {
             <Text style={styles.confirmAmount}>{formatCents(amountCents)}</Text>
             <CategoryPill category={selectedCategory} />
             <View style={styles.confirmRow}>
+              <Text style={styles.confirmLabel}>Date</Text>
+              <Text style={styles.confirmValue}>{isoToLocalDate(expenseDate).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</Text>
+            </View>
+            <View style={styles.confirmRow}>
               <Text style={styles.confirmLabel}>Paid by</Text>
               <Text style={styles.confirmValue}>{payerLabel}</Text>
             </View>
@@ -415,7 +518,15 @@ export default function AddExpenseScreen() {
             {mode === "detailed" && (
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>Split</Text>
-                <Text style={styles.confirmValue}>{splitMode === "custom" ? "Custom" : `Equal · ${selectedMembers.size} member${selectedMembers.size !== 1 ? "s" : ""}`}</Text>
+                <Text style={styles.confirmValue}>
+                  {splitMode === "custom"
+                    ? "Custom"
+                    : splitMode === "percent"
+                      ? "By percentage"
+                      : splitMode === "shares"
+                        ? "By shares"
+                        : `Equal · ${selectedMembers.size} member${selectedMembers.size !== 1 ? "s" : ""}`}
+                </Text>
               </View>
             )}
             {mode === "itemized" && lineItems.filter((li) => li.name.trim()).map((li, i) => (
@@ -489,6 +600,7 @@ export default function AddExpenseScreen() {
               <View style={styles.form}>
                 <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
                 <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" />
+                <DateField value={expenseDate} onChange={setExpenseDate} />
                 <View>
                   <Text style={styles.label}>Paid by</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
@@ -603,6 +715,7 @@ export default function AddExpenseScreen() {
                   onAccept={(name, cents) => {
                     setItemName(name);
                     setAmount(String(cents / 100));
+                    if (receiptScan.receipt?.date) setExpenseDate(receiptScan.receipt.date);
                     receiptScan.clear();
                     setMode("detailed");
                   }}
@@ -617,6 +730,7 @@ export default function AddExpenseScreen() {
             <View style={styles.form}>
               <AppTextInput label="Expense Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
               <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} />
+              <DateField value={expenseDate} onChange={setExpenseDate} />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Line items */}
@@ -739,6 +853,7 @@ export default function AddExpenseScreen() {
             <View style={styles.form}>
               <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <DateField value={expenseDate} onChange={setExpenseDate} />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Recurring cadence */}
@@ -762,15 +877,83 @@ export default function AddExpenseScreen() {
               <View>
                 <Text style={styles.label}>How to split</Text>
                 <View style={styles.toggleRow}>
-                  {(["equal", "custom"] as SplitMode[]).map((s) => (
+                  {(["equal", "percent", "shares", "custom"] as SplitMode[]).map((s) => (
                     <TouchableOpacity key={s} style={[styles.toggleBtn, splitMode === s && styles.toggleBtnActive]} onPress={() => setSplitMode(s)} activeOpacity={0.7}>
                       <Text style={[styles.toggleBtnText, splitMode === s && styles.toggleBtnTextActive]}>
-                        {s === "equal" ? "Equal" : "Custom"}
+                        {s === "equal" ? "Equal" : s === "percent" ? "%" : s === "shares" ? "Shares" : "Custom"}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
+
+              {/* Percent split inputs */}
+              {splitMode === "percent" && selectedMembers.size > 0 && (
+                <View style={styles.customSplitSection}>
+                  {[...selectedMembers].map((id) => {
+                    const m = members.find((mem) => mem.id === id);
+                    if (!m) return null;
+                    return (
+                      <View key={id} style={styles.customSplitRow}>
+                        <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
+                        <View style={styles.customSplitInput}>
+                          <AppTextInput
+                            value={percentShares[id] ?? ""}
+                            onChangeText={(v) => setPercentShares((prev) => ({ ...prev, [id]: v }))}
+                            placeholder="0"
+                            keyboardType="decimal-pad"
+                            accessibilityLabel={`Percentage for ${m.display_name}`}
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                  <View style={[styles.splitSumRow, Math.abs(getPercentSum() - 100) > 0.01 && styles.splitSumError]}>
+                    {Math.abs(getPercentSum() - 100) <= 0.01 ? (
+                      <View style={styles.splitSumBalanced}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={styles.splitSumText}>Percentages balance</Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.splitSumText, styles.splitSumTextError]}>
+                        {getPercentSum().toFixed(2)}% of 100%
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Shares split inputs */}
+              {splitMode === "shares" && selectedMembers.size > 0 && (
+                <View style={styles.customSplitSection}>
+                  <Text style={styles.sublabel}>Blank = 1 share (e.g. 2 for someone covering two people)</Text>
+                  {[...selectedMembers].map((id) => {
+                    const m = members.find((mem) => mem.id === id);
+                    if (!m) return null;
+                    return (
+                      <View key={id} style={styles.customSplitRow}>
+                        <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
+                        <View style={styles.customSplitInput}>
+                          <AppTextInput
+                            value={shareWeights[id] ?? ""}
+                            onChangeText={(v) => setShareWeights((prev) => ({ ...prev, [id]: v }))}
+                            placeholder="1"
+                            keyboardType="decimal-pad"
+                            accessibilityLabel={`Shares for ${m.display_name}`}
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {amountCents > 0 && !getShareWeightsArray().some((w) => !Number.isFinite(w) || w <= 0) && (
+                    <Text style={styles.sublabel}>
+                      {(resolveCustomSplits(amountCents) ?? [])
+                        .map((split) => `${members.find((mem) => mem.id === split.memberId)?.display_name ?? "?"}: ${formatCents(split.shareCents)}`)
+                        .join(" · ")}
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* Custom split inputs */}
               {splitMode === "custom" && selectedMembers.size > 0 && (
@@ -1022,4 +1205,21 @@ const styles = StyleSheet.create({
   chatTextInput: { flex: 1 },
   sendBtn: { width: 48, height: 48, backgroundColor: colors.primary, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
   sendBtnText: { color: colors.white, fontSize: fontSize.xl, fontWeight: fontWeight.bold },
+  dateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  dateBtnText: {
+    fontSize: fontSize.md,
+    color: colors.gray900,
+  },
+
 });

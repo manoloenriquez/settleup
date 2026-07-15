@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances";
-import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense } from "@/hooks/useExpenses";
+import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense, useExpenseTotals } from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
 import { usePendingPayments, useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
@@ -88,6 +88,8 @@ export default function GroupDetailScreen() {
   const balancesQ = useMembersWithBalances(id);
   const creditorProfilesQ = useCreditorProfiles(id);
   const expensesQ = useExpenses(id);
+  const totalsQ = useExpenseTotals(id);
+  const expenses = expensesQ.data?.pages.flatMap((p) => p.data) ?? [];
   const activityQ = useGroupActivity(id);
   const deleteExpense = useDeleteExpense(id);
   const updateExpenseMut = useUpdateExpense(id);
@@ -216,6 +218,7 @@ export default function GroupDetailScreen() {
   function handleRefresh() {
     void balancesQ.refetch();
     void expensesQ.refetch();
+    void totalsQ.refetch();
     void activityQ.refetch();
     void pendingPaymentsQ.refetch();
   }
@@ -397,6 +400,7 @@ export default function GroupDetailScreen() {
               onRetry={() => {
                 void balancesQ.refetch();
                 void expensesQ.refetch();
+    void totalsQ.refetch();
                 void activityQ.refetch();
               }}
             />
@@ -436,11 +440,11 @@ export default function GroupDetailScreen() {
           {(() => {
             const members = balancesQ.data ?? [];
             const totalOwed = members.reduce((s, m) => s + m.owed_cents, 0);
-            const totalSpent = (expensesQ.data ?? []).reduce((s, e) => s + Math.max(0, e.amount_cents), 0);
+            const totalSpent = totalsQ.data?.positiveTotalCents ?? 0;
             const settledPct = totalSpent > 0 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100))) : 100;
             const isSettled = totalOwed === 0;
             const myNet = members.find((m) => m.member_id === currentMemberId)?.net_cents ?? 0;
-            const expenseCount = (expensesQ.data ?? []).length;
+            const expenseCount = totalsQ.data?.count ?? expenses.length;
             return (
               <View style={styles.balanceCard}>
                 <View style={styles.balanceTop}>
@@ -473,7 +477,7 @@ export default function GroupDetailScreen() {
 
           {/* Budget progress */}
           {group?.budget_cents != null && group.budget_cents > 0 && (() => {
-            const spent = (expensesQ.data ?? []).reduce((s, e) => s + Math.max(0, e.amount_cents), 0);
+            const spent = totalsQ.data?.positiveTotalCents ?? 0;
             const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
             const over = spent > group.budget_cents;
             const warn = !over && pct >= 80;
@@ -552,7 +556,10 @@ export default function GroupDetailScreen() {
           {tab === "expenses" && (
             <ExpenseList
               onComments={setCommentsExpense}
-              expenses={expensesQ.data ?? []}
+              expenses={expenses}
+              hasMore={expensesQ.hasNextPage}
+              loadingMore={expensesQ.isFetchingNextPage}
+              onLoadMore={() => void expensesQ.fetchNextPage()}
               onEdit={openEditExpense}
               onDelete={(expId) =>
                 deleteExpense.mutate(expId, {

@@ -11,9 +11,22 @@ type ExpenseListProps = {
   onDelete?: (id: string) => void;
   onEdit?: (expense: ExpenseWithDetails) => void;
   onComments?: (expense: ExpenseWithDetails) => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 };
 
-export function ExpenseList({ expenses, onDelete, onEdit, onComments }: ExpenseListProps) {
+/** Parse YYYY-MM-DD as a local date; new Date("YYYY-MM-DD") is UTC midnight (a day off in PH). */
+function expenseDayLabel(exp: ExpenseWithDetails): string {
+  const day = exp.expense_date ?? exp.created_at;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(day);
+  return date.toLocaleDateString("en-PH");
+}
+
+export function ExpenseList({ expenses, onDelete, onEdit, onComments, hasMore, loadingMore, onLoadMore }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
       <EmptyState
@@ -38,7 +51,7 @@ export function ExpenseList({ expenses, onDelete, onEdit, onComments }: ExpenseL
           <View style={styles.rowInfo}>
             <Text style={styles.name} numberOfLines={1}>{exp.item_name}</Text>
             <View style={styles.metaRow}>
-              <Text style={styles.date}>{new Date(exp.created_at).toLocaleDateString("en-PH")}</Text>
+              <Text style={styles.date}>{expenseDayLabel(exp)}</Text>
               <CategoryPill category={exp.category} />
             </View>
           </View>
@@ -62,6 +75,17 @@ export function ExpenseList({ expenses, onDelete, onEdit, onComments }: ExpenseL
           </View>
         </View>
       ))}
+      {hasMore && onLoadMore && (
+        <TouchableOpacity
+          onPress={onLoadMore}
+          disabled={loadingMore}
+          style={styles.loadMore}
+          accessibilityRole="button"
+          accessibilityLabel="Load more expenses"
+        >
+          <Text style={styles.loadMoreText}>{loadingMore ? "Loading…" : "Load more"}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -75,4 +99,20 @@ const styles = StyleSheet.create({
   date: { fontSize: fontSize.xs, color: colors.gray400 },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   amount: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
+  loadMore: {
+    alignSelf: "center",
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    backgroundColor: colors.white,
+  },
+  loadMoreText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray600,
+  },
+
 });

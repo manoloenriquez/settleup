@@ -7,6 +7,8 @@ type ExpenseData = {
   item_name: string;
   amount_cents: number;
   created_at: string;
+  /** User-set expense date (YYYY-MM-DD); preferred over created_at when present. */
+  expense_date?: string | null;
   payer_names: string[];
   category?: {
     id: string | null;
@@ -96,8 +98,8 @@ export function computeInsights(
       }
     : null;
 
-  // Period
-  const dates = expenses.map((e) => e.created_at).sort();
+  // Period — date-only and ISO timestamp strings sort consistently by prefix
+  const dates = expenses.map((e) => e.expense_date ?? e.created_at).sort();
   const period =
     dates.length > 0
       ? { first_expense: dates[0]!, last_expense: dates[dates.length - 1]! }

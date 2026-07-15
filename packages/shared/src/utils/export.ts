@@ -2,6 +2,8 @@ export type LedgerExpense = {
   item_name: string;
   amount_cents: number;
   created_at: string;
+  /** User-set expense date (YYYY-MM-DD); falls back to created_at when absent. */
+  expense_date?: string | null;
   payer_names: string[];
   participant_names: string[];
   category_name?: string | null;
@@ -46,10 +48,10 @@ export function buildGroupLedgerCsv(
   const header = row(["type", "date", "description", "category", "amount_php", "paid_by", "split_with", "status", "notes"]);
 
   const expenseRows = expenses.map((e) => ({
-    date: e.created_at,
+    date: e.expense_date ?? e.created_at,
     line: row([
       "expense",
-      day(e.created_at),
+      day(e.expense_date ?? e.created_at),
       e.item_name,
       e.category_name ?? "",
       pesos(e.amount_cents),

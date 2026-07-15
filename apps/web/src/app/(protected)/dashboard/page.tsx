@@ -22,17 +22,36 @@ import {
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-/** Decorative balance sparkline, per the mockup's hero card. */
-function Sparkline({ className = "" }: { className?: string }): React.ReactElement {
+/**
+ * Real 30-day sparkline of the user's daily expense share (spend_series from
+ * get_dashboard_summary v4). Renders nothing when there's no activity — the
+ * hero never shows fake data.
+ */
+function Sparkline({
+  points,
+  className = "",
+}: {
+  points: { date: string; amount_cents: number }[];
+  className?: string;
+}): React.ReactElement | null {
+  const max = Math.max(...points.map((p) => p.amount_cents), 0);
+  if (points.length < 2 || max === 0) return null;
+
+  const W = 96;
+  const H = 40;
+  const PAD = 4;
+  const stepX = (W - PAD * 2) / (points.length - 1);
+  const coords = points.map((p, i) => ({
+    x: PAD + i * stepX,
+    y: H - PAD - (p.amount_cents / max) * (H - PAD * 2),
+  }));
+  const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
+  const end = coords[coords.length - 1]!;
+
   return (
-    <svg viewBox="0 0 96 40" fill="none" aria-hidden="true" className={className}>
-      <path
-        d="M2 32 C 12 30, 16 22, 24 24 S 38 34, 46 28 S 58 10, 68 12 S 84 6, 94 4"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <circle cx="94" cy="4" r="3" fill="currentColor" />
+    <svg viewBox={`0 0 ${W} ${H}`} fill="none" aria-hidden="true" className={className}>
+      <path d={path} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={end.x} cy={end.y} r="3" fill="currentColor" />
     </svg>
   );
 }
@@ -102,7 +121,10 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
               {owes ? "Time to settle up" : "You’re in good shape! 🎉"}
             </p>
           </div>
-          <Sparkline className={`mt-2 h-12 w-28 shrink-0 ${owes ? "text-rose-400" : "text-brand-500"}`} />
+          <Sparkline
+            points={summary.spend_series}
+            className={`mt-2 h-12 w-28 shrink-0 ${owes ? "text-rose-400" : "text-brand-500"}`}
+          />
         </div>
       </div>
 

@@ -13,6 +13,12 @@ import { CategorySelect } from "./CategoryControls";
 import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
+/** Local YYYY-MM-DD (never UTC — toISOString is a day off after 8am PH). */
+function localTodayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 type Props = {
   groupId: string;
   members: GroupMember[];
@@ -33,6 +39,7 @@ export function QuickAddExpense({
   const [itemName, setItemName] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(categories.find((category) => category.slug === "other")?.id ?? null);
+  const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
   const [selectedIds, setSelectedIds] = useState<string[]>(members.map((m) => m.id));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -85,6 +92,7 @@ export function QuickAddExpense({
         category_id: categoryId,
         item_name: itemName.trim(),
         amount_cents: cents,
+        expense_date: expenseDate || undefined,
         participant_ids: selectedIds,
         payers: [{ member_id: payerId, paid_cents: cents }],
       });
@@ -94,6 +102,7 @@ export function QuickAddExpense({
         toast.success("Expense added!");
         setItemName("");
         setAmountStr("");
+        setExpenseDate(localTodayISO());
         setSelectedIds(members.map((m) => m.id));
         setCategoryId(categories.find((category) => category.slug === "other")?.id ?? null);
         router.refresh();
@@ -138,6 +147,20 @@ export function QuickAddExpense({
           value={itemName}
           onChange={(e) => setItemName(e.target.value)}
           placeholder="Dinner at La Lucci"
+          className="mt-1.5 rounded-xl py-2.5"
+        />
+      </div>
+
+      {/* Date */}
+      <div>
+        <label htmlFor="quick-date" className="text-sm font-medium text-slate-700">
+          Date
+        </label>
+        <Input
+          id="quick-date"
+          type="date"
+          value={expenseDate}
+          onChange={(e) => setExpenseDate(e.target.value)}
           className="mt-1.5 rounded-xl py-2.5"
         />
       </div>

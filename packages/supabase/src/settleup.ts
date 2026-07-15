@@ -8,6 +8,7 @@ type EqualExpenseRpcInput = {
   itemName: string;
   amountCents: number;
   notes?: string;
+  expenseDate?: string | null;
   participantIds: string[];
   payers: Array<{ memberId: string; paidCents: number }>;
 };
@@ -18,6 +19,7 @@ type CustomExpenseRpcInput = {
   itemName: string;
   amountCents: number;
   notes?: string;
+  expenseDate?: string | null;
   customSplits: Array<{ memberId: string; shareCents: number }>;
   payers: Array<{ memberId: string; paidCents: number }>;
 };
@@ -28,6 +30,7 @@ type ItemizedExpenseRpcInput = {
   itemName: string;
   amountCents: number;
   notes?: string;
+  expenseDate?: string | null;
   payers: Array<{ memberId: string; paidCents: number }>;
   lineItems: Array<{ name: string; amountCents: number; participantIds: string[] }>;
 };
@@ -38,6 +41,7 @@ type UpdateEqualExpenseRpcInput = {
   itemName: string;
   amountCents: number;
   notes?: string;
+  expenseDate?: string | null;
   participantIds: string[];
   payers: Array<{ memberId: string; paidCents: number }>;
 };
@@ -48,6 +52,7 @@ type UpdateCustomExpenseRpcInput = {
   itemName: string;
   amountCents: number;
   notes?: string;
+  expenseDate?: string | null;
   customSplits: Array<{ memberId: string; shareCents: number }>;
   payers: Array<{ memberId: string; paidCents: number }>;
 };
@@ -58,6 +63,7 @@ type UpdateItemizedExpenseRpcInput = {
   itemName: string;
   amountCents: number;
   notes?: string;
+  expenseDate?: string | null;
   payers: Array<{ memberId: string; paidCents: number }>;
   lineItems: Array<{ name: string; amountCents: number; participantIds: string[] }>;
 };
@@ -91,6 +97,7 @@ const expenseSchema = z.object({
   item_name: z.string(),
   amount_cents: z.number().int(),
   notes: z.string().nullable(),
+  expense_date: z.string(),
   created_by_user_id: z.string().uuid().nullable(),
   created_at: z.string(),
 });
@@ -115,6 +122,7 @@ const groupWithStatsSchema = groupSchema.extend({
 
 const createGroupResultSchema = z.object({ group: groupSchema });
 const createExpenseResultSchema = z.object({ expense: expenseSchema });
+const createExpensesBatchResultSchema = z.object({ expenses: z.array(expenseSchema) });
 const recordPaymentResultSchema = z.object({ payment: paymentSchema });
 const successResultSchema = z.object({ success: z.boolean() });
 const groupsWithStatsResultSchema = z.array(groupWithStatsSchema);
@@ -155,6 +163,7 @@ export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
+    expense_date: input.expenseDate || undefined,
     split_mode: "equal",
     participant_ids: [...input.participantIds].sort(),
     payers: input.payers.map((payer) => ({
@@ -171,6 +180,7 @@ export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
+    expense_date: input.expenseDate || undefined,
     split_mode: "custom",
     custom_splits: input.customSplits.map((split) => ({
       member_id: split.memberId,
@@ -190,6 +200,7 @@ export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Js
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
+    expense_date: input.expenseDate || undefined,
     payers: input.payers.map((payer) => ({
       member_id: payer.memberId,
       paid_cents: payer.paidCents,
@@ -209,6 +220,7 @@ export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInpu
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
+    expense_date: input.expenseDate || undefined,
     split_mode: "equal",
     participant_ids: [...input.participantIds].sort(),
     payers: input.payers.map((payer) => ({
@@ -225,6 +237,7 @@ export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcIn
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
+    expense_date: input.expenseDate || undefined,
     split_mode: "custom",
     custom_splits: input.customSplits.map((split) => ({
       member_id: split.memberId,
@@ -244,6 +257,7 @@ export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseR
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
+    expense_date: input.expenseDate || undefined,
     payers: input.payers.map((payer) => ({
       member_id: payer.memberId,
       paid_cents: payer.paidCents,
@@ -253,6 +267,18 @@ export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseR
       amount_cents: lineItem.amountCents,
       participant_ids: [...lineItem.participantIds].sort(),
     })),
+  };
+}
+
+/**
+ * Wrap pre-built expense item inputs (from buildEqualExpenseRpcInput /
+ * buildCustomExpenseRpcInput) for the atomic create_expenses_batch RPC.
+ * The RPC forces this group_id onto every item.
+ */
+export function buildExpensesBatchRpcInput(groupId: string, items: Json[]): Json {
+  return {
+    group_id: groupId,
+    items,
   };
 }
 
@@ -270,6 +296,14 @@ export function parseCreateExpenseRpcResult(result: Json | null): ApiResponse<Ex
   if (parsed.data === null) return { data: null, error: "Failed to parse expense." };
 
   return { data: parsed.data.expense, error: null };
+}
+
+export function parseCreateExpensesBatchRpcResult(result: Json | null): ApiResponse<Expense[]> {
+  const parsed = parseRpcPayload(result, createExpensesBatchResultSchema, "Failed to parse expenses.");
+  if (parsed.error) return parsed;
+  if (parsed.data === null) return { data: null, error: "Failed to parse expenses." };
+
+  return { data: parsed.data.expenses, error: null };
 }
 
 export function parseRecordPaymentRpcResult(result: Json | null): ApiResponse<Payment> {

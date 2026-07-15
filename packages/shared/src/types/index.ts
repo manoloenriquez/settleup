@@ -204,6 +204,11 @@ export type DashboardGroupSummary = {
   created_at: string;
 };
 
+export type DashboardSpendPoint = {
+  date: string; // YYYY-MM-DD
+  amount_cents: number;
+};
+
 export type DashboardSummary = {
   net_balance_cents: number;
   total_groups: number;
@@ -213,5 +218,6 @@ export type DashboardSummary = {
   i_owe_cents: number;
   owed_counterparty_count: number;
   owe_counterparty_count: number;
+  spend_series: DashboardSpendPoint[];
   groups: DashboardGroupSummary[];
 };

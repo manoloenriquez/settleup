@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import type { ApiResponse } from "@template/shared";
+import { API_LIMITS } from "@template/shared";
+import type { ApiResponse, PaginatedResponse } from "@template/shared";
 import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
@@ -38,6 +39,7 @@ export async function addExpense(params: {
   memberIds: string[];
   payerMemberId: string;
   createdByUserId: string;
+  expenseDate?: string;
 }): Promise<ApiResponse<Expense>> {
   if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
   if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
@@ -51,6 +53,7 @@ export async function addExpense(params: {
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
+        expenseDate: params.expenseDate,
         participantIds: params.memberIds,
         payers: [{ memberId: params.payerMemberId, paidCents: params.amountCents }],
       }),
@@ -68,6 +71,7 @@ export async function addExpenseCustomSplit(params: {
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
+  expenseDate?: string;
 }): Promise<ApiResponse<Expense>> {
   if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
   if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
@@ -91,6 +95,7 @@ export async function addExpenseCustomSplit(params: {
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
+        expenseDate: params.expenseDate,
         customSplits: params.customSplits,
         payers: params.payers,
       }),
@@ -108,6 +113,7 @@ export async function addItemizedExpense(params: {
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
+  expenseDate?: string;
 }): Promise<ApiResponse<Expense>> {
   if (!params.expenseName.trim()) return { data: null, error: "Expense name is required" };
   if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
@@ -121,6 +127,7 @@ export async function addItemizedExpense(params: {
         categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,
+        expenseDate: params.expenseDate,
         payers: params.payers,
         lineItems: params.lineItems,
       }),
@@ -220,25 +227,62 @@ export async function updateItemizedExpense(params: {
   return parseCreateExpenseRpcResult(result);
 }
 
-export async function listExpenses(groupId: string): Promise<ApiResponse<ExpenseWithDetails[]>> {
-  const { data, error } = await supabase
+export async function listExpenses(
+  groupId: string,
+  page = 1,
+  pageSize: number = API_LIMITS.EXPENSES_PAGE_SIZE,
+): Promise<ApiResponse<PaginatedResponse<ExpenseWithDetails>>> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safePageSize = Math.min(Math.max(1, Math.floor(pageSize)), API_LIMITS.MAX_PAGE_SIZE);
+  const from = (safePage - 1) * safePageSize;
+
+  const { data, error, count } = await supabase
     .schema("settleup")
     .from("expenses")
-    .select("*, category:expense_categories(*), participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))")
+    .select("*, category:expense_categories(*), participants:expense_participants(*), payers:expense_payers(*), items:expense_items(*, item_participants:expense_item_participants(*))", { count: "exact" })
     .eq("group_id", groupId)
-    .order("created_at", { ascending: false });
+    .order("expense_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(from, from + safePageSize - 1);
+
+  if (error) return { data: null, error: error.message };
+  const total = count ?? 0;
+  return {
+    data: {
+      data: ((data ?? []) as ExpenseWithDetailsRow[]).map((expense) => ({
+        ...expense,
+        participants: expense.participants ?? [],
+        payers: expense.payers ?? [],
+        items: (expense.items ?? []).map((item) => ({
+          ...item,
+          item_participants: item.item_participants ?? [],
+        })),
+      })),
+      count: total,
+      page: safePage,
+      pageSize: safePageSize,
+      totalPages: Math.ceil(total / safePageSize),
+    },
+    error: null,
+  };
+}
+
+/** Lightweight all-rows totals so headers/budgets stay correct under pagination. */
+export async function listExpenseTotals(
+  groupId: string,
+): Promise<ApiResponse<{ count: number; positiveTotalCents: number }>> {
+  const { data, error, count } = await supabase
+    .schema("settleup")
+    .from("expenses")
+    .select("amount_cents", { count: "exact" })
+    .eq("group_id", groupId);
 
   if (error) return { data: null, error: error.message };
   return {
-    data: ((data ?? []) as ExpenseWithDetailsRow[]).map((expense) => ({
-      ...expense,
-      participants: expense.participants ?? [],
-      payers: expense.payers ?? [],
-      items: (expense.items ?? []).map((item) => ({
-        ...item,
-        item_participants: item.item_participants ?? [],
-      })),
-    })),
+    data: {
+      count: count ?? 0,
+      positiveTotalCents: (data ?? []).reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0),
+    },
     error: null,
   };
 }

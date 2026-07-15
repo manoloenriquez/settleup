@@ -6,6 +6,8 @@
 
 > This report is intentionally blunt. Where the product is good, it says so; where it would lose to Splitwise on day one, it says that too.
 
+> **Revision note (2026-07-15):** two findings corrected after review. (1) `gpt-5.4-mini` is a real OpenAI model (released March 2026, vision-capable) — the original "phantom model" claim came from stale knowledge and has been removed; `apps/api/.env.example` was updated to match the intended default. (2) The QR-URL exposure on public share links was reviewed and **accepted by design** — see §6.2.
+
 ---
 
 ## 1. Executive Summary
@@ -19,7 +21,7 @@ Five things stop it from competing today:
 1. **PHP-only, hardcoded currency** — no travel groups, the category's #1 acquisition moment.
 2. **No 1:1 friends ledger** — half of Splitwise usage is pairwise, outside groups.
 3. **No offline entry and no expense dates** — trust-breaking gaps in a category where entry happens at restaurants and gets backfilled later.
-4. **The differentiators are switched off** — `LLM_ENABLED=false` everywhere, the default vision model doesn't exist, and share links can't deep-link into the mobile app.
+4. **The differentiators are switched off** — `LLM_ENABLED=false` everywhere, and share links can't deep-link into the mobile app.
 5. **The name.** "Settle Up" (settleup.io) is a 13-year-old incumbent in this exact category. Launching under "SettleUp" invites app-store rejection, trademark exposure, and permanent ASO/SEO futility. Rename before launch.
 
 **The strategic opportunity is real and specific:** be the *Splitser of the Philippines*. Global apps (Splitwise, Tricount, Splid) track debts but cannot settle in pesos; GCash's KKB feature settles but cannot track (no groups, no ledger, no simplification). A persistent group ledger with utang-aware reminders and two-tap GCash settlement occupies an empty middle in a market with 94M GCash users — the same country-specific playbook that made Splitser (5M+ users) beat Splitwise in the Netherlands. Monetize Splid/Settle Up-style (one-time or group-funded premium, never daily caps), positioning directly against Splitwise's most hated decision.
@@ -87,7 +89,6 @@ That thesis is genuinely differentiated. The problem, detailed below, is that th
 | Item | Evidence |
 |---|---|
 | All AI features disabled by default | `FEATURE_FLAGS.LLM_ENABLED=false`, runtime `LLM_ENABLED` env; CI runs with it off |
-| Default vision model is a phantom (`gpt-5.4-mini`) — receipt vision 404s unless env overrides it | `packages/ai/src/core/openai.ts:16` |
 | Billing/monetization completely absent | `FEATURE_FLAGS.BILLING=false`; no pricing surface anywhere |
 | Push notifications half-wired: DB trigger is a no-op until `app_config` is seeded; taps don't navigate | `supabase/migrations/20260612020000_push_notifications.sql`; no `addNotificationResponseReceivedListener` in `apps/mobile` |
 | Mobile deep links absent: `settleup://` scheme declared, zero handlers; share links open the web app | `apps/mobile/app.json`, no `Linking` usage in `apps/mobile/app` |
@@ -260,11 +261,10 @@ The UI is **modern enough to compete** — it's cleaner than Splitwise's aging i
 
 | Sev | Finding | Evidence | Why it matters |
 |---|---|---|---|
-| 🔴 | Default vision model `gpt-5.4-mini` doesn't exist; receipt vision 404s unless `OPENAI_VISION_MODEL` is set | `packages/ai/src/core/openai.ts:16` | Your flagship differentiator silently degrades to Tesseract/regex in any env missing one var |
 | 🔴 | AI outputs not validated against business invariants: smart-split shares and receipt line items are never checked to sum to the total; AI schemas aren't `.strict()` | `packages/shared/src/schemas/ai.ts` | A hallucinated split accepted by a hurried user writes bad money data |
-| 🔴 | Public share payloads mask account numbers but return **unmasked QR image URLs** — the QR encodes the full account number | `supabase/migrations/20260403000006_mask_public_rpc_data.sql:67-73` | Anyone with a leaked group link can harvest full GCash/bank numbers; undermines the masking promise |
+| 🟡 | Public share payloads mask account numbers but return QR image URLs, which encode the full account number | `supabase/migrations/20260403000006_mask_public_rpc_data.sql:67-73` | **Accepted by design (July 2026 decision):** the QR *is* the payment feature for account-less friends; links are unguessable and rotatable. Revisit if share links start leaking in practice |
 | 🟠 | `addExpensesBatch` loops `create_expense` non-transactionally; mid-batch failure leaves partial inserts | `apps/web/src/app/actions/expenses.ts` | Receipt-scan multi-item confirms are exactly this path |
-| 🟠 | AI surface implemented **three times** (web Server Actions, web REST routes for mobile, Hono `apps/api`) with duplicated prompts/auth/rate-limiting | `apps/web/src/app/actions/ai.ts`, `apps/web/src/app/api/ai/*`, `apps/api/src/*` | Triple maintenance; fixes (like the phantom model) must land in 3 places |
+| 🟠 | AI surface implemented **three times** (web Server Actions, web REST routes for mobile, Hono `apps/api`) with duplicated prompts/auth/rate-limiting | `apps/web/src/app/actions/ai.ts`, `apps/web/src/app/api/ai/*`, `apps/api/src/*` | Triple maintenance; every prompt or validation fix must land in 3 places |
 | 🟠 | Zero tests for RLS policies, RPCs, Server Actions, API routes; no component/E2E tests | test inventory | The security model everyone depends on is verified by hand only |
 | 🟠 | No cross-group FK integrity (a member of group A can be attached to an expense in group B at the DB level) | `docs/audit-report.md` §data-integrity, unaddressed by later migrations | Latent corruption class; cheap to fix with composite FKs/triggers |
 | 🟡 | Rate limiters (AI fallback, public endpoints) are in-memory, per-instance, fail-open | `apps/web/src/lib/ai/rate-limit.ts`, `lib/public-rate-limit.ts` | Fine at current scale; meaningless behind a load balancer |
@@ -312,7 +312,7 @@ Supabase + RLS + RPCs will comfortably carry this to hundreds of thousands of us
 
 ### 7.3 Trust & reliability concerns
 
-- QR unmasking issue (§6.2) — a *privacy* promise the product visibly breaks
+- QR visibility on share links (§6.2) — accepted by design: the QR is how account-less friends pay; tokens are unguessable and rotatable. Worth a plain-language privacy note in the share UI
 - No edit trail → "who changed this expense?" disputes have no answer
 - Name collision: **"SettleUp" is an established competitor** (Settle Up, settleup.io, Step Up Labs). Shipping under this name invites trademark conflict and App Store confusion. Renaming before launch is strongly advised.
 - No RLS/RPC test suite → every schema change risks silently widening data access
@@ -363,9 +363,9 @@ Ranked within each tier by **Impact × User Value ÷ Dev Cost**. Sizes: S ≤ 1 
 | # | Item | Size | Rationale |
 |---|---|---|---|
 | 1 | **Resolve the name** — trademark clearance; rename ("SettleUp" ↔ settleup.io collision) | S–M | App-store rejection / legal exposure / ASO futility. Blocks everything else. |
-| 2 | **Turn AI on in production** — fix phantom `gpt-5.4-mini` default, set env, validate AI sums against totals, `.strict()` schemas | S | The product's identity is currently switched off; sum validation prevents bad money data |
+| 2 | **Turn AI on in production** — set env, validate AI sums against totals, `.strict()` schemas | S | The product's identity is currently switched off; sum validation prevents bad money data |
 | 3 | **Expense date field** (schema + forms + sort/insights/export) | S | Ledger correctness; every competitor has it |
-| 4 | **Fix QR unmasking in public share payloads** (signed short-lived URLs or auth-gate the QR) | S | Visible privacy promise currently broken |
+| 4 | ~~Fix QR unmasking in public share payloads~~ **Resolved as accepted-by-design** (July 2026): QRs stay visible to link holders — they are the payment mechanism; tokens are unguessable + rotatable | — | Decision documented in §6.2/§7.3 |
 | 5 | **Percentage + shares split modes** (convert to cents at save; DB unchanged) | S–M | Splitwise free-tier parity; rent/couples use cases |
 | 6 | **Mobile deep links + universal links** for `/g/*`, `/p/*`, `/join`; push-tap routing | M | The growth loop currently dumps mobile users into the web app |
 | 7 | **Reminders**: debt-age push/email nudges + weekly digest; notification tap → group | M | The retention loop; "the app that reminds is the app that gets paid back" |
@@ -458,10 +458,10 @@ Honest answer: **most people wouldn't, yet.** The credible pitch today is: *"unl
 Ordered by Impact × User Value ÷ Dev Cost across all sections:
 
 1. **Rename the product** after trademark clearance (§7.3, §11 risks)
-2. **Enable AI in production + fix `gpt-5.4-mini` phantom default** (`packages/ai/src/core/openai.ts:16`)
+2. **Enable AI in production** (`LLM_ENABLED=true` + `OPENAI_API_KEY` in prod envs)
 3. **Add `expense_date`** to schema, forms, exports, insights
 4. **Validate AI splits/receipts sum to totals; `.strict()` AI schemas** (guards the flagship flow)
-5. **Fix public-payload QR unmasking** (`20260403000006_mask_public_rpc_data.sql`)
+5. ~~Fix public-payload QR unmasking~~ — resolved as accepted-by-design (July 2026; see §6.2)
 6. **Percentage & shares split modes**
 7. **Mobile universal links + push-tap routing** (close the growth-loop leak)
 8. **Debt reminders + weekly digest** (retention engine)

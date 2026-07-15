@@ -53,3 +53,34 @@ describe("buildGroupLedgerCsv", () => {
     expect(csv.trim().split("\n")).toHaveLength(1);
   });
 });
+
+describe("buildGroupLedgerCsv expense_date", () => {
+  it("prefers expense_date over created_at for the date column and sort", () => {
+    const csv = buildGroupLedgerCsv(
+      [
+        {
+          item_name: "Backfilled dinner",
+          amount_cents: 10000,
+          created_at: "2026-07-15T08:00:00Z",
+          expense_date: "2026-07-01",
+          payer_names: ["Ana"],
+          participant_names: ["Ana", "Ben"],
+        },
+        {
+          item_name: "Groceries",
+          amount_cents: 5000,
+          created_at: "2026-07-10T08:00:00Z",
+          payer_names: ["Ben"],
+          participant_names: ["Ana", "Ben"],
+        },
+      ],
+      [],
+    );
+    const lines = csv.trim().split("\n");
+    // Backfilled dinner (2026-07-01) sorts before Groceries (2026-07-10...)
+    expect(lines[1]).toContain("2026-07-01");
+    expect(lines[1]).toContain("Backfilled dinner");
+    expect(lines[2]).toContain("2026-07-10");
+    expect(lines[2]).toContain("Groceries");
+  });
+});

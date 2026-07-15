@@ -14,8 +14,9 @@ export async function shareGroupLedger(groupId: string, groupName: string): Prom
     db.from("group_members").select("id, display_name").eq("group_id", groupId),
     db
       .from("expenses")
-      .select("item_name, amount_cents, notes, created_at, category:expense_categories(name), payers:expense_payers(member_id), participants:expense_participants(member_id)")
+      .select("item_name, amount_cents, notes, created_at, expense_date, category:expense_categories(name), payers:expense_payers(member_id), participants:expense_participants(member_id)")
       .eq("group_id", groupId)
+      .order("expense_date", { ascending: true })
       .order("created_at", { ascending: true }),
     db
       .from("payments")
@@ -35,6 +36,7 @@ export async function shareGroupLedger(groupId: string, groupName: string): Prom
     item_name: e.item_name,
     amount_cents: e.amount_cents,
     created_at: e.created_at,
+    expense_date: e.expense_date,
     payer_names: (e.payers ?? []).map((p) => name(p.member_id)),
     participant_names: (e.participants ?? []).map((p) => name(p.member_id)),
     category_name: (e.category as { name: string } | null)?.name ?? null,

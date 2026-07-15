@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
 import { createRecurringExpense } from "@/app/actions/recurring";
-import { parsePHPAmount, formatCents, equalSplit } from "@template/shared";
+import { parsePHPAmount, formatCents, equalSplit, percentSplit, sharesSplit } from "@template/shared";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -14,7 +14,13 @@ import { CategoryBadge, CategorySelect } from "./CategoryControls";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
-type SplitMode = "equal" | "custom";
+type SplitMode = "equal" | "percent" | "shares" | "custom";
+
+/** Local YYYY-MM-DD (never UTC — new Date().toISOString() is off by one after 8am PH). */
+function localTodayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
 type PayerState = {
   memberId: string;
@@ -34,6 +40,8 @@ type ItemState = {
   selectedIds: string[];
   splitMode: SplitMode;
   customAmounts: Record<string, string>;
+  percentAmounts: Record<string, string>;
+  shareWeights: Record<string, string>;
   payers: PayerState[];
   splitPayer: boolean;
   expenseMode: "whole" | "itemized";
@@ -54,6 +62,8 @@ function makeEmptyItem(
     selectedIds: previousSelectedIds ?? allMemberIds,
     splitMode: "equal",
     customAmounts: {},
+    percentAmounts: {},
+    shareWeights: {},
     payers: [{ memberId: firstMemberId, amountStr: "" }],
     splitPayer: false,
     expenseMode: "whole",
@@ -77,6 +87,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   const firstMemberId = members[0]?.id ?? "";
   const defaultCategoryId = categories.find((category) => category.slug === "other")?.id ?? null;
   const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
+  const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
@@ -96,7 +107,11 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           : [...item.selectedIds, memberId];
         const customAmounts = { ...item.customAmounts };
         delete customAmounts[memberId];
-        return { ...item, selectedIds: next, customAmounts };
+        const percentAmounts = { ...item.percentAmounts };
+        delete percentAmounts[memberId];
+        const shareWeights = { ...item.shareWeights };
+        delete shareWeights[memberId];
+        return { ...item, selectedIds: next, customAmounts, percentAmounts, shareWeights };
       }),
     );
   }
@@ -163,6 +178,43 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
     }, 0);
   }
 
+  function getPercentSum(item: ItemState): number {
+    return item.selectedIds.reduce((sum, id) => sum + (Number.parseFloat(item.percentAmounts[id] ?? "") || 0), 0);
+  }
+
+  function getShareWeights(item: ItemState): number[] {
+    // Empty weight defaults to 1 share so the mode works with minimal typing.
+    return item.selectedIds.map((id) => {
+      const raw = item.shareWeights[id];
+      if (raw === undefined || raw.trim() === "") return 1;
+      return Number.parseFloat(raw);
+    });
+  }
+
+  /** Resolve the item's split mode to exact custom_splits cents, or null if invalid. */
+  function resolveCustomSplits(item: ItemState, amountCents: number): { member_id: string; share_cents: number }[] | null {
+    try {
+      if (item.splitMode === "percent") {
+        const percents = item.selectedIds.map((id) => Number.parseFloat(item.percentAmounts[id] ?? "") || 0);
+        const cents = percentSplit(amountCents, percents);
+        return item.selectedIds.map((id, i) => ({ member_id: id, share_cents: cents[i] ?? 0 }));
+      }
+      if (item.splitMode === "shares") {
+        const cents = sharesSplit(amountCents, getShareWeights(item));
+        return item.selectedIds.map((id, i) => ({ member_id: id, share_cents: cents[i] ?? 0 }));
+      }
+    } catch {
+      return null;
+    }
+    if (item.splitMode === "custom") {
+      return item.selectedIds.map((id) => ({
+        member_id: id,
+        share_cents: parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0,
+      }));
+    }
+    return null;
+  }
+
   function getPayerSum(item: ItemState): number {
     return item.payers.reduce((sum, p) => {
       const v = parsePHPAmount(p.amountStr) ?? 0;
@@ -197,6 +249,12 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
     if (item.selectedIds.length === 0) return false;
     if (item.splitMode === "custom") {
       if (getCustomSum(item) !== amountCents) return false;
+    }
+    if (item.splitMode === "percent") {
+      if (Math.abs(getPercentSum(item) - 100) > 0.01) return false;
+    }
+    if (item.splitMode === "shares") {
+      if (getShareWeights(item).some((w) => !Number.isFinite(w) || w <= 0)) return false;
     }
     if (item.splitPayer) {
       if (getPayerSum(item) !== amountCents) return false;
@@ -239,32 +297,31 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
               item_name: item.itemName.trim(),
               amount_cents,
               category_id: item.categoryId,
+              expense_date: expenseDate || undefined,
               split_mode: "equal" as const,
               participant_ids: item.selectedIds,
               payers,
             };
           }
+          // percent/shares/custom all resolve to exact cents client-side and
+          // travel through the existing custom path.
           return {
             item_name: item.itemName.trim(),
             amount_cents,
             category_id: item.categoryId,
+            expense_date: expenseDate || undefined,
             split_mode: "custom" as const,
             participant_ids: item.selectedIds,
-            custom_splits: item.selectedIds.map((id) => ({
-              member_id: id,
-              share_cents: parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0,
-            })),
+            custom_splits: resolveCustomSplits(item, amount_cents) ?? [],
             payers,
           };
         });
 
         const result = await addExpensesBatch({ group_id: groupId, items: batchItems });
         if (result.error) {
-          // Batch inserts are not atomic server-side, so some items may already be
-          // committed. Refresh so the user sees what actually saved instead of
-          // assuming nothing did and re-submitting (which would duplicate them).
+          // The batch RPC is atomic — on error nothing was saved, so the user
+          // can fix the problem and resubmit without creating duplicates.
           setError(result.error);
-          router.refresh();
           return;
         }
       }
@@ -292,6 +349,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           item_name: item.itemName.trim(),
           amount_cents,
           category_id: item.categoryId,
+          expense_date: expenseDate || undefined,
           payers,
           line_items,
         });
@@ -332,6 +390,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
       }
 
       setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
+      setExpenseDate(localTodayISO());
       setShowAdvanced({});
       setConfirming(false);
       toast.success("Expense added!");
@@ -360,7 +419,16 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   {" · "}
                   Paid by <span className="font-medium text-slate-700">{payerName}</span>
                   {item.expenseMode === "whole" && (
-                    <> · {item.splitMode === "equal" ? `Split equally ${item.selectedIds.length} ways` : "Custom split"}</>
+                    <>
+                      {" · "}
+                      {item.splitMode === "equal"
+                        ? `Split equally ${item.selectedIds.length} ways`
+                        : item.splitMode === "percent"
+                          ? "Split by percentage"
+                          : item.splitMode === "shares"
+                            ? "Split by shares"
+                            : "Custom split"}
+                    </>
                   )}
                   {item.expenseMode === "itemized" && (
                     <> · {item.lineItems.length} line item{item.lineItems.length !== 1 ? "s" : ""}</>
@@ -401,6 +469,14 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
   return (
     <form onSubmit={handleReview} className="flex flex-col gap-4">
+      <div className="w-full sm:w-56">
+        <Input
+          label="Date"
+          type="date"
+          value={expenseDate}
+          onChange={(e) => setExpenseDate(e.target.value)}
+        />
+      </div>
       {items.map((item, index) => {
         const amountCents = parsePHPAmount(item.amountStr) ?? 0;
         const customSum = getCustomSum(item);
@@ -650,7 +726,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                         value={item.splitMode}
                         onChange={(mode) => {
                           if (mode === "smart") return;
-                          updateItem(index, { splitMode: mode, customAmounts: {} });
+                          updateItem(index, { splitMode: mode, customAmounts: {}, percentAmounts: {}, shareWeights: {} });
                         }}
                         showSmart={false}
                       />
@@ -666,6 +742,81 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                       updateItem={updateItem}
                       getPayerSum={getPayerSum}
                     />
+
+                    {/* Percent split inputs */}
+                    {item.splitMode === "percent" && item.selectedIds.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-sm font-medium text-slate-700">Percentages</p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {item.selectedIds.map((id) => {
+                            const member = members.find((m) => m.id === id);
+                            if (!member) return null;
+                            return (
+                              <div key={id}>
+                                <Input
+                                  label={member.display_name}
+                                  leftAddon="%"
+                                  inputMode="decimal"
+                                  value={item.percentAmounts[id] ?? ""}
+                                  onChange={(e) =>
+                                    updateItem(index, {
+                                      percentAmounts: { ...item.percentAmounts, [id]: e.target.value },
+                                    })
+                                  }
+                                  placeholder="0"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className={`text-xs font-medium ${Math.abs(getPercentSum(item) - 100) > 0.01 ? "text-red-600" : "text-slate-500"}`}>
+                          {getPercentSum(item).toFixed(2).replace(/\.?0+$/, "")}% of 100%
+                          {Math.abs(getPercentSum(item) - 100) > 0.01 ? " — percentages must sum to 100" : ""}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Shares split inputs */}
+                    {item.splitMode === "shares" && item.selectedIds.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-sm font-medium text-slate-700">Shares <span className="font-normal text-slate-400">(blank = 1 share)</span></p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {item.selectedIds.map((id) => {
+                            const member = members.find((m) => m.id === id);
+                            if (!member) return null;
+                            return (
+                              <div key={id}>
+                                <Input
+                                  label={member.display_name}
+                                  inputMode="decimal"
+                                  value={item.shareWeights[id] ?? ""}
+                                  onChange={(e) =>
+                                    updateItem(index, {
+                                      shareWeights: { ...item.shareWeights, [id]: e.target.value },
+                                    })
+                                  }
+                                  placeholder="1"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {amountCents > 0 && !getShareWeights(item).some((w) => !Number.isFinite(w) || w <= 0) && (
+                          <p className="text-xs text-slate-500">
+                            {item.selectedIds
+                              .map((id, i) => {
+                                const member = members.find((m) => m.id === id);
+                                const cents = resolveCustomSplits(item, amountCents)?.[i]?.share_cents ?? 0;
+                                return `${member?.display_name ?? "?"}: ${formatCents(cents)}`;
+                              })
+                              .join(" · ")}
+                          </p>
+                        )}
+                        {getShareWeights(item).some((w) => !Number.isFinite(w) || w <= 0) && (
+                          <p className="text-xs font-medium text-red-600">Shares must be positive numbers</p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Custom split inputs */}
                     {item.splitMode === "custom" && item.selectedIds.length > 0 && (

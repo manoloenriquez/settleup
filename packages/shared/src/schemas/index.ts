@@ -91,6 +91,9 @@ export const updateExpenseCategorySchema = expenseCategoryInputSchema
     category_id: z.string().uuid(),
   });
 
+/** User-set date the expense occurred (YYYY-MM-DD); server defaults to today when omitted. */
+export const expenseDateSchema = z.iso.date("Invalid date").optional();
+
 export const addExpenseSchema = z
   .object({
     group_id: z.string().uuid(),
@@ -98,6 +101,7 @@ export const addExpenseSchema = z
     item_name: z.string().trim().min(1, "Item name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
+    expense_date: expenseDateSchema,
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
     payers: z.array(payerSchema).min(1, "At least one payer required"),
   })
@@ -122,6 +126,7 @@ const expenseItemSchema = z.object({
   item_name: z.string().trim().min(1, "Item name is required").max(200),
   amount_cents: z.number().int().positive("Amount must be positive"),
   notes: z.string().optional(),
+  expense_date: expenseDateSchema,
   split_mode: z.enum(["equal", "custom"]),
   participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
   custom_splits: z
@@ -182,6 +187,7 @@ export const addItemizedExpenseSchema = z
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
+    expense_date: expenseDateSchema,
     payers: z.array(payerSchema).min(1, "At least one payer required"),
     line_items: z.array(lineItemSchema).min(1, "At least one line item required"),
   })
@@ -211,6 +217,7 @@ export const updateExpenseSchema = z
     item_name: z.string().trim().min(1, "Item name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
+    expense_date: expenseDateSchema,
     split_mode: z.enum(["equal", "custom"]),
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
     custom_splits: z
@@ -254,6 +261,7 @@ export const updateItemizedExpenseSchema = z
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
     notes: z.string().optional(),
+    expense_date: expenseDateSchema,
     payers: z.array(payerSchema).min(1, "At least one payer required"),
     line_items: z.array(lineItemSchema).min(1, "At least one line item required"),
   })
@@ -326,6 +334,10 @@ export const dashboardSummarySchema = z.object({
   i_owe_cents: z.number().int().default(0),
   owed_counterparty_count: z.number().int().default(0),
   owe_counterparty_count: z.number().int().default(0),
+  // Defaults keep clients working against a DB that predates the v4 RPC.
+  spend_series: z
+    .array(z.object({ date: z.string(), amount_cents: z.number().int() }))
+    .default([]),
   groups: z.array(dashboardGroupSummarySchema),
 });
 

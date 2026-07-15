@@ -266,6 +266,7 @@ export type Database = {
           item_name: string;
           amount_cents: number;
           notes: string | null;
+          expense_date: string;
           created_by_user_id: string | null;
           created_at: string;
         };
@@ -276,6 +277,7 @@ export type Database = {
           item_name: string;
           amount_cents: number;
           notes?: string | null;
+          expense_date?: string;
           created_by_user_id?: string | null;
           created_at?: string;
         };
@@ -286,6 +288,7 @@ export type Database = {
           item_name?: string;
           amount_cents?: number;
           notes?: string | null;
+          expense_date?: string;
           created_by_user_id?: string | null;
           created_at?: string;
         };
@@ -648,6 +651,10 @@ export type Database = {
         Returns: Json;
       };
       create_expense: {
+        Args: { p_input: Json };
+        Returns: Json;
+      };
+      create_expenses_batch: {
         Args: { p_input: Json };
         Returns: Json;
       };

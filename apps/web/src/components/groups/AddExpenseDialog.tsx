@@ -81,6 +81,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
         amount_cents: draft.amount_cents,
         category_id: draftCategoryId,
         notes: draft.notes ?? undefined,
+        expense_date: draft.date ?? undefined,
         participant_ids: participantIds,
         payers: [{ member_id: payerId, paid_cents: draft.amount_cents }],
       });

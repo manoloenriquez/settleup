@@ -56,6 +56,7 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
       payer_name: null,
       category_slug: "other",
       notes: items.map((i) => `${i.description}: ₱${i.totalStr}`).join("; "),
+      date: date || null,
       source: "receipt",
     };
 

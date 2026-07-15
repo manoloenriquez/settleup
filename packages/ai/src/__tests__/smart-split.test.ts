@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { suggestSplit } from "../features/smart-split";
+import { suggestSplit, isValidSmartSplit } from "../features/smart-split";
 
 // LLM_ENABLED is not set in test env, so always falls back to equal split.
 
@@ -37,5 +37,32 @@ describe("suggestSplit", () => {
     for (const s of result.data!.suggestions) {
       expect(s.reason).toBeNull();
     }
+  });
+});
+
+describe("isValidSmartSplit", () => {
+  const members = ["Alice", "Bob"];
+  const suggestion = (member_name: string, share_cents: number) => ({ member_name, share_cents, reason: null });
+  const result = (suggestions: { member_name: string; share_cents: number; reason: string | null }[]) => ({
+    mode: "custom" as const,
+    suggestions,
+    explanation: null,
+    confidence: 0.9,
+  });
+
+  it("accepts shares that sum to the total for known members", () => {
+    expect(isValidSmartSplit(result([suggestion("Alice", 6000), suggestion("Bob", 4000)]), 10000, members)).toBe(true);
+  });
+
+  it("rejects shares that do not sum to the total", () => {
+    expect(isValidSmartSplit(result([suggestion("Alice", 6000), suggestion("Bob", 5000)]), 10000, members)).toBe(false);
+  });
+
+  it("rejects unknown member names", () => {
+    expect(isValidSmartSplit(result([suggestion("Alice", 6000), suggestion("Eve", 4000)]), 10000, members)).toBe(false);
+  });
+
+  it("rejects empty suggestions", () => {
+    expect(isValidSmartSplit(result([]), 10000, members)).toBe(false);
   });
 });

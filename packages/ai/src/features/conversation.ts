@@ -43,6 +43,7 @@ Return JSON:
   - payer_name: who paid (null = unknown)
   - category_slug: one of food-drinks, groceries, transport, lodging, activities, shopping, supplies, fees, other
   - notes: any extra context (null if none)
+  - date: the date the expense happened as YYYY-MM-DD if the user mentioned one (e.g. "yesterday", "last Friday"), else null
   - source: always "conversation"
 
 Use the full conversation history to resolve references like "same split as before" or "add another one".
@@ -94,6 +95,7 @@ function parseWithHeuristics(
     payer_name: null,
     category_slug: "other",
     notes: null,
+    date: null,
     source: "conversation",
   };
 

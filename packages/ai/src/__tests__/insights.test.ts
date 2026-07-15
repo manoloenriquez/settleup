@@ -108,3 +108,25 @@ describe("computeInsights", () => {
     expect(result.total_amount_cents).toBe(2611017);
   });
 });
+
+describe("computeInsights expense_date", () => {
+  it("prefers expense_date over created_at for the period", () => {
+    const result = computeInsights([
+      {
+        item_name: "Backfilled",
+        amount_cents: 1000,
+        created_at: "2026-07-15T08:00:00Z",
+        expense_date: "2026-07-01",
+        payer_names: ["Ana"],
+      },
+      {
+        item_name: "Recent",
+        amount_cents: 2000,
+        created_at: "2026-07-10T08:00:00Z",
+        payer_names: ["Ben"],
+      },
+    ]);
+    expect(result.period?.first_expense).toBe("2026-07-01");
+    expect(result.period?.last_expense).toBe("2026-07-10T08:00:00Z");
+  });
+});

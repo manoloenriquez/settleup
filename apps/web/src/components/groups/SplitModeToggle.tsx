@@ -1,8 +1,8 @@
 "use client";
 
-import { Sparkles, Equal, SlidersHorizontal } from "lucide-react";
+import { Sparkles, Equal, Percent, Scale, SlidersHorizontal } from "lucide-react";
 
-type SplitMode = "equal" | "smart" | "custom";
+export type SplitMode = "equal" | "smart" | "percent" | "shares" | "custom";
 
 type Props = {
   value: SplitMode;
@@ -13,6 +13,8 @@ type Props = {
 const modes: { id: SplitMode; label: string; icon: typeof Equal }[] = [
   { id: "equal", label: "Equal", icon: Equal },
   { id: "smart", label: "Smart", icon: Sparkles },
+  { id: "percent", label: "Percent", icon: Percent },
+  { id: "shares", label: "Shares", icon: Scale },
   { id: "custom", label: "Manual", icon: SlidersHorizontal },
 ];
 

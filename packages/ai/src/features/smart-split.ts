@@ -12,6 +12,24 @@ type SmartSplitInput = {
   context?: string;
 };
 
+/**
+ * A smart-split suggestion is only usable if the shares cover exactly the
+ * expense amount and every suggested member actually exists in the group.
+ * The schema can't enforce this (it doesn't know the total), so it's checked
+ * here; invalid LLM output falls back to an equal split.
+ */
+export function isValidSmartSplit(
+  result: SmartSplitResult,
+  amountCents: number,
+  memberNames: string[],
+): boolean {
+  if (result.suggestions.length === 0) return false;
+  const sum = result.suggestions.reduce((acc, s) => acc + s.share_cents, 0);
+  if (sum !== amountCents) return false;
+  const known = new Set(memberNames);
+  return result.suggestions.every((s) => known.has(s.member_name));
+}
+
 export async function suggestSplit(input: SmartSplitInput): Promise<ApiResponse<SmartSplitResult>> {
   const { item_name, amount_cents, member_names, context } = input;
 
@@ -43,8 +61,11 @@ Context: ${context ?? "none"}`,
       schema: smartSplitResultSchema,
     });
 
-    if (result.data) return result;
-    // Fall through to equal split on LLM error
+    if (result.data && isValidSmartSplit(result.data, amount_cents, member_names)) {
+      return result;
+    }
+    // Fall through to equal split on LLM error or an invalid suggestion
+    // (shares not summing to the total, or unknown member names)
   }
 
   // Fallback: equal split

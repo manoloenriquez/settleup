@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { cachedAuth } from "@/lib/supabase/queries";
-import { listExpenses } from "@/app/actions/expenses";
+import { listExpenses, listExpenseSummaries } from "@/app/actions/expenses";
 import { getMembersWithBalances, getCreditorProfiles } from "@/app/actions/balances";
 import { getPaymentProfile } from "@/app/actions/payment-profiles";
 import { getGroupActivity } from "@/app/actions/activity";
@@ -23,6 +23,9 @@ import { GroupSetupChecklist, setupChecklistIcons } from "@/components/groups/Gr
 import { MemberAvatarRow } from "@/components/groups/MemberAvatarRow";
 import { GroupFab } from "@/components/groups/GroupFab";
 import { InsightsDashboard } from "@/components/groups/InsightsDashboard";
+import { CategoryDonut } from "@/components/groups/charts/CategoryDonut";
+import { SpendOverTime } from "@/components/groups/charts/SpendOverTime";
+import { MemberPaidVsShare } from "@/components/groups/charts/MemberPaidVsShare";
 import { SeedButton } from "@/components/groups/SeedButton";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { computeInsights } from "@template/ai";
@@ -73,9 +76,10 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
 
   if (!group) notFound();
 
-  const [balancesResult, expensesResult, profileResult, activityResult, creditorProfilesResult, categoriesResult, pendingPaymentsResult] = await Promise.all([
+  const [balancesResult, expensesResult, summariesResult, profileResult, activityResult, creditorProfilesResult, categoriesResult, pendingPaymentsResult] = await Promise.all([
     getMembersWithBalances(groupId),
     listExpenses(groupId),
+    listExpenseSummaries(groupId),
     getPaymentProfile(),
     getGroupActivity(groupId),
     getCreditorProfiles(groupId),
@@ -95,7 +99,10 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
     group_id: groupId,
     created_at: "",
   }));
-  const expenses = expensesResult.data ?? [];
+  const expensesPage = expensesResult.data;
+  const expenses = expensesPage?.data ?? [];
+  const summaries = summariesResult.data ?? [];
+  const totalExpenseCount = expensesPage?.count ?? summaries.length;
   const profile = profileResult.data ?? null;
   const activities = activityResult.data ?? [];
   const categories = categoriesResult.data ?? [];
@@ -105,7 +112,9 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
   const currentMember = members.find((m) => m.user_id === currentUserId);
   const isAdminOrOwner = isOwner || currentMember?.role === "admin";
   const debts = simplifyDebts(balances);
-  const totalSpentCents = expenses.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
+  // Group-wide aggregates come from the lightweight summaries (all rows), not
+  // the paginated expense list.
+  const totalSpentCents = summaries.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
   const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
   const myNetCents = currentMember
     ? balances.find((b) => b.member_id === currentMember.id)?.net_cents ?? 0
@@ -115,14 +124,15 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
       ? Math.round((1 - totalOutstandingCents / totalSpentCents) * 100)
       : 100;
 
-  // Charts tab data — pure computation from already-fetched expenses; the AI
+  // Charts tab data — pure computation from the all-rows summaries; the AI
   // summary stays on the dedicated insights page.
   const memberNameMap = new Map(members.map((m) => [m.id, m.display_name]));
   const insights = computeInsights(
-    expenses.map((e) => ({
+    summaries.map((e) => ({
       item_name: e.item_name,
       amount_cents: e.amount_cents,
       created_at: e.created_at,
+      expense_date: e.expense_date,
       payer_names: (e.payers ?? []).map((p) => memberNameMap.get(p.member_id) ?? "Unknown"),
       category: e.category,
     })),
@@ -166,7 +176,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
     },
     {
       label: "Add first expense",
-      complete: expenses.length > 0,
+      complete: totalExpenseCount > 0,
       href: `/groups/${groupId}`,
       icon: setupChecklistIcons.expense,
     },
@@ -209,7 +219,7 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-            {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
+            {totalExpenseCount} expense{totalExpenseCount !== 1 ? "s" : ""}
           </span>
         </div>
         <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -243,7 +253,16 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
       {/* Tabbed content: Expenses | Balances | Charts */}
       <GroupDetailTabs
         expensesContent={
-          <ExpenseList expenses={expenses} members={members} categories={categories} currentUserId={currentUserId} isAdminOrOwner={isAdminOrOwner} />
+          <ExpenseList
+            expenses={expenses}
+            members={members}
+            categories={categories}
+            currentUserId={currentUserId}
+            isAdminOrOwner={isAdminOrOwner}
+            groupId={groupId}
+            totalCount={totalExpenseCount}
+            pageSize={expensesPage?.pageSize ?? 50}
+          />
         }
         balancesContent={
           <div className="flex flex-col gap-6">
@@ -280,6 +299,19 @@ export default async function GroupDetailPage({ params }: Props): Promise<React.
         }
         chartsContent={
           <div className="flex flex-col gap-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <CategoryDonut categories={insights.categories} totalAmountCents={insights.total_amount_cents} />
+              <SpendOverTime
+                points={summaries.map((e) => ({
+                  date: e.expense_date ?? e.created_at.slice(0, 10),
+                  amount_cents: e.amount_cents,
+                }))}
+              />
+            </div>
+            <MemberPaidVsShare
+              members={members.map((m) => ({ id: m.id, display_name: m.display_name }))}
+              expenses={summaries.map((e) => ({ payers: e.payers, participants: e.participants }))}
+            />
             <InsightsDashboard insights={{ ...insights, llm_summary: null }} />
             <Link
               href={`/groups/${groupId}/insights`}

@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteExpense, updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
+import { deleteExpense, listExpenses, updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
 import { formatCents, parsePHPAmount, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,15 +17,26 @@ import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
+  /** First page of expenses, freshest first (re-delivered on every server refresh). */
   expenses: ExpenseWithParticipants[];
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
   isAdminOrOwner: boolean;
+  groupId: string;
+  totalCount: number;
+  pageSize: number;
 };
 
+/** Parse YYYY-MM-DD as a local date; new Date("YYYY-MM-DD") is UTC midnight (a day off in PH). */
+function parseDateLike(dateStr: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return new Date(dateStr);
+}
+
 function formatDayLabel(dateStr: string): string {
-  const d = new Date(dateStr);
+  const d = parseDateLike(dateStr);
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
@@ -48,7 +59,7 @@ function relativeTime(dateStr: string): string {
 }
 
 function getDayKey(dateStr: string): string {
-  return new Date(dateStr).toDateString();
+  return parseDateLike(dateStr).toDateString();
 }
 
 function scalePositiveAmounts(weights: number[], totalCents: number): number[] | null {
@@ -96,13 +107,17 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ expenses, members, categories, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
+export function ExpenseList({ expenses, members, categories, currentUserId, isAdminOrOwner, groupId, totalCount, pageSize }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
+  const [extraExpenses, setExtraExpenses] = useState<ExpenseWithParticipants[]>([]);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<ExpenseWithParticipants | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [commentIds, setCommentIds] = useState<Set<string>>(new Set());
@@ -127,19 +142,47 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
   const router = useRouter();
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
+  // Server refreshes (realtime, mutations) re-deliver page 1 via props;
+  // dedupe by id so previously loaded extra pages don't repeat rows.
+  const allExpenses = useMemo(() => {
+    const seen = new Set(expenses.map((e) => e.id));
+    return [...expenses, ...extraExpenses.filter((e) => !seen.has(e.id))];
+  }, [expenses, extraExpenses]);
+  const hasMore = allExpenses.length < totalCount;
+
+  function handleLoadMore(): void {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    void (async () => {
+      const result = await listExpenses(groupId, page + 1, pageSize);
+      if (result.error || !result.data) {
+        toast.error(result.error ?? "Failed to load more expenses.");
+      } else {
+        const nextRows = result.data.data;
+        setExtraExpenses((prev) => {
+          const seen = new Set([...expenses, ...prev].map((e) => e.id));
+          return [...prev, ...nextRows.filter((e) => !seen.has(e.id))];
+        });
+        setPage((prev) => prev + 1);
+      }
+      setLoadingMore(false);
+    })();
+  }
+
   const filtered = search.trim()
-    ? expenses.filter((e) => e.item_name.toLowerCase().includes(search.toLowerCase()))
-    : expenses;
+    ? allExpenses.filter((e) => e.item_name.toLowerCase().includes(search.toLowerCase()))
+    : allExpenses;
 
   // Group by day
   const groups: { dayKey: string; label: string; expenses: ExpenseWithParticipants[] }[] = [];
   for (const expense of filtered) {
-    const dayKey = getDayKey(expense.created_at);
+    const day = expense.expense_date ?? expense.created_at;
+    const dayKey = getDayKey(day);
     const existing = groups.find((g) => g.dayKey === dayKey);
     if (existing) {
       existing.expenses.push(expense);
     } else {
-      groups.push({ dayKey, label: formatDayLabel(expense.created_at), expenses: [expense] });
+      groups.push({ dayKey, label: formatDayLabel(day), expenses: [expense] });
     }
   }
 
@@ -171,6 +214,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
     setEditTarget(expense);
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+    setEditDate(expense.expense_date ?? "");
     setEditCategoryId(expense.category_id);
   }
 
@@ -219,6 +263,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
               item_name: editName.trim(),
               amount_cents: amountCents,
               notes: editTarget.notes ?? undefined,
+              expense_date: editDate || undefined,
               payers: editTarget.payers.map((payer, index) => ({
                 member_id: payer.member_id,
                 paid_cents: payerAmounts[index]!,
@@ -236,6 +281,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
             item_name: editName.trim(),
             amount_cents: amountCents,
             notes: editTarget.notes ?? undefined,
+            expense_date: editDate || undefined,
             split_mode: isEqualSplit(editTarget) ? "equal" : "custom",
             participant_ids: editTarget.participants.map((participant) => participant.member_id),
             custom_splits: isEqualSplit(editTarget)
@@ -259,7 +305,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
     });
   }
 
-  const deleteTargetExpense = expenses.find((e) => e.id === deleteTarget);
+  const deleteTargetExpense = allExpenses.find((e) => e.id === deleteTarget);
 
   return (
     <div className="flex flex-col gap-4">
@@ -290,8 +336,14 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
         <EmptyState
           icon={Search}
           title="No matching expenses"
-          description={`No expenses match "${search}"`}
+          description={`No expenses match "${search}"${hasMore ? ` in the ${allExpenses.length} loaded expenses — load more to widen the search` : ""}`}
         />
+      )}
+
+      {search.trim() && filtered.length > 0 && hasMore && (
+        <p className="text-xs text-slate-400">
+          Searching the {allExpenses.length} loaded expenses — load more below to widen the search.
+        </p>
       )}
 
       {/* Date-grouped expense rows */}
@@ -459,6 +511,18 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
         </div>
       ))}
 
+      {/* Load more */}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="mx-auto rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : `Load more (${allExpenses.length} of ${totalCount})`}
+        </button>
+      )}
+
       {/* Delete confirmation dialog */}
       <Dialog
         open={deleteTarget !== null}
@@ -499,6 +563,16 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
               onChange={(e) => setEditAmount(e.target.value)}
               placeholder="0.00"
               inputMode="decimal"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700" htmlFor="edit-date">Date</label>
+            <Input
+              id="edit-date"
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
               className="mt-1"
             />
           </div>

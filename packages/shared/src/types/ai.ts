@@ -10,6 +10,7 @@ export type ExpenseDraft = {
   payer_name: string | null;
   category_slug: string | null;
   notes: string | null;
+  date: string | null; // ISO date (YYYY-MM-DD) the expense occurred, if known
   source: "receipt" | "conversation" | "manual";
 };
 
