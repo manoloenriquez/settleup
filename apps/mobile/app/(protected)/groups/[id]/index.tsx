@@ -288,6 +288,7 @@ export default function GroupDetailScreen() {
       updateItemizedExpenseMut.mutate(
         {
           expenseId: editingExpense.id,
+          expectedUpdatedAt: editingExpense.updated_at,
           expenseName: editName.trim(),
           amountCents,
           categoryId: editCategoryId,
@@ -311,6 +312,7 @@ export default function GroupDetailScreen() {
       updateExpenseMut.mutate(
         {
           expenseId: editingExpense.id,
+          expectedUpdatedAt: editingExpense.updated_at,
           itemName: editName.trim(),
           amountCents,
           categoryId: editCategoryId,
@@ -337,6 +339,7 @@ export default function GroupDetailScreen() {
     updateCustomExpenseMut.mutate(
       {
         expenseId: editingExpense.id,
+        expectedUpdatedAt: editingExpense.updated_at,
         itemName: editName.trim(),
         amountCents,
         categoryId: editCategoryId,
@@ -651,6 +654,7 @@ export default function GroupDetailScreen() {
       {/* Expense comments */}
       <CommentThreadModal
         expenseId={commentsExpense?.id ?? null}
+        groupId={id}
         expenseName={commentsExpense?.item_name ?? ""}
         members={membersQ.data ?? []}
         currentUserId={user?.id}

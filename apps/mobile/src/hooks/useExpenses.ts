@@ -4,6 +4,9 @@ import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
   buildItemizedExpenseRpcInput,
+  buildUpdateCustomExpenseRpcInput,
+  buildUpdateEqualExpenseRpcInput,
+  buildUpdateItemizedExpenseRpcInput,
   type Expense,
   type Json,
 } from "@template/supabase";
@@ -130,11 +133,13 @@ function expenseOutboxEntry(
   payload: Json,
   itemName: string,
   amountCents: number,
+  /** Target row id — defaults to clientId (creates); pass the server id for edits. */
+  entityId: string = clientId,
 ): NewOutboxEntry {
   return {
     id: clientId,
     kind,
-    entityId: clientId,
+    entityId,
     groupId,
     payload: toOutboxPayload(payload),
     createdAt: new Date().toISOString(),
@@ -247,6 +252,8 @@ export function useAddItemizedExpense(groupId: string) {
 
 type UpdateExpenseParams = {
   expenseId: string;
+  /** CAS snapshot from the row being edited (expense.updated_at). */
+  expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -256,6 +263,8 @@ type UpdateExpenseParams = {
 
 type UpdateExpenseCustomSplitParams = {
   expenseId: string;
+  /** CAS snapshot from the row being edited (expense.updated_at). */
+  expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -265,6 +274,8 @@ type UpdateExpenseCustomSplitParams = {
 
 type UpdateItemizedExpenseParams = {
   expenseId: string;
+  /** CAS snapshot from the row being edited (expense.updated_at). */
+  expectedUpdatedAt?: string;
   expenseName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -272,34 +283,127 @@ type UpdateItemizedExpenseParams = {
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
 };
 
+// Offline edits queue under the SERVER expense id (entityId), chaining after
+// any earlier queued change to the same expense. The CAS snapshot captured at
+// edit time travels with the payload, so a replay that lands after someone
+// else's edit fails with a surfaced conflict instead of clobbering it.
+
 export function useUpdateExpense(groupId: string) {
   const invalidate = useExpenseMutationInvalidations(groupId);
+  const { enqueue } = useOutbox();
   return useMutation({
-    mutationFn: (params: UpdateExpenseParams) => updateExpense(params),
+    mutationFn: async (params: UpdateExpenseParams): Promise<ApiResponse<Expense>> => {
+      if (!onlineManager.isOnline()) {
+        if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
+        if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+        if (params.participantIds.length === 0) return { data: null, error: "Select at least one participant" };
+        const payload = buildUpdateEqualExpenseRpcInput({
+          expenseId: params.expenseId,
+          expectedUpdatedAt: params.expectedUpdatedAt,
+          categoryId: params.categoryId,
+          itemName: params.itemName,
+          amountCents: params.amountCents,
+          participantIds: params.participantIds,
+          payers: params.payers,
+        });
+        await enqueue(
+          expenseOutboxEntry(Crypto.randomUUID(), "expense.update", groupId, payload, params.itemName.trim(), params.amountCents, params.expenseId),
+        );
+        return {
+          data: makeLocalExpense({ id: params.expenseId, groupId, ...params }),
+          error: null,
+        };
+      }
+      return updateExpense(params);
+    },
     onSuccess: invalidate,
   });
 }
 
 export function useUpdateExpenseCustomSplit(groupId: string) {
   const invalidate = useExpenseMutationInvalidations(groupId);
+  const { enqueue } = useOutbox();
   return useMutation({
-    mutationFn: (params: UpdateExpenseCustomSplitParams) => updateExpenseCustomSplit(params),
+    mutationFn: async (params: UpdateExpenseCustomSplitParams): Promise<ApiResponse<Expense>> => {
+      if (!onlineManager.isOnline()) {
+        if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
+        if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+        const payload = buildUpdateCustomExpenseRpcInput({
+          expenseId: params.expenseId,
+          expectedUpdatedAt: params.expectedUpdatedAt,
+          categoryId: params.categoryId,
+          itemName: params.itemName,
+          amountCents: params.amountCents,
+          customSplits: params.customSplits,
+          payers: params.payers,
+        });
+        await enqueue(
+          expenseOutboxEntry(Crypto.randomUUID(), "expense.update", groupId, payload, params.itemName.trim(), params.amountCents, params.expenseId),
+        );
+        return {
+          data: makeLocalExpense({ id: params.expenseId, groupId, ...params }),
+          error: null,
+        };
+      }
+      return updateExpenseCustomSplit(params);
+    },
     onSuccess: invalidate,
   });
 }
 
 export function useUpdateItemizedExpense(groupId: string) {
   const invalidate = useExpenseMutationInvalidations(groupId);
+  const { enqueue } = useOutbox();
   return useMutation({
-    mutationFn: (params: UpdateItemizedExpenseParams) => updateItemizedExpense(params),
+    mutationFn: async (params: UpdateItemizedExpenseParams): Promise<ApiResponse<Expense>> => {
+      if (!onlineManager.isOnline()) {
+        if (!params.expenseName.trim()) return { data: null, error: "Expense name is required" };
+        if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+        if (params.lineItems.length === 0) return { data: null, error: "At least one line item is required" };
+        const payload = buildUpdateItemizedExpenseRpcInput({
+          expenseId: params.expenseId,
+          expectedUpdatedAt: params.expectedUpdatedAt,
+          categoryId: params.categoryId,
+          itemName: params.expenseName,
+          amountCents: params.amountCents,
+          payers: params.payers,
+          lineItems: params.lineItems,
+        });
+        await enqueue(
+          expenseOutboxEntry(Crypto.randomUUID(), "expense.update_itemized", groupId, payload, params.expenseName.trim(), params.amountCents, params.expenseId),
+        );
+        return {
+          data: makeLocalExpense({ id: params.expenseId, groupId, itemName: params.expenseName, ...params }),
+          error: null,
+        };
+      }
+      return updateItemizedExpense(params);
+    },
     onSuccess: invalidate,
   });
 }
 
 export function useDeleteExpense(groupId: string) {
   const invalidate = useExpenseMutationInvalidations(groupId);
+  const { enqueue } = useOutbox();
   return useMutation({
-    mutationFn: (expenseId: string) => deleteExpense(expenseId),
+    mutationFn: async (expenseId: string): Promise<ApiResponse<null>> => {
+      if (!onlineManager.isOnline()) {
+        // Deleting a not-yet-synced local create cancels the whole chain in
+        // the outbox; a server row queues an idempotent delete (0 rows = ok).
+        await enqueue({
+          id: Crypto.randomUUID(),
+          kind: "expense.delete",
+          entityId: expenseId,
+          groupId,
+          payload: {},
+          createdAt: new Date().toISOString(),
+          summary: { title: "Delete expense", amountCents: 0 },
+        });
+        return { data: null, error: null };
+      }
+      return deleteExpense(expenseId);
+    },
     onSuccess: invalidate,
   });
 }

@@ -149,6 +149,8 @@ export async function addItemizedExpense(params: {
 
 export async function updateExpense(params: {
   expenseId: string;
+  /** CAS snapshot: server rejects with PT409 if the expense changed since. */
+  expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -164,6 +166,7 @@ export async function updateExpense(params: {
     .rpc("update_expense", {
       p_input: buildUpdateEqualExpenseRpcInput({
         expenseId: params.expenseId,
+        expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
@@ -179,6 +182,8 @@ export async function updateExpense(params: {
 
 export async function updateExpenseCustomSplit(params: {
   expenseId: string;
+  /** CAS snapshot: server rejects with PT409 if the expense changed since. */
+  expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -193,6 +198,7 @@ export async function updateExpenseCustomSplit(params: {
     .rpc("update_expense", {
       p_input: buildUpdateCustomExpenseRpcInput({
         expenseId: params.expenseId,
+        expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
@@ -208,6 +214,8 @@ export async function updateExpenseCustomSplit(params: {
 
 export async function updateItemizedExpense(params: {
   expenseId: string;
+  /** CAS snapshot: server rejects with PT409 if the expense changed since. */
+  expectedUpdatedAt?: string;
   expenseName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -223,6 +231,7 @@ export async function updateItemizedExpense(params: {
     .rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
         expenseId: params.expenseId,
+        expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,
