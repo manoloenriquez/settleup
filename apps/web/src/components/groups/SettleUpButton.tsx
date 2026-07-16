@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { recordPayment } from "@/app/actions/payments";
+import { useWebOutbox } from "@/components/OutboxProvider";
+import { useOnline } from "@/hooks/useOnline";
 import { ContentDialog } from "@/components/ui/ContentDialog";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +26,8 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
 
   function handleSubmit(): void {
     if (isPending) return; // guard against double-submit creating duplicate payments
@@ -34,8 +38,36 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
       return;
     }
 
+    // Client-generated UUID = the record_payment idempotency key, shared by
+    // the online action and the offline outbox replay.
+    const clientId = crypto.randomUUID();
+
+    if (!online) {
+      void enqueue({
+        id: clientId,
+        kind: "payment.record",
+        entityId: clientId,
+        groupId,
+        payload: {
+          group_id: groupId,
+          from_member_id: debt.from_member_id,
+          to_member_id: debt.to_member_id,
+          amount_cents: amountCents,
+        },
+        createdAt: new Date().toISOString(),
+        summary: {
+          title: `${debt.from_display_name} → ${debt.to_display_name}`,
+          amountCents,
+        },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      onClose();
+      return;
+    }
+
     startTransition(async () => {
       const result = await recordPayment({
+        id: clientId,
         group_id: groupId,
         from_member_id: debt.from_member_id,
         to_member_id: debt.to_member_id,

@@ -236,6 +236,9 @@ importers:
       '@template/supabase':
         specifier: workspace:*
         version: link:../../packages/supabase
+      idb-keyval:
+        specifier: ^6.2.2
+        version: 6.2.2
       lucide-react:
         specifier: ^0.575.0
         version: 0.575.0(react@19.1.0)

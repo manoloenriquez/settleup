@@ -24,7 +24,7 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { group_id, from_member_id, to_member_id, amount_cents } = parsed.data;
+    const { id, group_id, from_member_id, to_member_id, amount_cents } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -34,6 +34,7 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
       p_from_member_id: from_member_id,
       p_to_member_id: to_member_id,
       p_amount_cents: amount_cents,
+      ...(id ? { p_id: id } : {}),
     });
 
     if (error) {
