@@ -1,14 +1,17 @@
 import { useEffect, Component, type ReactNode } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ToastProvider } from "@/components/ui/Toast";
-import { queryClient } from "@/lib/queryClient";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { queryClient, persistOptions } from "@/lib/queryClient";
+import { setupReactQueryNetworkWiring } from "@/lib/network";
+import { supabase } from "@/lib/supabase";
 import { colors } from "@/theme";
 
 // Show push notifications as banners while the app is foregrounded.
@@ -116,18 +119,40 @@ function RootStack() {
 // ---------------------------------------------------------------------------
 
 function RootLayout() {
+  // React Query connectivity/foreground wiring (NetInfo + AppState).
+  useEffect(() => setupReactQueryNetworkWiring(), []);
+
+  // Supabase's recommended RN pattern: only run the token auto-refresh timer
+  // while the app is foregrounded — saves battery and avoids refresh attempts
+  // that would fail in a suspended state.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (status) => {
+      if (status === "active") {
+        void supabase.auth.startAutoRefresh();
+      } else {
+        void supabase.auth.stopAutoRefresh();
+      }
+    });
+    void supabase.auth.startAutoRefresh();
+    return () => {
+      subscription.remove();
+      void supabase.auth.stopAutoRefresh();
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
           <AuthProvider>
             <ToastProvider>
               <StatusBar style="auto" />
+              <OfflineBanner />
               <RouteGuard />
               <RootStack />
             </ToastProvider>
           </AuthProvider>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );
