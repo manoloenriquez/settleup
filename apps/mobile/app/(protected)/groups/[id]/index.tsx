@@ -8,6 +8,7 @@ import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustom
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
 import { usePendingPayments, useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
+import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutbox";
 import { useGroupRealtime } from "@/hooks/useGroupRealtime";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
@@ -98,6 +99,8 @@ export default function GroupDetailScreen() {
   const undoPayment = useUndoLastPayment(id);
   const undoMemberPayment = useUndoLastPaymentForMember(id);
   const pendingPaymentsQ = usePendingPayments(id);
+  const pendingExpenses = usePendingExpenses(id);
+  const pendingPaymentRecords = usePendingPaymentRecords(id);
   useGroupRealtime(id);
 
   // Edit expense modal state
@@ -557,6 +560,7 @@ export default function GroupDetailScreen() {
             <ExpenseList
               onComments={setCommentsExpense}
               expenses={expenses}
+              pendingExpenses={pendingExpenses}
               hasMore={expensesQ.hasNextPage}
               loadingMore={expensesQ.isFetchingNextPage}
               onLoadMore={() => void expensesQ.fetchNextPage()}
@@ -578,6 +582,13 @@ export default function GroupDetailScreen() {
 
           {tab === "balances" && (
             <>
+              {pendingExpenses.length + pendingPaymentRecords.length > 0 && (
+                <Text style={styles.pendingBalancesNote}>
+                  {pendingExpenses.length + pendingPaymentRecords.length} pending{" "}
+                  {pendingExpenses.length + pendingPaymentRecords.length === 1 ? "change" : "changes"}{" "}
+                  not yet included in balances
+                </Text>
+              )}
               <DebtSummary
                 members={balancesQ.data ?? []}
                 creditorProfiles={creditorProfilesQ.data}
@@ -700,6 +711,16 @@ export default function GroupDetailScreen() {
 
 const styles = StyleSheet.create({
   loader: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+  pendingBalancesNote: {
+    fontSize: fontSize.sm,
+    color: colors.warningDark,
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: "center",
+  },
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.base, paddingBottom: 100 },
 

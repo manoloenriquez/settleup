@@ -32,6 +32,8 @@ type ExpenseWithDetailsRow = Expense & {
 };
 
 export async function addExpense(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
@@ -49,6 +51,7 @@ export async function addExpense(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
+        clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.itemName,
@@ -65,6 +68,8 @@ export async function addExpense(params: {
 }
 
 export async function addExpenseCustomSplit(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
@@ -91,6 +96,7 @@ export async function addExpenseCustomSplit(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildCustomExpenseRpcInput({
+        clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.itemName,
@@ -107,6 +113,8 @@ export async function addExpenseCustomSplit(params: {
 }
 
 export async function addItemizedExpense(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   expenseName: string;
   amountCents: number;
@@ -123,6 +131,7 @@ export async function addItemizedExpense(params: {
     .schema("settleup")
     .rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
+        clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.expenseName,

@@ -1,4 +1,4 @@
-import { useEffect, Component, type ReactNode } from "react";
+import { useEffect, useState, Component, type ReactNode } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -7,8 +7,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { OutboxProvider } from "@/context/OutboxContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { PendingChangesSheet } from "@/components/PendingChangesSheet";
+import { usePendingCounts } from "@/hooks/useOutbox";
 import { queryClient, persistOptions } from "@/lib/queryClient";
 import { setupReactQueryNetworkWiring } from "@/lib/network";
 import { supabase } from "@/lib/supabase";
@@ -91,6 +94,25 @@ function RouteGuard() {
 }
 
 // ---------------------------------------------------------------------------
+// Offline status area — banner with pending count; tap opens the sheet.
+// ---------------------------------------------------------------------------
+
+function OfflineStatusArea() {
+  const { pending } = usePendingCounts();
+  const [sheetVisible, setSheetVisible] = useState(false);
+
+  return (
+    <>
+      <OfflineBanner
+        pendingCount={pending}
+        onPress={pending > 0 ? () => setSheetVisible(true) : undefined}
+      />
+      <PendingChangesSheet visible={sheetVisible} onClose={() => setSheetVisible(false)} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Root stack
 // ---------------------------------------------------------------------------
 
@@ -146,10 +168,12 @@ function RootLayout() {
         <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
           <AuthProvider>
             <ToastProvider>
-              <StatusBar style="auto" />
-              <OfflineBanner />
-              <RouteGuard />
-              <RootStack />
+              <OutboxProvider>
+                <StatusBar style="auto" />
+                <OfflineStatusArea />
+                <RouteGuard />
+                <RootStack />
+              </OutboxProvider>
             </ToastProvider>
           </AuthProvider>
         </PersistQueryClientProvider>

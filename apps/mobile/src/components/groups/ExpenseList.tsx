@@ -3,11 +3,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
 import { CategoryPill } from "@/components/groups/CategoryPicker";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { EmptyState } from "@/components/ui";
+import { Badge, EmptyState } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
+import type { PendingExpenseRow } from "@/hooks/useOutbox";
 
 type ExpenseListProps = {
   expenses: ExpenseWithDetails[];
+  /** Offline-queued creates rendered above the server rows with a status badge. */
+  pendingExpenses?: PendingExpenseRow[];
   onDelete?: (id: string) => void;
   onEdit?: (expense: ExpenseWithDetails) => void;
   onComments?: (expense: ExpenseWithDetails) => void;
@@ -26,8 +29,8 @@ function expenseDayLabel(exp: ExpenseWithDetails): string {
   return date.toLocaleDateString("en-PH");
 }
 
-export function ExpenseList({ expenses, onDelete, onEdit, onComments, hasMore, loadingMore, onLoadMore }: ExpenseListProps) {
-  if (expenses.length === 0) {
+export function ExpenseList({ expenses, pendingExpenses = [], onDelete, onEdit, onComments, hasMore, loadingMore, onLoadMore }: ExpenseListProps) {
+  if (expenses.length === 0 && pendingExpenses.length === 0) {
     return (
       <EmptyState
         icon="receipt-outline"
@@ -46,6 +49,26 @@ export function ExpenseList({ expenses, onDelete, onEdit, onComments, hasMore, l
 
   return (
     <View style={styles.list}>
+      {pendingExpenses.map((pending) => (
+        <View key={pending.id} style={[styles.row, styles.pendingRow]}>
+          <View style={styles.rowInfo}>
+            <Text style={styles.name} numberOfLines={1}>{pending.item_name}</Text>
+            <View style={styles.metaRow}>
+              <Ionicons name="time-outline" size={12} color={colors.gray400} />
+              <Text style={styles.date}>
+                {pending.status === "failed" ? "Sync failed — see banner" : "Waiting to sync"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.rowRight}>
+            <Text style={styles.amount}>{formatCents(pending.amount_cents)}</Text>
+            <Badge
+              label={pending.status === "failed" ? "Failed" : "Pending"}
+              variant={pending.status === "failed" ? "danger" : "warning"}
+            />
+          </View>
+        </View>
+      ))}
       {expenses.map((exp) => (
         <View key={exp.id} style={styles.row}>
           <View style={styles.rowInfo}>
@@ -93,6 +116,7 @@ export function ExpenseList({ expenses, onDelete, onEdit, onComments, hasMore, l
 const styles = StyleSheet.create({
   list: { gap: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
+  pendingRow: { borderStyle: "dashed", borderColor: colors.warning, opacity: 0.85 },
   rowInfo: { flex: 1, gap: 2 },
   name: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: colors.gray900 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
