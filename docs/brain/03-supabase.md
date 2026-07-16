@@ -145,6 +145,14 @@ All SettleUp tables live in the **`settleup` schema**. Query with `.schema("sett
 | `notes`               | `text?`       |                                |
 | `created_by_user_id`  | `uuid?`       | FK → `auth.users(id)`, audit  |
 | `created_at`          | `timestamptz` |                                |
+| `updated_at`          | `timestamptz` | Touch trigger; CAS guard for offline edits |
+
+`create_expense` / `create_itemized_expense` accept an optional client `id`
+(idempotent replay: existing row returned with `"replayed": true`; mismatch →
+SQLSTATE `PT409`). `update_expense` / `update_itemized_expense` accept an
+optional `expected_updated_at` (stale → `PT409`; missing row → `PT404`).
+`record_payment` accepts an optional `p_id` with the same replay semantics.
+See `docs/brain/04-offline.md`.
 
 ### `settleup.expense_payers`
 | Column        | Type      | Notes                               |
@@ -171,6 +179,7 @@ All SettleUp tables live in the **`settleup` schema**. Query with `.schema("sett
 | `to_member_id`        | `uuid?`       | Who received                   |
 | `created_by_user_id`  | `uuid?`       | Audit                          |
 | `created_at`          | `timestamptz` |                                |
+| `updated_at`          | `timestamptz` | Touch trigger                  |
 
 ### `settleup.user_payment_profiles`
 | Column                 | Type          | Notes                         |

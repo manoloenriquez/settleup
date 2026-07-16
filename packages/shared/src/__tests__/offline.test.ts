@@ -5,7 +5,6 @@ import {
   createEmptyOutboxState,
   createSyncEngine,
   discardEntry,
-  earliestNextAttemptAt,
   enqueue,
   markTerminalFailure,
   nextAttemptDelayMs,
