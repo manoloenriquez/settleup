@@ -4,6 +4,7 @@ import { cachedProfile } from "@/lib/supabase/queries";
 import { AppNav } from "@/components/layout/AppNav";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
@@ -12,6 +13,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <OfflineBanner />
       <AppNav
         profile={{
           email: profile.email,

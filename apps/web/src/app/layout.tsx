@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { APP_NAME } from "@template/shared";
+import { SwRegistration } from "@/components/pwa/SwRegistration";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], display: "swap", fallback: ["system-ui", "sans-serif"] });
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
       <body className={`h-full overscroll-none ${inter.className}`}>
         {children}
         <Toaster richColors position="top-right" />
+        <SwRegistration />
       </body>
     </html>
   );
