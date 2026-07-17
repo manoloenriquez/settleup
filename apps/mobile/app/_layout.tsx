@@ -9,7 +9,12 @@ import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { queryClient } from "@/lib/queryClient";
+import { hydrateOnDeviceAiSetting } from "@/lib/settings/on-device-ai";
 import { colors } from "@/theme";
+
+// Load the on-device AI opt-in into memory before any scan can run; until it
+// resolves, reads default to false (cloud path).
+void hydrateOnDeviceAiSetting();
 
 // Show push notifications as banners while the app is foregrounded.
 Notifications.setNotificationHandler({

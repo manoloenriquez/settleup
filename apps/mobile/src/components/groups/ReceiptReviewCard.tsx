@@ -11,19 +11,39 @@ type ReceiptReviewCardProps = {
   onDismiss: () => void;
 };
 
+const LOW_CONFIDENCE_THRESHOLD = 0.6;
+
 export function ReceiptReviewCard({ receipt, provider, onAccept, onDismiss }: ReceiptReviewCardProps) {
   const merchantName = receipt.merchant ?? "Receipt";
   const totalCents = receipt.total_cents;
   const confidence = Math.round(receipt.confidence * 100);
+  const missingFields = [
+    receipt.merchant === null && "merchant",
+    receipt.date === null && "date",
+    totalCents <= 0 && "total",
+  ].filter((f): f is string => typeof f === "string");
+  const needsReview = receipt.confidence < LOW_CONFIDENCE_THRESHOLD || missingFields.length > 0;
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.title}>RECEIPT DETECTED</Text>
-        <View style={styles.confidenceBadge}>
-          <Text style={styles.confidenceText}>{confidence}% confident</Text>
+        <View style={[styles.confidenceBadge, needsReview && styles.confidenceBadgeWarning]}>
+          <Text style={[styles.confidenceText, needsReview && styles.confidenceTextWarning]}>
+            {confidence}% confident
+          </Text>
         </View>
       </View>
+
+      {needsReview && (
+        <View style={styles.warningBox}>
+          <Text style={styles.warningText}>
+            {missingFields.length > 0
+              ? `Couldn't read: ${missingFields.join(", ")}. Please double-check these values.`
+              : "Low confidence — please double-check these values."}
+          </Text>
+        </View>
+      )}
 
       {provider === "apple-intelligence" && (
         <View style={styles.aiBadge}>
@@ -82,6 +102,14 @@ const styles = StyleSheet.create({
   title: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
   confidenceBadge: { backgroundColor: colors.primaryLight, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   confidenceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
+  confidenceBadgeWarning: { backgroundColor: colors.warningLight },
+  confidenceTextWarning: { color: colors.warningDark },
+  warningBox: {
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+  },
+  warningText: { fontSize: fontSize.xs, color: colors.warningDark, lineHeight: 16 },
   aiBadge: {
     alignSelf: "flex-start",
     backgroundColor: "#f0f0f0",

@@ -25,17 +25,24 @@ function receiptSumTolerance(totalCents: number): number {
   return Math.max(100, Math.round(Math.abs(totalCents) * 0.02));
 }
 
-export const parsedReceiptSchema = z
-  .strictObject({
-    merchant: z.string().nullable(),
-    date: z.string().nullable(),
-    line_items: z.array(receiptLineItemSchema),
-    subtotal_cents: z.number().int().nullable(),
-    tax_cents: z.number().int().nullable(),
-    total_cents: z.number().int(),
-    raw_text: z.string(),
-    confidence: z.number().min(0).max(1),
-  })
+/**
+ * Refinement-free receipt shape. On-device guided generation (Apple Foundation
+ * Models) needs a plain JSON-schema-convertible object — `superRefine` cannot
+ * cross that boundary, so the cross-field sum check lives only on
+ * `parsedReceiptSchema` below.
+ */
+export const parsedReceiptBaseSchema = z.strictObject({
+  merchant: z.string().nullable(),
+  date: z.string().nullable(),
+  line_items: z.array(receiptLineItemSchema),
+  subtotal_cents: z.number().int().nullable(),
+  tax_cents: z.number().int().nullable(),
+  total_cents: z.number().int(),
+  raw_text: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+
+export const parsedReceiptSchema = parsedReceiptBaseSchema
   .superRefine((receipt, ctx) => {
     // Totals-only parses (no line items) are valid drafts.
     if (receipt.line_items.length === 0) return;

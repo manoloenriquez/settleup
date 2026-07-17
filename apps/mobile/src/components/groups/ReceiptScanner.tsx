@@ -9,9 +9,11 @@ type ReceiptScannerProps = {
   onCamera: () => void;
   onGallery: () => void;
   onClear: () => void;
+  /** Discard the current shot and reopen the camera (for blurry/skewed shots). */
+  onRetake?: () => void;
 };
 
-export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGallery, onClear }: ReceiptScannerProps) {
+export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGallery, onClear, onRetake }: ReceiptScannerProps) {
   if (isScanning) {
     return (
       <View style={styles.scanning}>
@@ -30,9 +32,17 @@ export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGaller
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-        <TouchableOpacity style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
-          <Text style={styles.clearBtnText}>Use Different Image</Text>
-        </TouchableOpacity>
+        <View style={styles.previewActions}>
+          {onRetake && (
+            <TouchableOpacity style={styles.retakeBtn} onPress={onRetake} activeOpacity={0.7}>
+              <Ionicons name="camera-outline" size={16} color={colors.primary} />
+              <Text style={styles.clearBtnText}>Retake</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
+            <Text style={styles.clearBtnText}>Use Different Image</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -40,6 +50,7 @@ export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGaller
   return (
     <View style={styles.container}>
       <Text style={styles.hint}>Scan a receipt to automatically extract expense details</Text>
+      <Text style={styles.framingHint}>Fill the frame with the receipt, keep it flat, and avoid glare</Text>
 
       {error && (
         <View style={styles.errorBox}>
@@ -83,6 +94,9 @@ const styles = StyleSheet.create({
   scanningText: { fontSize: fontSize.sm, color: colors.gray500 },
   preview: { gap: spacing.md },
   previewImage: { width: "100%", height: 200, borderRadius: borderRadius.md, backgroundColor: colors.gray100 },
+  framingHint: { fontSize: fontSize.xs, color: colors.gray400, textAlign: "center", paddingHorizontal: spacing.lg },
+  previewActions: { flexDirection: "row", justifyContent: "center", gap: spacing.lg },
+  retakeBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm },
   clearBtn: { alignSelf: "center", paddingVertical: spacing.sm },
   clearBtnText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.medium },
 });

@@ -92,6 +92,21 @@ Feature modules:
 
 **AI never writes to DB.** All AI output is a draft that the user must confirm.
 
+### On-device receipt scanning (mobile, iOS-only)
+
+Receipt scans on mobile route through `structureExpenseFromImage()` in
+`apps/mobile/src/lib/ai/receipt.ts`. Routing truth is
+`shouldUseOnDevice() = user opt-in && apple.isAvailable()` — the opt-in is a
+device-local AsyncStorage flag (`settleup.on_device_ai`, default OFF, toggle on
+the Account screen) and availability is checked live per scan, never persisted.
+When true: Apple Vision OCR (`expo-text-extractor`) → Apple Foundation Models
+guided generation (`@react-native-ai/apple`), fully offline — on failure the
+user is sent to retake/manual entry, the image is **never** uploaded. When
+false (toggle off, Android, incapable device): multipart upload to the existing
+`/ai/receipt?strict=true` endpoint, unchanged. Both paths return the shared
+`ParsedReceipt` (`ExpenseExtraction`) type. Requires a dev build (Expo Go can't
+load the native modules) — already the project baseline.
+
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)

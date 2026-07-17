@@ -35,6 +35,7 @@ export function ReceiptItemEditor({
   const includedItems = items.filter((i) => i.included);
   const totalCents = includedItems.reduce((sum, i) => sum + i.total_cents, 0);
   const confidencePct = Math.round(confidence * 100);
+  const needsReview = confidence < 0.6 || merchant === null || totalCents <= 0;
 
   function toggleItem(index: number): void {
     const next = items.map((item, i) => (i === index ? { ...item, included: !item.included } : item));
@@ -69,14 +70,22 @@ export function ReceiptItemEditor({
           <Ionicons name="arrow-back" size={20} color={colors.gray700} />
         </TouchableOpacity>
         <Text style={styles.title}>Review Items</Text>
-        <View style={styles.confidenceBadge}>
-          <Text style={styles.confidenceText}>{confidencePct}%</Text>
+        <View style={[styles.confidenceBadge, needsReview && styles.confidenceBadgeWarning]}>
+          <Text style={[styles.confidenceText, needsReview && styles.confidenceTextWarning]}>{confidencePct}%</Text>
         </View>
       </View>
 
       {provider === "apple-intelligence" && (
         <View style={styles.aiBadge}>
           <Text style={styles.aiBadgeText}>Powered by Apple Intelligence</Text>
+        </View>
+      )}
+
+      {needsReview && (
+        <View style={styles.warningBox}>
+          <Text style={styles.warningText}>
+            Low confidence — double-check every amount below before continuing.
+          </Text>
         </View>
       )}
 
@@ -179,6 +188,15 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   confidenceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
+  confidenceBadgeWarning: { backgroundColor: colors.warningLight },
+  confidenceTextWarning: { color: colors.warningDark },
+  warningBox: {
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  warningText: { fontSize: fontSize.xs, color: colors.warningDark, lineHeight: 16 },
 
   nameSection: { gap: spacing.xs },
   label: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },

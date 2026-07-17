@@ -222,6 +222,7 @@ export default function ScanScreen(): React.ReactElement {
                 onCamera={() => void receiptScan.scanFromCamera()}
                 onGallery={() => void receiptScan.scanFromGallery()}
                 onClear={receiptScan.clear}
+                onRetake={() => void receiptScan.retake()}
               />
 
               {receiptScan.receipt && (
