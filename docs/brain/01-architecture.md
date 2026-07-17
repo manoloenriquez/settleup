@@ -68,6 +68,14 @@ Friend/Share View (public, no auth):
     → Returns minimal member balance + group name + payer payment info
 ```
 
+## Offline & Sync
+
+Both apps are offline-first for reads and for the core write flows (add
+expense, settle up; mobile also edit/delete/comment). Queued writes replay
+through the same RPCs with client-generated UUIDs as idempotency keys and an
+`expected_updated_at` compare-and-swap guard on edits. Full design, server
+contract, and the manual test matrix: `docs/brain/04-offline.md`.
+
 ## AI Layer
 
 Provider-abstracted LLM integration in `apps/web/src/lib/ai/`.

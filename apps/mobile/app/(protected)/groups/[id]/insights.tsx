@@ -6,7 +6,7 @@ import { useGroups } from "@/hooks/useGroups";
 import { useInsightsAI } from "@/hooks/useInsightsAI";
 import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailability";
 import { formatCents } from "@template/shared";
-import { Card, SectionHeader, SkeletonCard, useToast } from "@/components/ui";
+import { Card, ErrorBanner, SectionHeader, SkeletonCard, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function InsightsScreen() {
@@ -15,11 +15,14 @@ export default function InsightsScreen() {
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === groupId);
 
-  const { data: insights, isLoading, isFetching, refetch } = useQuery({
+  const { data: insights, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["insights", groupId],
-    queryFn: () => getGroupInsights(groupId),
+    queryFn: async () => {
+      const res = await getGroupInsights(groupId);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
     enabled: !!groupId,
-    select: (res) => res.data,
   });
 
   const { summary, isGenerating, generate } = useInsightsAI();
@@ -72,10 +75,14 @@ export default function InsightsScreen() {
             <SkeletonCard />
             <SkeletonCard />
           </View>
-        ) : !insights ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>No data yet. Add some expenses to see insights.</Text>
-          </View>
+        ) : isError || !insights ? (
+          isError ? (
+            <ErrorBanner message="Couldn't load insights." onRetry={() => void refetch()} />
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>No data yet. Add some expenses to see insights.</Text>
+            </View>
+          )
         ) : (
           <View style={styles.cards}>
             <Card style={styles.statCard}>

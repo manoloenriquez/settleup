@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addExpense } from "@/app/actions/expenses";
 import { parsePHPAmount, equalSplit, formatCents } from "@template/shared";
+import { buildEqualExpenseRpcInput } from "@template/supabase";
+import type { OutboxJson } from "@template/shared";
+import { useWebOutbox } from "@/components/OutboxProvider";
+import { useOnline } from "@/hooks/useOnline";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -44,6 +48,8 @@ export function QuickAddExpense({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
 
   const myMemberId = members.find((m) => m.user_id === currentUserId)?.id ?? members[0]?.id ?? "";
   const [payerId, setPayerId] = useState(myMemberId);
@@ -86,8 +92,49 @@ export function QuickAddExpense({
       return;
     }
 
+    // Client-generated UUID = the create_expense idempotency key, shared by
+    // the online action and the offline outbox replay.
+    const clientId = crypto.randomUUID();
+
+    const resetForm = (): void => {
+      setItemName("");
+      setAmountStr("");
+      setExpenseDate(localTodayISO());
+      setSelectedIds(members.map((m) => m.id));
+      setCategoryId(categories.find((category) => category.slug === "other")?.id ?? null);
+    };
+
+    if (!online) {
+      // Queue the exact RPC input for replay on reconnect; rows appear after
+      // the drain's router.refresh(). Feedback comes from the pending chip.
+      const payload = buildEqualExpenseRpcInput({
+        clientId,
+        groupId,
+        categoryId,
+        itemName: itemName.trim(),
+        amountCents: cents,
+        expenseDate: expenseDate || undefined,
+        participantIds: selectedIds,
+        payers: [{ memberId: payerId, paidCents: cents }],
+      });
+      void enqueue({
+        id: clientId,
+        kind: "expense.create",
+        entityId: clientId,
+        groupId,
+        payload: JSON.parse(JSON.stringify(payload)) as OutboxJson,
+        createdAt: new Date().toISOString(),
+        summary: { title: itemName.trim(), amountCents: cents },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      resetForm();
+      onClose?.();
+      return;
+    }
+
     startTransition(async () => {
       const result = await addExpense({
+        id: clientId,
         group_id: groupId,
         category_id: categoryId,
         item_name: itemName.trim(),
@@ -100,11 +147,7 @@ export function QuickAddExpense({
         setError(result.error);
       } else {
         toast.success("Expense added!");
-        setItemName("");
-        setAmountStr("");
-        setExpenseDate(localTodayISO());
-        setSelectedIds(members.map((m) => m.id));
-        setCategoryId(categories.find((category) => category.slug === "other")?.id ?? null);
+        resetForm();
         router.refresh();
         onClose?.();
       }

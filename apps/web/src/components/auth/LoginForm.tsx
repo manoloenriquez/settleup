@@ -9,6 +9,7 @@ import { ROUTES } from "@template/shared";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import Link from "next/link";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { useOfflineGuard } from "@/hooks/useOfflineGuard";
 
 export function LoginForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
@@ -17,9 +18,11 @@ export function LoginForm(): React.ReactElement {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "";
   const expired = searchParams.get("expired") === "1";
+  const guardOnline = useOfflineGuard("You're offline — signing in needs a connection.");
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
+    if (!guardOnline()) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 

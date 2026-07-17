@@ -94,8 +94,12 @@ export const updateExpenseCategorySchema = expenseCategoryInputSchema
 /** User-set date the expense occurred (YYYY-MM-DD); server defaults to today when omitted. */
 export const expenseDateSchema = z.iso.date("Invalid date").optional();
 
+/** Optional client-generated row id — the offline outbox's idempotency key. */
+const clientIdSchema = z.string().uuid().optional();
+
 export const addExpenseSchema = z
   .object({
+    id: clientIdSchema,
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
@@ -122,6 +126,7 @@ export const addMembersBatchSchema = z.object({
 });
 
 const expenseItemSchema = z.object({
+  id: clientIdSchema,
   category_id: expenseCategoryIdSchema,
   item_name: z.string().trim().min(1, "Item name is required").max(200),
   amount_cents: z.number().int().positive("Amount must be positive"),
@@ -182,6 +187,7 @@ const lineItemSchema = z.object({
 
 export const addItemizedExpenseSchema = z
   .object({
+    id: clientIdSchema,
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
@@ -210,9 +216,13 @@ export const addItemizedExpenseSchema = z
     }
   });
 
+/** Optional compare-and-swap snapshot; server rejects stale edits with PT409. */
+const expectedUpdatedAtSchema = z.string().optional();
+
 export const updateExpenseSchema = z
   .object({
     expense_id: z.string().uuid(),
+    expected_updated_at: expectedUpdatedAtSchema,
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
@@ -257,6 +267,7 @@ export const updateExpenseSchema = z
 export const updateItemizedExpenseSchema = z
   .object({
     expense_id: z.string().uuid(),
+    expected_updated_at: expectedUpdatedAtSchema,
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
     amount_cents: z.number().int().positive("Amount must be positive"),
@@ -286,6 +297,7 @@ export const updateItemizedExpenseSchema = z
 
 export const recordPaymentSchema = z
   .object({
+    id: clientIdSchema,
     group_id: z.string().uuid(),
     from_member_id: z.string().uuid(),
     to_member_id: z.string().uuid(),

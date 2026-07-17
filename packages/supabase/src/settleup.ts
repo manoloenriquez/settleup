@@ -3,6 +3,8 @@ import type { Expense, Group, GroupMember, Json, Payment } from "./database.type
 import { z } from "zod";
 
 type EqualExpenseRpcInput = {
+  /** Client-generated UUID used as the row id — makes replays idempotent. */
+  clientId?: string;
   groupId: string;
   categoryId?: string | null;
   itemName: string;
@@ -14,6 +16,8 @@ type EqualExpenseRpcInput = {
 };
 
 type CustomExpenseRpcInput = {
+  /** Client-generated UUID used as the row id — makes replays idempotent. */
+  clientId?: string;
   groupId: string;
   categoryId?: string | null;
   itemName: string;
@@ -25,6 +29,8 @@ type CustomExpenseRpcInput = {
 };
 
 type ItemizedExpenseRpcInput = {
+  /** Client-generated UUID used as the row id — makes replays idempotent. */
+  clientId?: string;
   groupId: string;
   categoryId?: string | null;
   itemName: string;
@@ -37,6 +43,8 @@ type ItemizedExpenseRpcInput = {
 
 type UpdateEqualExpenseRpcInput = {
   expenseId: string;
+  /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
+  expectedUpdatedAt?: string;
   categoryId?: string | null;
   itemName: string;
   amountCents: number;
@@ -48,6 +56,8 @@ type UpdateEqualExpenseRpcInput = {
 
 type UpdateCustomExpenseRpcInput = {
   expenseId: string;
+  /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
+  expectedUpdatedAt?: string;
   categoryId?: string | null;
   itemName: string;
   amountCents: number;
@@ -59,6 +69,8 @@ type UpdateCustomExpenseRpcInput = {
 
 type UpdateItemizedExpenseRpcInput = {
   expenseId: string;
+  /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
+  expectedUpdatedAt?: string;
   categoryId?: string | null;
   itemName: string;
   amountCents: number;
@@ -100,6 +112,7 @@ const expenseSchema = z.object({
   expense_date: z.string(),
   created_by_user_id: z.string().uuid().nullable(),
   created_at: z.string(),
+  updated_at: z.string().default(""),
 });
 
 const paymentSchema = z.object({
@@ -112,6 +125,7 @@ const paymentSchema = z.object({
   created_by_user_id: z.string().uuid().nullable(),
   note: z.string().nullable().default(null),
   created_at: z.string(),
+  updated_at: z.string().default(""),
 });
 
 const groupWithStatsSchema = groupSchema.extend({
@@ -158,6 +172,7 @@ function parseRpcPayload<T>(
 
 export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
   return {
+    id: input.clientId ?? undefined,
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
@@ -175,6 +190,7 @@ export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
 
 export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
   return {
+    id: input.clientId ?? undefined,
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
@@ -195,6 +211,7 @@ export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
 
 export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Json {
   return {
+    id: input.clientId ?? undefined,
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
@@ -216,6 +233,7 @@ export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Js
 export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInput): Json {
   return {
     expense_id: input.expenseId,
+    expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
@@ -233,6 +251,7 @@ export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInpu
 export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcInput): Json {
   return {
     expense_id: input.expenseId,
+    expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,
@@ -253,6 +272,7 @@ export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcIn
 export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseRpcInput): Json {
   return {
     expense_id: input.expenseId,
+    expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
     amount_cents: input.amountCents,

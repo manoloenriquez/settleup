@@ -57,7 +57,10 @@ const runtimeCaching: RuntimeCaching[] = [
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: true,
+  // A new service worker waits until the user accepts the in-app "update
+  // available" toast (SwRegistration posts SKIP_WAITING), so an update never
+  // swaps assets out from under a running session.
+  skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching,

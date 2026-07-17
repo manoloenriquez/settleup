@@ -3,6 +3,7 @@ export * from "./Badge";
 export * from "./Avatar";
 export * from "./EmptyState";
 export * from "./ErrorBanner";
+export * from "./OfflineBanner";
 export * from "./Skeleton";
 export * from "./ListItem";
 export * from "./AmountInput";

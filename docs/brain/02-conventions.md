@@ -120,6 +120,16 @@ export async function createExpense(formData: FormData): Promise<ApiResponse<voi
 - Public (anon) RPCs must be token-scoped and return only minimum required fields
 - `get_friend_view(p_share_token)` — anon-safe, callable with anon key
 
+## Offline-Capable Mutations
+
+- Core write flows queue in an offline outbox and replay via the same RPCs;
+  creates carry a client-generated UUID (the row id) so replays are
+  idempotent, edits carry `expected_updated_at` for conflict detection
+- Web outbox replays through the browser Supabase client — never queue a
+  Server Action POST for later (encrypted action ids rotate across deploys)
+- Checklist for adding a new offline-capable mutation:
+  `docs/brain/04-offline.md` → "How to make another mutation offline-capable"
+
 ## Git
 
 - Branch: `feat/<name>`, `fix/<name>`, `chore/<name>`

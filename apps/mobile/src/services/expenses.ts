@@ -32,6 +32,8 @@ type ExpenseWithDetailsRow = Expense & {
 };
 
 export async function addExpense(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
@@ -49,6 +51,7 @@ export async function addExpense(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
+        clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.itemName,
@@ -65,6 +68,8 @@ export async function addExpense(params: {
 }
 
 export async function addExpenseCustomSplit(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
@@ -91,6 +96,7 @@ export async function addExpenseCustomSplit(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildCustomExpenseRpcInput({
+        clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.itemName,
@@ -107,6 +113,8 @@ export async function addExpenseCustomSplit(params: {
 }
 
 export async function addItemizedExpense(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   expenseName: string;
   amountCents: number;
@@ -123,6 +131,7 @@ export async function addItemizedExpense(params: {
     .schema("settleup")
     .rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
+        clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.expenseName,
@@ -140,6 +149,8 @@ export async function addItemizedExpense(params: {
 
 export async function updateExpense(params: {
   expenseId: string;
+  /** CAS snapshot: server rejects with PT409 if the expense changed since. */
+  expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -155,6 +166,7 @@ export async function updateExpense(params: {
     .rpc("update_expense", {
       p_input: buildUpdateEqualExpenseRpcInput({
         expenseId: params.expenseId,
+        expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
@@ -170,6 +182,8 @@ export async function updateExpense(params: {
 
 export async function updateExpenseCustomSplit(params: {
   expenseId: string;
+  /** CAS snapshot: server rejects with PT409 if the expense changed since. */
+  expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -184,6 +198,7 @@ export async function updateExpenseCustomSplit(params: {
     .rpc("update_expense", {
       p_input: buildUpdateCustomExpenseRpcInput({
         expenseId: params.expenseId,
+        expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
@@ -199,6 +214,8 @@ export async function updateExpenseCustomSplit(params: {
 
 export async function updateItemizedExpense(params: {
   expenseId: string;
+  /** CAS snapshot: server rejects with PT409 if the expense changed since. */
+  expectedUpdatedAt?: string;
   expenseName: string;
   amountCents: number;
   categoryId?: string | null;
@@ -214,6 +231,7 @@ export async function updateItemizedExpense(params: {
     .rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
         expenseId: params.expenseId,
+        expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,

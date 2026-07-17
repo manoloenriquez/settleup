@@ -51,13 +51,14 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { group_id, category_id, item_name, amount_cents, notes, expense_date, participant_ids, payers } = parsed.data;
+    const { id, group_id, category_id, item_name, amount_cents, notes, expense_date, participant_ids, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
     const { data: result, error } = await db.rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
+        clientId: id,
         groupId: group_id,
         categoryId: category_id,
         itemName: item_name,
@@ -104,6 +105,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
     const rpcItems: Json[] = items.map((item) =>
       item.split_mode === "equal"
         ? buildEqualExpenseRpcInput({
+            clientId: item.id,
             groupId: group_id,
             categoryId: item.category_id,
             itemName: item.item_name,
@@ -117,6 +119,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
             })),
           })
         : buildCustomExpenseRpcInput({
+            clientId: item.id,
             groupId: group_id,
             categoryId: item.category_id,
             itemName: item.item_name,
@@ -166,13 +169,14 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { group_id, category_id, item_name, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
+    const { id, group_id, category_id, item_name, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
     const { data: result, error } = await db.rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
+        clientId: id,
         groupId: group_id,
         categoryId: category_id,
         itemName: item_name,

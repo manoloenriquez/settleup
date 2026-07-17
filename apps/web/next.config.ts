@@ -13,7 +13,9 @@ const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
   disable: process.env.NODE_ENV === "development",
-  reloadOnOnline: true,
+  // Registration is manual (components/pwa/SwRegistration.tsx) so the app can
+  // show an "update available" toast instead of silently taking over.
+  register: false,
   // Precache the offline fallback so it's available with zero network.
   additionalPrecacheEntries: [{ url: "/~offline", revision: OFFLINE_REVISION }],
 });

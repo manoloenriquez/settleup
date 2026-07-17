@@ -18,6 +18,7 @@
     "@template/ai": "workspace:*",
     "@template/shared": "workspace:*",
     "@template/supabase": "workspace:*",
+    "idb-keyval": "^6.2.2",
     "lucide-react": "^0.575.0",
     "next": "^15.2.0",
     "react": "^19.0.0",
