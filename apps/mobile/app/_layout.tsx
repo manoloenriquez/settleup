@@ -14,8 +14,13 @@ import { PendingChangesSheet } from "@/components/PendingChangesSheet";
 import { usePendingCounts } from "@/hooks/useOutbox";
 import { queryClient, persistOptions } from "@/lib/queryClient";
 import { setupReactQueryNetworkWiring } from "@/lib/network";
+import { hydrateOnDeviceAiSetting } from "@/lib/settings/on-device-ai";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@/theme";
+
+// Load the on-device AI opt-in into memory before any scan can run; until it
+// resolves, reads default to false (cloud path).
+void hydrateOnDeviceAiSetting();
 
 // Show push notifications as banners while the app is foregrounded.
 Notifications.setNotificationHandler({

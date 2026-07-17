@@ -707,6 +707,7 @@ export default function AddExpenseScreen() {
                 onCamera={() => void receiptScan.scanFromCamera()}
                 onGallery={() => void receiptScan.scanFromGallery()}
                 onClear={receiptScan.clear}
+                onRetake={() => void receiptScan.retake()}
               />
               {receiptScan.receipt && (
                 <ReceiptReviewCard

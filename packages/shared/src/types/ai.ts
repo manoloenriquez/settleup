@@ -32,6 +32,12 @@ export type ParsedReceipt = {
   confidence: number; // 0–1
 };
 
+/**
+ * Caller-facing name for the structured expense produced by receipt scanning.
+ * Both the on-device (Apple Intelligence) and cloud paths return this shape.
+ */
+export type ExpenseExtraction = ParsedReceipt;
+
 export type SplitSuggestion = {
   member_name: string;
   share_cents: number;

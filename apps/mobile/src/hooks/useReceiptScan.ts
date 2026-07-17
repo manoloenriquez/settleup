@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
-import type { ParsedReceipt } from "@template/shared/types";
-import { parseReceiptMobile, type ReceiptProvider } from "@/lib/ai/receipt";
+import type { ExpenseExtraction } from "@template/shared/types";
+import { structureExpenseFromImage, type ReceiptProvider } from "@/lib/ai/receipt";
 
 export function useReceiptScan() {
-  const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
+  const [receipt, setReceipt] = useState<ExpenseExtraction | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,18 +52,7 @@ export function useReceiptScan() {
     setImageUri(uri);
 
     try {
-      let ocrText = "";
-
-      // Try Apple Vision (iOS) / ML Kit (Android) via expo-text-extractor
-      try {
-        const { extractTextFromImage } = await import("expo-text-extractor");
-        const blocks = await extractTextFromImage(uri);
-        ocrText = blocks.join("\n");
-      } catch {
-        // OCR not available — ocrText stays empty, API/regex fallback will apply
-      }
-
-      const result = await parseReceiptMobile({ ocrText, imageUri: uri, imageMimeType: mimeType });
+      const result = await structureExpenseFromImage(uri, mimeType);
 
       if (result.error) {
         setError(result.error);
@@ -83,5 +72,11 @@ export function useReceiptScan() {
     setProvider(null);
   }, []);
 
-  return { receipt, imageUri, isScanning, error, provider, scanFromCamera, scanFromGallery, clear };
+  /** Discard the current shot and immediately reopen the camera. */
+  const retake = useCallback(async () => {
+    clear();
+    await scanFromCamera();
+  }, [clear, scanFromCamera]);
+
+  return { receipt, imageUri, isScanning, error, provider, scanFromCamera, scanFromGallery, retake, clear };
 }

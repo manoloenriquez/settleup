@@ -38,7 +38,7 @@ function hasNativeModule(name: string): boolean {
  * which throws an invariant violation that RN's error overlay intercepts
  * before JS try/catch can handle it. We must verify the module exists first.
  */
-function loadAppleAI(): { apple: { isAvailable(): boolean; (): unknown } } | null {
+export function loadAppleAI(): { apple: { isAvailable(): boolean; (): unknown } } | null {
   if (Platform.OS !== "ios") return null;
   if (!hasNativeModule("NativeAppleEmbeddings")) return null;
   try {
@@ -46,6 +46,21 @@ function loadAppleAI(): { apple: { isAvailable(): boolean; (): unknown } } | nul
     return require("@react-native-ai/apple") as { apple: { isAvailable(): boolean; (): unknown } };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Live per-call Apple Intelligence availability. Deliberately never cached:
+ * availability can change at runtime (Apple Intelligence toggled off, model
+ * assets evicted), so routing decisions must re-evaluate it every time.
+ */
+export function isAppleIntelligenceAvailable(): boolean {
+  const appleModule = loadAppleAI();
+  if (!appleModule) return false;
+  try {
+    return appleModule.apple.isAvailable();
+  } catch {
+    return false;
   }
 }
 
