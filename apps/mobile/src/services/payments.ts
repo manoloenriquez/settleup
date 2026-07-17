@@ -8,12 +8,15 @@ import {
 } from "@template/supabase";
 
 export async function recordPayment(params: {
+  /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
+  clientId?: string;
   groupId: string;
   fromMemberId: string;
   toMemberId: string;
   amountCents: number;
 }): Promise<ApiResponse<Payment>> {
   const parsed = recordPaymentSchema.safeParse({
+    id: params.clientId,
     group_id: params.groupId,
     from_member_id: params.fromMemberId,
     to_member_id: params.toMemberId,
@@ -28,6 +31,7 @@ export async function recordPayment(params: {
       p_from_member_id: params.fromMemberId,
       p_to_member_id: params.toMemberId,
       p_amount_cents: params.amountCents,
+      ...(params.clientId ? { p_id: params.clientId } : {}),
     })
 
   if (error || !data) return { data: null, error: error?.message ?? "Failed to record payment" };

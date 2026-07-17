@@ -6,6 +6,14 @@ import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
 import { createRecurringExpense } from "@/app/actions/recurring";
 import { parsePHPAmount, formatCents, equalSplit, percentSplit, sharesSplit } from "@template/shared";
+import type { OutboxJson } from "@template/shared";
+import {
+  buildCustomExpenseRpcInput,
+  buildEqualExpenseRpcInput,
+  buildItemizedExpenseRpcInput,
+} from "@template/supabase";
+import { useWebOutbox } from "@/components/OutboxProvider";
+import { useOnline } from "@/hooks/useOnline";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -93,6 +101,8 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
   const [confirming, setConfirming] = useState(false);
   const router = useRouter();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
 
   function updateItem(index: number, patch: Partial<ItemState>): void {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
@@ -278,6 +288,96 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
     const wholeItems = items.filter((item) => item.expenseMode === "whole");
     const itemizedItems = items.filter((item) => item.expenseMode === "itemized");
 
+    // Offline: queue each expense (with its client UUID = idempotency key)
+    // for replay on reconnect. Recurring templates stay online-only.
+    if (!online) {
+      void (async () => {
+        const itemPayers = (item: ItemState, amountCents: number) =>
+          item.splitPayer
+            ? item.payers
+                .filter((p) => p.memberId)
+                .map((p) => ({ memberId: p.memberId, paidCents: parsePHPAmount(p.amountStr) ?? 0 }))
+            : [{ memberId: item.payers[0]!.memberId, paidCents: amountCents }];
+
+        for (const item of wholeItems) {
+          const amountCents = parsePHPAmount(item.amountStr)!;
+          const clientId = crypto.randomUUID();
+          const payload =
+            item.splitMode === "equal"
+              ? buildEqualExpenseRpcInput({
+                  clientId,
+                  groupId,
+                  categoryId: item.categoryId,
+                  itemName: item.itemName.trim(),
+                  amountCents,
+                  expenseDate: expenseDate || undefined,
+                  participantIds: item.selectedIds,
+                  payers: itemPayers(item, amountCents),
+                })
+              : buildCustomExpenseRpcInput({
+                  clientId,
+                  groupId,
+                  categoryId: item.categoryId,
+                  itemName: item.itemName.trim(),
+                  amountCents,
+                  expenseDate: expenseDate || undefined,
+                  customSplits: (resolveCustomSplits(item, amountCents) ?? []).map((s) => ({
+                    memberId: s.member_id,
+                    shareCents: s.share_cents,
+                  })),
+                  payers: itemPayers(item, amountCents),
+                });
+          await enqueue({
+            id: clientId,
+            kind: "expense.create",
+            entityId: clientId,
+            groupId,
+            payload: JSON.parse(JSON.stringify(payload)) as OutboxJson,
+            createdAt: new Date().toISOString(),
+            summary: { title: item.itemName.trim(), amountCents },
+          });
+        }
+
+        for (const item of itemizedItems) {
+          const amountCents = parsePHPAmount(item.amountStr)!;
+          const clientId = crypto.randomUUID();
+          const payload = buildItemizedExpenseRpcInput({
+            clientId,
+            groupId,
+            categoryId: item.categoryId,
+            itemName: item.itemName.trim(),
+            amountCents,
+            expenseDate: expenseDate || undefined,
+            payers: itemPayers(item, amountCents),
+            lineItems: item.lineItems.map((li) => ({
+              name: li.name.trim(),
+              amountCents: parsePHPAmount(li.amountStr)!,
+              participantIds: li.participantIds,
+            })),
+          });
+          await enqueue({
+            id: clientId,
+            kind: "expense.create_itemized",
+            entityId: clientId,
+            groupId,
+            payload: JSON.parse(JSON.stringify(payload)) as OutboxJson,
+            createdAt: new Date().toISOString(),
+            summary: { title: item.itemName.trim(), amountCents },
+          });
+        }
+
+        if (wholeItems.some((item) => item.repeats !== "none")) {
+          toast.error("Repeats need a connection — the expense was queued without its repeat schedule.");
+        }
+        toast.info("Saved offline — will sync when you're back online");
+        setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
+        setExpenseDate(localTodayISO());
+        setShowAdvanced({});
+        setConfirming(false);
+      })();
+      return;
+    }
+
     startTransition(async () => {
       // Submit whole-expense items as batch
       if (wholeItems.length > 0) {
@@ -294,6 +394,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
           if (item.splitMode === "equal") {
             return {
+              id: crypto.randomUUID(),
               item_name: item.itemName.trim(),
               amount_cents,
               category_id: item.categoryId,
@@ -306,6 +407,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           // percent/shares/custom all resolve to exact cents client-side and
           // travel through the existing custom path.
           return {
+            id: crypto.randomUUID(),
             item_name: item.itemName.trim(),
             amount_cents,
             category_id: item.categoryId,
@@ -345,6 +447,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
         }));
 
         const result = await addItemizedExpense({
+          id: crypto.randomUUID(),
           group_id: groupId,
           item_name: item.itemName.trim(),
           amount_cents,

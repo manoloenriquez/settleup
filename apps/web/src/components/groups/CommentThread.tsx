@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Trash2 } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
+import { useOfflineGuard } from "@/hooks/useOfflineGuard";
 
 type Props = {
   expenseId: string;
@@ -28,6 +29,7 @@ export function CommentThread({ expenseId, members, currentUserId }: Props): Rea
   const [comments, setComments] = useState<ExpenseComment[] | null>(null);
   const [body, setBody] = useState("");
   const [isPending, startTransition] = useTransition();
+  const guardOnline = useOfflineGuard();
 
   const nameByUserId = new Map(
     members.filter((m) => m.user_id !== null).map((m) => [m.user_id as string, m.display_name]),
@@ -46,6 +48,7 @@ export function CommentThread({ expenseId, members, currentUserId }: Props): Rea
   function handleSend(): void {
     const trimmed = body.trim();
     if (!trimmed) return;
+    if (!guardOnline()) return;
     startTransition(async () => {
       const result = await addExpenseComment({ expense_id: expenseId, body: trimmed });
       if (result.error || !result.data) {
@@ -58,6 +61,7 @@ export function CommentThread({ expenseId, members, currentUserId }: Props): Rea
   }
 
   function handleDelete(commentId: string): void {
+    if (!guardOnline()) return;
     startTransition(async () => {
       const result = await deleteExpenseComment(commentId);
       if (result.error) {

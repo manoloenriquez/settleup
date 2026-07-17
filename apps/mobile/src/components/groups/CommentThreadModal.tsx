@@ -13,6 +13,8 @@ type MemberInfo = {
 
 type Props = {
   expenseId: string | null;
+  /** Enables offline comment queueing (outbox entries are grouped by group). */
+  groupId?: string;
   expenseName: string;
   members: MemberInfo[];
   currentUserId: string | undefined;
@@ -28,11 +30,11 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
-export function CommentThreadModal({ expenseId, expenseName, members, currentUserId, onClose }: Props): React.ReactElement {
+export function CommentThreadModal({ expenseId, groupId, expenseName, members, currentUserId, onClose }: Props): React.ReactElement {
   const toast = useToast();
   const [body, setBody] = useState("");
   const commentsQ = useExpenseComments(expenseId);
-  const addComment = useAddExpenseComment(expenseId);
+  const addComment = useAddExpenseComment(expenseId, groupId);
   const deleteComment = useDeleteExpenseComment(expenseId);
 
   const nameByUserId = new Map(

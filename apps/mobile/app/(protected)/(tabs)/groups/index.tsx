@@ -5,12 +5,12 @@ import { Stack, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
 import { formatCents } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { Badge, EmptyState, SkeletonCard, useToast } from "@/components/ui";
+import { Badge, EmptyState, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
 
 export default function GroupsScreen() {
   const toast = useToast();
   const router = useRouter();
-  const { data: groups, isLoading, isFetching, refetch } = useGroupsWithStats();
+  const { data: groups, isLoading, isFetching, isError, refetch } = useGroupsWithStats();
   const { data: archivedGroups } = useArchivedGroups();
   const restoreGroup = useRestoreGroup();
   const [showArchived, setShowArchived] = useState(false);
@@ -78,12 +78,20 @@ export default function GroupsScreen() {
           clearButtonMode="while-editing"
         />
 
+        {/* A failed refresh with cached data still renders the (stale) list;
+            only surface the error when there is nothing to show instead of a
+            silent empty state. */}
+        {isError && (groups ?? []).length > 0 && (
+          <Text style={styles.staleHint}>Couldn&apos;t refresh — showing saved data</Text>
+        )}
         {isLoading ? (
           <View style={styles.list}>
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </View>
+        ) : isError && (groups ?? []).length === 0 ? (
+          <ErrorBanner message="Couldn't load your groups." onRetry={() => void refetch()} />
         ) : (groups ?? []).length === 0 ? (
           <EmptyState
             icon="people-outline"
@@ -168,6 +176,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.base, paddingBottom: spacing["2xl"] },
   list: { gap: spacing.sm },
+  staleHint: {
+    fontSize: fontSize.sm,
+    color: colors.gray400,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
   searchInput: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,

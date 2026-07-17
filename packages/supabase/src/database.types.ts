@@ -269,6 +269,7 @@ export type Database = {
           expense_date: string;
           created_by_user_id: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -280,6 +281,7 @@ export type Database = {
           expense_date?: string;
           created_by_user_id?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -291,6 +293,7 @@ export type Database = {
           expense_date?: string;
           created_by_user_id?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -451,6 +454,7 @@ export type Database = {
           created_by_user_id: string | null;
           note: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -462,6 +466,7 @@ export type Database = {
           created_by_user_id?: string | null;
           note?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -473,6 +478,7 @@ export type Database = {
           created_by_user_id?: string | null;
           note?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -727,6 +733,7 @@ export type Database = {
           p_from_member_id: string;
           p_to_member_id: string;
           p_amount_cents: number;
+          p_id?: string;
         };
         Returns: Json;
       };

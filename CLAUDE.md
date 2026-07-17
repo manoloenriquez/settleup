@@ -8,6 +8,7 @@ This file is authoritative context for Claude Code. Follow these rules strictly.
 - `docs/brain/01-architecture.md` — data flow, AI layer, env vars
 - `docs/brain/02-conventions.md` — naming, file placement, how to add a feature
 - `docs/brain/03-supabase.md` — schema reference, RLS policies, RPCs, migrations
+- `docs/brain/04-offline.md` — offline-first architecture, sync engine, idempotency/CAS contract, test matrix
 
 ---
 
