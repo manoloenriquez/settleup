@@ -1,11 +1,14 @@
 {
   "name": "SettleUp",
   "short_name": "SettleUp",
-  "description": "Split expenses. Settle up. Track balances and simplify debts with your group.",
+  "description": "Split group expenses, simplify balances, and settle debts without awkward math.",
+  "lang": "en-PH",
+  "dir": "ltr",
   "id": "/",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#f8fafc",
   "theme_color": "#059669",
@@ -34,8 +37,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-monochrome-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "monochrome"
     }
   ],
+  "prefer_related_applications": false,
   "shortcuts": [
     {
       "name": "Dashboard",

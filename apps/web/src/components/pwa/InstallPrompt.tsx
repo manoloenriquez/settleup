@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Share, X } from "lucide-react";
 import { APP_NAME } from "@template/shared";
+import { requestPersistentStorage } from "@/lib/pwa/storage";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -74,7 +75,10 @@ export function InstallPrompt(): React.ReactElement | null {
   async function install(): Promise<void> {
     if (!deferred) return;
     await deferred.prompt();
-    await deferred.userChoice;
+    const choice = await deferred.userChoice;
+    if (choice.outcome === "accepted") {
+      void requestPersistentStorage();
+    }
     setDeferred(null);
     dismiss();
   }

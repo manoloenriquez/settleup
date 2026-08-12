@@ -1,4 +1,3 @@
-import { cache } from "react";
 import { getProfile, assertAuth } from "./guards";
 
 /**
@@ -7,7 +6,7 @@ import { getProfile, assertAuth } from "./guards";
  * React's cache() deduplicates calls within a single render tree (per request),
  * so calling this from both the layout and a page costs only one DB round-trip.
  */
-export const cachedProfile = cache(getProfile);
+export const cachedProfile = getProfile;
 
 /**
  * Deduplicated auth check.
@@ -16,4 +15,4 @@ export const cachedProfile = cache(getProfile);
  * each calls assertAuth(). React.cache() ensures only one JWT validation
  * per request.
  */
-export const cachedAuth = cache(assertAuth);
+export const cachedAuth = assertAuth;

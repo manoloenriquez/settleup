@@ -21,6 +21,7 @@ import {
 } from "@template/shared";
 import { outboxExecutor } from "@/lib/outbox/executor";
 import { clearOutboxStorage, outboxStorage } from "@/lib/outbox/storage";
+import { requestPersistentStorage } from "@/lib/pwa/storage";
 import { supabase } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +121,9 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
         await engine.init();
         await engine.enqueue(input);
       });
+      // Pending writes are critical app data. Ask the browser to exempt the
+      // IndexedDB queue and runtime caches from automatic storage eviction.
+      void requestPersistentStorage();
       // Call sites own the offline feedback toast (a batch enqueues several
       // entries but should announce once).
       if (navigator.onLine) void drain();

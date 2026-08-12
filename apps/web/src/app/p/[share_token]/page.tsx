@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: "SettleUp balance",
       description: "View a private SettleUp balance link.",
+      images: ["/og/settleup-social.png"],
     },
   };
 }

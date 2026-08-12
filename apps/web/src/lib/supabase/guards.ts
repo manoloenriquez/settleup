@@ -15,6 +15,7 @@
  */
 
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { createClient } from "./server";
 import type { Profile, User } from "@template/supabase";
 
@@ -26,7 +27,7 @@ import type { Profile, User } from "@template/supabase";
  * Returns the currently authenticated Supabase User, or null.
  * Always calls getUser() (validates JWT server-side) — never use getSession().
  */
-export async function getSessionUser(): Promise<User | null> {
+async function fetchSessionUser(): Promise<User | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -34,18 +35,17 @@ export async function getSessionUser(): Promise<User | null> {
   return user ?? null;
 }
 
+/** Request-scoped identity lookup shared by layouts, pages, and actions. */
+export const getSessionUser: () => Promise<User | null> = cache(fetchSessionUser);
+
 /**
  * Returns the profile row for the authenticated user, or null.
  */
-export async function getProfile(): Promise<Profile | null> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+async function fetchProfile(): Promise<Profile | null> {
+  const user = await getSessionUser();
   if (!user) return null;
 
+  const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
     .select("*")
@@ -54,6 +54,9 @@ export async function getProfile(): Promise<Profile | null> {
 
   return data ?? null;
 }
+
+/** Request-scoped profile lookup that reuses the validated session user. */
+export const getProfile: () => Promise<Profile | null> = cache(fetchProfile);
 
 // ---------------------------------------------------------------------------
 // Redirect guards — for Server Components / layouts
@@ -91,20 +94,10 @@ export async function requireAuth(): Promise<User> {
  * }
  */
 export async function requireAdmin(): Promise<{ user: User; profile: Profile }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
+  const profile = await getProfile();
   if (!profile || profile.role !== "admin") {
     redirect("/dashboard");
   }
@@ -169,20 +162,10 @@ export async function assertAuth(): Promise<User> {
  * }
  */
 export async function assertAdmin(): Promise<{ user: User; profile: Profile }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getSessionUser();
   if (!user) throw new AuthError("Authentication required.", "UNAUTHENTICATED");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
+  const profile = await getProfile();
   if (!profile || profile.role !== "admin") {
     throw new AuthError("Admin role required.", "FORBIDDEN");
   }
