@@ -7,7 +7,8 @@ import { ContentDialog } from "@/components/ui/ContentDialog";
 import { QuickAddExpense } from "./QuickAddExpense";
 import { ConversationInput } from "./ConversationInput";
 import { ReceiptUploader } from "./ReceiptUploader";
-import { ReceiptReviewForm } from "./ReceiptReviewForm";
+import { ReceiptReviewForm, type ReceiptReview } from "./ReceiptReviewForm";
+import { ReceiptSplitConfigForm } from "./ReceiptSplitConfigForm";
 import { ExpenseDraftCard } from "./ExpenseDraftCard";
 import { AddExpenseForm } from "./AddExpenseForm";
 import { CategorySelect } from "./CategoryControls";
@@ -40,6 +41,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
   const [mode, setMode] = useState<Mode>("quick");
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
   const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
+  const [receiptReview, setReceiptReview] = useState<ReceiptReview | null>(null);
   const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -102,6 +104,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
     setDraft(null);
     setDraftCategoryId(null);
     setReceipt(null);
+    setReceiptReview(null);
     setMode("quick");
     onClose();
   }
@@ -193,11 +196,22 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
             {mode === "receipt" && !receipt && (
               <ReceiptUploader onParsed={handleReceipt} />
             )}
-            {mode === "receipt" && receipt && (
+            {mode === "receipt" && receipt && !receiptReview && (
               <ReceiptReviewForm
                 receipt={receipt}
-                onCreateDraft={handleDraft}
+                onContinue={setReceiptReview}
                 onDismiss={() => setReceipt(null)}
+              />
+            )}
+            {mode === "receipt" && receipt && receiptReview && (
+              <ReceiptSplitConfigForm
+                review={receiptReview}
+                groupId={groupId}
+                members={members}
+                categories={categories}
+                currentUserId={currentUserId}
+                onBack={() => setReceiptReview(null)}
+                onSaved={handleClose}
               />
             )}
             {mode === "detailed" && (
