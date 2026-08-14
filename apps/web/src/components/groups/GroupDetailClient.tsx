@@ -20,6 +20,7 @@ import {
 import type { ActivityItem } from "@/app/actions/activity";
 import type { ExpenseSummary } from "@/app/actions/expenses";
 import type { PendingPayment } from "@/app/actions/friend-payments";
+import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutboxPending";
 import { PendingPayments } from "@/components/groups/PendingPayments";
 import { GroupRealtimeRefresher } from "@/components/groups/GroupRealtimeRefresher";
 import { BudgetProgress } from "@/components/groups/BudgetProgress";
@@ -88,6 +89,9 @@ export function GroupDetailClient({
   const creditorProfilesQ = useCreditorProfiles(groupId, initialCreditorProfiles);
   const categoriesQ = useCategoriesQuery(groupId, initialCategories);
   const pendingPaymentsQ = usePendingPaymentsQuery(groupId, initialPendingPayments);
+  const pendingLocalExpenses = usePendingExpenses(groupId);
+  const pendingLocalPayments = usePendingPaymentRecords(groupId);
+  const pendingLocalCount = pendingLocalExpenses.length + pendingLocalPayments.length;
 
   const balances = balancesQ.data ?? [];
   const creditorProfiles = creditorProfilesQ.data ?? [];
@@ -254,6 +258,11 @@ export function GroupDetailClient({
         }
         balancesContent={
           <div className="flex flex-col gap-6">
+            {pendingLocalCount > 0 && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                {pendingLocalCount} pending offline {pendingLocalCount === 1 ? "change" : "changes"} not yet included in balances
+              </p>
+            )}
             <PendingPayments
               groupId={groupId}
               pending={pendingPaymentsQ.data ?? []}

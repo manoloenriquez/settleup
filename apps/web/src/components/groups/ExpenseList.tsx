@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { deleteExpense } from "@/app/actions/expenses";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { useExpensesInfinite, type Seed, type ExpensesPage } from "@/hooks/queries";
+import { usePendingExpenses } from "@/hooks/useOutboxPending";
 import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -99,6 +100,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
   }
   const queryClient = useQueryClient();
   const expensesQ = useExpensesInfinite(groupId, pageSize, initialPage);
+  const pendingExpenses = usePendingExpenses(groupId);
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
   // Pages come from the persisted infinite query; dedupe by id so a refetched
@@ -193,7 +195,34 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
         </div>
       )}
 
-      {expenses.length === 0 && (
+      {/* Locally queued expenses awaiting sync — render-time overlay, never in the cache */}
+      {pendingExpenses.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {pendingExpenses.map((pending) => (
+            <div
+              key={pending.id}
+              className="flex items-center gap-3 rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-4"
+            >
+              <CategoryIconTile icon="receipt" color="#d97706" size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-sm font-semibold leading-tight text-slate-900">
+                  {pending.item_name}
+                </p>
+                <p className="mt-0.5 text-xs text-amber-700">
+                  {pending.status === "failed"
+                    ? "Sync failed — see pending changes"
+                    : "Waiting to sync"}
+                </p>
+              </div>
+              <p className="shrink-0 text-base font-extrabold tracking-tight text-slate-900">
+                {formatCents(Math.abs(pending.amount_cents))}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {expenses.length === 0 && pendingExpenses.length === 0 && (
         <EmptyState
           icon={Receipt}
           title="No expenses yet"
