@@ -1,9 +1,10 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { formatCents, parsePHPAmount, equalSplit, isEqualShareSplit } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
@@ -83,7 +84,7 @@ type InnerProps = {
 
 function EditExpenseDialogInner({ expense, members, categories, onClose }: InnerProps): React.ReactElement {
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
   const [name, setName] = useState(expense.item_name);
@@ -225,7 +226,7 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
       }
       toast.success("Expense updated");
       onClose();
-      router.refresh();
+      invalidateGroupData(queryClient, expense.group_id);
     });
   }
 

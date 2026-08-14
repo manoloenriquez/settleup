@@ -1,9 +1,11 @@
 "use client";
 
 import { useTransition, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { deleteExpense, listExpenses } from "@/app/actions/expenses";
+import { deleteExpense } from "@/app/actions/expenses";
+import { invalidateGroupData } from "@/lib/query-keys";
+import { useExpensesInfinite, type Seed, type ExpensesPage } from "@/hooks/queries";
 import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,15 +19,14 @@ import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
-  /** First page of expenses, freshest first (re-delivered on every server refresh). */
-  expenses: ExpenseWithParticipants[];
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
   isAdminOrOwner: boolean;
   groupId: string;
-  totalCount: number;
   pageSize: number;
+  /** First page captured during the RSC render, seeding the query cache. */
+  initialPage: Seed<ExpensesPage> | undefined;
 };
 
 /** Parse YYYY-MM-DD as a local date; new Date("YYYY-MM-DD") is UTC midnight (a day off in PH). */
@@ -71,12 +72,9 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ expenses, members, categories, currentUserId, isAdminOrOwner, groupId, totalCount, pageSize }: Props): React.ReactElement {
+export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner, groupId, pageSize, initialPage }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
-  const [extraExpenses, setExtraExpenses] = useState<ExpenseWithParticipants[]>([]);
-  const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<ExpenseWithParticipants | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -99,34 +97,36 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
       return next;
     });
   }
-  const router = useRouter();
+  const queryClient = useQueryClient();
+  const expensesQ = useExpensesInfinite(groupId, pageSize, initialPage);
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
-  // Server refreshes (realtime, mutations) re-deliver page 1 via props;
-  // dedupe by id so previously loaded extra pages don't repeat rows.
+  // Pages come from the persisted infinite query; dedupe by id so a refetched
+  // page 1 doesn't repeat rows still present in older pages.
+  const pages = expensesQ.data?.pages;
   const allExpenses = useMemo(() => {
-    const seen = new Set(expenses.map((e) => e.id));
-    return [...expenses, ...extraExpenses.filter((e) => !seen.has(e.id))];
-  }, [expenses, extraExpenses]);
-  const hasMore = allExpenses.length < totalCount;
+    const seen = new Set<string>();
+    const rows: ExpenseWithParticipants[] = [];
+    for (const page of pages ?? []) {
+      for (const expense of page.data) {
+        if (!seen.has(expense.id)) {
+          seen.add(expense.id);
+          rows.push(expense);
+        }
+      }
+    }
+    return rows;
+  }, [pages]);
+  const totalCount = pages?.[pages.length - 1]?.count ?? allExpenses.length;
+  const expenses = allExpenses;
+  const hasMore = expensesQ.hasNextPage;
+  const loadingMore = expensesQ.isFetchingNextPage;
 
   function handleLoadMore(): void {
     if (loadingMore) return;
-    setLoadingMore(true);
-    void (async () => {
-      const result = await listExpenses(groupId, page + 1, pageSize);
-      if (result.error || !result.data) {
-        toast.error(result.error ?? "Failed to load more expenses.");
-      } else {
-        const nextRows = result.data.data;
-        setExtraExpenses((prev) => {
-          const seen = new Set([...expenses, ...prev].map((e) => e.id));
-          return [...prev, ...nextRows.filter((e) => !seen.has(e.id))];
-        });
-        setPage((prev) => prev + 1);
-      }
-      setLoadingMore(false);
-    })();
+    void expensesQ.fetchNextPage().then((result) => {
+      if (result.isError) toast.error("Failed to load more expenses.");
+    });
   }
 
   const filtered = search.trim()
@@ -157,7 +157,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
       }
       toast.success("Expense deleted");
       setDeleteTarget(null);
-      router.refresh();
+      invalidateGroupData(queryClient, groupId);
     });
   }
 

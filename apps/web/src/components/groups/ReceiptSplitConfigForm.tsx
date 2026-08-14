@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { addExpense, addItemizedExpense } from "@/app/actions/expenses";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { formatCents, equalSplit } from "@template/shared";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -35,7 +36,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
     categories.find((category) => category.is_default && category.slug === "other")?.id ?? null,
   );
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const itemsSubtotal = review.items.reduce((sum, item) => sum + item.amountCents, 0);
   const canSplitByItem = review.items.length > 1;
@@ -91,7 +92,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
           return;
         }
         toast.success("Expense added!");
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
         onSaved();
       });
       return;
@@ -118,7 +119,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
         return;
       }
       toast.success("Expense added!");
-      router.refresh();
+      invalidateGroupData(queryClient, groupId);
       onSaved();
     });
   }

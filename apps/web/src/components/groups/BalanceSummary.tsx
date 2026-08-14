@@ -1,7 +1,8 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { recordPayment, undoLastPayment, undoMyLastPayment } from "@/app/actions/payments";
 import { deleteMember } from "@/app/actions/members";
@@ -101,7 +102,7 @@ export function BalanceSummary({
   const [deleteTarget, setDeleteTarget] = useState<GroupMember | null>(null);
   const [undoTarget, setUndoTarget] = useState<MemberBalance | null>(null);
   const [showUndoMine, setShowUndoMine] = useState(false);
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
@@ -145,7 +146,7 @@ export function BalanceSummary({
         setToMemberId("");
         setPaymentAmountStr("");
         toast.success("Payment recorded");
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }
@@ -157,7 +158,7 @@ export function BalanceSummary({
         toast.error(result.error);
       } else {
         toast.success("Payment undone");
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }
@@ -169,7 +170,7 @@ export function BalanceSummary({
         toast.error(result.error);
       } else {
         toast.success("Your last payment was undone");
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }
@@ -182,7 +183,7 @@ export function BalanceSummary({
         toast.error(result.error);
       } else {
         toast.success(`${deleteTarget.display_name} removed`);
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
       setDeleteTarget(null);
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ContentDialog } from "@/components/ui/ContentDialog";
 import { QuickAddExpense } from "./QuickAddExpense";
@@ -17,6 +17,7 @@ import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseDraft, ParsedReceipt } from "@template/shared/types";
 import { fuzzyMatchMember } from "@template/shared";
 import { addExpense } from "@/app/actions/expenses";
+import { invalidateGroupData } from "@/lib/query-keys";
 
 type Props = {
   open: boolean;
@@ -44,7 +45,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
   const [receiptReview, setReceiptReview] = useState<ReceiptReview | null>(null);
   const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   function handleDraft(d: ExpenseDraft): void {
     setDraft(d);
@@ -95,7 +96,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
         setDraftCategoryId(null);
         setReceipt(null);
         onClose();
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }

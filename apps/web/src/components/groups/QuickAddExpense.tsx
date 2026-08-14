@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { addExpense } from "@/app/actions/expenses";
 import { parsePHPAmount, equalSplit, formatCents } from "@template/shared";
@@ -47,7 +48,7 @@ export function QuickAddExpense({
   const [selectedIds, setSelectedIds] = useState<string[]>(members.map((m) => m.id));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const online = useOnline();
   const { enqueue } = useWebOutbox();
 
@@ -148,7 +149,7 @@ export function QuickAddExpense({
       } else {
         toast.success("Expense added!");
         resetForm();
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
         onClose?.();
       }
     });

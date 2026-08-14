@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
 import { createRecurringExpense } from "@/app/actions/recurring";
@@ -100,7 +101,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
   const [confirming, setConfirming] = useState(false);
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const online = useOnline();
   const { enqueue } = useWebOutbox();
 
@@ -497,7 +498,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
       setShowAdvanced({});
       setConfirming(false);
       toast.success("Expense added!");
-      router.refresh();
+      invalidateGroupData(queryClient, groupId);
     });
   }
 

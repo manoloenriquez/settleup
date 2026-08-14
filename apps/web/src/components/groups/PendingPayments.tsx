@@ -1,8 +1,9 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { confirmPayment, rejectPayment } from "@/app/actions/friend-payments";
 import type { PendingPayment } from "@/app/actions/friend-payments";
 import { formatCents } from "@template/shared";
@@ -12,16 +13,17 @@ import { Check, X, Clock } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
 
 type Props = {
+  groupId: string;
   pending: PendingPayment[];
   members: GroupMember[];
   currentUserId: string;
   isAdminOrOwner: boolean;
 };
 
-export function PendingPayments({ pending, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement | null {
+export function PendingPayments({ groupId, pending, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement | null {
   const [isPending, startTransition] = useTransition();
   const [resolvingId, setResolvingId] = useState<string | null>(null);
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   if (pending.length === 0) return null;
 
@@ -40,7 +42,7 @@ export function PendingPayments({ pending, members, currentUserId, isAdminOrOwne
         toast.error(result.error);
       } else {
         toast.success(action === "confirm" ? "Payment confirmed" : "Payment rejected");
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
       setResolvingId(null);
     });

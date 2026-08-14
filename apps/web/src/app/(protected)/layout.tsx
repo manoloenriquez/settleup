@@ -7,6 +7,7 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OutboxProvider } from "@/components/OutboxProvider";
 import { PendingChangesPopover } from "@/components/PendingChangesPopover";
+import { QueryProvider } from "@/components/QueryProvider";
 
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
@@ -14,24 +15,26 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   if (!profile) redirect(ROUTES.LOGIN);
 
   return (
-    <OutboxProvider>
-      <div className="min-h-screen bg-slate-50">
-        <OfflineBanner />
-        <AppNav
-          profile={{
-            email: profile.email,
-            role: profile.role,
-            full_name: profile.full_name,
-          }}
-        />
+    <QueryProvider>
+      <OutboxProvider>
+        <div className="min-h-screen bg-slate-50">
+          <OfflineBanner />
+          <AppNav
+            profile={{
+              email: profile.email,
+              role: profile.role,
+              full_name: profile.full_name,
+            }}
+          />
 
-        {/* Page content — extra bottom padding on mobile so the tab bar never overlaps content */}
-        <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-28 md:pb-8">{children}</main>
+          {/* Page content — extra bottom padding on mobile so the tab bar never overlaps content */}
+          <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8 pb-28 md:pb-8">{children}</main>
 
-        <BottomNav />
-        <InstallPrompt />
-        <PendingChangesPopover />
-      </div>
-    </OutboxProvider>
+          <BottomNav />
+          <InstallPrompt />
+          <PendingChangesPopover />
+        </div>
+      </OutboxProvider>
+    </QueryProvider>
   );
 }
