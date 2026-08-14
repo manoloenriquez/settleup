@@ -46,6 +46,13 @@ apps/web/src/
 - **Server by default.** Only add `"use client"` when you need browser APIs, event handlers, or hooks.
 - **Data fetching in Server Components.** Never use `useEffect` for data. Use `React.cache()` to deduplicate.
 - **Mutations via Server Actions.** Use `useTransition` on the client; call `router.refresh()` after success.
+- **Offline-first exception (core views only).** Dashboard, groups list, and
+  group detail read through React Query hooks (`src/hooks/queries.ts`) seeded
+  by the RSC render (`initialData`) and persisted to IndexedDB — see
+  `04-offline.md`. Query keys live in `src/lib/query-keys.ts` (kept identical
+  to mobile's). Inside these views, mutations call
+  `invalidateGroupData(queryClient, groupId)` instead of `router.refresh()`.
+  All other pages keep the RSC + `router.refresh()` convention.
 
 ## Imports
 

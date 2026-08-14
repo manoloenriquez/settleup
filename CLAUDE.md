@@ -60,7 +60,7 @@ supabase/
 
 **TypeScript:** `strict: true`, `noUncheckedIndexedAccess: true`; explicit return types on all exports; no `any`; prefer `type` over `interface`.
 
-**React (Web):** Server Components by default; `"use client"` only for event handlers/hooks/browser APIs; no `useEffect` for data; mutations via Server Actions + `useTransition`; call `router.refresh()` after mutations.
+**React (Web):** Server Components by default; `"use client"` only for event handlers/hooks/browser APIs; no `useEffect` for data; mutations via Server Actions + `useTransition`; call `router.refresh()` after mutations. Exception: the offline-first core views (dashboard, groups list, group detail) read via React Query hooks seeded by RSC `initialData` (keys in `apps/web/src/lib/query-keys.ts`) and invalidate queries instead of `router.refresh()` — see `docs/brain/04-offline.md`.
 
 **Server Actions:** `assertAuth()` → Zod validate → DB call → return `ApiResponse<T>`. Never throw to client.
 
