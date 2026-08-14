@@ -15,10 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Version comes from the root package.json "packageManager" field
+      # (pnpm@9.15.0). Specifying it here too makes action-setup fail with
+      # "Multiple versions of pnpm specified".
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
