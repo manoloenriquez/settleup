@@ -17,7 +17,7 @@ function toExecutionResult(error: RpcError | null): OutboxExecutionResult {
   return { ok: false, code: error.code, message: error.message };
 }
 
-/** Replays one outbox entry. Web queues only creates + payments (see plan). */
+/** Replays one outbox entry through the same RPCs the online path uses. */
 export const outboxExecutor: OutboxExecutor = async (
   entry: OutboxEntry,
 ): Promise<OutboxExecutionResult> => {
@@ -35,6 +35,31 @@ export const outboxExecutor: OutboxExecutor = async (
         const { error } = await supabase
           .schema("settleup")
           .rpc("create_itemized_expense", { p_input: entry.payload as Json })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "expense.update": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("update_expense", { p_input: entry.payload as Json })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "expense.update_itemized": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("update_itemized_expense", { p_input: entry.payload as Json })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "expense.delete": {
+        // Direct RLS delete; deleting an already-deleted row affects 0 rows
+        // and still succeeds, so replays are naturally idempotent.
+        const { error } = await supabase
+          .schema("settleup")
+          .from("expenses")
+          .delete()
+          .eq("id", entry.entityId)
           .abortSignal(signal);
         return toExecutionResult(error);
       }
@@ -57,8 +82,85 @@ export const outboxExecutor: OutboxExecutor = async (
           .abortSignal(signal);
         return toExecutionResult(error);
       }
-      default:
-        return { ok: false, code: null, message: `Unsupported offline action: ${entry.kind}` };
+      case "comment.create": {
+        // Client PK doubles as the idempotency key: a replay hits 23505,
+        // which the sync engine classifies as success.
+        const payload = entry.payload as {
+          expense_id: string;
+          author_user_id: string;
+          body: string;
+        };
+        const { error } = await supabase
+          .schema("settleup")
+          .from("expense_comments")
+          .insert({ id: entry.entityId, ...payload })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "group.create": {
+        const payload = entry.payload as { name: string };
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("create_group_with_owner", { p_name: payload.name, p_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "category.create": {
+        const payload = entry.payload as { name: string; icon: string; color: string };
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("create_expense_category", {
+            p_group_id: entry.groupId,
+            p_name: payload.name,
+            p_icon: payload.icon,
+            p_color: payload.color,
+            p_id: entry.entityId,
+          })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "category.update": {
+        const payload = entry.payload as {
+          name: string;
+          icon: string;
+          color: string;
+          sort_order?: number | null;
+          expected_updated_at?: string;
+        };
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("update_expense_category", {
+            p_category_id: entry.entityId,
+            p_name: payload.name,
+            p_icon: payload.icon,
+            p_color: payload.color,
+            p_sort_order: payload.sort_order ?? null,
+            p_expected_updated_at: payload.expected_updated_at ?? null,
+          })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "category.delete": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("delete_expense_category", { p_category_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "payment.confirm": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("confirm_payment", { p_payment_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "payment.reject": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("reject_payment", { p_payment_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
     }
   } catch (error) {
     return {

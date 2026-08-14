@@ -7,11 +7,29 @@ import type { OutboxEntry } from "@template/shared";
 import { useWebOutbox } from "@/components/OutboxProvider";
 import { Button } from "@/components/ui/Button";
 
-const KIND_LABELS: Partial<Record<OutboxEntry["kind"], string>> = {
+// Total Record: the compiler forces a label for every outbox kind.
+const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
   "expense.create": "Add expense",
   "expense.create_itemized": "Add itemized expense",
+  "expense.update": "Edit expense",
+  "expense.update_itemized": "Edit itemized expense",
+  "expense.delete": "Delete expense",
   "payment.record": "Record payment",
+  "payment.confirm": "Confirm payment",
+  "payment.reject": "Reject payment",
+  "comment.create": "Add comment",
+  "group.create": "Create group",
+  "category.create": "Add category",
+  "category.update": "Edit category",
+  "category.delete": "Delete category",
 };
+
+function conflictCopy(entry: OutboxEntry): string {
+  if (entry.kind === "payment.confirm" || entry.kind === "payment.reject") {
+    return "Already resolved differently by someone else.";
+  }
+  return "Changed by someone else.";
+}
 
 /**
  * Floating "N pending" chip shown while offline writes are queued; expands to
@@ -46,7 +64,7 @@ export function PendingChangesPopover(): React.ReactElement | null {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                      {KIND_LABELS[entry.kind] ?? entry.kind}
+                      {KIND_LABELS[entry.kind]}
                     </p>
                     <p className="truncate text-sm font-medium text-slate-900">
                       {entry.summary.title}
@@ -67,7 +85,7 @@ export function PendingChangesPopover(): React.ReactElement | null {
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <p className="min-w-0 truncate text-xs text-red-600">
                       {entry.lastError?.class === "conflict"
-                        ? "Changed by someone else."
+                        ? conflictCopy(entry)
                         : entry.lastError?.class === "not_found"
                           ? "Deleted by someone else."
                           : (entry.lastError?.message ?? "Sync failed.")}

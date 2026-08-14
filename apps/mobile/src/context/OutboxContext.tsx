@@ -13,6 +13,7 @@ import * as Sentry from "@sentry/react-native";
 import {
   createEmptyOutboxState,
   createSyncEngine,
+  OUTBOX_UPDATE_KINDS,
   type NewOutboxEntry,
   type OutboxEntry,
   type OutboxState,
@@ -56,6 +57,7 @@ function invalidationKeysFor(groupIds: Set<string>): (string | undefined)[][] {
       ["balances", groupId],
       ["activity", groupId],
       ["pending-payments", groupId],
+      ["categories", groupId],
       ["comments", groupId],
     );
   }
@@ -172,7 +174,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
       if (
         entry &&
         entry.lastError?.class === "conflict" &&
-        (entry.kind === "expense.update" || entry.kind === "expense.update_itemized") &&
+        OUTBOX_UPDATE_KINDS.has(entry.kind) &&
         entry.payload !== null &&
         typeof entry.payload === "object" &&
         !Array.isArray(entry.payload)

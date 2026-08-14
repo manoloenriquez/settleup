@@ -216,7 +216,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { expense_id, category_id, item_name, amount_cents, notes, expense_date, split_mode, participant_ids, custom_splits, payers } = parsed.data;
+    const { expense_id, expected_updated_at, category_id, item_name, amount_cents, notes, expense_date, split_mode, participant_ids, custom_splits, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -224,6 +224,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
     const rpcInput = split_mode === "equal"
       ? buildUpdateEqualExpenseRpcInput({
           expenseId: expense_id,
+          expectedUpdatedAt: expected_updated_at,
           categoryId: category_id,
           itemName: item_name,
           amountCents: amount_cents,
@@ -234,6 +235,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
         })
       : buildUpdateCustomExpenseRpcInput({
           expenseId: expense_id,
+          expectedUpdatedAt: expected_updated_at,
           categoryId: category_id,
           itemName: item_name,
           amountCents: amount_cents,
@@ -244,7 +246,12 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
         });
 
     const { data: result, error } = await db.rpc("update_expense", { p_input: rpcInput });
-    if (error) return { data: null, error: "Failed to update expense." };
+    if (error) {
+      if (error.code === "PT409") {
+        return { data: null, error: "This expense was changed by someone else. Refresh and try again." };
+      }
+      return { data: null, error: "Failed to update expense." };
+    }
 
     const expenseResult = parseCreateExpenseRpcResult(result);
     if (expenseResult.error) return { data: null, error: "Failed to update expense." };
@@ -265,7 +272,7 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { expense_id, category_id, item_name, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
+    const { expense_id, expected_updated_at, category_id, item_name, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -273,6 +280,7 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
     const { data: result, error } = await db.rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
         expenseId: expense_id,
+        expectedUpdatedAt: expected_updated_at,
         categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
@@ -287,7 +295,12 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
       }),
     });
 
-    if (error) return { data: null, error: "Failed to update itemized expense." };
+    if (error) {
+      if (error.code === "PT409") {
+        return { data: null, error: "This expense was changed by someone else. Refresh and try again." };
+      }
+      return { data: null, error: "Failed to update itemized expense." };
+    }
 
     const expenseResult = parseCreateExpenseRpcResult(result);
     if (expenseResult.error) return { data: null, error: "Failed to update itemized expense." };

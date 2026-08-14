@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { addMembersBatch } from "@/app/actions/members";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -16,7 +17,7 @@ export function AddMemberForm({ groupId }: Props): React.ReactElement {
   const [queue, setQueue] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function enqueue() {
@@ -53,7 +54,7 @@ export function AddMemberForm({ groupId }: Props): React.ReactElement {
       } else {
         setQueue([]);
         setInputValue("");
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }

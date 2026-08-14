@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ContentDialog } from "@/components/ui/ContentDialog";
 import { QuickAddExpense } from "./QuickAddExpense";
 import { ConversationInput } from "./ConversationInput";
 import { ReceiptUploader } from "./ReceiptUploader";
-import { ReceiptReviewForm } from "./ReceiptReviewForm";
+import { ReceiptReviewForm, type ReceiptReview } from "./ReceiptReviewForm";
+import { ReceiptSplitConfigForm } from "./ReceiptSplitConfigForm";
 import { ExpenseDraftCard } from "./ExpenseDraftCard";
 import { AddExpenseForm } from "./AddExpenseForm";
 import { CategorySelect } from "./CategoryControls";
@@ -16,6 +17,7 @@ import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseDraft, ParsedReceipt } from "@template/shared/types";
 import { fuzzyMatchMember } from "@template/shared";
 import { addExpense } from "@/app/actions/expenses";
+import { invalidateGroupData } from "@/lib/query-keys";
 
 type Props = {
   open: boolean;
@@ -40,9 +42,10 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
   const [mode, setMode] = useState<Mode>("quick");
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
   const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
+  const [receiptReview, setReceiptReview] = useState<ReceiptReview | null>(null);
   const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   function handleDraft(d: ExpenseDraft): void {
     setDraft(d);
@@ -93,7 +96,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
         setDraftCategoryId(null);
         setReceipt(null);
         onClose();
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }
@@ -102,6 +105,7 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
     setDraft(null);
     setDraftCategoryId(null);
     setReceipt(null);
+    setReceiptReview(null);
     setMode("quick");
     onClose();
   }
@@ -193,11 +197,22 @@ export function AddExpenseDialog({ open, onClose, groupId, members, categories, 
             {mode === "receipt" && !receipt && (
               <ReceiptUploader onParsed={handleReceipt} />
             )}
-            {mode === "receipt" && receipt && (
+            {mode === "receipt" && receipt && !receiptReview && (
               <ReceiptReviewForm
                 receipt={receipt}
-                onCreateDraft={handleDraft}
+                onContinue={setReceiptReview}
                 onDismiss={() => setReceipt(null)}
+              />
+            )}
+            {mode === "receipt" && receipt && receiptReview && (
+              <ReceiptSplitConfigForm
+                review={receiptReview}
+                groupId={groupId}
+                members={members}
+                categories={categories}
+                currentUserId={currentUserId}
+                onBack={() => setReceiptReview(null)}
+                onSaved={handleClose}
               />
             )}
             {mode === "detailed" && (

@@ -8,7 +8,7 @@ const rpcCalls: RpcCall[] = [];
 const tableCalls: TableCall[] = [];
 let nextError: { code: string; message: string } | null = null;
 
-vi.mock("@/lib/supabase", () => {
+vi.mock("@/lib/supabase/client", () => {
   const result = () => Promise.resolve({ data: null, error: nextError });
   return {
     supabase: {
@@ -59,7 +59,7 @@ beforeEach(() => {
   nextError = null;
 });
 
-describe("outboxExecutor kind → Supabase call mapping", () => {
+describe("web outboxExecutor kind → Supabase call mapping", () => {
   it("routes creates and updates to the matching RPC with the stored payload", async () => {
     const cases: Array<[OutboxEntry["kind"], string]> = [
       ["expense.create", "create_expense"],

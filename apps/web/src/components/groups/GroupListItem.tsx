@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
 import { archiveGroup } from "@/app/actions/groups";
@@ -30,7 +30,7 @@ function StatusBadge({ group }: { group: GroupWithStats }): React.ReactElement {
 }
 
 export function GroupListItem({ group }: Props): React.ReactElement {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const [showDelete, setShowDelete] = useState(false);
 
@@ -44,7 +44,9 @@ export function GroupListItem({ group }: Props): React.ReactElement {
       }
       toast.success(`"${group.name}" archived`);
       setShowDelete(false);
-      router.refresh();
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["archivedGroups"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     });
   }
 

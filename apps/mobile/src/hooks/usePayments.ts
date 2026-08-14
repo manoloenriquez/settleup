@@ -70,7 +70,14 @@ export function useRecordPayment(groupId: string) {
 export function useUndoLastPayment(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => undoLastPayment(groupId),
+    // Online-only: the server undoes "the latest payment" at execution time,
+    // so a deferred replay could delete a different payment recorded meanwhile.
+    mutationFn: async () => {
+      if (!onlineManager.isOnline()) {
+        return { data: null, error: "Undoing a payment needs a connection." };
+      }
+      return undoLastPayment(groupId);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });
@@ -91,9 +98,26 @@ export function usePendingPayments(groupId: string) {
 
 export function useResolvePendingPayment(groupId: string) {
   const qc = useQueryClient();
+  const { enqueue } = useOutbox();
   return useMutation({
-    mutationFn: (params: { paymentId: string; action: "confirm" | "reject" }) =>
-      resolvePendingPayment(params.paymentId, params.action),
+    mutationFn: async (params: { paymentId: string; action: "confirm" | "reject" }) => {
+      if (!onlineManager.isOnline()) {
+        await enqueue({
+          id: Crypto.randomUUID(),
+          kind: params.action === "confirm" ? "payment.confirm" : "payment.reject",
+          entityId: params.paymentId,
+          groupId,
+          payload: {},
+          createdAt: new Date().toISOString(),
+          summary: {
+            title: params.action === "confirm" ? "Confirm payment" : "Reject payment",
+            amountCents: 0,
+          },
+        });
+        return { data: null, error: null };
+      }
+      return resolvePendingPayment(params.paymentId, params.action);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["pending-payments", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
@@ -107,7 +131,12 @@ export function useResolvePendingPayment(groupId: string) {
 export function useUndoLastPaymentForMember(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (memberId: string) => undoLastPaymentForMember(memberId),
+    mutationFn: async (memberId: string) => {
+      if (!onlineManager.isOnline()) {
+        return { data: null, error: "Undoing a payment needs a connection." };
+      }
+      return undoLastPaymentForMember(memberId);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });

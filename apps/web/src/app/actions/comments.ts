@@ -8,6 +8,8 @@ import { z } from "zod";
 const expenseIdSchema = z.string().uuid("Invalid expense ID.");
 const commentIdSchema = z.string().uuid("Invalid comment ID.");
 const addSchema = z.object({
+  /** Optional client-generated id (idempotency key for offline/flaky retries). */
+  id: z.string().uuid().optional(),
   expense_id: z.string().uuid(),
   body: z.string().trim().min(1, "Comment cannot be empty.").max(500),
 });
@@ -53,6 +55,7 @@ export async function addExpenseComment(input: unknown): Promise<ApiResponse<Exp
       .schema("settleup")
       .from("expense_comments")
       .insert({
+        ...(parsed.data.id ? { id: parsed.data.id } : {}),
         expense_id: parsed.data.expense_id,
         author_user_id: user.id,
         body: parsed.data.body,
