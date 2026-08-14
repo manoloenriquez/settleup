@@ -50,7 +50,13 @@ const outboxEntrySchema = z.object({
     "expense.update_itemized",
     "expense.delete",
     "payment.record",
+    "payment.confirm",
+    "payment.reject",
     "comment.create",
+    "group.create",
+    "category.create",
+    "category.update",
+    "category.delete",
   ]),
   entityId: z.string().min(1),
   groupId: z.string().min(1),
@@ -83,6 +89,7 @@ export function parseOutboxState(raw: unknown): OutboxState {
 export const OUTBOX_UPDATE_KINDS: ReadonlySet<OutboxEntry["kind"]> = new Set<OutboxEntry["kind"]>([
   "expense.update",
   "expense.update_itemized",
+  "category.update",
 ]);
 
 const UPDATE_KINDS = OUTBOX_UPDATE_KINDS;
@@ -91,7 +98,10 @@ const CREATE_KINDS = new Set<OutboxEntry["kind"]>([
   "expense.create_itemized",
   "payment.record",
   "comment.create",
+  "group.create",
+  "category.create",
 ]);
+const DELETE_KINDS = new Set<OutboxEntry["kind"]>(["expense.delete", "category.delete"]);
 
 /**
  * Appends a new queued entry, applying the coalescing rules:
@@ -126,7 +136,7 @@ export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState 
     }
   }
 
-  if (entry.kind === "expense.delete") {
+  if (DELETE_KINDS.has(entry.kind)) {
     const hasUnsyncedCreate = state.entries.some(
       (e) => e.entityId === entry.entityId && CREATE_KINDS.has(e.kind) && e.status !== "inflight",
     );
@@ -196,7 +206,10 @@ export function markTerminalFailure(state: OutboxState, id: string, error: Outbo
     }
     if (
       index > targetIndex &&
-      e.entityId === target.entityId &&
+      // Same entity — or the entry belongs to a group whose local create
+      // failed (target.entityId is the group id for `group.create`).
+      (e.entityId === target.entityId ||
+        (target.kind === "group.create" && e.groupId === target.entityId)) &&
       (e.status === "queued" || e.status === "failed_retryable")
     ) {
       return {
@@ -238,6 +251,9 @@ export function discardEntry(state: OutboxState, id: string): OutboxState {
     entries: state.entries.filter((e) => {
       if (e.id === id) return false;
       if (dropDependents && e.entityId === target.entityId) return false;
+      // Everything queued inside a discarded local-only group can never
+      // succeed without it.
+      if (target.kind === "group.create" && e.groupId === target.entityId) return false;
       return true;
     }),
   };
@@ -257,7 +273,9 @@ export function recoverInflight(state: OutboxState): OutboxState {
 /**
  * The next entry a drain should send: the first (FIFO) entry that is `queued`,
  * or `failed_retryable` whose `nextAttemptAt` has passed — skipping any entry
- * whose entity has an earlier not-yet-synced entry (per-entity ordering).
+ * whose entity has an earlier not-yet-synced entry (per-entity ordering), and
+ * any entry whose group is itself an earlier not-yet-synced local create
+ * (a group's expenses must not race its `group.create`).
  */
 export function nextRunnable(state: OutboxState, nowISO: string): OutboxEntry | null {
   const seenEntities = new Set<string>();
@@ -267,7 +285,9 @@ export function nextRunnable(state: OutboxState, nowISO: string): OutboxEntry | 
       (entry.status === "failed_retryable" &&
         entry.nextAttemptAt !== null &&
         entry.nextAttemptAt <= nowISO);
-    if (runnable && !seenEntities.has(entry.entityId)) return entry;
+    if (runnable && !seenEntities.has(entry.entityId) && !seenEntities.has(entry.groupId)) {
+      return entry;
+    }
     seenEntities.add(entry.entityId);
   }
   return null;

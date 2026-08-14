@@ -15,8 +15,21 @@ const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
   "expense.update_itemized": "Edit itemized expense",
   "expense.delete": "Delete expense",
   "payment.record": "Record payment",
+  "payment.confirm": "Confirm payment",
+  "payment.reject": "Reject payment",
   "comment.create": "Add comment",
+  "group.create": "Create group",
+  "category.create": "Add category",
+  "category.update": "Edit category",
+  "category.delete": "Delete category",
 };
+
+function conflictCopy(entry: OutboxEntry): string {
+  if (entry.kind === "payment.confirm" || entry.kind === "payment.reject") {
+    return "Already resolved differently by someone else.";
+  }
+  return "Changed by someone else.";
+}
 
 /**
  * Floating "N pending" chip shown while offline writes are queued; expands to
@@ -72,7 +85,7 @@ export function PendingChangesPopover(): React.ReactElement | null {
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <p className="min-w-0 truncate text-xs text-red-600">
                       {entry.lastError?.class === "conflict"
-                        ? "Changed by someone else."
+                        ? conflictCopy(entry)
                         : entry.lastError?.class === "not_found"
                           ? "Deleted by someone else."
                           : (entry.lastError?.message ?? "Sync failed.")}

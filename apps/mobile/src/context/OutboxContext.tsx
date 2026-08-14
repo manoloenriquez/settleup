@@ -57,6 +57,7 @@ function invalidationKeysFor(groupIds: Set<string>): (string | undefined)[][] {
       ["balances", groupId],
       ["activity", groupId],
       ["pending-payments", groupId],
+      ["categories", groupId],
       ["comments", groupId],
     );
   }

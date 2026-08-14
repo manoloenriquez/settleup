@@ -105,6 +105,70 @@ export const outboxExecutor: OutboxExecutor = async (
           .abortSignal(signal);
         return toExecutionResult(error);
       }
+      case "group.create": {
+        const payload = entry.payload as { name: string };
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("create_group_with_owner", { p_name: payload.name, p_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "category.create": {
+        const payload = entry.payload as { name: string; icon: string; color: string };
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("create_expense_category", {
+            p_group_id: entry.groupId,
+            p_name: payload.name,
+            p_icon: payload.icon,
+            p_color: payload.color,
+            p_id: entry.entityId,
+          })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "category.update": {
+        const payload = entry.payload as {
+          name: string;
+          icon: string;
+          color: string;
+          sort_order?: number | null;
+          expected_updated_at?: string;
+        };
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("update_expense_category", {
+            p_category_id: entry.entityId,
+            p_name: payload.name,
+            p_icon: payload.icon,
+            p_color: payload.color,
+            p_sort_order: payload.sort_order ?? null,
+            p_expected_updated_at: payload.expected_updated_at ?? null,
+          })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "category.delete": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("delete_expense_category", { p_category_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "payment.confirm": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("confirm_payment", { p_payment_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "payment.reject": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("reject_payment", { p_payment_id: entry.entityId })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
     }
   } catch (error) {
     return {

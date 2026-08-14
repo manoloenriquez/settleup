@@ -3,6 +3,9 @@
 import { useTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
+import { useOfflineGuard } from "@/hooks/useOfflineGuard";
+import { useOnline } from "@/hooks/useOnline";
+import { useWebOutbox } from "@/components/OutboxProvider";
 import { toast } from "sonner";
 import { recordPayment, undoLastPayment, undoMyLastPayment } from "@/app/actions/payments";
 import { deleteMember } from "@/app/actions/members";
@@ -103,6 +106,9 @@ export function BalanceSummary({
   const [undoTarget, setUndoTarget] = useState<MemberBalance | null>(null);
   const [showUndoMine, setShowUndoMine] = useState(false);
   const queryClient = useQueryClient();
+  const guardOnline = useOfflineGuard();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
@@ -131,6 +137,33 @@ export function BalanceSummary({
       setPaymentError("Cannot pay yourself.");
       return;
     }
+
+    if (!online) {
+      const clientId = crypto.randomUUID();
+      const fromName = memberMap.get(fromMemberId)?.display_name ?? "Someone";
+      const toName = memberMap.get(toMemberId)?.display_name ?? "someone";
+      void enqueue({
+        id: clientId,
+        kind: "payment.record",
+        entityId: clientId,
+        groupId,
+        payload: {
+          group_id: groupId,
+          from_member_id: fromMemberId,
+          to_member_id: toMemberId,
+          amount_cents,
+        },
+        createdAt: new Date().toISOString(),
+        summary: { title: `${fromName} → ${toName}`, amountCents: amount_cents },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      setShowPaymentForm(false);
+      setFromMemberId("");
+      setToMemberId("");
+      setPaymentAmountStr("");
+      return;
+    }
+
     startTransition(async () => {
       const result = await recordPayment({
         group_id: groupId,
@@ -152,6 +185,9 @@ export function BalanceSummary({
   }
 
   function handleUndo(balance: MemberBalance): void {
+    // Online-only: the server undoes "the latest payment" at execution time,
+    // so a deferred replay could delete a different payment recorded meanwhile.
+    if (!guardOnline()) return;
     startTransition(async () => {
       const result = await undoLastPayment(balance.member_id);
       if (result.error) {
@@ -164,6 +200,7 @@ export function BalanceSummary({
   }
 
   function handleUndoMine(): void {
+    if (!guardOnline()) return;
     startTransition(async () => {
       const result = await undoMyLastPayment(groupId);
       if (result.error) {

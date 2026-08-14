@@ -7,6 +7,7 @@ import type { Group } from "@template/supabase";
 import { useGroupsWithStats, useArchivedGroups, type Seed } from "@/hooks/queries";
 import { GroupList } from "@/components/groups/GroupList";
 import { ArchivedGroupsSection } from "@/components/groups/ArchivedGroupsSection";
+import { usePendingGroups } from "@/hooks/useOutboxPending";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
@@ -21,6 +22,7 @@ type Props = {
 export function GroupsClient({ initialGroups, initialArchived, initialError }: Props): React.ReactElement {
   const groupsQ = useGroupsWithStats(initialGroups);
   const archivedQ = useArchivedGroups(initialArchived);
+  const pendingGroups = usePendingGroups();
 
   const groups = groupsQ.data;
   const error = groupsQ.error?.message ?? (groups ? null : initialError);
@@ -41,7 +43,31 @@ export function GroupsClient({ initialGroups, initialArchived, initialError }: P
         <p className="text-sm text-red-600">{error}</p>
       )}
 
-      {groups && groups.length === 0 && (
+      {/* Groups created offline, waiting to sync — not navigable yet */}
+      {pendingGroups.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {pendingGroups.map((pending) => (
+            <div
+              key={pending.id}
+              className="flex items-center gap-3 rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 px-4 py-3.5"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-sm font-bold text-amber-700">
+                {pending.name.trim()[0]?.toUpperCase() ?? "G"}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-slate-700">{pending.name}</p>
+                <p className="text-xs text-amber-700">
+                  {pending.status === "failed"
+                    ? "Sync failed — see pending changes"
+                    : "Will be created when you're back online"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {groups && groups.length === 0 && pendingGroups.length === 0 && (
         <Card>
           <EmptyState
             icon={Users}

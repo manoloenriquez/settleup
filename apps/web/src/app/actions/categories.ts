@@ -64,6 +64,7 @@ export async function createExpenseCategory(input: unknown): Promise<ApiResponse
       p_name: parsed.data.name,
       p_icon: parsed.data.icon ?? "circle-ellipsis",
       p_color: parsed.data.color ?? DEFAULT_CATEGORY_COLOR,
+      ...(parsed.data.id ? { p_id: parsed.data.id } : {}),
     });
 
     if (error) return { data: null, error: error.message };
@@ -94,9 +95,15 @@ export async function updateExpenseCategory(input: unknown): Promise<ApiResponse
       p_icon: parsed.data.icon ?? "circle-ellipsis",
       p_color: parsed.data.color ?? DEFAULT_CATEGORY_COLOR,
       p_sort_order: parsed.data.sort_order ?? null,
+      p_expected_updated_at: parsed.data.expected_updated_at ?? null,
     });
 
-    if (error) return { data: null, error: error.message };
+    if (error) {
+      if (error.code === "PT409") {
+        return { data: null, error: "This category was changed by someone else. Refresh and try again." };
+      }
+      return { data: null, error: error.message };
+    }
 
     const parsedResult = categoryRpcResultSchema.safeParse(result);
     if (!parsedResult.success) return { data: null, error: "Failed to parse category." };

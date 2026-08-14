@@ -669,7 +669,7 @@ export type Database = {
         Returns: Json;
       };
       create_group_with_owner: {
-        Args: { p_name: string };
+        Args: { p_name: string; p_id?: string };
         Returns: Json;
       };
       create_expense_category: {
@@ -678,6 +678,7 @@ export type Database = {
           p_name: string;
           p_icon?: string;
           p_color?: string;
+          p_id?: string;
         };
         Returns: Json;
       };
@@ -688,6 +689,7 @@ export type Database = {
           p_icon: string;
           p_color: string;
           p_sort_order?: number | null;
+          p_expected_updated_at?: string | null;
         };
         Returns: Json;
       };

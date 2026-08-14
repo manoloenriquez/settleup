@@ -2,7 +2,10 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import * as Crypto from "expo-crypto";
+import { onlineManager } from "@tanstack/react-query";
 import { useCreateGroup } from "@/hooks/useGroups";
+import { useOutbox } from "@/context/OutboxContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { useToast } from "@/components/ui";
@@ -13,9 +16,27 @@ export default function NewGroupScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
   const createGroup = useCreateGroup();
+  const outbox = useOutbox();
 
   async function handleCreate() {
     if (!name.trim()) return;
+
+    if (!onlineManager.isOnline()) {
+      // Queue for replay (client id doubles as the group id). Never navigate
+      // into the pending group — it doesn't exist server-side yet.
+      const clientId = Crypto.randomUUID();
+      await outbox.enqueue({
+        id: clientId,
+        kind: "group.create",
+        entityId: clientId,
+        groupId: clientId,
+        payload: { name: name.trim() },
+        createdAt: new Date().toISOString(),
+        summary: { title: name.trim(), amountCents: 0 },
+      });
+      router.back();
+      return;
+    }
 
     const result = await createGroup.mutateAsync(name.trim());
     if (result.error) {

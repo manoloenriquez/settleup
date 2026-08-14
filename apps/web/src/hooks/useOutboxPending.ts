@@ -64,6 +64,38 @@ export function usePendingPaymentRecords(groupId: string): PendingPaymentRow[] {
   );
 }
 
+export type PendingGroupRow = {
+  id: string;
+  name: string;
+  status: OutboxEntryStatus;
+};
+
+/** Groups created offline that have not synced yet (rendered non-navigable). */
+export function usePendingGroups(): PendingGroupRow[] {
+  const { entries } = useWebOutbox();
+  return useMemo(
+    () =>
+      entries
+        .filter((e) => e.kind === "group.create")
+        .map((e) => ({ id: e.entityId, name: e.summary.title, status: e.status })),
+    [entries],
+  );
+}
+
+/** Payment resolutions (confirm/reject) queued offline, keyed by payment id. */
+export function usePendingPaymentResolutions(groupId: string): Map<string, "confirm" | "reject"> {
+  const { entries } = useWebOutbox();
+  return useMemo(() => {
+    const map = new Map<string, "confirm" | "reject">();
+    for (const e of entries) {
+      if (e.groupId !== groupId) continue;
+      if (e.kind === "payment.confirm") map.set(e.entityId, "confirm");
+      if (e.kind === "payment.reject") map.set(e.entityId, "reject");
+    }
+    return map;
+  }, [entries, groupId]);
+}
+
 /** Total queued changes (for banners) and failed count. */
 export function usePendingCounts(): { pending: number; failed: number } {
   const { entries } = useWebOutbox();

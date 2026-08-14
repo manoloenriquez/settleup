@@ -4,6 +4,9 @@ import { useTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invalidateGroupData } from "@/lib/query-keys";
+import { useOnline } from "@/hooks/useOnline";
+import { useWebOutbox } from "@/components/OutboxProvider";
+import { usePendingPaymentResolutions } from "@/hooks/useOutboxPending";
 import { confirmPayment, rejectPayment } from "@/app/actions/friend-payments";
 import type { PendingPayment } from "@/app/actions/friend-payments";
 import { formatCents } from "@template/shared";
@@ -24,6 +27,9 @@ export function PendingPayments({ groupId, pending, members, currentUserId, isAd
   const [isPending, startTransition] = useTransition();
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
+  const queuedResolutions = usePendingPaymentResolutions(groupId);
 
   if (pending.length === 0) return null;
 
@@ -35,6 +41,23 @@ export function PendingPayments({ groupId, pending, members, currentUserId, isAd
   }
 
   function handleResolve(payment: PendingPayment, action: "confirm" | "reject"): void {
+    if (!online) {
+      void enqueue({
+        id: crypto.randomUUID(),
+        kind: action === "confirm" ? "payment.confirm" : "payment.reject",
+        entityId: payment.id,
+        groupId,
+        payload: {},
+        createdAt: new Date().toISOString(),
+        summary: {
+          title: action === "confirm" ? "Confirm payment" : "Reject payment",
+          amountCents: payment.amount_cents,
+        },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      return;
+    }
+
     setResolvingId(payment.id);
     startTransition(async () => {
       const result = action === "confirm" ? await confirmPayment(payment.id) : await rejectPayment(payment.id);
@@ -72,7 +95,11 @@ export function PendingPayments({ groupId, pending, members, currentUserId, isAd
                 </p>
                 {payment.note && <p className="text-xs text-slate-500 mt-0.5 truncate">“{payment.note}”</p>}
               </div>
-              {resolvable ? (
+              {queuedResolutions.has(payment.id) ? (
+                <span className="shrink-0 text-xs font-semibold text-amber-700">
+                  {queuedResolutions.get(payment.id) === "confirm" ? "Confirming…" : "Rejecting…"}
+                </span>
+              ) : resolvable ? (
                 <div className="flex gap-1.5 shrink-0">
                   <Button
                     size="sm"
