@@ -9,6 +9,8 @@ import { getMembersWithBalances, getCreditorProfiles } from "@/app/actions/balan
 import { listExpenses, listExpenseSummaries } from "@/app/actions/expenses";
 import { listExpenseCategories } from "@/app/actions/categories";
 import { listPendingPayments } from "@/app/actions/friend-payments";
+import { listExpenseComments } from "@/app/actions/comments";
+import type { ExpenseComment } from "@/app/actions/comments";
 import type { ActivityItem, RecentActivityItem } from "@/app/actions/activity";
 import type { ExpenseSummary, ExpenseWithParticipants } from "@/app/actions/expenses";
 import type { PendingPayment } from "@/app/actions/friend-payments";
@@ -118,6 +120,13 @@ export function useCategoriesQuery(groupId: string, seed?: Seed<ExpenseCategory[
     queryFn: () => unwrap(listExpenseCategories(groupId)),
     initialData: seed?.data,
     initialDataUpdatedAt: seed?.updatedAt,
+  });
+}
+
+export function useCommentsQuery(expenseId: string): UseQueryResult<ExpenseComment[]> {
+  return useQuery({
+    queryKey: queryKeys.comments(expenseId),
+    queryFn: () => unwrap(listExpenseComments(expenseId)),
   });
 }
 

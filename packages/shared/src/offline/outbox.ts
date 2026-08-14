@@ -75,7 +75,17 @@ export function parseOutboxState(raw: unknown): OutboxState {
 // Transitions
 // ---------------------------------------------------------------------------
 
-const UPDATE_KINDS = new Set<OutboxEntry["kind"]>(["expense.update", "expense.update_itemized"]);
+/**
+ * Kinds whose payload carries an `expected_updated_at` CAS token. Exported so
+ * both platforms' conflict-retry ("reapply on top of latest") uses one
+ * definition.
+ */
+export const OUTBOX_UPDATE_KINDS: ReadonlySet<OutboxEntry["kind"]> = new Set<OutboxEntry["kind"]>([
+  "expense.update",
+  "expense.update_itemized",
+]);
+
+const UPDATE_KINDS = OUTBOX_UPDATE_KINDS;
 const CREATE_KINDS = new Set<OutboxEntry["kind"]>([
   "expense.create",
   "expense.create_itemized",

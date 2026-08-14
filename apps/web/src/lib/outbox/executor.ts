@@ -17,7 +17,7 @@ function toExecutionResult(error: RpcError | null): OutboxExecutionResult {
   return { ok: false, code: error.code, message: error.message };
 }
 
-/** Replays one outbox entry. Web queues only creates + payments (see plan). */
+/** Replays one outbox entry through the same RPCs the online path uses. */
 export const outboxExecutor: OutboxExecutor = async (
   entry: OutboxEntry,
 ): Promise<OutboxExecutionResult> => {
@@ -38,6 +38,31 @@ export const outboxExecutor: OutboxExecutor = async (
           .abortSignal(signal);
         return toExecutionResult(error);
       }
+      case "expense.update": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("update_expense", { p_input: entry.payload as Json })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "expense.update_itemized": {
+        const { error } = await supabase
+          .schema("settleup")
+          .rpc("update_itemized_expense", { p_input: entry.payload as Json })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "expense.delete": {
+        // Direct RLS delete; deleting an already-deleted row affects 0 rows
+        // and still succeeds, so replays are naturally idempotent.
+        const { error } = await supabase
+          .schema("settleup")
+          .from("expenses")
+          .delete()
+          .eq("id", entry.entityId)
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
       case "payment.record": {
         const payload = entry.payload as {
           group_id: string;
@@ -54,6 +79,21 @@ export const outboxExecutor: OutboxExecutor = async (
             p_amount_cents: payload.amount_cents,
             p_id: entry.entityId,
           })
+          .abortSignal(signal);
+        return toExecutionResult(error);
+      }
+      case "comment.create": {
+        // Client PK doubles as the idempotency key: a replay hits 23505,
+        // which the sync engine classifies as success.
+        const payload = entry.payload as {
+          expense_id: string;
+          author_user_id: string;
+          body: string;
+        };
+        const { error } = await supabase
+          .schema("settleup")
+          .from("expense_comments")
+          .insert({ id: entry.entityId, ...payload })
           .abortSignal(signal);
         return toExecutionResult(error);
       }

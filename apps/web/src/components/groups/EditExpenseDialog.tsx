@@ -6,10 +6,18 @@ import { toast } from "sonner";
 import { updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { formatCents, parsePHPAmount, equalSplit, isEqualShareSplit } from "@template/shared";
+import type { OutboxJson } from "@template/shared";
+import {
+  buildUpdateCustomExpenseRpcInput,
+  buildUpdateEqualExpenseRpcInput,
+  buildUpdateItemizedExpenseRpcInput,
+} from "@template/supabase";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { CategorySelect } from "./CategoryControls";
 import { MemberChips } from "./MemberChips";
+import { useOnline } from "@/hooks/useOnline";
+import { useWebOutbox } from "@/components/OutboxProvider";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
@@ -85,6 +93,8 @@ type InnerProps = {
 function EditExpenseDialogInner({ expense, members, categories, onClose }: InnerProps): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
   const [name, setName] = useState(expense.item_name);
@@ -148,57 +158,106 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
       }
     }
 
+    const payerAmounts = scalePositiveAmounts(
+      expense.payers.map((payer) => payer.paid_cents),
+      parsedAmount,
+    );
+    if (!payerAmounts) {
+      toast.error("Amount is too small to preserve payer contributions.");
+      return;
+    }
+
+    const useEqual = wasEqual || participantsChanged;
+    const customSplitAmounts = isItemized || useEqual
+      ? null
+      : scalePositiveAmounts(
+          expense.participants.map((participant) => participant.share_cents),
+          parsedAmount,
+        );
+    if (!isItemized && !useEqual && !customSplitAmounts) {
+      toast.error("Amount is too small to preserve custom splits.");
+      return;
+    }
+
+    const itemAmounts = isItemized
+      ? scalePositiveAmounts(items.map((item) => item.amount_cents), parsedAmount)
+      : null;
+    if (isItemized && !itemAmounts) {
+      toast.error("Amount is too small to preserve itemized shares.");
+      return;
+    }
+
+    const payers = expense.payers.map((payer, index) => ({
+      memberId: payer.member_id,
+      paidCents: payerAmounts[index]!,
+    }));
+    const common = {
+      expenseId: expense.id,
+      expectedUpdatedAt: expense.updated_at,
+      categoryId,
+      itemName: name.trim(),
+      amountCents: parsedAmount,
+      notes: expense.notes ?? undefined,
+      expenseDate: date || undefined,
+      payers,
+    };
+    const rpcInput = isItemized
+      ? buildUpdateItemizedExpenseRpcInput({
+          ...common,
+          lineItems: items.map((item, index) => ({
+            name: item.name,
+            amountCents: itemAmounts![index]!,
+            participantIds: itemParticipantIds[index] ?? [],
+          })),
+        })
+      : useEqual
+        ? buildUpdateEqualExpenseRpcInput({ ...common, participantIds })
+        : buildUpdateCustomExpenseRpcInput({
+            ...common,
+            customSplits: expense.participants.map((participant, index) => ({
+              memberId: participant.member_id,
+              shareCents: customSplitAmounts![index]!,
+            })),
+          });
+
+    if (!online) {
+      // Queue the exact RPC input for replay on reconnect; the entry chains
+      // on the expense id, so it coalesces with earlier queued edits and is
+      // cancelled by a queued delete.
+      void enqueue({
+        id: crypto.randomUUID(),
+        kind: isItemized ? "expense.update_itemized" : "expense.update",
+        entityId: expense.id,
+        groupId: expense.group_id,
+        payload: JSON.parse(JSON.stringify(rpcInput)) as OutboxJson,
+        createdAt: new Date().toISOString(),
+        summary: { title: name.trim(), amountCents: parsedAmount },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      onClose();
+      return;
+    }
+
     startTransition(async () => {
-      const payerAmounts = scalePositiveAmounts(
-        expense.payers.map((payer) => payer.paid_cents),
-        parsedAmount,
-      );
-      if (!payerAmounts) {
-        toast.error("Amount is too small to preserve payer contributions.");
-        return;
-      }
-
-      const useEqual = wasEqual || participantsChanged;
-      const customSplitAmounts = isItemized || useEqual
-        ? null
-        : scalePositiveAmounts(
-            expense.participants.map((participant) => participant.share_cents),
-            parsedAmount,
-          );
-      if (!isItemized && !useEqual && !customSplitAmounts) {
-        toast.error("Amount is too small to preserve custom splits.");
-        return;
-      }
-
       const result = isItemized
-        ? await (async () => {
-            const itemAmounts = scalePositiveAmounts(
-              items.map((item) => item.amount_cents),
-              parsedAmount,
-            );
-            if (!itemAmounts) {
-              return { data: null, error: "Amount is too small to preserve itemized shares." };
-            }
-
-            return updateItemizedExpense({
-              expense_id: expense.id,
-              expected_updated_at: expense.updated_at,
-              category_id: categoryId,
-              item_name: name.trim(),
-              amount_cents: parsedAmount,
-              notes: expense.notes ?? undefined,
-              expense_date: date || undefined,
-              payers: expense.payers.map((payer, index) => ({
-                member_id: payer.member_id,
-                paid_cents: payerAmounts[index]!,
-              })),
-              line_items: items.map((item, index) => ({
-                name: item.name,
-                amount_cents: itemAmounts[index]!,
-                participant_ids: itemParticipantIds[index] ?? [],
-              })),
-            });
-          })()
+        ? await updateItemizedExpense({
+            expense_id: expense.id,
+            expected_updated_at: expense.updated_at,
+            category_id: categoryId,
+            item_name: name.trim(),
+            amount_cents: parsedAmount,
+            notes: expense.notes ?? undefined,
+            expense_date: date || undefined,
+            payers: expense.payers.map((payer, index) => ({
+              member_id: payer.member_id,
+              paid_cents: payerAmounts[index]!,
+            })),
+            line_items: items.map((item, index) => ({
+              name: item.name,
+              amount_cents: itemAmounts![index]!,
+              participant_ids: itemParticipantIds[index] ?? [],
+            })),
+          })
         : await updateExpense({
             expense_id: expense.id,
             expected_updated_at: expense.updated_at,

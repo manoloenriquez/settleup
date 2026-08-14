@@ -24,7 +24,9 @@ export const queryKeys = {
 
 /** Keys to invalidate after outbox drains touch the given groups. */
 export function invalidationKeysFor(groupIds: Set<string>): (string | undefined)[][] {
-  const keys: (string | undefined)[][] = [["dashboard"], ["groups"]];
+  // Comment threads key by expense id, so invalidate the whole root — only
+  // mounted threads actually refetch.
+  const keys: (string | undefined)[][] = [["dashboard"], ["groups"], ["comments"]];
   for (const groupId of groupIds) {
     keys.push(
       ["expenses", groupId],
@@ -34,7 +36,6 @@ export function invalidationKeysFor(groupIds: Set<string>): (string | undefined)
       ["activity", groupId],
       ["pending-payments", groupId],
       ["categories", groupId],
-      ["comments", groupId],
     );
   }
   return keys;

@@ -7,10 +7,15 @@ import type { OutboxEntry } from "@template/shared";
 import { useWebOutbox } from "@/components/OutboxProvider";
 import { Button } from "@/components/ui/Button";
 
-const KIND_LABELS: Partial<Record<OutboxEntry["kind"], string>> = {
+// Total Record: the compiler forces a label for every outbox kind.
+const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
   "expense.create": "Add expense",
   "expense.create_itemized": "Add itemized expense",
+  "expense.update": "Edit expense",
+  "expense.update_itemized": "Edit itemized expense",
+  "expense.delete": "Delete expense",
   "payment.record": "Record payment",
+  "comment.create": "Add comment",
 };
 
 /**
@@ -46,7 +51,7 @@ export function PendingChangesPopover(): React.ReactElement | null {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                      {KIND_LABELS[entry.kind] ?? entry.kind}
+                      {KIND_LABELS[entry.kind]}
                     </p>
                     <p className="truncate text-sm font-medium text-slate-900">
                       {entry.summary.title}

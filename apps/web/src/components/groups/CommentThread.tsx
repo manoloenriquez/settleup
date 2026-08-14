@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { listExpenseComments, addExpenseComment, deleteExpenseComment } from "@/app/actions/comments";
-import type { ExpenseComment } from "@/app/actions/comments";
+import { addExpenseComment, deleteExpenseComment } from "@/app/actions/comments";
+import { queryKeys } from "@/lib/query-keys";
+import { useCommentsQuery } from "@/hooks/queries";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Trash2 } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
+import type { OutboxJson } from "@template/shared";
+import { useOnline } from "@/hooks/useOnline";
 import { useOfflineGuard } from "@/hooks/useOfflineGuard";
+import { useWebOutbox } from "@/components/OutboxProvider";
 
 type Props = {
   expenseId: string;
+  groupId: string;
   members: GroupMember[];
   currentUserId: string;
 };
@@ -25,38 +31,68 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
-export function CommentThread({ expenseId, members, currentUserId }: Props): React.ReactElement {
-  const [comments, setComments] = useState<ExpenseComment[] | null>(null);
+export function CommentThread({ expenseId, groupId, members, currentUserId }: Props): React.ReactElement {
+  const commentsQ = useCommentsQuery(expenseId);
+  const queryClient = useQueryClient();
   const [body, setBody] = useState("");
   const [isPending, startTransition] = useTransition();
+  const online = useOnline();
   const guardOnline = useOfflineGuard();
+  const { entries, enqueue } = useWebOutbox();
+
+  const comments = commentsQ.data ?? null;
+
+  // Comments queued offline for this expense — render-time overlay.
+  const pendingComments = useMemo(
+    () =>
+      entries.filter(
+        (e) =>
+          e.kind === "comment.create" &&
+          e.payload !== null &&
+          typeof e.payload === "object" &&
+          !Array.isArray(e.payload) &&
+          e.payload["expense_id"] === expenseId,
+      ),
+    [entries, expenseId],
+  );
 
   const nameByUserId = new Map(
     members.filter((m) => m.user_id !== null).map((m) => [m.user_id as string, m.display_name]),
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    void listExpenseComments(expenseId).then((result) => {
-      if (!cancelled) setComments(result.data ?? []);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [expenseId]);
-
   function handleSend(): void {
     const trimmed = body.trim();
     if (!trimmed) return;
-    if (!guardOnline()) return;
+    const clientId = crypto.randomUUID();
+
+    if (!online) {
+      const payload: OutboxJson = {
+        expense_id: expenseId,
+        author_user_id: currentUserId,
+        body: trimmed,
+      };
+      void enqueue({
+        id: clientId,
+        kind: "comment.create",
+        entityId: clientId,
+        groupId,
+        payload,
+        createdAt: new Date().toISOString(),
+        summary: { title: trimmed.slice(0, 40), amountCents: 0 },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      setBody("");
+      return;
+    }
+
     startTransition(async () => {
-      const result = await addExpenseComment({ expense_id: expenseId, body: trimmed });
+      const result = await addExpenseComment({ id: clientId, expense_id: expenseId, body: trimmed });
       if (result.error || !result.data) {
         toast.error(result.error ?? "Failed to add comment.");
         return;
       }
-      setComments((prev) => [...(prev ?? []), result.data!]);
       setBody("");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(expenseId) });
     });
   }
 
@@ -68,14 +104,14 @@ export function CommentThread({ expenseId, members, currentUserId }: Props): Rea
         toast.error(result.error);
         return;
       }
-      setComments((prev) => (prev ?? []).filter((c) => c.id !== commentId));
+      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(expenseId) });
     });
   }
 
   return (
     <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 flex flex-col gap-2">
       {comments === null && <p className="text-xs text-slate-400">Loading comments…</p>}
-      {comments !== null && comments.length === 0 && (
+      {comments !== null && comments.length === 0 && pendingComments.length === 0 && (
         <p className="text-xs text-slate-400">No comments yet.</p>
       )}
       {(comments ?? []).map((comment) => {
@@ -101,6 +137,27 @@ export function CommentThread({ expenseId, members, currentUserId }: Props): Rea
                 <Trash2 size={13} />
               </button>
             )}
+          </div>
+        );
+      })}
+      {pendingComments.map((entry) => {
+        const commentBody =
+          entry.payload !== null && typeof entry.payload === "object" && !Array.isArray(entry.payload)
+            ? String(entry.payload["body"] ?? "")
+            : "";
+        const authorName = nameByUserId.get(currentUserId) ?? "You";
+        return (
+          <div key={entry.id} className="flex items-start gap-2 opacity-70">
+            <Avatar name={authorName} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs">
+                <span className="font-semibold text-slate-700">{authorName}</span>{" "}
+                <span className="text-amber-600">
+                  {entry.status === "failed" ? "sync failed" : "sending…"}
+                </span>
+              </p>
+              <p className="text-sm text-slate-700 break-words">{commentBody}</p>
+            </div>
           </div>
         );
       })}

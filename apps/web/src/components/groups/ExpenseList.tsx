@@ -7,6 +7,8 @@ import { deleteExpense } from "@/app/actions/expenses";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { useExpensesInfinite, type Seed, type ExpensesPage } from "@/hooks/queries";
 import { usePendingExpenses } from "@/hooks/useOutboxPending";
+import { useOnline } from "@/hooks/useOnline";
+import { useWebOutbox } from "@/components/OutboxProvider";
 import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -99,6 +101,8 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
     });
   }
   const queryClient = useQueryClient();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
   const expensesQ = useExpensesInfinite(groupId, pageSize, initialPage);
   const pendingExpenses = usePendingExpenses(groupId);
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
@@ -150,6 +154,25 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
 
   function handleDelete(): void {
     if (!deleteTarget) return;
+
+    if (!online) {
+      // Queue the delete for replay; if the expense itself is a queued
+      // offline create, the reducer cancels the whole local chain instead.
+      const target = allExpenses.find((e) => e.id === deleteTarget);
+      void enqueue({
+        id: crypto.randomUUID(),
+        kind: "expense.delete",
+        entityId: deleteTarget,
+        groupId,
+        payload: {},
+        createdAt: new Date().toISOString(),
+        summary: { title: target ? `Delete "${target.item_name}"` : "Delete expense", amountCents: 0 },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      setDeleteTarget(null);
+      return;
+    }
+
     startTransition(async () => {
       const result = await deleteExpense(deleteTarget);
       if (result.error) {
@@ -400,7 +423,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
 
                   {/* Comment thread */}
                   {commentIds.has(expense.id) && (
-                    <CommentThread expenseId={expense.id} members={members} currentUserId={currentUserId} />
+                    <CommentThread expenseId={expense.id} groupId={groupId} members={members} currentUserId={currentUserId} />
                   )}
                 </div>
               );
