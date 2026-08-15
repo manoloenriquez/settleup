@@ -14,9 +14,11 @@ const rateLimitResultSchema = z.object({
  *
  * Must run AFTER `authMiddleware`.
  *
- * Fail-open on RPC errors: if the RPC or parse fails, the request proceeds.
- * This mirrors the web fallback behavior — we prefer availability over
- * strict enforcement when the DB is misbehaving.
+ * Fail-closed on RPC errors: this middleware only guards the OpenAI-billed
+ * /ai/* routes, where an unenforced limit means unbounded third-party spend.
+ * If the limiter backend (RPC) fails or returns an unparseable result we
+ * return 503 rather than letting the request through unmetered. Non-billed
+ * routes don't mount this middleware, so they are unaffected.
  */
 export const rateLimitMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
   const token = c.get("token");
@@ -24,14 +26,20 @@ export const rateLimitMiddleware = createMiddleware<AuthEnv>(async (c, next) => 
 
   const { data, error } = await supabase.rpc("consume_ai_rate_limit");
   if (error) {
-    await next();
-    return undefined;
+    console.error("[rate-limit] consume_ai_rate_limit RPC failed:", error.message);
+    return c.json(
+      { data: null, error: "Rate limiter unavailable. Please try again shortly." },
+      503,
+    );
   }
 
   const parsed = rateLimitResultSchema.safeParse(data);
   if (!parsed.success) {
-    await next();
-    return undefined;
+    console.error("[rate-limit] unexpected consume_ai_rate_limit result:", parsed.error.message);
+    return c.json(
+      { data: null, error: "Rate limiter unavailable. Please try again shortly." },
+      503,
+    );
   }
 
   if (!parsed.data.allowed) {

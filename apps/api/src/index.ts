@@ -14,6 +14,8 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
   .map((o) => o.trim())
   .filter(Boolean);
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const app = new Hono();
 
 app.use("*", logger());
@@ -23,9 +25,17 @@ app.use(
   cors({
     origin: (origin) => {
       if (!origin) return null;
-      // Allow exact matches + any Expo Go dev URLs (exp://…)
       if (allowedOrigins.includes(origin)) return origin;
-      if (origin.startsWith("exp://") || origin.startsWith("exps://")) return origin;
+      // Expo Go / dev-client URLs (exp://192.168.x.x:8081 etc.) vary per
+      // machine and network, so they can't be enumerated in ALLOWED_ORIGINS.
+      // Reflecting them is safe to limit to local development: CORS is a
+      // browser mechanism — the shipped native app's fetch() sends no Origin
+      // header and is unaffected by this list — so in production reflecting
+      // arbitrary exp:// origins would only ever serve an attacker spoofing
+      // the header, not a real client. Fail closed there.
+      if (!isProduction && (origin.startsWith("exp://") || origin.startsWith("exps://"))) {
+        return origin;
+      }
       return null;
     },
     allowHeaders: ["Authorization", "Content-Type"],
