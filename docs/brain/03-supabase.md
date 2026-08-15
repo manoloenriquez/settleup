@@ -44,6 +44,22 @@ pnpm supabase db push --linked
 
 **Never edit an already-applied migration.** Always write a new one.
 
+**Recreating a SECURITY DEFINER function? Re-check its `search_path`.**
+`DROP FUNCTION` + `CREATE FUNCTION` discards the function's config, including
+any `ALTER FUNCTION … SET search_path` applied by a later migration — so a
+recreation can silently revert an earlier fix. Anything calling pgcrypto
+(`gen_random_bytes`, used for share tokens and invite codes) needs
+`SET search_path = settleup, extensions`; Supabase installs pgcrypto in the
+`extensions` schema, which a bare `search_path = settleup` hides. See
+`20260602000003`, `20260615000000`, and `20260814093000` — three separate
+fixes for this same trap. Verify with:
+
+```sql
+SELECT proname, proconfig FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'settleup' AND p.prosrc LIKE '%gen_random_bytes%';
+```
+
 ## Row Level Security
 
 **Every table must have RLS enabled. No exceptions.**
