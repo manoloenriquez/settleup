@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -15,6 +15,9 @@ type Props = {
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
+  /** Dialog state lives in GroupDetailClient so the FAB opens it directly. */
+  showExpenseDialog: boolean;
+  onShowExpenseDialogChange: (open: boolean) => void;
 };
 
 export function GroupHeader({
@@ -24,20 +27,22 @@ export function GroupHeader({
   members,
   categories,
   currentUserId,
+  showExpenseDialog,
+  onShowExpenseDialogChange,
 }: Props): React.ReactElement {
-  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
-  // `?add=expense` deep link — used by the bottom-nav center FAB.
+  // `?add=expense` deep link — used by the bottom-nav center FAB from OTHER
+  // pages (on this page the FAB opens the dialog via local state).
   const addParam = searchParams.get("add");
   useEffect(() => {
     if (addParam === "expense") {
-      setShowExpenseDialog(true);
+      onShowExpenseDialogChange(true);
       router.replace(pathname, { scroll: false });
     }
-  }, [addParam, pathname, router]);
+  }, [addParam, pathname, router, onShowExpenseDialogChange]);
 
   return (
     <>
@@ -90,7 +95,7 @@ export function GroupHeader({
             </Link>
 
             {/* Primary CTA */}
-            <Button size="sm" leftIcon={Plus} onClick={() => setShowExpenseDialog(true)}>
+            <Button size="sm" leftIcon={Plus} onClick={() => onShowExpenseDialogChange(true)}>
               Add Expense
             </Button>
           </div>
@@ -99,7 +104,7 @@ export function GroupHeader({
 
       <AddExpenseDialog
         open={showExpenseDialog}
-        onClose={() => setShowExpenseDialog(false)}
+        onClose={() => onShowExpenseDialogChange(false)}
         groupId={groupId}
         members={members}
         categories={categories}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { simplifyDebts, formatCents } from "@template/shared";
 import { computeInsights } from "@template/ai/insights";
@@ -78,6 +79,7 @@ type Props = {
 };
 
 export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement {
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const groupQ = useGroupRow(groupId);
   const currentUserIdOrNull = useCurrentUserId();
   const paymentProfileQ = usePaymentProfile();
@@ -224,6 +226,8 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         members={members}
         categories={categories}
         currentUserId={currentUserId}
+        showExpenseDialog={showExpenseDialog}
+        onShowExpenseDialogChange={setShowExpenseDialog}
       />
 
       <GroupSetupChecklist groupId={groupId} items={setupItems} />
@@ -362,7 +366,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         }
       />
 
-      <GroupFab groupId={groupId} />
+      <GroupFab onClick={() => setShowExpenseDialog(true)} />
     </div>
   );
 }
