@@ -15,7 +15,7 @@
     "@supabase/supabase-js": "^2.97.0",
     "@template/ai": "workspace:*",
     "@template/shared": "workspace:*",
-    "hono": "^4.6.0",
+    "hono": "^4.13.2",
     "tsx": "^4.19.0",
     "zod": "^4.0.0"
   },
