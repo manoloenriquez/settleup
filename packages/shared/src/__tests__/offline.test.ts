@@ -443,3 +443,102 @@ describe("createSyncEngine", () => {
     expect(engine.getState().entries).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// New kinds: groups, categories, payment resolutions
+// ---------------------------------------------------------------------------
+
+describe("group/category/payment-resolution kinds", () => {
+  it("parses persisted states containing every new kind", () => {
+    const kinds: OutboxEntryKind[] = [
+      "group.create",
+      "category.create",
+      "category.update",
+      "category.delete",
+      "payment.confirm",
+      "payment.reject",
+    ];
+    let state = createEmptyOutboxState();
+    for (const kind of kinds) {
+      state = enqueue(state, makeInput({ kind }));
+    }
+    expect(parseOutboxState(JSON.parse(JSON.stringify(state))).entries).toHaveLength(kinds.length);
+  });
+
+  it("coalesces a second queued category.update of the same category", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ kind: "category.update", entityId: "cat-1", payload: { name: "Food" } }));
+    state = enqueue(state, makeInput({ kind: "category.update", entityId: "cat-1", payload: { name: "Food & Drink" } }));
+    expect(state.entries).toHaveLength(1);
+    expect(state.entries[0]!.payload).toEqual({ name: "Food & Drink" });
+  });
+
+  it("category.delete cancels an unsynced category.create chain locally", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ kind: "category.create", entityId: "cat-1" }));
+    state = enqueue(state, makeInput({ kind: "category.update", entityId: "cat-1" }));
+    state = enqueue(state, makeInput({ kind: "category.delete", entityId: "cat-1" }));
+    expect(state.entries).toHaveLength(0);
+  });
+
+  it("category.delete of a server category drops queued updates and keeps the delete", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ kind: "category.update", entityId: "cat-9" }));
+    state = enqueue(state, makeInput({ kind: "category.delete", entityId: "cat-9" }));
+    expect(state.entries).toHaveLength(1);
+    expect(state.entries[0]!.kind).toBe("category.delete");
+  });
+});
+
+describe("group dependency ordering", () => {
+  it("does not run a dependent entry before its group.create", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
+    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
+    // group.create runs first
+    expect(nextRunnable(state, new Date().toISOString())?.id).toBe("g");
+    // while the group.create is backing off, the dependent expense must wait
+    const backingOff: OutboxState = {
+      entries: state.entries.map((e) =>
+        e.id === "g"
+          ? { ...e, status: "failed_retryable" as const, nextAttemptAt: "2999-01-01T00:00:00.000Z" }
+          : e,
+      ),
+    };
+    expect(nextRunnable(backingOff, new Date().toISOString())).toBeNull();
+  });
+
+  it("terminal group.create failure blocks the group's queued entries", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
+    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
+    state = markTerminalFailure(state, "g", { class: "terminal", code: null, message: "boom" });
+    const dependent = state.entries.find((e) => e.id === "e");
+    expect(dependent?.status).toBe("failed");
+    expect(dependent?.lastError?.message).toMatch(/Blocked by an earlier failed change/);
+  });
+
+  it("discarding a failed group.create drops everything queued inside the group", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
+    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
+    state = enqueue(state, makeInput({ id: "other", kind: "expense.create", entityId: "exp-2", groupId: "group-y" }));
+    state = discardEntry(state, "g");
+    expect(state.entries.map((e) => e.id)).toEqual(["other"]);
+  });
+
+  it("unrelated groups drain past a blocked group.create", () => {
+    let state = createEmptyOutboxState();
+    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
+    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
+    state = enqueue(state, makeInput({ id: "other", kind: "expense.create", entityId: "exp-2", groupId: "group-y" }));
+    const blocked: OutboxState = {
+      entries: state.entries.map((e) =>
+        e.id === "g"
+          ? { ...e, status: "failed_retryable" as const, nextAttemptAt: "2999-01-01T00:00:00.000Z" }
+          : e,
+      ),
+    };
+    expect(nextRunnable(blocked, new Date().toISOString())?.id).toBe("other");
+  });
+});

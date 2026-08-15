@@ -17,9 +17,23 @@ export default function OfflinePage(): React.ReactElement {
       </div>
       <h1 className="text-xl font-bold text-slate-900">You&apos;re offline</h1>
       <p className="mt-2 max-w-sm text-sm text-slate-500">
-        {APP_NAME} can&apos;t reach the network right now. Pages you&apos;ve already opened are still
-        available — we&apos;ll reconnect automatically when you&apos;re back online.
+        {APP_NAME} can&apos;t reach the network right now. Pages you&apos;ve already opened still
+        work offline — we&apos;ll reconnect automatically when you&apos;re back online.
       </p>
+      <div className="mt-6 flex flex-col gap-2 w-full max-w-xs">
+        <a
+          href="/dashboard"
+          className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300"
+        >
+          Go to Dashboard
+        </a>
+        <a
+          href="/groups"
+          className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300"
+        >
+          Go to Your Groups
+        </a>
+      </div>
       <RetryButton />
     </main>
   );

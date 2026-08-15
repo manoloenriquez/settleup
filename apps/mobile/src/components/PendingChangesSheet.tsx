@@ -18,7 +18,13 @@ const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
   "expense.update_itemized": "Edit itemized expense",
   "expense.delete": "Delete expense",
   "payment.record": "Record payment",
+  "payment.confirm": "Confirm payment",
+  "payment.reject": "Reject payment",
   "comment.create": "Add comment",
+  "group.create": "Create group",
+  "category.create": "Add category",
+  "category.update": "Edit category",
+  "category.delete": "Delete category",
 };
 
 function statusBadge(entry: OutboxEntry): { label: string; variant: "warning" | "danger" } {

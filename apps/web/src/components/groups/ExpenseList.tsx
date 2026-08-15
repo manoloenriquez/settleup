@@ -1,30 +1,32 @@
 "use client";
 
 import { useTransition, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { deleteExpense, listExpenses, updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
-import { formatCents, parsePHPAmount, DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { deleteExpense } from "@/app/actions/expenses";
+import { invalidateGroupData } from "@/lib/query-keys";
+import { useExpensesInfinite } from "@/hooks/queries";
+import { usePendingExpenses } from "@/hooks/useOutboxPending";
+import { useOnline } from "@/hooks/useOnline";
+import { useWebOutbox } from "@/components/OutboxProvider";
+import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
-import { CategorySelect } from "./CategoryControls";
 import { CategoryIconTile } from "./CategoryIcon";
+import { EditExpenseDialog } from "./EditExpenseDialog";
 import { Search, Trash2, Pencil, Receipt, List, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 import { CommentThread } from "./CommentThread";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
-  /** First page of expenses, freshest first (re-delivered on every server refresh). */
-  expenses: ExpenseWithParticipants[];
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
   isAdminOrOwner: boolean;
   groupId: string;
-  totalCount: number;
   pageSize: number;
 };
 
@@ -62,42 +64,6 @@ function getDayKey(dateStr: string): string {
   return parseDateLike(dateStr).toDateString();
 }
 
-function scalePositiveAmounts(weights: number[], totalCents: number): number[] | null {
-  if (weights.length === 0) return [];
-  if (weights.some((weight) => weight <= 0)) return null;
-  if (totalCents < weights.length) return null;
-  if (weights.length === 1) return [totalCents];
-
-  const allocations = new Array<number>(weights.length).fill(1);
-  const remaining = totalCents - weights.length;
-  if (remaining === 0) return allocations;
-
-  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
-  const scaled = weights.map((weight, index) => {
-    const raw = weight * remaining;
-    return {
-      index,
-      base: Math.floor(raw / weightTotal),
-      remainder: raw % weightTotal,
-    };
-  });
-
-  for (const item of scaled) {
-    allocations[item.index] = (allocations[item.index] ?? 0) + item.base;
-  }
-
-  let leftover = totalCents - allocations.reduce((sum, amount) => sum + amount, 0);
-  const byRemainder = [...scaled].sort((a, b) => b.remainder - a.remainder || a.index - b.index);
-  for (let i = 0; i < byRemainder.length && leftover > 0; i += 1) {
-    const current = byRemainder[i];
-    if (!current) break;
-    allocations[current.index] = (allocations[current.index] ?? 0) + 1;
-    leftover -= 1;
-  }
-
-  return allocations;
-}
-
 function isEqualSplit(expense: ExpenseWithParticipants): boolean {
   if ((expense.items?.length ?? 0) > 0 || expense.participants.length === 0) {
     return false;
@@ -107,18 +73,11 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ expenses, members, categories, currentUserId, isAdminOrOwner, groupId, totalCount, pageSize }: Props): React.ReactElement {
+export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner, groupId, pageSize }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
-  const [extraExpenses, setExtraExpenses] = useState<ExpenseWithParticipants[]>([]);
-  const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<ExpenseWithParticipants | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-  const [editDate, setEditDate] = useState("");
-  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [commentIds, setCommentIds] = useState<Set<string>>(new Set());
 
@@ -139,34 +98,39 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
       return next;
     });
   }
-  const router = useRouter();
+  const queryClient = useQueryClient();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
+  const expensesQ = useExpensesInfinite(groupId, pageSize);
+  const pendingExpenses = usePendingExpenses(groupId);
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
-  // Server refreshes (realtime, mutations) re-deliver page 1 via props;
-  // dedupe by id so previously loaded extra pages don't repeat rows.
+  // Pages come from the persisted infinite query; dedupe by id so a refetched
+  // page 1 doesn't repeat rows still present in older pages.
+  const pages = expensesQ.data?.pages;
   const allExpenses = useMemo(() => {
-    const seen = new Set(expenses.map((e) => e.id));
-    return [...expenses, ...extraExpenses.filter((e) => !seen.has(e.id))];
-  }, [expenses, extraExpenses]);
-  const hasMore = allExpenses.length < totalCount;
+    const seen = new Set<string>();
+    const rows: ExpenseWithParticipants[] = [];
+    for (const page of pages ?? []) {
+      for (const expense of page.data) {
+        if (!seen.has(expense.id)) {
+          seen.add(expense.id);
+          rows.push(expense);
+        }
+      }
+    }
+    return rows;
+  }, [pages]);
+  const totalCount = pages?.[pages.length - 1]?.count ?? allExpenses.length;
+  const expenses = allExpenses;
+  const hasMore = expensesQ.hasNextPage;
+  const loadingMore = expensesQ.isFetchingNextPage;
 
   function handleLoadMore(): void {
     if (loadingMore) return;
-    setLoadingMore(true);
-    void (async () => {
-      const result = await listExpenses(groupId, page + 1, pageSize);
-      if (result.error || !result.data) {
-        toast.error(result.error ?? "Failed to load more expenses.");
-      } else {
-        const nextRows = result.data.data;
-        setExtraExpenses((prev) => {
-          const seen = new Set([...expenses, ...prev].map((e) => e.id));
-          return [...prev, ...nextRows.filter((e) => !seen.has(e.id))];
-        });
-        setPage((prev) => prev + 1);
-      }
-      setLoadingMore(false);
-    })();
+    void expensesQ.fetchNextPage().then((result) => {
+      if (result.isError) toast.error("Failed to load more expenses.");
+    });
   }
 
   const filtered = search.trim()
@@ -188,6 +152,25 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
 
   function handleDelete(): void {
     if (!deleteTarget) return;
+
+    if (!online) {
+      // Queue the delete for replay; if the expense itself is a queued
+      // offline create, the reducer cancels the whole local chain instead.
+      const target = allExpenses.find((e) => e.id === deleteTarget);
+      void enqueue({
+        id: crypto.randomUUID(),
+        kind: "expense.delete",
+        entityId: deleteTarget,
+        groupId,
+        payload: {},
+        createdAt: new Date().toISOString(),
+        summary: { title: target ? `Delete "${target.item_name}"` : "Delete expense", amountCents: 0 },
+      });
+      toast.info("Saved offline — will sync when you're back online");
+      setDeleteTarget(null);
+      return;
+    }
+
     startTransition(async () => {
       const result = await deleteExpense(deleteTarget);
       if (result.error) {
@@ -197,7 +180,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
       }
       toast.success("Expense deleted");
       setDeleteTarget(null);
-      router.refresh();
+      invalidateGroupData(queryClient, groupId);
     });
   }
 
@@ -212,97 +195,6 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
     }
 
     setEditTarget(expense);
-    setEditName(expense.item_name);
-    setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
-    setEditDate(expense.expense_date ?? "");
-    setEditCategoryId(expense.category_id);
-  }
-
-  function handleEdit(): void {
-    if (!editTarget) return;
-    const amountCents = parsePHPAmount(editAmount);
-    if (!amountCents || amountCents <= 0) {
-      toast.error("Invalid amount");
-      return;
-    }
-    startTransition(async () => {
-      const payerAmounts = scalePositiveAmounts(
-        editTarget.payers.map((payer) => payer.paid_cents),
-        amountCents,
-      );
-      if (!payerAmounts) {
-        toast.error("Amount is too small to preserve payer contributions.");
-        return;
-      }
-
-      const customSplitAmounts = (editTarget.items?.length ?? 0) > 0 || isEqualSplit(editTarget)
-        ? null
-        : scalePositiveAmounts(
-            editTarget.participants.map((participant) => participant.share_cents),
-            amountCents,
-          );
-      if ((editTarget.items?.length ?? 0) === 0 && !isEqualSplit(editTarget) && !customSplitAmounts) {
-        toast.error("Amount is too small to preserve custom splits.");
-        return;
-      }
-
-      const result = (editTarget.items?.length ?? 0) > 0
-        ? await (async () => {
-            const items = editTarget.items ?? [];
-            const itemAmounts = scalePositiveAmounts(
-              items.map((item) => item.amount_cents),
-              amountCents,
-            );
-            if (!itemAmounts) {
-              return { data: null, error: "Amount is too small to preserve itemized shares." };
-            }
-
-            return updateItemizedExpense({
-              expense_id: editTarget.id,
-              category_id: editCategoryId,
-              item_name: editName.trim(),
-              amount_cents: amountCents,
-              notes: editTarget.notes ?? undefined,
-              expense_date: editDate || undefined,
-              payers: editTarget.payers.map((payer, index) => ({
-                member_id: payer.member_id,
-                paid_cents: payerAmounts[index]!,
-              })),
-              line_items: items.map((item, index) => ({
-                name: item.name,
-                amount_cents: itemAmounts[index]!,
-                participant_ids: item.item_participants.map((participant) => participant.member_id),
-              })),
-            });
-          })()
-        : await updateExpense({
-            expense_id: editTarget.id,
-            category_id: editCategoryId,
-            item_name: editName.trim(),
-            amount_cents: amountCents,
-            notes: editTarget.notes ?? undefined,
-            expense_date: editDate || undefined,
-            split_mode: isEqualSplit(editTarget) ? "equal" : "custom",
-            participant_ids: editTarget.participants.map((participant) => participant.member_id),
-            custom_splits: isEqualSplit(editTarget)
-              ? undefined
-              : editTarget.participants.map((participant, index) => ({
-                  member_id: participant.member_id,
-                  share_cents: customSplitAmounts![index]!,
-                })),
-            payers: editTarget.payers.map((payer, index) => ({
-              member_id: payer.member_id,
-              paid_cents: payerAmounts[index]!,
-            })),
-          });
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Expense updated");
-      setEditTarget(null);
-      router.refresh();
-    });
   }
 
   const deleteTargetExpense = allExpenses.find((e) => e.id === deleteTarget);
@@ -324,7 +216,34 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
         </div>
       )}
 
-      {expenses.length === 0 && (
+      {/* Locally queued expenses awaiting sync — render-time overlay, never in the cache */}
+      {pendingExpenses.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {pendingExpenses.map((pending) => (
+            <div
+              key={pending.id}
+              className="flex items-center gap-3 rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-4"
+            >
+              <CategoryIconTile icon="receipt" color="#d97706" size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-sm font-semibold leading-tight text-slate-900">
+                  {pending.item_name}
+                </p>
+                <p className="mt-0.5 text-xs text-amber-700">
+                  {pending.status === "failed"
+                    ? "Sync failed — see pending changes"
+                    : "Waiting to sync"}
+                </p>
+              </div>
+              <p className="shrink-0 text-base font-extrabold tracking-tight text-slate-900">
+                {formatCents(Math.abs(pending.amount_cents))}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {expenses.length === 0 && pendingExpenses.length === 0 && (
         <EmptyState
           icon={Receipt}
           title="No expenses yet"
@@ -502,7 +421,7 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
 
                   {/* Comment thread */}
                   {commentIds.has(expense.id) && (
-                    <CommentThread expenseId={expense.id} members={members} currentUserId={currentUserId} />
+                    <CommentThread expenseId={expense.id} groupId={groupId} members={members} currentUserId={currentUserId} />
                   )}
                 </div>
               );
@@ -536,49 +455,12 @@ export function ExpenseList({ expenses, members, categories, currentUserId, isAd
       />
 
       {/* Edit expense dialog */}
-      <Dialog
-        open={editTarget !== null}
+      <EditExpenseDialog
+        expense={editTarget}
+        members={members}
+        categories={categories}
         onClose={() => setEditTarget(null)}
-        title="Edit expense"
-        confirmLabel="Save"
-        onConfirm={handleEdit}
-        isLoading={isPending}
-      >
-        <div className="flex flex-col gap-4 mt-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700" htmlFor="edit-name">Name</label>
-            <Input
-              id="edit-name"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Expense name"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700" htmlFor="edit-amount">Amount</label>
-            <Input
-              id="edit-amount"
-              value={editAmount}
-              onChange={(e) => setEditAmount(e.target.value)}
-              placeholder="0.00"
-              inputMode="decimal"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700" htmlFor="edit-date">Date</label>
-            <Input
-              id="edit-date"
-              type="date"
-              value={editDate}
-              onChange={(e) => setEditDate(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <CategorySelect categories={categories} value={editCategoryId} onChange={setEditCategoryId} />
-        </div>
-      </Dialog>
+      />
     </div>
   );
 }

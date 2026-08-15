@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { recordPayment } from "@/app/actions/payments";
 import { useWebOutbox } from "@/components/OutboxProvider";
@@ -25,7 +26,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
   const [amountStr, setAmountStr] = useState((debt.amount_cents / 100).toFixed(2));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const online = useOnline();
   const { enqueue } = useWebOutbox();
 
@@ -78,7 +79,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
       } else {
         toast.success("Payment recorded!");
         onClose();
-        router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }

@@ -12,6 +12,10 @@ import { createExpenseCategory, deleteExpenseCategory, updateExpenseCategory } f
 import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
+import { useOnline } from "@/hooks/useOnline";
+import { useWebOutbox } from "@/components/OutboxProvider";
 
 type GroupRow = {
   id: string;
@@ -42,6 +46,9 @@ export function GroupSettingsClient({
 }: Props): React.ReactElement {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const online = useOnline();
+  const { enqueue } = useWebOutbox();
+  const queryClient = useQueryClient();
   const [memberList, setMemberList] = useState<GroupMember[]>(members);
   const [categoryList, setCategoryList] = useState<ExpenseCategory[]>(categories);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -76,6 +83,7 @@ export function GroupSettingsClient({
       } else {
         toast.success("Group renamed");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -101,6 +109,7 @@ export function GroupSettingsClient({
         setMemberList((prev) => [...prev, result.data!]);
         setNewMemberName("");
         toast.success(`${name} added`);
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -117,6 +126,7 @@ export function GroupSettingsClient({
       } else {
         setMemberList((prev) => prev.filter((m) => m.id !== member.id));
         toast.success(`${member.display_name} removed`);
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -129,6 +139,7 @@ export function GroupSettingsClient({
       } else {
         toast.success("Share link rotated");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -160,6 +171,7 @@ export function GroupSettingsClient({
       } else {
         toast.success(`Ownership transferred to ${member.display_name}`);
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -185,6 +197,7 @@ export function GroupSettingsClient({
         );
         setEditingMemberId(null);
         toast.success("Member renamed");
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -203,6 +216,7 @@ export function GroupSettingsClient({
         toast.success("You have left the group");
         router.push("/groups");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -217,6 +231,7 @@ export function GroupSettingsClient({
           prev.map((m) => (m.id === member.id ? result.data! : m)),
         );
         toast.success(role === "admin" ? `${member.display_name} is now an admin` : `${member.display_name} is now a regular member`);
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -225,8 +240,44 @@ export function GroupSettingsClient({
     e.preventDefault();
     const name = newCategoryName.trim();
     if (!name) return;
+    const clientId = crypto.randomUUID();
+
+    if (!online) {
+      // The client id doubles as the category id server-side.
+      void enqueue({
+        id: clientId,
+        kind: "category.create",
+        entityId: clientId,
+        groupId: group.id,
+        payload: { name, icon: "circle-ellipsis", color: newCategoryColor },
+        createdAt: new Date().toISOString(),
+        summary: { title: `Category "${name}"`, amountCents: 0 },
+      });
+      setCategoryList((prev) => [
+        ...prev,
+        {
+          id: clientId,
+          group_id: group.id,
+          name,
+          slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          icon: "circle-ellipsis",
+          color: newCategoryColor,
+          sort_order: 999,
+          is_default: false,
+          created_by_user_id: currentUserId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ]);
+      setNewCategoryName("");
+      setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
+      toast.info("Saved offline — will sync when you're back online");
+      return;
+    }
+
     startTransition(async () => {
       const result = await createExpenseCategory({
+        id: clientId,
         group_id: group.id,
         name,
         color: newCategoryColor,
@@ -240,6 +291,7 @@ export function GroupSettingsClient({
         setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
         toast.success("Category added");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -254,6 +306,34 @@ export function GroupSettingsClient({
     const name = editingCategoryId === category.id ? editingCategoryName.trim() : category.name;
     const color = editingCategoryId === category.id ? editingCategoryColor : category.color;
     if (!name) return;
+
+    if (!online) {
+      // Coalesces with earlier queued edits of the same category.
+      void enqueue({
+        id: crypto.randomUUID(),
+        kind: "category.update",
+        entityId: category.id,
+        groupId: group.id,
+        payload: {
+          name,
+          icon: category.icon,
+          color,
+          sort_order: sortOrder,
+          expected_updated_at: category.updated_at,
+        },
+        createdAt: new Date().toISOString(),
+        summary: { title: `Category "${name}"`, amountCents: 0 },
+      });
+      setCategoryList((prev) =>
+        prev
+          .map((item) => (item.id === category.id ? { ...item, name, color, sort_order: sortOrder } : item))
+          .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
+      );
+      setEditingCategoryId(null);
+      toast.info("Saved offline — will sync when you're back online");
+      return;
+    }
+
     startTransition(async () => {
       const result = await updateExpenseCategory({
         category_id: category.id,
@@ -261,6 +341,7 @@ export function GroupSettingsClient({
         icon: category.icon,
         color,
         sort_order: sortOrder,
+        expected_updated_at: category.updated_at,
       });
       if (result.error) {
         toast.error(result.error);
@@ -273,11 +354,29 @@ export function GroupSettingsClient({
         setEditingCategoryId(null);
         toast.success("Category updated");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
 
   function handleDeleteCategory(category: ExpenseCategory): void {
+    if (!online) {
+      // If the category itself is a queued offline create, the reducer
+      // cancels the whole local chain instead of sending anything.
+      void enqueue({
+        id: crypto.randomUUID(),
+        kind: "category.delete",
+        entityId: category.id,
+        groupId: group.id,
+        payload: {},
+        createdAt: new Date().toISOString(),
+        summary: { title: `Delete category "${category.name}"`, amountCents: 0 },
+      });
+      setCategoryList((prev) => prev.filter((item) => item.id !== category.id));
+      toast.info("Saved offline — will sync when you're back online");
+      return;
+    }
+
     startTransition(async () => {
       const result = await deleteExpenseCategory(category.id);
       if (result.error) {
@@ -286,6 +385,7 @@ export function GroupSettingsClient({
         setCategoryList((prev) => prev.filter((item) => item.id !== category.id));
         toast.success("Category deleted");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -304,6 +404,7 @@ export function GroupSettingsClient({
         toast.success("Group archived");
         router.push("/groups");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -322,6 +423,7 @@ export function GroupSettingsClient({
         toast.success("Group deleted");
         router.push("/groups");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }

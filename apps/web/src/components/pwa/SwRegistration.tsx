@@ -17,6 +17,12 @@ export function SwRegistration(): null {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
 
+    // Ask the browser not to evict our storage (outbox + query cache) under
+    // pressure — granted automatically for installed PWAs. Best-effort.
+    if (navigator.storage?.persist) {
+      void navigator.storage.persist().catch(() => undefined);
+    }
+
     let reloading = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (reloading) return;

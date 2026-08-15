@@ -2,6 +2,7 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { expenseCategoryInputSchema, updateExpenseCategorySchema, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { ExpenseCategory } from "@template/supabase";
@@ -31,7 +32,7 @@ export async function listExpenseCategories(groupId: string): Promise<ApiRespons
     const parsed = groupIdSchema.safeParse(groupId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
 
-    await assertAuth();
+    await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { data, error } = await db
@@ -64,6 +65,7 @@ export async function createExpenseCategory(input: unknown): Promise<ApiResponse
       p_name: parsed.data.name,
       p_icon: parsed.data.icon ?? "circle-ellipsis",
       p_color: parsed.data.color ?? DEFAULT_CATEGORY_COLOR,
+      ...(parsed.data.id ? { p_id: parsed.data.id } : {}),
     });
 
     if (error) return { data: null, error: error.message };
@@ -94,9 +96,15 @@ export async function updateExpenseCategory(input: unknown): Promise<ApiResponse
       p_icon: parsed.data.icon ?? "circle-ellipsis",
       p_color: parsed.data.color ?? DEFAULT_CATEGORY_COLOR,
       p_sort_order: parsed.data.sort_order ?? null,
+      p_expected_updated_at: parsed.data.expected_updated_at ?? null,
     });
 
-    if (error) return { data: null, error: error.message };
+    if (error) {
+      if (error.code === "PT409") {
+        return { data: null, error: "This category was changed by someone else. Refresh and try again." };
+      }
+      return { data: null, error: error.message };
+    }
 
     const parsedResult = categoryRpcResultSchema.safeParse(result);
     if (!parsedResult.success) return { data: null, error: "Failed to parse category." };

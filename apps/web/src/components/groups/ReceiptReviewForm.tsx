@@ -6,11 +6,19 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { X, Plus, Check } from "lucide-react";
-import type { ParsedReceipt, ExpenseDraft } from "@template/shared/types";
+import type { ParsedReceipt } from "@template/shared/types";
+
+/** Reviewed receipt data, with structured line items preserved for split configuration. */
+export type ReceiptReview = {
+  itemName: string;
+  totalCents: number;
+  date: string | null;
+  items: { name: string; amountCents: number }[];
+};
 
 type Props = {
   receipt: ParsedReceipt;
-  onCreateDraft: (draft: ExpenseDraft) => void;
+  onContinue: (review: ReceiptReview) => void;
   onDismiss: () => void;
 };
 
@@ -19,7 +27,7 @@ type EditableLineItem = {
   totalStr: string;
 };
 
-export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props): React.ReactElement {
+export function ReceiptReviewForm({ receipt, onContinue, onDismiss }: Props): React.ReactElement {
   const [merchant, setMerchant] = useState(receipt.merchant ?? "");
   const [date, setDate] = useState(receipt.date ?? "");
   const [items, setItems] = useState<EditableLineItem[]>(
@@ -42,25 +50,22 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
     setItems((prev) => [...prev, { description: "", totalStr: "" }]);
   }
 
-  function handleCreate(): void {
+  function handleContinue(): void {
     const totalCents = parsePHPAmount(totalStr) ?? 0;
     if (totalCents <= 0) return;
 
     const itemName = merchant || items.map((i) => i.description).filter(Boolean).join(", ") || "Receipt";
 
-    const draft: ExpenseDraft = {
-      item_name: itemName,
-      amount_cents: totalCents,
-      confidence: receipt.confidence,
-      participant_names: [],
-      payer_name: null,
-      category_slug: "other",
-      notes: items.map((i) => `${i.description}: ₱${i.totalStr}`).join("; "),
-      date: date || null,
-      source: "receipt",
-    };
+    const reviewItems = items
+      .map((item) => ({ name: item.description.trim(), amountCents: parsePHPAmount(item.totalStr) ?? 0 }))
+      .filter((item) => item.name.length > 0 && item.amountCents > 0);
 
-    onCreateDraft(draft);
+    onContinue({
+      itemName,
+      totalCents,
+      date: date || null,
+      items: reviewItems,
+    });
   }
 
   const totalCents = parsePHPAmount(totalStr) ?? 0;
@@ -152,8 +157,8 @@ export function ReceiptReviewForm({ receipt, onCreateDraft, onDismiss }: Props):
         onChange={(e) => setTotalStr(e.target.value)}
       />
 
-      <Button onClick={handleCreate} disabled={totalCents <= 0} leftIcon={Check} size="sm">
-        Create Expense Draft
+      <Button onClick={handleContinue} disabled={totalCents <= 0} leftIcon={Check} size="sm">
+        Continue
       </Button>
     </div>
   );

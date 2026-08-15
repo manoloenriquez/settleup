@@ -21,7 +21,7 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
-import { SegmentedControl, Card, ErrorBanner, SkeletonCard, useToast, Avatar } from "@/components/ui";
+import { SegmentedControl, Card, ChipGroup, ErrorBanner, SkeletonCard, useToast, Avatar } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
@@ -79,6 +79,11 @@ function isEqualSplit(expense: ExpenseWithDetails): boolean {
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
+function sameIdSet(a: string[], b: Set<string>): boolean {
+  if (a.length !== b.size) return false;
+  return a.every((id) => b.has(id));
+}
+
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -108,6 +113,8 @@ export default function GroupDetailScreen() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [editParticipantIds, setEditParticipantIds] = useState<Set<string>>(new Set());
+  const [editItemAssignments, setEditItemAssignments] = useState<string[][]>([]);
   const [commentsExpense, setCommentsExpense] = useState<ExpenseWithDetails | null>(null);
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
@@ -243,6 +250,31 @@ export default function GroupDetailScreen() {
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
     setEditCategoryId(expense.category_id);
+    setEditParticipantIds(new Set(expense.participants.map((participant) => participant.member_id)));
+    setEditItemAssignments(
+      (expense.items ?? []).map((item) => item.item_participants.map((participant) => participant.member_id)),
+    );
+  }
+
+  function toggleEditParticipant(memberId: string): void {
+    setEditParticipantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  }
+
+  function toggleEditItemAssignment(itemIndex: number, memberId: string): void {
+    setEditItemAssignments((prev) =>
+      prev.map((ids, index) =>
+        index === itemIndex
+          ? ids.includes(memberId)
+            ? ids.filter((currentId) => currentId !== memberId)
+            : [...ids, memberId]
+          : ids,
+      ),
+    );
   }
 
   function handleSaveEdit(): void {
@@ -275,6 +307,12 @@ export default function GroupDetailScreen() {
 
     if ((editingExpense.items?.length ?? 0) > 0) {
       const items = editingExpense.items ?? [];
+      const emptyIndex = editItemAssignments.findIndex((ids) => ids.length === 0);
+      if (emptyIndex >= 0) {
+        toast.error(`"${items[emptyIndex]?.name ?? "Line item"}" needs at least one person.`);
+        return;
+      }
+
       const itemAmounts = scalePositiveAmounts(
         items.map((item) => item.amount_cents),
         amountCents,
@@ -299,7 +337,7 @@ export default function GroupDetailScreen() {
           lineItems: items.map((item, index) => ({
             name: item.name,
             amountCents: itemAmounts[index]!,
-            participantIds: item.item_participants.map((participant) => participant.member_id),
+            participantIds: editItemAssignments[index] ?? [],
           })),
         },
         { onSuccess, onError },
@@ -307,8 +345,16 @@ export default function GroupDetailScreen() {
       return;
     }
 
-    const participantIds = editingExpense.participants.map((participant) => participant.member_id);
-    if (isEqualSplit(editingExpense)) {
+    if (editParticipantIds.size === 0) {
+      toast.error("Select at least one participant.");
+      return;
+    }
+
+    const participantsChanged = !sameIdSet(
+      editingExpense.participants.map((participant) => participant.member_id),
+      editParticipantIds,
+    );
+    if (isEqualSplit(editingExpense) || participantsChanged) {
       updateExpenseMut.mutate(
         {
           expenseId: editingExpense.id,
@@ -316,7 +362,7 @@ export default function GroupDetailScreen() {
           itemName: editName.trim(),
           amountCents,
           categoryId: editCategoryId,
-          participantIds,
+          participantIds: [...editParticipantIds],
           payers: editingExpense.payers.map((payer, index) => ({
             memberId: payer.member_id,
             paidCents: payerAmounts[index]!,
@@ -364,6 +410,16 @@ export default function GroupDetailScreen() {
 
   const currentMemberId =
     (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
+
+  const editIsItemized = (editingExpense?.items?.length ?? 0) > 0;
+  const editParticipantsChanged = editingExpense
+    ? !sameIdSet(
+        editingExpense.participants.map((participant) => participant.member_id),
+        editParticipantIds,
+      )
+    : false;
+  const editSaving =
+    updateExpenseMut.isPending || updateCustomExpenseMut.isPending || updateItemizedExpenseMut.isPending;
 
   return (
     <>
@@ -671,24 +727,74 @@ export default function GroupDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Expense</Text>
-            <Text style={styles.modalLabel}>Name</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Expense name"
-              placeholderTextColor={colors.gray400}
-            />
-            <Text style={styles.modalLabel}>Amount</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={editAmount}
-              onChangeText={setEditAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.gray400}
-              keyboardType="decimal-pad"
-            />
-            <CategoryPicker categories={categoriesQ.data ?? []} selectedId={editCategoryId} onSelect={setEditCategoryId} />
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalLabel}>Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Expense name"
+                placeholderTextColor={colors.gray400}
+              />
+              <Text style={styles.modalLabel}>Amount</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editAmount}
+                onChangeText={setEditAmount}
+                placeholder="0.00"
+                placeholderTextColor={colors.gray400}
+                keyboardType="decimal-pad"
+              />
+              <CategoryPicker categories={categoriesQ.data ?? []} selectedId={editCategoryId} onSelect={setEditCategoryId} />
+
+              {!editIsItemized && (
+                <View style={styles.modalSplitSection}>
+                  <ChipGroup
+                    label="Split between"
+                    chips={(membersQ.data ?? []).map((m) => ({ id: m.id, label: m.display_name }))}
+                    selected={editParticipantIds}
+                    onToggle={toggleEditParticipant}
+                  />
+                  {editingExpense !== null && !isEqualSplit(editingExpense) && editParticipantsChanged && (
+                    <Text style={styles.modalWarnText}>Changing members resets to an equal split.</Text>
+                  )}
+                </View>
+              )}
+
+              {editIsItemized && (
+                <View style={styles.modalSplitSection}>
+                  <Text style={styles.modalLabel}>Who had what?</Text>
+                  {(editingExpense?.items ?? []).map((item, index) => {
+                    const assigned = editItemAssignments[index] ?? [];
+                    return (
+                      <View key={item.id} style={styles.itemAssignCard}>
+                        <View style={styles.itemAssignHeader}>
+                          <Text style={styles.itemAssignName} numberOfLines={1}>{item.name}</Text>
+                          <Text style={styles.itemAssignAmount}>{formatCents(item.amount_cents)}</Text>
+                        </View>
+                        <View style={styles.participantRow}>
+                          {(membersQ.data ?? []).map((m) => (
+                            <TouchableOpacity
+                              key={m.id}
+                              style={[styles.participantChip, assigned.includes(m.id) && styles.participantChipActive]}
+                              onPress={() => toggleEditItemAssignment(index, m.id)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[styles.participantChipText, assigned.includes(m.id) && styles.participantChipTextActive]}>
+                                {m.display_name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                        {assigned.length === 0 && (
+                          <Text style={styles.modalWarnText}>Needs at least one person</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
             <View style={styles.modalBtns}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
@@ -697,12 +803,12 @@ export default function GroupDetailScreen() {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalSaveBtn, updateExpenseMut.isPending && { opacity: 0.6 }]}
+                style={[styles.modalSaveBtn, editSaving && { opacity: 0.6 }]}
                 onPress={handleSaveEdit}
-                disabled={updateExpenseMut.isPending}
+                disabled={editSaving}
               >
                 <Text style={styles.modalSaveText}>
-                  {updateExpenseMut.isPending ? "Saving..." : "Save"}
+                  {editSaving ? "Saving..." : "Save"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -838,6 +944,32 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900, marginBottom: spacing.base },
   modalLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray600, marginBottom: 4 },
   modalInput: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: fontSize.md, color: colors.gray900, marginBottom: spacing.sm },
+  modalScroll: { maxHeight: 440 },
+  modalSplitSection: { marginTop: spacing.sm, gap: spacing.sm },
+  modalWarnText: { fontSize: fontSize.xs, color: colors.warningDark },
+  itemAssignCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  itemAssignHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  itemAssignName: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray900 },
+  itemAssignAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
+  participantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  participantChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.gray100,
+  },
+  participantChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  participantChipText: { fontSize: fontSize.xs, color: colors.gray600 },
+  participantChipTextActive: { color: colors.primary, fontWeight: fontWeight.semibold },
   modalBtns: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.sm },
   modalCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.base },
   modalCancelText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray500 },

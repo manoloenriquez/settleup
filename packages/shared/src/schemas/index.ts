@@ -52,6 +52,8 @@ export const updatePasswordSchema = z
 // ---------------------------------------------------------------------------
 
 export const createGroupSchema = z.object({
+  /** Optional client-generated group id — the offline outbox's idempotency key. */
+  id: z.string().uuid().optional(),
   name: z.string().trim().min(1, "Name is required").max(100),
 });
 
@@ -78,6 +80,8 @@ export const payerSchema = z.object({
 export const expenseCategoryIdSchema = z.string().uuid().nullable().optional();
 
 export const expenseCategoryInputSchema = z.object({
+  /** Optional client-generated category id — the offline outbox's idempotency key. */
+  id: z.string().uuid().optional(),
   group_id: z.string().uuid(),
   name: z.string().trim().min(1, "Category name is required").max(80),
   icon: z.string().trim().min(1).max(40).optional(),
@@ -86,9 +90,11 @@ export const expenseCategoryInputSchema = z.object({
 });
 
 export const updateExpenseCategorySchema = expenseCategoryInputSchema
-  .omit({ group_id: true })
+  .omit({ group_id: true, id: true })
   .extend({
     category_id: z.string().uuid(),
+    /** Optional compare-and-swap snapshot; server rejects stale edits with PT409. */
+    expected_updated_at: z.string().optional(),
   });
 
 /** User-set date the expense occurred (YYYY-MM-DD); server defaults to today when omitted. */

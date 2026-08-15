@@ -25,7 +25,10 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
   try {
     await assertAuth();
 
-    const parsed = createGroupSchema.safeParse({ name: formData.get("name") });
+    const parsed = createGroupSchema.safeParse({
+      name: formData.get("name"),
+      id: formData.get("id") ?? undefined,
+    });
     if (!parsed.success) {
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
@@ -35,6 +38,7 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
 
     const { data: result, error } = await db.rpc("create_group_with_owner", {
       p_name: parsed.data.name,
+      ...(parsed.data.id ? { p_id: parsed.data.id } : {}),
     });
 
     if (error) return { data: null, error: "Failed to create group." };

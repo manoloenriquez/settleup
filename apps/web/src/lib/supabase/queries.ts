@@ -1,18 +1,17 @@
 import { getProfile, assertAuth } from "./guards";
 
 /**
- * Deduplicated profile fetch.
+ * Request-scoped, deduplicated auth helpers.
  *
- * React's cache() deduplicates calls within a single render tree (per request),
- * so calling this from both the layout and a page costs only one DB round-trip.
+ * The React cache() wrappers live in ./guards (getSessionUser / getProfile),
+ * so a navigation that hits the layout (profile) AND a page or several server
+ * actions (auth) pays a single Supabase auth round-trip instead of one per
+ * wrapper. These aliases exist so call sites can keep importing from
+ * lib/supabase/queries.
  */
+
+/** Deduplicated profile fetch (layout greeting, account page). Returns null when signed out. */
 export const cachedProfile = getProfile;
 
-/**
- * Deduplicated auth check.
- *
- * When the group detail page calls 4 server actions in Promise.all,
- * each calls assertAuth(). React.cache() ensures only one JWT validation
- * per request.
- */
+/** Deduplicated auth check for Server Actions / pages (throws AuthError when unauthenticated). */
 export const cachedAuth = assertAuth;

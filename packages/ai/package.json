@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./core": "./src/core/index.ts",
     "./features": "./src/features/index.ts",
+    "./insights": "./src/features/insights.ts",
     "./node": "./src/node/index.ts"
   },
   "scripts": {

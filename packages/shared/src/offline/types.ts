@@ -27,7 +27,13 @@ export type OutboxEntryKind =
   | "expense.update_itemized"
   | "expense.delete"
   | "payment.record"
-  | "comment.create";
+  | "payment.confirm"
+  | "payment.reject"
+  | "comment.create"
+  | "group.create"
+  | "category.create"
+  | "category.update"
+  | "category.delete";
 
 export type OutboxEntryStatus =
   /** Waiting for the next drain. */

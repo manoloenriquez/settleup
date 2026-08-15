@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArchiveRestore, ChevronDown, ChevronRight } from "lucide-react";
 import { restoreGroup } from "@/app/actions/groups";
@@ -12,8 +12,14 @@ type Props = {
   groups: Group[];
 };
 
+function invalidateGroupsLists(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ["groups"] });
+  void queryClient.invalidateQueries({ queryKey: ["archivedGroups"] });
+  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
 export function ArchivedGroupsSection({ groups }: Props): React.ReactElement | null {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(false);
 
@@ -26,7 +32,7 @@ export function ArchivedGroupsSection({ groups }: Props): React.ReactElement | n
         toast.error(result.error);
       } else {
         toast.success(`"${group.name}" restored`);
-        router.refresh();
+        invalidateGroupsLists(queryClient);
       }
     });
   }
