@@ -19,8 +19,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const supabase = await createSettleUpDb();
   const db = supabase.schema("settleup");
 
-  const recurringPromise = listRecurringExpenses(groupId);
-  const [{ data: group }, { data: members }, { data: categories }] = await Promise.all([
+  const [{ data: group }, { data: members }, { data: categories }, recurringResult] = await Promise.all([
     db
       .from("groups")
       .select("id, name, owner_user_id, invite_code, share_token, budget_cents")
@@ -37,6 +36,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
       .or(`group_id.is.null,group_id.eq.${groupId}`)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
+    listRecurringExpenses(groupId),
   ]);
 
   if (!group) notFound();
@@ -72,7 +72,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
       <BudgetSection groupId={groupId} budgetCents={group.budget_cents} canEdit={isAdminOrOwner} />
 
       <RecurringExpensesSection
-        recurring={(await recurringPromise).data ?? []}
+        recurring={recurringResult.data ?? []}
         members={members ?? []}
       />
 

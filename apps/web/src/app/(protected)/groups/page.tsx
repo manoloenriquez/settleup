@@ -1,18 +1,7 @@
-import { listGroupsWithStats, listArchivedGroups } from "@/app/actions/groups";
 import { GroupsClient } from "@/components/groups/GroupsClient";
 
-export default async function GroupsPage(): Promise<React.ReactElement> {
-  const [result, archivedResult] = await Promise.all([
-    listGroupsWithStats(),
-    listArchivedGroups(),
-  ]);
-  const fetchedAt = Date.now();
-
-  return (
-    <GroupsClient
-      initialGroups={result.data ? { data: result.data, updatedAt: fetchedAt } : undefined}
-      initialArchived={archivedResult.data ? { data: archivedResult.data, updatedAt: fetchedAt } : undefined}
-      initialError={result.error}
-    />
-  );
+// Thin RSC: no data awaits — the groups list renders from the persisted
+// query cache and revalidates in the background.
+export default function GroupsPage(): React.ReactElement {
+  return <GroupsClient />;
 }

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreditCard, ChevronRight, MessageCircle, Shield, LogOut } from "lucide-react";
+import { redirect } from "next/navigation";
 import { BETA_SUPPORT_EMAIL, ROUTES } from "@template/shared";
-import { requireAuth } from "@/lib/supabase/guards";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { signOut } from "@/app/actions/auth";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
@@ -10,9 +10,11 @@ import { DeleteAccountSection } from "@/components/account/DeleteAccountSection"
 export const metadata: Metadata = { title: "Account" };
 
 export default async function AccountPage(): Promise<React.ReactElement> {
-  await requireAuth();
+  // cachedProfile implies auth (shared getUser with the layout) — no
+  // separate requireAuth round-trip.
   const profile = await cachedProfile();
-  const isAdmin = profile?.role === "admin";
+  if (!profile) redirect(ROUTES.LOGIN);
+  const isAdmin = profile.role === "admin";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">

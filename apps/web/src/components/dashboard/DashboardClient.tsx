@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { ROUTES, formatCents } from "@template/shared";
-import type { DashboardSummary } from "@template/shared";
-import { useDashboardSummary, useRecentActivity, type Seed } from "@/hooks/queries";
-import type { RecentActivityItem } from "@/app/actions/activity";
+import { useDashboardSummary, useRecentActivity } from "@/hooks/queries";
 import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -55,23 +53,35 @@ function Sparkline({
 
 type Props = {
   profile: { email: string; full_name: string | null };
-  initialSummary: Seed<DashboardSummary> | undefined;
-  initialActivity: Seed<RecentActivityItem[]> | undefined;
-  initialError: string | null;
 };
 
-export function DashboardClient({ profile, initialSummary, initialActivity, initialError }: Props): React.ReactElement {
-  const summaryQ = useDashboardSummary(initialSummary);
-  const activityQ = useRecentActivity(5, initialActivity);
+export function DashboardClient({ profile }: Props): React.ReactElement {
+  const summaryQ = useDashboardSummary();
+  const activityQ = useRecentActivity(5);
 
   const summary = summaryQ.data;
   if (!summary) {
+    if (summaryQ.isError) {
+      return (
+        <div className="space-y-8 animate-fade-in">
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-sm text-red-600">{summaryQ.error.message}</p>
+        </div>
+      );
+    }
+    // Cold cache: neutral skeleton mirroring the hero + cards layout.
     return (
-      <div className="space-y-8 animate-fade-in">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-red-600">
-          {summaryQ.error?.message ?? initialError ?? "Loading dashboard…"}
-        </p>
+      <div className="space-y-6 animate-fade-in" aria-busy="true">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+          <div className="h-4 w-32 rounded bg-slate-100 animate-pulse" />
+        </div>
+        <div className="h-40 rounded-3xl bg-slate-100 animate-pulse" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-28 rounded-2xl bg-slate-100 animate-pulse" />
+          <div className="h-28 rounded-2xl bg-slate-100 animate-pulse" />
+        </div>
+        <div className="h-48 rounded-3xl bg-slate-100 animate-pulse" />
       </div>
     );
   }

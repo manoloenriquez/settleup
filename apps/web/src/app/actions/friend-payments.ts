@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createAnonClient } from "@template/supabase";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
 import type { ApiResponse } from "@template/shared";
 import { z } from "zod";
@@ -70,7 +71,7 @@ export async function listPendingPayments(groupId: string): Promise<ApiResponse<
     const parsed = groupIdSchema.safeParse(groupId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
 
-    await assertAuth();
+    await cachedAuth();
     const supabase = await createSettleUpDb();
     const { data, error } = await supabase
       .schema("settleup")

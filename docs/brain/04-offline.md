@@ -54,21 +54,32 @@ machine deterministically (injected clock/RNG).
 
 ## Web (`apps/web`)
 
-- **Reads**: the core views (dashboard, groups list, group detail) are client
-  components consuming **React Query hooks** (`src/hooks/queries.ts`) whose
-  fetchers call the existing Server Actions. The thin RSC page still runs
-  auth + the initial fetch and passes it as `initialData` (+ the render
-  timestamp as `initialDataUpdatedAt`), so first paint has no loading flash
-  and the freshest source deterministically wins over the restored snapshot.
+- **Reads**: the core views (dashboard, groups list, group detail, activity,
+  insights) are client components consuming **React Query hooks**
+  (`src/hooks/queries.ts`) whose fetchers call **Supabase directly from the
+  browser** (`src/lib/queries/*` — the same RLS-guarded selects/RPCs the
+  mobile services use). The RSC pages are deliberately thin shells with
+  **zero data awaits** (auth rides on middleware + the layout's single
+  deduped `cachedProfile`), so navigation paints instantly from the persisted
+  cache and revalidates in the background — refetches are parallel
+  single-round-trip PostgREST calls, not serialized Server Action POSTs.
+  `experimental.staleTimes.dynamic` lets back/forward reuse the router cache.
+  First-ever visits (empty cache) render neutral skeletons; a bad group id
+  renders a client-side not-found card (the server `notFound()` is gone).
   The cache persists to IndexedDB (`src/lib/query-client.ts`: 7-day `maxAge`,
   `buster` `"web-v1"` — bump it whenever a cached query's shape changes —
-  AI/insights excluded); query keys mirror mobile's shapes
+  AI/insights/auth-user excluded); query keys mirror mobile's shapes
   (`src/lib/query-keys.ts`). Expense pagination is a `useInfiniteQuery`, so
   loaded pages persist and paginate offline. Converted views invalidate keys
   (`invalidateGroupData`) instead of `router.refresh()`; `GroupRealtimeRefresher`
-  invalidates (debounced) and re-invalidates on channel re-subscribe after a
-  dropped connection. Unconverted pages (settings, activity, account,
-  insights, admin) keep the RSC + `router.refresh()` convention.
+  (dynamically imported to keep the Realtime chunk off the critical path)
+  invalidates (debounced), re-invalidates on channel re-subscribe after a
+  dropped connection, and **skips the echo of this tab's own writes** (a
+  3s `wasRecentlyInvalidatedLocally` window stamped by `invalidateGroupData`
+  and by outbox drains). Remaining RSC pages (settings, account, admin) keep
+  `router.refresh()` **plus** targeted query invalidations so the converted
+  views are fresh on return-navigation. Outbox drains invalidate only —
+  no post-drain `router.refresh()`.
 - **Service worker** (Serwist, unchanged strategy): precached build assets +
   `/~offline` shell, NetworkFirst pages/RSC, CacheFirst Supabase Storage
   images, NetworkOnly for Supabase API/auth and all non-GETs. A previously
