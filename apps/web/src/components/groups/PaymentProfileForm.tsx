@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { upsertPaymentProfile, uploadQRImageAction } from "@/app/actions/payment-profiles";
 import { Input } from "@/components/ui/Input";
@@ -15,6 +16,11 @@ type Props = {
 };
 
 export function PaymentProfileForm({ initial }: Props): React.ReactElement {
+  const queryClient = useQueryClient();
+  function invalidateProfileQueries(): void {
+    void queryClient.invalidateQueries({ queryKey: ["payment-profile"] });
+    void queryClient.invalidateQueries({ queryKey: ["creditor-profiles"] });
+  }
   const [form, setForm] = useState({
     payer_display_name: initial?.payer_display_name ?? "",
     gcash_name: initial?.gcash_name ?? "",
@@ -42,6 +48,7 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
       } else {
         toast.success("Payment settings saved");
         router.refresh();
+        invalidateProfileQueries();
       }
     });
   }
@@ -59,6 +66,7 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
         } else {
           toast.success("QR image uploaded");
           router.refresh();
+          invalidateProfileQueries();
         }
       });
     };

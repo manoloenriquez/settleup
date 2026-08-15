@@ -16,9 +16,16 @@ import {
   usePaymentProfile,
 } from "@/hooks/queries";
 import { useCurrentUserId } from "@/hooks/useCurrentUser";
+import dynamic from "next/dynamic";
 import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutboxPending";
 import { PendingPayments } from "@/components/groups/PendingPayments";
-import { GroupRealtimeRefresher } from "@/components/groups/GroupRealtimeRefresher";
+
+// Deferred: pulls the ~200KB supabase Realtime client off the route's
+// critical path — the subscription attaches moments after first paint.
+const GroupRealtimeRefresher = dynamic(
+  () => import("@/components/groups/GroupRealtimeRefresher").then((m) => m.GroupRealtimeRefresher),
+  { ssr: false },
+);
 import { BudgetProgress } from "@/components/groups/BudgetProgress";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";

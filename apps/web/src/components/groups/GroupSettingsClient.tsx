@@ -12,6 +12,8 @@ import { createExpenseCategory, deleteExpenseCategory, updateExpenseCategory } f
 import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { useOnline } from "@/hooks/useOnline";
 import { useWebOutbox } from "@/components/OutboxProvider";
 
@@ -46,6 +48,7 @@ export function GroupSettingsClient({
   const [isPending, startTransition] = useTransition();
   const online = useOnline();
   const { enqueue } = useWebOutbox();
+  const queryClient = useQueryClient();
   const [memberList, setMemberList] = useState<GroupMember[]>(members);
   const [categoryList, setCategoryList] = useState<ExpenseCategory[]>(categories);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -80,6 +83,7 @@ export function GroupSettingsClient({
       } else {
         toast.success("Group renamed");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -105,6 +109,7 @@ export function GroupSettingsClient({
         setMemberList((prev) => [...prev, result.data!]);
         setNewMemberName("");
         toast.success(`${name} added`);
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -121,6 +126,7 @@ export function GroupSettingsClient({
       } else {
         setMemberList((prev) => prev.filter((m) => m.id !== member.id));
         toast.success(`${member.display_name} removed`);
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -133,6 +139,7 @@ export function GroupSettingsClient({
       } else {
         toast.success("Share link rotated");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -164,6 +171,7 @@ export function GroupSettingsClient({
       } else {
         toast.success(`Ownership transferred to ${member.display_name}`);
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -189,6 +197,7 @@ export function GroupSettingsClient({
         );
         setEditingMemberId(null);
         toast.success("Member renamed");
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -207,6 +216,7 @@ export function GroupSettingsClient({
         toast.success("You have left the group");
         router.push("/groups");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -221,6 +231,7 @@ export function GroupSettingsClient({
           prev.map((m) => (m.id === member.id ? result.data! : m)),
         );
         toast.success(role === "admin" ? `${member.display_name} is now an admin` : `${member.display_name} is now a regular member`);
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -280,6 +291,7 @@ export function GroupSettingsClient({
         setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
         toast.success("Category added");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -342,6 +354,7 @@ export function GroupSettingsClient({
         setEditingCategoryId(null);
         toast.success("Category updated");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -372,6 +385,7 @@ export function GroupSettingsClient({
         setCategoryList((prev) => prev.filter((item) => item.id !== category.id));
         toast.success("Category deleted");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -390,6 +404,7 @@ export function GroupSettingsClient({
         toast.success("Group archived");
         router.push("/groups");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }
@@ -408,6 +423,7 @@ export function GroupSettingsClient({
         toast.success("Group deleted");
         router.push("/groups");
         router.refresh();
+        invalidateGroupData(queryClient, group.id);
       }
     });
   }

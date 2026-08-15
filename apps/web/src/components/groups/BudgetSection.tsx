@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateGroupData } from "@/lib/query-keys";
 import { setGroupBudget } from "@/app/actions/groups";
 import { parsePHPAmount, formatCents } from "@template/shared";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +18,7 @@ type Props = {
 };
 
 export function BudgetSection({ groupId, budgetCents, canEdit }: Props): React.ReactElement {
+  const queryClient = useQueryClient();
   const [amountStr, setAmountStr] = useState(budgetCents ? (budgetCents / 100).toFixed(2) : "");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -27,6 +30,7 @@ export function BudgetSection({ groupId, budgetCents, canEdit }: Props): React.R
       else {
         toast.success(nextCents ? `Budget set to ${formatCents(nextCents)}` : "Budget removed");
         router.refresh();
+        invalidateGroupData(queryClient, groupId);
       }
     });
   }

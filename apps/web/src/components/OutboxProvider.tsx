@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Sentry from "@sentry/nextjs";
 import { toast } from "sonner";
@@ -25,7 +24,7 @@ import {
 import { outboxExecutor } from "@/lib/outbox/executor";
 import { clearOutboxStorage, outboxStorage } from "@/lib/outbox/storage";
 import { supabase } from "@/lib/supabase/client";
-import { invalidationKeysFor } from "@/lib/query-keys";
+import { invalidationKeysFor, stampLocalInvalidate } from "@/lib/query-keys";
 
 // ---------------------------------------------------------------------------
 // Web offline outbox provider.
@@ -36,8 +35,7 @@ import { invalidationKeysFor } from "@/lib/query-keys";
 // keyed on the queue, with the engine re-initialized from IndexedDB first —
 // so multiple open tabs never clobber each other's entries and at most one
 // tab drains at a time. After a drain that synced anything, the affected
-// groups' queries are invalidated (and the RSC tree refreshed for
-// still-server-rendered pages).
+// groups' queries are invalidated — cheap parallel background refetches.
 // ---------------------------------------------------------------------------
 
 type OutboxContextValue = {
@@ -58,7 +56,6 @@ async function withOutboxLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export function OutboxProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [state, setState] = useState<OutboxState>(createEmptyOutboxState());
   const engineRef = useRef<SyncEngine | null>(null);
@@ -93,11 +90,12 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
     });
     if (result) {
       if (result.synced > 0) {
+        // Stamp before invalidating so the realtime echo of our own replayed
+        // writes doesn't trigger a second refetch wave.
+        for (const groupId of groupIds) stampLocalInvalidate(groupId);
         for (const key of invalidationKeysFor(groupIds)) {
           void queryClient.invalidateQueries({ queryKey: key });
         }
-        // Unconverted pages (settings, activity) still read via RSC.
-        router.refresh();
         toast.success(`Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`);
       }
       if (result.failed > 0) {
@@ -114,7 +112,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
       const delay = Math.max(1_000, new Date(nextAttemptAt).getTime() - Date.now());
       retryTimerRef.current = setTimeout(() => void drain(), delay);
     }
-  }, [engine, queryClient, router]);
+  }, [engine, queryClient]);
 
   useEffect(() => {
     void withOutboxLock(() => engine.init()).then(() => void drain());

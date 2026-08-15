@@ -2,6 +2,7 @@
 
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
+import { cachedAuth } from "@/lib/supabase/queries";
 import { expenseCategoryInputSchema, updateExpenseCategorySchema, DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { ExpenseCategory } from "@template/supabase";
@@ -31,7 +32,7 @@ export async function listExpenseCategories(groupId: string): Promise<ApiRespons
     const parsed = groupIdSchema.safeParse(groupId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
 
-    await assertAuth();
+    await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { data, error } = await db

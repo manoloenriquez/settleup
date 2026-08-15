@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createBrowserClient } from "@template/supabase/browser";
-import { invalidateGroupData } from "@/lib/query-keys";
+import { invalidateGroupData, wasRecentlyInvalidatedLocally } from "@/lib/query-keys";
 
 /**
  * Subscribes to Realtime changes for this group and invalidates the group's
@@ -21,7 +21,12 @@ export function GroupRealtimeRefresher({ groupId }: { groupId: string }): null {
 
     const refresh = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => invalidateGroupData(queryClient, groupId), 500);
+      timerRef.current = setTimeout(() => {
+        // Skip the echo of this tab's own write — the mutation already
+        // invalidated; only remote changes need a refetch.
+        if (wasRecentlyInvalidatedLocally(groupId)) return;
+        invalidateGroupData(queryClient, groupId);
+      }, 500);
     };
 
     const channel = supabase
