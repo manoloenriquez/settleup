@@ -5,6 +5,8 @@ import type { QueryClient } from "@tanstack/react-query";
  * the mobile app's keys so the outbox invalidation logic stays portable.
  */
 export const queryKeys = {
+  group: (groupId: string) => ["group", groupId] as const,
+  paymentProfile: ["payment-profile"] as const,
   dashboard: ["dashboard"] as const,
   recentActivity: (limit: number) => ["activity", "recent", limit] as const,
   groups: ["groups"] as const,

@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { simplifyDebts, formatCents } from "@template/shared";
-import type { MemberBalance, CreditorPaymentProfile } from "@template/shared";
-import type { ExpenseCategory } from "@template/supabase";
 import { computeInsights } from "@template/ai/insights";
 import { Share2, Sparkles, ChevronRight } from "lucide-react";
 import {
+  useGroupRow,
   useMembersWithBalances,
   useExpensesInfinite,
   useExpenseSummaries,
@@ -14,12 +13,9 @@ import {
   useCreditorProfiles,
   useCategoriesQuery,
   usePendingPaymentsQuery,
-  type Seed,
-  type ExpensesPage,
+  usePaymentProfile,
 } from "@/hooks/queries";
-import type { ActivityItem } from "@/app/actions/activity";
-import type { ExpenseSummary } from "@/app/actions/expenses";
-import type { PendingPayment } from "@/app/actions/friend-payments";
+import { useCurrentUserId } from "@/hooks/useCurrentUser";
 import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutboxPending";
 import { PendingPayments } from "@/components/groups/PendingPayments";
 import { GroupRealtimeRefresher } from "@/components/groups/GroupRealtimeRefresher";
@@ -43,55 +39,61 @@ import { CopyButton } from "@/components/groups/CopyButton";
 
 const EXPENSES_PAGE_SIZE = 50;
 
+function buildPaymentProfileText(profile: {
+  payer_display_name?: string | null;
+  gcash_name?: string | null;
+  gcash_number?: string | null;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  notes?: string | null;
+} | null): string {
+  if (!profile) return "";
+  const lines: string[] = [];
+  if (profile.payer_display_name) lines.push(profile.payer_display_name);
+  if (profile.gcash_number) {
+    lines.push(
+      `Pay via GCash: ${profile.gcash_number}${profile.gcash_name ? ` (${profile.gcash_name})` : ""}`,
+    );
+  }
+  if (profile.bank_name && profile.bank_account_number) {
+    lines.push(
+      `Or bank: ${profile.bank_name} ${profile.bank_account_number}${profile.bank_account_name ? ` (${profile.bank_account_name})` : ""}`,
+    );
+  }
+  if (profile.notes) lines.push(profile.notes);
+  return lines.join("\n");
+}
+
 type Props = {
   groupId: string;
-  group: {
-    id: string;
-    name: string;
-    share_token: string;
-    owner_user_id: string | null;
-    budget_cents: number | null;
-  };
-  currentUserId: string;
-  origin: string;
   isDev: boolean;
-  paymentProfileText: string;
-  hasPaymentDetails: boolean;
-  initialBalances: Seed<MemberBalance[]> | undefined;
-  initialExpensesPage: Seed<ExpensesPage> | undefined;
-  initialSummaries: Seed<ExpenseSummary[]> | undefined;
-  initialActivity: Seed<ActivityItem[]> | undefined;
-  initialCreditorProfiles: Seed<CreditorPaymentProfile[]> | undefined;
-  initialCategories: Seed<ExpenseCategory[]> | undefined;
-  initialPendingPayments: Seed<PendingPayment[]> | undefined;
 };
 
-export function GroupDetailClient({
-  groupId,
-  group,
-  currentUserId,
-  origin,
-  isDev,
-  paymentProfileText,
-  hasPaymentDetails,
-  initialBalances,
-  initialExpensesPage,
-  initialSummaries,
-  initialActivity,
-  initialCreditorProfiles,
-  initialCategories,
-  initialPendingPayments,
-}: Props): React.ReactElement {
-  const balancesQ = useMembersWithBalances(groupId, initialBalances);
-  const expensesQ = useExpensesInfinite(groupId, EXPENSES_PAGE_SIZE, initialExpensesPage);
-  const summariesQ = useExpenseSummaries(groupId, initialSummaries);
-  const activityQ = useGroupActivity(groupId, initialActivity);
-  const creditorProfilesQ = useCreditorProfiles(groupId, initialCreditorProfiles);
-  const categoriesQ = useCategoriesQuery(groupId, initialCategories);
-  const pendingPaymentsQ = usePendingPaymentsQuery(groupId, initialPendingPayments);
+export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement {
+  const groupQ = useGroupRow(groupId);
+  const currentUserIdOrNull = useCurrentUserId();
+  const paymentProfileQ = usePaymentProfile();
+  const balancesQ = useMembersWithBalances(groupId);
+  const expensesQ = useExpensesInfinite(groupId, EXPENSES_PAGE_SIZE);
+  const summariesQ = useExpenseSummaries(groupId);
+  const activityQ = useGroupActivity(groupId);
+  const creditorProfilesQ = useCreditorProfiles(groupId);
+  const categoriesQ = useCategoriesQuery(groupId);
+  const pendingPaymentsQ = usePendingPaymentsQuery(groupId);
   const pendingLocalExpenses = usePendingExpenses(groupId);
   const pendingLocalPayments = usePendingPaymentRecords(groupId);
   const pendingLocalCount = pendingLocalExpenses.length + pendingLocalPayments.length;
+
+  const group = groupQ.data ?? null;
+  // Never let a null user id accidentally match unclaimed members (user_id null).
+  const currentUserId = currentUserIdOrNull ?? "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const paymentProfile = paymentProfileQ.data ?? null;
+  const paymentProfileText = buildPaymentProfileText(paymentProfile);
+  const hasPaymentDetails = Boolean(
+    paymentProfile?.gcash_number || paymentProfile?.gcash_qr_url || paymentProfile?.bank_account_number || paymentProfile?.bank_qr_url,
+  );
 
   const balances = balancesQ.data ?? [];
   const creditorProfiles = creditorProfilesQ.data ?? [];
@@ -110,6 +112,35 @@ export function GroupDetailClient({
   const totalExpenseCount = expensePages[expensePages.length - 1]?.count ?? summaries.length;
   const activities = activityQ.data ?? [];
   const categories = categoriesQ.data ?? [];
+
+  if (!group) {
+    if (groupQ.isSuccess) {
+      // Settled: the row genuinely doesn't exist (or RLS hides it).
+      return (
+        <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center animate-fade-in">
+          <h2 className="text-lg font-bold text-slate-900">Group not found</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            This group doesn&apos;t exist or you&apos;re not a member of it.
+          </p>
+          <Link
+            href="/groups"
+            className="mt-5 inline-flex rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+          >
+            Back to your groups
+          </Link>
+        </div>
+      );
+    }
+    // Cold cache: neutral placeholder while the group row loads.
+    return (
+      <div className="flex flex-col gap-6 animate-fade-in" aria-busy="true">
+        <div className="h-8 w-48 rounded-xl bg-slate-100 animate-pulse" />
+        <div className="h-40 rounded-3xl bg-slate-100 animate-pulse" />
+        <div className="h-64 rounded-3xl bg-slate-100 animate-pulse" />
+      </div>
+    );
+  }
+
   const isOwner = group.owner_user_id === currentUserId;
   const currentMember = members.find((m) => m.user_id === currentUserId);
   const isAdminOrOwner = isOwner || currentMember?.role === "admin";
@@ -253,7 +284,6 @@ export function GroupDetailClient({
             isAdminOrOwner={isAdminOrOwner}
             groupId={groupId}
             pageSize={EXPENSES_PAGE_SIZE}
-            initialPage={initialExpensesPage}
           />
         }
         balancesContent={

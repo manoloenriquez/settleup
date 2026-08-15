@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
   experimental: {
     reactCompiler: false,
     serverActions: { bodySizeLimit: "5mb" },
+    // Reuse the client router cache for 30s so back/forward and repeat
+    // navigations skip the RSC round trip entirely (pages are thin shells;
+    // data freshness is React Query's job).
+    staleTimes: { dynamic: 30 },
   },
 
   // 3D: Allow next/image to serve Supabase Storage images

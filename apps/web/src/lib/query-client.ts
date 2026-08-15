@@ -13,8 +13,8 @@ const CACHE_BUSTER = "web-v1";
 
 const CACHE_STORAGE_KEY = "settleup-query-cache";
 
-/** Query-key roots that must never be persisted (AI output, transient state). */
-const NON_PERSISTED_KEYS = new Set(["ai", "insights", "ai-availability"]);
+/** Query-key roots that must never be persisted (AI output, identity, transient state). */
+const NON_PERSISTED_KEYS = new Set(["ai", "insights", "ai-availability", "auth-user"]);
 
 /**
  * Fresh client per provider mount (never a module singleton — SSR passes must

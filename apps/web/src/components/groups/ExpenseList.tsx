@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { deleteExpense } from "@/app/actions/expenses";
 import { invalidateGroupData } from "@/lib/query-keys";
-import { useExpensesInfinite, type Seed, type ExpensesPage } from "@/hooks/queries";
+import { useExpensesInfinite } from "@/hooks/queries";
 import { usePendingExpenses } from "@/hooks/useOutboxPending";
 import { useOnline } from "@/hooks/useOnline";
 import { useWebOutbox } from "@/components/OutboxProvider";
@@ -28,8 +28,6 @@ type Props = {
   isAdminOrOwner: boolean;
   groupId: string;
   pageSize: number;
-  /** First page captured during the RSC render, seeding the query cache. */
-  initialPage: Seed<ExpensesPage> | undefined;
 };
 
 /** Parse YYYY-MM-DD as a local date; new Date("YYYY-MM-DD") is UTC midnight (a day off in PH). */
@@ -75,7 +73,7 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner, groupId, pageSize, initialPage }: Props): React.ReactElement {
+export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner, groupId, pageSize }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -103,7 +101,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
   const queryClient = useQueryClient();
   const online = useOnline();
   const { enqueue } = useWebOutbox();
-  const expensesQ = useExpensesInfinite(groupId, pageSize, initialPage);
+  const expensesQ = useExpensesInfinite(groupId, pageSize);
   const pendingExpenses = usePendingExpenses(groupId);
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 

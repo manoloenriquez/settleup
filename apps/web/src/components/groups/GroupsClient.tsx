@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { ROUTES } from "@template/shared";
-import type { GroupWithStats } from "@template/shared";
-import type { Group } from "@template/supabase";
-import { useGroupsWithStats, useArchivedGroups, type Seed } from "@/hooks/queries";
+import { useGroupsWithStats, useArchivedGroups } from "@/hooks/queries";
 import { GroupList } from "@/components/groups/GroupList";
 import { ArchivedGroupsSection } from "@/components/groups/ArchivedGroupsSection";
 import { usePendingGroups } from "@/hooks/useOutboxPending";
@@ -13,19 +11,13 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
 import { Plus, Users } from "lucide-react";
 
-type Props = {
-  initialGroups: Seed<GroupWithStats[]> | undefined;
-  initialArchived: Seed<Group[]> | undefined;
-  initialError: string | null;
-};
-
-export function GroupsClient({ initialGroups, initialArchived, initialError }: Props): React.ReactElement {
-  const groupsQ = useGroupsWithStats(initialGroups);
-  const archivedQ = useArchivedGroups(initialArchived);
+export function GroupsClient(): React.ReactElement {
+  const groupsQ = useGroupsWithStats();
+  const archivedQ = useArchivedGroups();
   const pendingGroups = usePendingGroups();
 
   const groups = groupsQ.data;
-  const error = groupsQ.error?.message ?? (groups ? null : initialError);
+  const error = groupsQ.isError ? groupsQ.error.message : null;
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -41,6 +33,15 @@ export function GroupsClient({ initialGroups, initialArchived, initialError }: P
 
       {error && !groups && (
         <p className="text-sm text-red-600">{error}</p>
+      )}
+
+      {/* Cold cache: neutral placeholders while the list loads */}
+      {!groups && !error && (
+        <div className="flex flex-col gap-2" aria-busy="true">
+          <div className="h-20 rounded-2xl bg-slate-100 animate-pulse" />
+          <div className="h-20 rounded-2xl bg-slate-100 animate-pulse" />
+          <div className="h-20 rounded-2xl bg-slate-100 animate-pulse" />
+        </div>
       )}
 
       {/* Groups created offline, waiting to sync — not navigable yet */}
