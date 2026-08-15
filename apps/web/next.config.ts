@@ -22,7 +22,7 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  transpilePackages: ["@template/shared", "@template/supabase"],
+  transpilePackages: ["@template/shared", "@template/supabase", "@template/ai"],
   experimental: {
     reactCompiler: false,
     serverActions: { bodySizeLimit: "5mb" },
