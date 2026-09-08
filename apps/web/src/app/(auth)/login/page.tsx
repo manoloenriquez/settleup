@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { APP_NAME, ROUTES } from "@template/shared";
+import { APP_NAME, ROUTES, safeReturnPath } from "@template/shared";
 import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = { title: "Sign In" };
 
-export default function LoginPage(): React.ReactElement {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirectTo?: string }>;
+}): Promise<React.ReactElement> {
+  const destination = safeReturnPath((await searchParams).redirectTo);
   return (
     <div className="w-full max-w-sm animate-fade-in">
       {/* Brand */}
@@ -29,7 +34,10 @@ export default function LoginPage(): React.ReactElement {
 
       <p className="mt-5 text-center text-xs text-slate-500">
         Don&apos;t have an account?{" "}
-        <Link href={ROUTES.REGISTER} className="font-semibold text-brand-600 hover:text-brand-700">
+        <Link
+          href={`${ROUTES.REGISTER}?redirectTo=${encodeURIComponent(destination)}`}
+          className="font-semibold text-brand-600 hover:text-brand-700"
+        >
           Create one
         </Link>
       </p>
