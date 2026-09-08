@@ -126,6 +126,60 @@ export type Database = {
   };
   settleup: {
     Tables: {
+      closed_accounts: {
+        Row: { user_id: string; closed_at: string };
+        Insert: { user_id: string; closed_at?: string };
+        Update: { user_id?: string; closed_at?: string };
+        Relationships: [];
+      };
+      account_closure_transactions: {
+        Row: { transaction_id: number };
+        Insert: { transaction_id: number };
+        Update: { transaction_id?: number };
+        Relationships: [];
+      };
+      member_claim_invitations: {
+        Row: {
+          member_id: string;
+          token_hash: string;
+          expires_at: string;
+          claimed_by: string | null;
+          claimed_at: string | null;
+        };
+        Insert: {
+          member_id: string;
+          token_hash: string;
+          expires_at: string;
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+        };
+        Update: {
+          member_id?: string;
+          token_hash?: string;
+          expires_at?: string;
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      public_write_limits: {
+        Row: {
+          member_id: string;
+          window_start: string;
+          attempts: number;
+        };
+        Insert: {
+          member_id: string;
+          window_start: string;
+          attempts: number;
+        };
+        Update: {
+          member_id?: string;
+          window_start?: string;
+          attempts?: number;
+        };
+        Relationships: [];
+      };
       groups: {
         Row: {
           id: string;
@@ -175,6 +229,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id: string | null;
+          departed_at: string | null;
           role: "owner" | "admin" | "member";
           created_at: string;
         };
@@ -185,6 +240,7 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id?: string | null;
+          departed_at?: string | null;
           role?: "owner" | "admin" | "member";
           created_at?: string;
         };
@@ -195,6 +251,7 @@ export type Database = {
           slug?: string;
           share_token?: string;
           user_id?: string | null;
+          departed_at?: string | null;
           role?: "owner" | "admin" | "member";
           created_at?: string;
         };
@@ -455,6 +512,7 @@ export type Database = {
           note: string | null;
           created_at: string;
           updated_at: string;
+          report_request_id: string | null;
         };
         Insert: {
           id?: string;
@@ -467,6 +525,7 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           updated_at?: string;
+          report_request_id?: string | null;
         };
         Update: {
           id?: string;
@@ -479,6 +538,7 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           updated_at?: string;
+          report_request_id?: string | null;
         };
         Relationships: [
           {
@@ -636,6 +696,8 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      close_account: { Args: Record<string, never>; Returns: undefined };
+      is_account_closed: { Args: Record<string, never>; Returns: boolean };
       get_friend_view: {
         Args: { p_share_token: string };
         Returns: Json;
@@ -701,8 +763,11 @@ export type Database = {
         Args: { p_invite_code: string };
         Returns: Json;
       };
-      claim_member: {
-        Args: { p_member_id: string };
+      create_member_claim_invitation: { Args: { p_member_id: string }; Returns: Json };
+      revoke_member_claim_invitation: { Args: { p_member_id: string }; Returns: undefined };
+      get_friend_payment_reports: { Args: { p_share_token: string }; Returns: Json };
+      claim_member_with_token: {
+        Args: { p_token: string };
         Returns: Json;
       };
       rotate_member_share_token: {
@@ -753,6 +818,7 @@ export type Database = {
           p_to_member_id: string;
           p_amount_cents: number;
           p_note?: string;
+          p_request_id: string;
         };
         Returns: Json;
       };

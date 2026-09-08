@@ -85,7 +85,11 @@ export const expenseCategoryInputSchema = z.object({
   group_id: z.string().uuid(),
   name: z.string().trim().min(1, "Category name is required").max(80),
   icon: z.string().trim().min(1).max(40).optional(),
-  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Use a 6-digit hex color").optional(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Use a 6-digit hex color")
+    .optional(),
   sort_order: z.number().int().optional(),
 });
 
@@ -142,7 +146,10 @@ const expenseItemSchema = z.object({
   participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
   custom_splits: z
     .array(
-      z.object({ member_id: z.string().uuid(), share_cents: z.number().int().nonnegative("Share cannot be negative") }),
+      z.object({
+        member_id: z.string().uuid(),
+        share_cents: z.number().int().nonnegative("Share cannot be negative"),
+      }),
     )
     .optional(),
   payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -237,7 +244,12 @@ export const updateExpenseSchema = z
     split_mode: z.enum(["equal", "custom"]),
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
     custom_splits: z
-      .array(z.object({ member_id: z.string().uuid(), share_cents: z.number().int().nonnegative("Share cannot be negative") }))
+      .array(
+        z.object({
+          member_id: z.string().uuid(),
+          share_cents: z.number().int().nonnegative("Share cannot be negative"),
+        }),
+      )
       .optional(),
     payers: z.array(payerSchema).min(1, "At least one payer required"),
   })
@@ -319,7 +331,7 @@ export const joinGroupSchema = z.object({
 });
 
 export const claimMemberSchema = z.object({
-  member_id: z.string().uuid("Invalid member ID"),
+  token: z.string().regex(/^[a-f0-9]{64}$/, "Invalid claim invitation"),
 });
 
 export const upsertPaymentProfileSchema = z.object({
@@ -353,9 +365,7 @@ export const dashboardSummarySchema = z.object({
   owed_counterparty_count: z.number().int().default(0),
   owe_counterparty_count: z.number().int().default(0),
   // Defaults keep clients working against a DB that predates the v4 RPC.
-  spend_series: z
-    .array(z.object({ date: z.string(), amount_cents: z.number().int() }))
-    .default([]),
+  spend_series: z.array(z.object({ date: z.string(), amount_cents: z.number().int() })).default([]),
   groups: z.array(dashboardGroupSummarySchema),
 });
 

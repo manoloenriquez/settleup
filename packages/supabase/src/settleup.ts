@@ -1,4 +1,9 @@
-import { dashboardSummarySchema, type ApiResponse, type DashboardSummary, type GroupWithStats } from "@template/shared";
+import {
+  dashboardSummarySchema,
+  type ApiResponse,
+  type DashboardSummary,
+  type GroupWithStats,
+} from "@template/shared";
 import type { Expense, Group, GroupMember, Json, Payment } from "./database.types";
 import { z } from "zod";
 
@@ -98,6 +103,7 @@ const groupMemberSchema = z.object({
   slug: z.string(),
   share_token: z.string(),
   user_id: z.string().uuid().nullable(),
+  departed_at: z.string().nullable().default(null),
   role: z.enum(["owner", "admin", "member"]),
   created_at: z.string(),
 });
@@ -126,6 +132,7 @@ const paymentSchema = z.object({
   note: z.string().nullable().default(null),
   created_at: z.string(),
   updated_at: z.string().default(""),
+  report_request_id: z.string().nullable().default(null),
 });
 
 const groupWithStatsSchema = groupSchema.extend({
@@ -319,7 +326,11 @@ export function parseCreateExpenseRpcResult(result: Json | null): ApiResponse<Ex
 }
 
 export function parseCreateExpensesBatchRpcResult(result: Json | null): ApiResponse<Expense[]> {
-  const parsed = parseRpcPayload(result, createExpensesBatchResultSchema, "Failed to parse expenses.");
+  const parsed = parseRpcPayload(
+    result,
+    createExpensesBatchResultSchema,
+    "Failed to parse expenses.",
+  );
   if (parsed.error) return parsed;
   if (parsed.data === null) return { data: null, error: "Failed to parse expenses." };
 
@@ -343,7 +354,11 @@ export function parseGroupsWithStatsRpcResult(result: Json | null): ApiResponse<
 }
 
 export function parseDashboardSummaryRpcResult(result: Json | null): ApiResponse<DashboardSummary> {
-  return parseRpcPayload(result, dashboardSummaryResultSchema, "Failed to parse dashboard summary.");
+  return parseRpcPayload(
+    result,
+    dashboardSummaryResultSchema,
+    "Failed to parse dashboard summary.",
+  );
 }
 
 export function parseJoinGroupRpcResult(
@@ -371,11 +386,15 @@ export function parseClaimMemberRpcResult(
   return { data: { member: parsed.data.member }, error: null };
 }
 
-export function parseShareTokenRpcResult(result: Json | null): ApiResponse<{ share_token: string }> {
+export function parseShareTokenRpcResult(
+  result: Json | null,
+): ApiResponse<{ share_token: string }> {
   return parseRpcPayload(result, shareTokenResultSchema, "Failed to rotate share token.");
 }
 
-export function parseInviteCodeRpcResult(result: Json | null): ApiResponse<{ invite_code: string }> {
+export function parseInviteCodeRpcResult(
+  result: Json | null,
+): ApiResponse<{ invite_code: string }> {
   return parseRpcPayload(result, inviteCodeResultSchema, "Failed to regenerate invite code.");
 }
 
@@ -383,7 +402,9 @@ export function parseLeaveGroupRpcResult(result: Json | null): ApiResponse<{ suc
   return parseRpcPayload(result, leaveGroupResultSchema, "Failed to leave group.");
 }
 
-export function parseTransferOwnershipRpcResult(result: Json | null): ApiResponse<{ success: boolean }> {
+export function parseTransferOwnershipRpcResult(
+  result: Json | null,
+): ApiResponse<{ success: boolean }> {
   return parseRpcPayload(result, transferOwnershipResultSchema, "Failed to transfer ownership.");
 }
 
@@ -395,7 +416,11 @@ export function parseRenameMemberRpcResult(result: Json | null): ApiResponse<Gro
 }
 
 export function parsePromoteMemberRpcResult(result: Json | null): ApiResponse<GroupMember> {
-  const parsed = parseRpcPayload(result, promoteMemberResultSchema, "Failed to update member role.");
+  const parsed = parseRpcPayload(
+    result,
+    promoteMemberResultSchema,
+    "Failed to update member role.",
+  );
   if (parsed.error) return parsed;
   if (parsed.data === null) return { data: null, error: "Failed to update member role." };
   return { data: parsed.data.member, error: null };

@@ -25,12 +25,10 @@ export async function joinGroupByInvite(
   return parseJoinGroupRpcResult(result);
 }
 
-export async function claimMember(
-  memberId: string,
-): Promise<ApiResponse<{ member: GroupMember }>> {
+export async function claimMember(token: string): Promise<ApiResponse<{ member: GroupMember }>> {
   const { data: result, error } = await supabase
     .schema("settleup")
-    .rpc("claim_member", { p_member_id: memberId });
+    .rpc("claim_member_with_token", { p_token: token });
 
   if (error) return { data: null, error: error.message };
 
@@ -49,9 +47,7 @@ export async function rotateShareToken(
   return parseShareTokenRpcResult(result);
 }
 
-export async function leaveGroup(
-  groupId: string,
-): Promise<ApiResponse<{ success: boolean }>> {
+export async function leaveGroup(groupId: string): Promise<ApiResponse<{ success: boolean }>> {
   const { data: result, error } = await supabase
     .schema("settleup")
     .rpc("leave_group", { p_group_id: groupId });

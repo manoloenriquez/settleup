@@ -10,7 +10,8 @@ import type { ApiResponse } from "@template/shared";
 import { z } from "zod";
 
 const submitSchema = z.object({
-  share_token: z.string().min(8),
+  share_token: z.string().min(8).max(128),
+  request_id: z.string().uuid(),
   to_member_id: z.string().uuid(),
   amount_cents: z.number().int().positive().max(100_000_000),
   note: z.string().trim().max(280).optional(),
@@ -34,7 +35,9 @@ export type PendingPayment = {
  * Creates a PENDING payment that a group member must confirm before it
  * affects balances. Rate-limited per IP+token like the public pages.
  */
-export async function submitFriendPayment(input: unknown): Promise<ApiResponse<{ payment_id: string }>> {
+export async function submitFriendPayment(
+  input: unknown,
+): Promise<ApiResponse<{ payment_id: string }>> {
   try {
     const parsed = submitSchema.safeParse(input);
     if (!parsed.success) {
@@ -47,12 +50,14 @@ export async function submitFriendPayment(input: unknown): Promise<ApiResponse<{
       maxRequests: 5,
       windowMs: 5 * 60_000,
     });
-    if (!allowed) return { data: null, error: "Too many attempts. Please try again in a few minutes." };
+    if (!allowed)
+      return { data: null, error: "Too many attempts. Please try again in a few minutes." };
 
     const supabase = createAnonClient();
     const { data, error } = await supabase.schema("settleup").rpc("submit_friend_payment", {
       p_share_token: parsed.data.share_token,
       p_to_member_id: parsed.data.to_member_id,
+      p_request_id: parsed.data.request_id,
       p_amount_cents: parsed.data.amount_cents,
       p_note: parsed.data.note ?? undefined,
     });
@@ -69,7 +74,8 @@ export async function submitFriendPayment(input: unknown): Promise<ApiResponse<{
 export async function listPendingPayments(groupId: string): Promise<ApiResponse<PendingPayment[]>> {
   try {
     const parsed = groupIdSchema.safeParse(groupId);
-    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+    if (!parsed.success)
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
 
     await cachedAuth();
     const supabase = await createSettleUpDb();
@@ -89,10 +95,14 @@ export async function listPendingPayments(groupId: string): Promise<ApiResponse<
   }
 }
 
-async function resolvePayment(paymentId: string, action: "confirm" | "reject"): Promise<ApiResponse<void>> {
+async function resolvePayment(
+  paymentId: string,
+  action: "confirm" | "reject",
+): Promise<ApiResponse<void>> {
   try {
     const parsed = paymentIdSchema.safeParse(paymentId);
-    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid payment ID." };
+    if (!parsed.success)
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid payment ID." };
 
     await assertAuth();
     const supabase = await createSettleUpDb();

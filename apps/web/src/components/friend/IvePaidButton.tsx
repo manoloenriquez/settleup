@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { submitFriendPayment } from "@/app/actions/friend-payments";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -20,6 +20,7 @@ export function IvePaidButton({
   creditorName,
   suggestedAmountCents,
 }: Props): React.ReactElement {
+  const requestId = useRef<string>(crypto.randomUUID());
   const [open, setOpen] = useState(false);
   const [amountStr, setAmountStr] = useState((suggestedAmountCents / 100).toFixed(2));
   const [note, setNote] = useState("");
@@ -38,6 +39,7 @@ export function IvePaidButton({
     startTransition(async () => {
       const result = await submitFriendPayment({
         share_token: shareToken,
+        request_id: requestId.current,
         to_member_id: toMemberId,
         amount_cents: amountCents,
         note: note.trim() || undefined,

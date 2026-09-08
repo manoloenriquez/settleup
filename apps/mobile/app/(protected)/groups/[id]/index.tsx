@@ -1,18 +1,39 @@
 import { useState } from "react";
-import { Alert, Modal, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances";
-import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense, useExpenseTotals } from "@/hooks/useExpenses";
+import {
+  useExpenses,
+  useDeleteExpense,
+  useUpdateExpense,
+  useUpdateExpenseCustomSplit,
+  useUpdateItemizedExpense,
+  useExpenseTotals,
+} from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
-import { usePendingPayments, useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
+import {
+  usePendingPayments,
+  useUndoLastPayment,
+  useUndoLastPaymentForMember,
+} from "@/hooks/usePayments";
 import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutbox";
 import { useGroupRealtime } from "@/hooks/useGroupRealtime";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
-import { useClaimMember } from "@/hooks/useCollaboration";
 import { useAuth } from "@/context/AuthContext";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { PendingPaymentsCard } from "@/components/groups/PendingPaymentsCard";
@@ -21,7 +42,15 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
-import { SegmentedControl, Card, ChipGroup, ErrorBanner, SkeletonCard, useToast, Avatar } from "@/components/ui";
+import {
+  SegmentedControl,
+  Card,
+  ChipGroup,
+  ErrorBanner,
+  SkeletonCard,
+  useToast,
+  Avatar,
+} from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
@@ -120,7 +149,6 @@ export default function GroupDetailScreen() {
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
   const membersQ = useMembers(id);
   const categoriesQ = useCategories(id);
-  const claimMember = useClaimMember(id);
 
   // Unlinked members the current user might want to claim
   const isMemberLinked = (membersQ.data ?? []).some((m) => m.user_id === user?.id);
@@ -161,7 +189,9 @@ export default function GroupDetailScreen() {
       toast.success("Group summary copied to clipboard");
       return;
     }
-    const lines = debts.map((d) => `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`);
+    const lines = debts.map(
+      (d) => `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`,
+    );
     const text = `${group?.name ?? "Group"} Balances:\n${lines.join("\n")}`;
     await Clipboard.setStringAsync(text);
     toast.success("Group summary copied to clipboard");
@@ -181,7 +211,8 @@ export default function GroupDetailScreen() {
               onSuccess: (res) => {
                 if (res.error) toast.error(res.error);
               },
-              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
         },
@@ -203,7 +234,8 @@ export default function GroupDetailScreen() {
               onSuccess: (res) => {
                 if (res.error) toast.error(res.error);
               },
-              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
         },
@@ -236,7 +268,12 @@ export default function GroupDetailScreen() {
   function handleSettle(debt: SimplifiedDebt) {
     router.push({
       pathname: "/groups/[id]/settle-up",
-      params: { id, fromId: debt.from_member_id, toId: debt.to_member_id, amount: String(debt.amount_cents) },
+      params: {
+        id,
+        fromId: debt.from_member_id,
+        toId: debt.to_member_id,
+        amount: String(debt.amount_cents),
+      },
     });
   }
 
@@ -250,9 +287,13 @@ export default function GroupDetailScreen() {
     setEditName(expense.item_name);
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
     setEditCategoryId(expense.category_id);
-    setEditParticipantIds(new Set(expense.participants.map((participant) => participant.member_id)));
+    setEditParticipantIds(
+      new Set(expense.participants.map((participant) => participant.member_id)),
+    );
     setEditItemAssignments(
-      (expense.items ?? []).map((item) => item.item_participants.map((participant) => participant.member_id)),
+      (expense.items ?? []).map((item) =>
+        item.item_participants.map((participant) => participant.member_id),
+      ),
     );
   }
 
@@ -293,7 +334,8 @@ export default function GroupDetailScreen() {
       setEditingExpense(null);
       toast.success("Expense updated");
     };
-    const onError = (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update");
+    const onError = (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to update");
 
     const payerAmounts = scalePositiveAmounts(
       editingExpense.payers.map((payer) => payer.paid_cents),
@@ -408,8 +450,7 @@ export default function GroupDetailScreen() {
     { value: "charts", label: "Charts" },
   ];
 
-  const currentMemberId =
-    (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
+  const currentMemberId = (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
 
   const editIsItemized = (editingExpense?.items?.length ?? 0) > 0;
   const editParticipantsChanged = editingExpense
@@ -419,7 +460,9 @@ export default function GroupDetailScreen() {
       )
     : false;
   const editSaving =
-    updateExpenseMut.isPending || updateCustomExpenseMut.isPending || updateItemizedExpenseMut.isPending;
+    updateExpenseMut.isPending ||
+    updateCustomExpenseMut.isPending ||
+    updateItemizedExpenseMut.isPending;
 
   return (
     <>
@@ -429,7 +472,12 @@ export default function GroupDetailScreen() {
           title: group?.name ?? "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
-              <TouchableOpacity onPress={handleGroupActions} hitSlop={8} accessibilityRole="button" accessibilityLabel="Group actions">
+              <TouchableOpacity
+                onPress={handleGroupActions}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Group actions"
+              >
                 <Ionicons name="ellipsis-horizontal" size={22} color={colors.gray600} />
               </TouchableOpacity>
             </View>
@@ -448,7 +496,11 @@ export default function GroupDetailScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.content}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing && !isLoading} onRefresh={handleRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={isRefreshing && !isLoading}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
           }
         >
           {(balancesQ.error || expensesQ.error || activityQ.error) && (
@@ -462,7 +514,7 @@ export default function GroupDetailScreen() {
               onRetry={() => {
                 void balancesQ.refetch();
                 void expensesQ.refetch();
-    void totalsQ.refetch();
+                void totalsQ.refetch();
                 void activityQ.refetch();
               }}
             />
@@ -503,7 +555,10 @@ export default function GroupDetailScreen() {
             const members = balancesQ.data ?? [];
             const totalOwed = members.reduce((s, m) => s + m.owed_cents, 0);
             const totalSpent = totalsQ.data?.positiveTotalCents ?? 0;
-            const settledPct = totalSpent > 0 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100))) : 100;
+            const settledPct =
+              totalSpent > 0
+                ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100)))
+                : 100;
             const isSettled = totalOwed === 0;
             const myNet = members.find((m) => m.member_id === currentMemberId)?.net_cents ?? 0;
             const expenseCount = totalsQ.data?.count ?? expenses.length;
@@ -538,66 +593,44 @@ export default function GroupDetailScreen() {
           })()}
 
           {/* Budget progress */}
-          {group?.budget_cents != null && group.budget_cents > 0 && (() => {
-            const spent = totalsQ.data?.positiveTotalCents ?? 0;
-            const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
-            const over = spent > group.budget_cents;
-            const warn = !over && pct >= 80;
-            const barColor = over ? colors.danger : warn ? colors.warning : colors.primary;
-            return (
-              <View style={styles.budgetCard}>
-                <View style={styles.budgetHeader}>
-                  <Text style={styles.budgetLabel}>BUDGET</Text>
-                  <Text style={[styles.budgetValue, over && { color: colors.danger }]}>
-                    {formatCents(spent)} of {formatCents(group.budget_cents)}
-                    {over ? " · over" : ` · ${pct}%`}
-                  </Text>
+          {group?.budget_cents != null &&
+            group.budget_cents > 0 &&
+            (() => {
+              const spent = totalsQ.data?.positiveTotalCents ?? 0;
+              const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
+              const over = spent > group.budget_cents;
+              const warn = !over && pct >= 80;
+              const barColor = over ? colors.danger : warn ? colors.warning : colors.primary;
+              return (
+                <View style={styles.budgetCard}>
+                  <View style={styles.budgetHeader}>
+                    <Text style={styles.budgetLabel}>BUDGET</Text>
+                    <Text style={[styles.budgetValue, over && { color: colors.danger }]}>
+                      {formatCents(spent)} of {formatCents(group.budget_cents)}
+                      {over ? " · over" : ` · ${pct}%`}
+                    </Text>
+                  </View>
+                  <View
+                    style={styles.budgetTrack}
+                    accessibilityRole="progressbar"
+                    accessibilityValue={{ min: 0, max: 100, now: pct }}
+                    accessibilityLabel="Budget used"
+                  >
+                    <View
+                      style={[styles.budgetFill, { width: `${pct}%`, backgroundColor: barColor }]}
+                    />
+                  </View>
                 </View>
-                <View
-                  style={styles.budgetTrack}
-                  accessibilityRole="progressbar"
-                  accessibilityValue={{ min: 0, max: 100, now: pct }}
-                  accessibilityLabel="Budget used"
-                >
-                  <View style={[styles.budgetFill, { width: `${pct}%`, backgroundColor: barColor }]} />
-                </View>
-              </View>
-            );
-          })()}
+              );
+            })()}
 
-          {/* Claim member banner */}
           {unlinkedMembers.length > 0 && (
             <View style={styles.claimBanner}>
-              <Text style={styles.claimBannerTitle}>Are you one of these members?</Text>
+              <Text style={styles.claimBannerTitle}>Already listed in this group?</Text>
               <Text style={styles.claimBannerSub}>
-                Link your account to track your expenses automatically.
+                Ask the organizer for your personal invitation. Balance links cannot link an
+                account.
               </Text>
-              <View style={styles.claimBannerList}>
-                {unlinkedMembers.map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={styles.claimMemberBtn}
-                    onPress={() => {
-                      Alert.alert(
-                        `Claim "${m.display_name}"?`,
-                        "This will link this member to your account.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Claim",
-                            onPress: () => claimMember.mutate(m.id, {
-                              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to claim member"),
-                            }),
-                          },
-                        ],
-                      );
-                    }}
-                  >
-                    <Text style={styles.claimMemberName}>{m.display_name}</Text>
-                    <Text style={styles.claimMemberAction}>Claim →</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           )}
 
@@ -644,7 +677,9 @@ export default function GroupDetailScreen() {
               {pendingExpenses.length + pendingPaymentRecords.length > 0 && (
                 <Text style={styles.pendingBalancesNote}>
                   {pendingExpenses.length + pendingPaymentRecords.length} pending{" "}
-                  {pendingExpenses.length + pendingPaymentRecords.length === 1 ? "change" : "changes"}{" "}
+                  {pendingExpenses.length + pendingPaymentRecords.length === 1
+                    ? "change"
+                    : "changes"}{" "}
                   not yet included in balances
                 </Text>
               )}
@@ -745,7 +780,11 @@ export default function GroupDetailScreen() {
                 placeholderTextColor={colors.gray400}
                 keyboardType="decimal-pad"
               />
-              <CategoryPicker categories={categoriesQ.data ?? []} selectedId={editCategoryId} onSelect={setEditCategoryId} />
+              <CategoryPicker
+                categories={categoriesQ.data ?? []}
+                selectedId={editCategoryId}
+                onSelect={setEditCategoryId}
+              />
 
               {!editIsItemized && (
                 <View style={styles.modalSplitSection}>
@@ -755,9 +794,13 @@ export default function GroupDetailScreen() {
                     selected={editParticipantIds}
                     onToggle={toggleEditParticipant}
                   />
-                  {editingExpense !== null && !isEqualSplit(editingExpense) && editParticipantsChanged && (
-                    <Text style={styles.modalWarnText}>Changing members resets to an equal split.</Text>
-                  )}
+                  {editingExpense !== null &&
+                    !isEqualSplit(editingExpense) &&
+                    editParticipantsChanged && (
+                      <Text style={styles.modalWarnText}>
+                        Changing members resets to an equal split.
+                      </Text>
+                    )}
                 </View>
               )}
 
@@ -769,18 +812,30 @@ export default function GroupDetailScreen() {
                     return (
                       <View key={item.id} style={styles.itemAssignCard}>
                         <View style={styles.itemAssignHeader}>
-                          <Text style={styles.itemAssignName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.itemAssignAmount}>{formatCents(item.amount_cents)}</Text>
+                          <Text style={styles.itemAssignName} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.itemAssignAmount}>
+                            {formatCents(item.amount_cents)}
+                          </Text>
                         </View>
                         <View style={styles.participantRow}>
                           {(membersQ.data ?? []).map((m) => (
                             <TouchableOpacity
                               key={m.id}
-                              style={[styles.participantChip, assigned.includes(m.id) && styles.participantChipActive]}
+                              style={[
+                                styles.participantChip,
+                                assigned.includes(m.id) && styles.participantChipActive,
+                              ]}
                               onPress={() => toggleEditItemAssignment(index, m.id)}
                               activeOpacity={0.7}
                             >
-                              <Text style={[styles.participantChipText, assigned.includes(m.id) && styles.participantChipTextActive]}>
+                              <Text
+                                style={[
+                                  styles.participantChipText,
+                                  assigned.includes(m.id) && styles.participantChipTextActive,
+                                ]}
+                              >
                                 {m.display_name}
                               </Text>
                             </TouchableOpacity>
@@ -807,9 +862,7 @@ export default function GroupDetailScreen() {
                 onPress={handleSaveEdit}
                 disabled={editSaving}
               >
-                <Text style={styles.modalSaveText}>
-                  {editSaving ? "Saving..." : "Save"}
-                </Text>
+                <Text style={styles.modalSaveText}>{editSaving ? "Saving..." : "Save"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -820,7 +873,12 @@ export default function GroupDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  loader: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
   pendingBalancesNote: {
     fontSize: fontSize.sm,
     color: colors.warningDark,
@@ -840,7 +898,12 @@ const styles = StyleSheet.create({
   avatarItem: { alignItems: "center", gap: 4, width: 56 },
   avatarRing: { borderRadius: 28, padding: 2, borderWidth: 2, borderColor: colors.gray200 },
   avatarRingYou: { borderColor: colors.primary },
-  avatarName: { fontSize: fontSize.xs, color: colors.gray600, fontWeight: fontWeight.medium, maxWidth: 56 },
+  avatarName: {
+    fontSize: fontSize.xs,
+    color: colors.gray600,
+    fontWeight: fontWeight.medium,
+    maxWidth: 56,
+  },
   avatarAdd: {
     width: 50,
     height: 50,
@@ -864,11 +927,33 @@ const styles = StyleSheet.create({
   balanceTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   balanceBody: { flex: 1, minWidth: 0 },
   balanceLabel: { fontSize: fontSize.base, color: colors.gray500, fontWeight: fontWeight.medium },
-  balanceAmount: { fontSize: fontSize["3xl"], fontWeight: fontWeight.bold, color: colors.gray900, letterSpacing: -0.5, marginTop: 2, fontVariant: ["tabular-nums"] },
+  balanceAmount: {
+    fontSize: fontSize["3xl"],
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
+    letterSpacing: -0.5,
+    marginTop: 2,
+    fontVariant: ["tabular-nums"],
+  },
   balanceSub: { fontSize: fontSize.base, color: colors.gray500, marginTop: 2 },
-  balancePill: { backgroundColor: colors.gray100, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4 },
-  balancePillText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.gray600 },
-  balanceTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden", marginTop: spacing.md },
+  balancePill: {
+    backgroundColor: colors.gray100,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  balancePillText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray600,
+  },
+  balanceTrack: {
+    height: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.gray100,
+    overflow: "hidden",
+    marginTop: spacing.md,
+  },
   balanceFill: { height: "100%", borderRadius: borderRadius.full, backgroundColor: colors.primary },
   balancePct: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 4 },
 
@@ -884,16 +969,45 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.base,
   },
-  chartsIcon: { width: 44, height: 44, borderRadius: borderRadius.lg, backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center" },
+  chartsIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   chartsBody: { flex: 1, minWidth: 0 },
   chartsTitle: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
   chartsSub: { fontSize: fontSize.sm, color: colors.gray500, marginTop: 2 },
 
-  budgetCard:{ backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.base },
-  budgetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
-  budgetLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
+  budgetCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.base,
+  },
+  budgetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  budgetLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.gray400,
+    letterSpacing: 0.8,
+  },
   budgetValue: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
-  budgetTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden" },
+  budgetTrack: {
+    height: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.gray100,
+    overflow: "hidden",
+  },
   budgetFill: { height: "100%", borderRadius: borderRadius.full },
   segmentWrapper: { marginVertical: spacing.base },
 
@@ -924,7 +1038,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary + "40",
   },
-  claimBannerTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary, marginBottom: 2 },
+  claimBannerTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.primary,
+    marginBottom: 2,
+  },
   claimBannerSub: { fontSize: fontSize.xs, color: colors.gray600, marginBottom: spacing.sm },
   claimBannerList: { gap: spacing.xs },
   claimMemberBtn: {
@@ -937,13 +1056,46 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   claimMemberName: { fontSize: fontSize.sm, color: colors.gray900, fontWeight: fontWeight.medium },
-  claimMemberAction: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+  claimMemberAction: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: spacing.base },
-  modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, width: "100%" },
-  modalTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900, marginBottom: spacing.base },
-  modalLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray600, marginBottom: 4 },
-  modalInput: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: fontSize.md, color: colors.gray900, marginBottom: spacing.sm },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.base,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    width: "100%",
+  },
+  modalTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
+    marginBottom: spacing.base,
+  },
+  modalLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray600,
+    marginBottom: 4,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    fontSize: fontSize.md,
+    color: colors.gray900,
+    marginBottom: spacing.sm,
+  },
   modalScroll: { maxHeight: 440 },
   modalSplitSection: { marginTop: spacing.sm, gap: spacing.sm },
   modalWarnText: { fontSize: fontSize.xs, color: colors.warningDark },
@@ -956,8 +1108,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   itemAssignHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  itemAssignName: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray900 },
-  itemAssignAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
+  itemAssignName: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray900,
+  },
+  itemAssignAmount: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray700,
+  },
   participantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   participantChip: {
     paddingHorizontal: spacing.sm,
@@ -970,9 +1131,19 @@ const styles = StyleSheet.create({
   participantChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   participantChipText: { fontSize: fontSize.xs, color: colors.gray600 },
   participantChipTextActive: { color: colors.primary, fontWeight: fontWeight.semibold },
-  modalBtns: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.sm },
+  modalBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   modalCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.base },
   modalCancelText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray500 },
-  modalSaveBtn: { backgroundColor: colors.primary, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: borderRadius.md },
+  modalSaveBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+  },
   modalSaveText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.white },
 });

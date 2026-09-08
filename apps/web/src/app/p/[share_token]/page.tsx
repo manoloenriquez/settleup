@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { createAnonClient } from "@template/supabase";
 import { FriendView } from "@/components/friend/FriendView";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
+import { z } from "zod";
+import { formatCents } from "@template/shared";
 import type { FriendViewPayload } from "@template/shared";
 
 type Props = {
@@ -50,5 +52,43 @@ export default async function FriendPage({ params }: Props): Promise<React.React
   const origin = `${protocol}://${host}`;
   const shareLink = `${origin}/p/${share_token}`;
 
-  return <FriendView payload={payload} shareLink={shareLink} shareToken={share_token} />;
+  const { data: reportData } = await supabase
+    .schema("settleup")
+    .rpc("get_friend_payment_reports", { p_share_token: share_token });
+  const parsedReports = z
+    .array(
+      z.object({
+        id: z.string(),
+        to_member_id: z.string(),
+        amount_cents: z.number(),
+        status: z.enum(["PENDING", "PAID", "REJECTED"]),
+        created_at: z.string(),
+      }),
+    )
+    .safeParse(reportData);
+  const reports = parsedReports.success ? parsedReports.data : [];
+  return (
+    <>
+      {reports.length > 0 && (
+        <section className="mx-auto max-w-2xl space-y-2 p-4" aria-label="Your payment reports">
+          <h2 className="font-semibold">Your payment reports</h2>
+          {reports.map((report) => (
+            <p key={report.id} className="text-sm">
+              {formatCents(report.amount_cents)} —{" "}
+              {report.status === "PAID"
+                ? "Confirmed"
+                : report.status === "PENDING"
+                  ? "Awaiting confirmation"
+                  : "Rejected — check with the recipient"}
+            </p>
+          ))}
+          <p className="text-xs text-slate-500">
+            Do not report the same payment again while awaiting confirmation. Refresh to check for
+            updates.
+          </p>
+        </section>
+      )}
+      <FriendView payload={payload} shareLink={shareLink} shareToken={share_token} />
+    </>
+  );
 }

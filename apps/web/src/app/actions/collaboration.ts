@@ -60,11 +60,9 @@ export async function joinGroup(
   }
 }
 
-export async function claimMember(
-  memberId: string,
-): Promise<ApiResponse<{ member: GroupMember }>> {
+export async function claimMember(token: string): Promise<ApiResponse<{ member: GroupMember }>> {
   try {
-    const parsed = claimMemberSchema.safeParse({ member_id: memberId });
+    const parsed = claimMemberSchema.safeParse({ token });
     if (!parsed.success) {
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
@@ -73,8 +71,8 @@ export async function claimMember(
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data: result, error } = await db.rpc("claim_member", {
-      p_member_id: parsed.data.member_id,
+    const { data: result, error } = await db.rpc("claim_member_with_token", {
+      p_token: parsed.data.token,
     });
 
     if (error) return { data: null, error: error.message };
@@ -140,7 +138,8 @@ export async function promoteMember(
 ): Promise<ApiResponse<GroupMember>> {
   try {
     const parsed = promoteMemberSchema.safeParse({ member_id: memberId, role });
-    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    if (!parsed.success)
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
     await assertAuth();
     const supabase = await createSettleUpDb();
@@ -157,5 +156,40 @@ export async function promoteMember(
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function createClaimInvitation(
+  memberId: string,
+): Promise<ApiResponse<{ token: string }>> {
+  try {
+    await assertAuth();
+    const parsed = memberIdSchema.safeParse(memberId);
+    if (!parsed.success) return { data: null, error: "Invalid member." };
+    const db = await createSettleUpDb();
+    const { data, error } = await db
+      .schema("settleup")
+      .rpc("create_member_claim_invitation", { p_member_id: parsed.data });
+    const result = z.object({ token: z.string() }).safeParse(data);
+    if (error || !result.success)
+      return { data: null, error: error?.message ?? "Could not create invitation." };
+    return { data: result.data, error: null };
+  } catch {
+    return { data: null, error: "Could not create invitation." };
+  }
+}
+
+export async function revokeClaimInvitation(memberId: string): Promise<ApiResponse<void>> {
+  try {
+    await assertAuth();
+    const parsed = memberIdSchema.safeParse(memberId);
+    if (!parsed.success) return { data: null, error: "Invalid member." };
+    const db = await createSettleUpDb();
+    const { error } = await db
+      .schema("settleup")
+      .rpc("revoke_member_claim_invitation", { p_member_id: parsed.data });
+    return error ? { data: null, error: error.message } : { data: undefined, error: null };
+  } catch {
+    return { data: null, error: "Could not revoke invitation." };
   }
 }

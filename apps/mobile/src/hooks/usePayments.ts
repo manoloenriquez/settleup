@@ -3,7 +3,13 @@ import * as Crypto from "expo-crypto";
 import type { ApiResponse } from "@template/shared";
 import type { Payment } from "@template/supabase";
 import { useOutbox } from "@/context/OutboxContext";
-import { listPendingPayments, recordPayment, resolvePendingPayment, undoLastPayment, undoLastPaymentForMember } from "@/services/payments";
+import {
+  listPendingPayments,
+  recordPayment,
+  resolvePendingPayment,
+  undoLastPayment,
+  undoLastPaymentForMember,
+} from "@/services/payments";
 
 type RecordPaymentParams = {
   groupId: string;
@@ -50,6 +56,7 @@ export function useRecordPayment(groupId: string) {
             to_member_id: params.toMemberId,
             created_by_user_id: null,
             note: null,
+            report_request_id: null,
             created_at: nowISO,
             updated_at: nowISO,
           },
