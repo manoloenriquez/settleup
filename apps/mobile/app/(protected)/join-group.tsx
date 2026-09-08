@@ -51,9 +51,7 @@ export default function JoinGroupScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.title}>Join a Group</Text>
-            <Text style={styles.subtitle}>
-              Enter the invite code shared by your group admin.
-            </Text>
+            <Text style={styles.subtitle}>Enter the invite code shared by your group admin.</Text>
           </View>
 
           <View style={styles.card}>

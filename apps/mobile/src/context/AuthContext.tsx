@@ -1,11 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { authCallbackUrl, clearAuthDestination } from "@/lib/auth-links";
 import { Alert } from "react-native";
 import { onlineManager } from "@tanstack/react-query";
 import type { Session, User } from "@supabase/supabase-js";
@@ -31,6 +25,8 @@ type AuthContextValue = {
    * Use this to show a splash/loading screen before navigating.
    */
   loading: boolean;
+  accountClosed: boolean;
+  recovering: boolean;
   signIn: (email: string, password: string) => Promise<ApiResponse<void>>;
   signUp: (email: string, password: string) => Promise<ApiResponse<void>>;
   signOut: () => Promise<void>;
@@ -48,6 +44,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [accountClosed, setAccountClosed] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Start loading=true; set to false after the first auth event is resolved.
   const [loading, setLoading] = useState(true);
@@ -63,11 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback((userId: string) => {
     void (async () => {
       try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
+        const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        const { data: closed } = await supabase.schema("settleup").rpc("is_account_closed");
+        setAccountClosed(closed === true);
         setProfile(data ?? null);
       } catch {
         setProfile(null);
@@ -89,6 +85,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      if (event === "SIGNED_OUT") {
+        setRecovering(false);
+        setAccountClosed(false);
+      }
 
       if (newSession?.user) {
         hadSessionRef.current = true;
@@ -163,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signUp({
       email: emailResult.data,
       password,
+      options: { emailRedirectTo: authCallbackUrl() },
     });
 
     if (error) return { data: null, error: error.message };
@@ -176,12 +178,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut(): Promise<void> {
     intentionalSignOutRef.current = true;
     try {
-      await supabase.auth.signOut();
+      await clearAuthDestination();
+      await supabase.auth.signOut({ scope: "local" });
       // onAuthStateChange fires with SIGNED_OUT → session/profile cleared → RouteGuard navigates.
     } finally {
       // Reset on next tick so the listener (which fires synchronously via the
       // realtime channel) sees the flag while it processes the SIGNED_OUT event.
-      setTimeout(() => { intentionalSignOutRef.current = false; }, 0);
+      setTimeout(() => {
+        intentionalSignOutRef.current = false;
+      }, 0);
     }
   }
 
@@ -192,6 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: session?.user ?? null,
         profile,
         loading,
+        accountClosed,
+        recovering,
         signIn,
         signUp,
         signOut,

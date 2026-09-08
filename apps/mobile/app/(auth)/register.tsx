@@ -13,11 +13,46 @@ import { Link } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
+import { supabase } from "@/lib/supabase";
+import { authCallbackUrl } from "@/lib/auth-links";
 import { APP_NAME } from "@template/shared";
 import { signInWithGoogle } from "@/lib/google-auth";
 import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
-function ConfirmEmailState() {
+function ConfirmEmailState({
+  email,
+  onChange,
+}: {
+  email: string;
+  onChange: () => void;
+}): React.ReactElement {
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [nextAt, setNextAt] = useState(0);
+  async function resend(): Promise<void> {
+    if (Date.now() < nextAt) {
+      setMessage("Please wait one minute before requesting another email.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: authCallbackUrl() },
+      });
+      setMessage(
+        error
+          ? "Could not resend. Please try again shortly."
+          : "If confirmation is needed, a new link is on its way.",
+      );
+      setNextAt(Date.now() + 60000);
+    } catch {
+      setMessage("Could not send. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <View style={styles.confirmCard}>
       <View style={styles.iconWrap}>
@@ -25,8 +60,12 @@ function ConfirmEmailState() {
       </View>
       <Text style={styles.confirmTitle}>Check your email</Text>
       <Text style={styles.confirmSubtitle}>
-        We sent you a confirmation link. Tap it to activate your account, then come back to sign in.
+        Check {email} for your confirmation link. Open it to activate your account and return to
+        your invitation.
       </Text>
+      <AppButton title="Resend confirmation email" onPress={resend} isLoading={busy} />
+      <AppButton title="Change email address" onPress={onChange} variant="secondary" />
+      {message ? <Text accessibilityRole="alert">{message}</Text> : null}
       <Link href="/(auth)/login" asChild>
         <Pressable style={styles.backToLogin}>
           <Text style={styles.backToLoginText}>Back to sign in</Text>
@@ -61,7 +100,7 @@ export default function RegisterScreen() {
   if (awaitingConfirmation) {
     return (
       <View style={styles.flex}>
-        <ConfirmEmailState />
+        <ConfirmEmailState email={email} onChange={() => setAwaitingConfirmation(false)} />
       </View>
     );
   }

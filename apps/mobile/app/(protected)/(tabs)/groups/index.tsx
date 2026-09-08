@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
@@ -44,7 +53,7 @@ export default function GroupsScreen() {
           headerRight: () => (
             <View style={styles.headerButtons}>
               <TouchableOpacity
-                onPress={() => router.push("/(protected)/join")}
+                onPress={() => router.push("/(protected)/join-group")}
                 style={styles.headerBtn}
               >
                 <Ionicons name="add" size={18} color={colors.primary} />
@@ -65,7 +74,11 @@ export default function GroupsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={refetch}
+            tintColor={colors.primary}
+          />
         }
       >
         {/* Search */}
@@ -103,7 +116,9 @@ export default function GroupsScreen() {
         ) : (
           <View style={styles.list}>
             {search.trim() !== "" && filteredGroups.length === 0 && (
-              <Text style={{ color: colors.gray400, textAlign: "center", paddingVertical: spacing.lg }}>
+              <Text
+                style={{ color: colors.gray400, textAlign: "center", paddingVertical: spacing.lg }}
+              >
                 No groups match &quot;{search}&quot;
               </Text>
             )}
@@ -119,7 +134,9 @@ export default function GroupsScreen() {
                     <Ionicons name="people" size={20} color={colors.primary} />
                   </View>
                   <View style={styles.cardInfo}>
-                    <Text style={styles.cardName} numberOfLines={1}>{group.name}</Text>
+                    <Text style={styles.cardName} numberOfLines={1}>
+                      {group.name}
+                    </Text>
                     <Text style={styles.cardMeta}>{group.member_count ?? 0} members</Text>
                   </View>
                   <View style={styles.cardRight}>
@@ -143,7 +160,10 @@ export default function GroupsScreen() {
         {/* Archived groups */}
         {(archivedGroups ?? []).length > 0 && (
           <View style={{ marginTop: spacing.xl }}>
-            <TouchableOpacity onPress={() => setShowArchived((v) => !v)} style={styles.archivedToggle}>
+            <TouchableOpacity
+              onPress={() => setShowArchived((v) => !v)}
+              style={styles.archivedToggle}
+            >
               <Ionicons
                 name={showArchived ? "chevron-down" : "chevron-forward"}
                 size={14}
@@ -157,7 +177,9 @@ export default function GroupsScreen() {
               <View style={[styles.list, { marginTop: spacing.sm }]}>
                 {(archivedGroups ?? []).map((group) => (
                   <View key={group.id} style={styles.archivedCard}>
-                    <Text style={styles.archivedName} numberOfLines={1}>{group.name}</Text>
+                    <Text style={styles.archivedName} numberOfLines={1}>
+                      {group.name}
+                    </Text>
                     <TouchableOpacity onPress={() => handleRestore(group.id, group.name)}>
                       <Text style={styles.restoreBtn}>Restore</Text>
                     </TouchableOpacity>
@@ -195,7 +217,13 @@ const styles = StyleSheet.create({
   },
 
   headerButtons: { flexDirection: "row", gap: spacing.base, alignItems: "center" },
-  headerBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  headerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
   headerBtnText: { color: colors.primary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
 
   card: {
@@ -225,8 +253,17 @@ const styles = StyleSheet.create({
   cardRight: { alignItems: "flex-end", gap: spacing.xs },
   cardAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 
-  archivedToggle: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs },
-  archivedToggleText: { fontSize: fontSize.sm, color: colors.gray400, fontWeight: fontWeight.medium },
+  archivedToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  archivedToggleText: {
+    fontSize: fontSize.sm,
+    color: colors.gray400,
+    fontWeight: fontWeight.medium,
+  },
   archivedCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -238,6 +275,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     opacity: 0.6,
   },
-  archivedName: { flex: 1, fontSize: fontSize.md, color: colors.gray600 ?? colors.gray900, marginRight: spacing.sm },
+  archivedName: {
+    flex: 1,
+    fontSize: fontSize.md,
+    color: colors.gray600 ?? colors.gray900,
+    marginRight: spacing.sm,
+  },
   restoreBtn: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
 });

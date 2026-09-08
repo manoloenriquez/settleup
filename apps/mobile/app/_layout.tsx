@@ -16,6 +16,7 @@ import { queryClient, persistOptions } from "@/lib/queryClient";
 import { setupReactQueryNetworkWiring } from "@/lib/network";
 import { hydrateOnDeviceAiSetting } from "@/lib/settings/on-device-ai";
 import { supabase } from "@/lib/supabase";
+import { pendingAuthDestination, saveAuthDestination } from "@/lib/auth-links";
 import { colors } from "@/theme";
 
 // Load the on-device AI opt-in into memory before any scan can run; until it
@@ -65,7 +66,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
       return (
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={styles.errorMessage}>{this.state.error?.message ?? "An unexpected error occurred."}</Text>
+          <Text style={styles.errorMessage}>
+            {this.state.error?.message ?? "An unexpected error occurred."}
+          </Text>
         </View>
       );
     }
@@ -78,7 +81,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 // ---------------------------------------------------------------------------
 
 function RouteGuard() {
-  const { session, loading } = useAuth();
+  const { session, loading, accountClosed, recovering } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -87,13 +90,33 @@ function RouteGuard() {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inProtectedGroup = segments[0] === "(protected)";
-
-    if (!session && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (session && !inProtectedGroup) {
-      router.replace("/(protected)/(tabs)/dashboard");
+    const path = segments.join("/");
+    const publicLink = path === "claim" || path === "join" || path === "auth/callback";
+    if (session && accountClosed) {
+      if (path !== "account-closed") router.replace("/account-closed");
+      return;
     }
-  }, [session, loading, segments, router]);
+    if (path === "auth/callback") return;
+    if (session && recovering && path !== "(auth)/update-password") {
+      router.replace("/(auth)/update-password");
+      return;
+    }
+    if (path === "(auth)/update-password" || publicLink) return;
+    if (!session && !inAuthGroup) router.replace("/(auth)/login");
+    else if (session && !inProtectedGroup) {
+      let cancelled = false;
+      void pendingAuthDestination()
+        .then((destination) => {
+          if (!cancelled) router.replace(destination);
+        })
+        .catch(() => {
+          if (!cancelled) router.replace("/(protected)/(tabs)/dashboard");
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [session, loading, accountClosed, recovering, segments, router]);
 
   return null;
 }
@@ -120,6 +143,36 @@ function OfflineStatusArea() {
 // ---------------------------------------------------------------------------
 // Root stack
 // ---------------------------------------------------------------------------
+
+function NotificationNavigation(): null {
+  const router = useRouter();
+  const { session } = useAuth();
+  useEffect(() => {
+    const handle = (response: Notifications.NotificationResponse): void => {
+      const groupId: unknown = response.notification.request.content.data["group_id"];
+      if (
+        typeof groupId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId)
+      )
+        return;
+      void (async () => {
+        await saveAuthDestination(`/groups/${groupId}`);
+        router.push(
+          session
+            ? { pathname: "/(protected)/groups/[id]", params: { id: groupId } }
+            : "/(auth)/login",
+        );
+        await Notifications.clearLastNotificationResponseAsync();
+      })().catch(() => undefined);
+    };
+    const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handle(response);
+    });
+    return () => subscription.remove();
+  }, [router, session]);
+  return null;
+}
 
 function RootStack() {
   const { loading } = useAuth();
@@ -177,6 +230,7 @@ function RootLayout() {
                 <StatusBar style="auto" />
                 <OfflineStatusArea />
                 <RouteGuard />
+                <NotificationNavigation />
                 <RootStack />
               </OutboxProvider>
             </ToastProvider>
