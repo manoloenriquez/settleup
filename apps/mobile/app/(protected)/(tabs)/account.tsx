@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -65,7 +75,7 @@ export default function AccountScreen() {
   function handleDeleteAccount() {
     Alert.alert(
       "Delete Account",
-      "This permanently deletes your account, profile, and payment settings. Groups you own will be removed. This cannot be undone.",
+      "This removes your identity and payment settings from this app. Shared records remain under Former member. Transfer ownership first to keep your groups editable; otherwise they become read-only. Other apps and logins are preserved. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -144,7 +154,9 @@ export default function AccountScreen() {
           <ListItem
             title="Edit Profile"
             subtitle="Update your name"
-            left={<Ionicons name="pencil-outline" size={20} color={colors.gray600 ?? colors.gray400} />}
+            left={
+              <Ionicons name="pencil-outline" size={20} color={colors.gray600 ?? colors.gray400} />
+            }
             showChevron
             onPress={() => router.push("/(protected)/account/edit-profile")}
           />
@@ -186,7 +198,13 @@ export default function AccountScreen() {
           <ListItem
             title="Beta Feedback"
             subtitle="Report bugs or confusing trip flows"
-            left={<Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.success ?? colors.primary} />}
+            left={
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={20}
+                color={colors.success ?? colors.primary}
+              />
+            }
             showChevron
             onPress={handleBetaFeedback}
           />
@@ -210,7 +228,7 @@ export default function AccountScreen() {
           )}
         </TouchableOpacity>
         <Text style={styles.dangerHint}>
-          Permanently deletes your account and all data you own. This cannot be undone.
+          Removes your app identity and payment details. Shared expense records remain.
         </Text>
       </ScrollView>
     </>
@@ -229,7 +247,14 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs },
   memberSince: { fontSize: fontSize.xs, color: colors.gray400 },
 
-  sectionLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8, marginBottom: spacing.sm, marginTop: spacing.base },
+  sectionLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.gray400,
+    letterSpacing: 0.8,
+    marginBottom: spacing.sm,
+    marginTop: spacing.base,
+  },
 
   divider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.base },
 

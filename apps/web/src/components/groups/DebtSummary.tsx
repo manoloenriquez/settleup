@@ -10,6 +10,7 @@ import { CheckCircle, BellRing, Zap, Check, Send } from "lucide-react";
 import type { SimplifiedDebt, MemberBalance } from "@template/shared";
 
 type Props = {
+  readOnly?: boolean;
   debts: SimplifiedDebt[];
   groupId: string;
   groupName?: string;
@@ -19,6 +20,7 @@ type Props = {
 };
 
 export function DebtSummary({
+  readOnly = false,
   debts,
   groupId,
   groupName,
@@ -69,7 +71,11 @@ export function DebtSummary({
     debts.find((d) => d.to_member_id === currentMemberId) ??
     debts[0];
 
-  function rowLabel(debt: SimplifiedDebt): { text: React.ReactNode; amountClass: string; sign: string } {
+  function rowLabel(debt: SimplifiedDebt): {
+    text: React.ReactNode;
+    amountClass: string;
+    sign: string;
+  } {
     if (debt.to_member_id === currentMemberId) {
       return {
         text: (
@@ -115,9 +121,7 @@ export function DebtSummary({
           <p className="text-sm font-bold text-slate-900">
             You can settle with {debts.length} payment{debts.length !== 1 ? "s" : ""}
           </p>
-          <p className="text-xs text-slate-500">
-            {formatCents(totalCents)} will be settled
-          </p>
+          <p className="text-xs text-slate-500">{formatCents(totalCents)} will be settled</p>
         </div>
       </div>
 
@@ -153,7 +157,7 @@ export function DebtSummary({
                     <BellRing size={15} />
                   </button>
                 )}
-                <SettleUpButton debt={debt} groupId={groupId} />
+                {!readOnly && <SettleUpButton debt={debt} groupId={groupId} />}
               </div>
             );
           })}
@@ -200,11 +204,13 @@ export function DebtSummary({
             <span className="text-sm font-medium text-slate-600">
               {toReceiveCents >= toPayCents ? "Total to receive" : "Total to pay"}
             </span>
-            <span className={`text-base font-extrabold tabular-nums ${toReceiveCents >= toPayCents ? "text-emerald-600" : "text-rose-600"}`}>
+            <span
+              className={`text-base font-extrabold tabular-nums ${toReceiveCents >= toPayCents ? "text-emerald-600" : "text-rose-600"}`}
+            >
               {formatCents(Math.max(toReceiveCents, toPayCents))}
             </span>
           </div>
-          {myDebt && (
+          {myDebt && !readOnly && (
             <>
               <Button className="w-full" leftIcon={Send} onClick={() => setSettleOpen(true)}>
                 Settle balance

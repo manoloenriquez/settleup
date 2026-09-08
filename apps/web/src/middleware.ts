@@ -49,6 +49,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(url);
   }
 
+  if (
+    user &&
+    (isProtected || AUTH_ROUTES.includes(pathname) || pathname === "/join" || pathname === "/claim")
+  ) {
+    const { data: closed } = await supabase.schema("settleup").rpc("is_account_closed");
+    if (closed === true) return NextResponse.redirect(new URL("/account-closed", request.url));
+  }
+
   // Authenticated user hitting an auth route → groups
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   if (user && isAuthRoute) {

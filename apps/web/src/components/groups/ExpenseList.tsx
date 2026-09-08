@@ -16,12 +16,22 @@ import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
 import { CategoryIconTile } from "./CategoryIcon";
 import { EditExpenseDialog } from "./EditExpenseDialog";
-import { Search, Trash2, Pencil, Receipt, List, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import {
+  Search,
+  Trash2,
+  Pencil,
+  Receipt,
+  List,
+  ChevronDown,
+  ChevronUp,
+  MessageCircle,
+} from "lucide-react";
 import { CommentThread } from "./CommentThread";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
+  readOnly?: boolean;
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
@@ -69,11 +79,21 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
     return false;
   }
 
-  const shares = expense.participants.map((participant) => participant.share_cents).sort((a, b) => a - b);
+  const shares = expense.participants
+    .map((participant) => participant.share_cents)
+    .sort((a, b) => a - b);
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner, groupId, pageSize }: Props): React.ReactElement {
+export function ExpenseList({
+  readOnly = false,
+  members,
+  categories,
+  currentUserId,
+  isAdminOrOwner,
+  groupId,
+  pageSize,
+}: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -150,22 +170,32 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
     }
   }
 
-  function handleDelete(): void {
+  async function handleDelete(): Promise<void> {
     if (!deleteTarget) return;
 
     if (!online) {
       // Queue the delete for replay; if the expense itself is a queued
       // offline create, the reducer cancels the whole local chain instead.
       const target = allExpenses.find((e) => e.id === deleteTarget);
-      void enqueue({
-        id: crypto.randomUUID(),
-        kind: "expense.delete",
-        entityId: deleteTarget,
-        groupId,
-        payload: {},
-        createdAt: new Date().toISOString(),
-        summary: { title: target ? `Delete "${target.item_name}"` : "Delete expense", amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: crypto.randomUUID(),
+          kind: "expense.delete",
+          entityId: deleteTarget,
+          groupId,
+          payload: {},
+          createdAt: new Date().toISOString(),
+          summary: {
+            title: target ? `Delete "${target.item_name}"` : "Delete expense",
+            amountCents: 0,
+          },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       setDeleteTarget(null);
       return;
@@ -185,7 +215,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
   }
 
   function canEditExpense(expense: ExpenseWithParticipants): boolean {
-    return isAdminOrOwner || expense.created_by_user_id === currentUserId;
+    return !readOnly && (isAdminOrOwner || expense.created_by_user_id === currentUserId);
   }
 
   function openEdit(expense: ExpenseWithParticipants): void {
@@ -204,7 +234,10 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
       {/* Search bar */}
       {expenses.length > 0 && (
         <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10"
+          />
           <Input
             type="text"
             value={search}
@@ -310,7 +343,9 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
                     {/* Category icon tile */}
                     <CategoryIconTile
                       icon={isCredit ? "receipt" : expense.category?.icon}
-                      color={isCredit ? "#059669" : expense.category?.color ?? DEFAULT_CATEGORY_COLOR}
+                      color={
+                        isCredit ? "#059669" : (expense.category?.color ?? DEFAULT_CATEGORY_COLOR)
+                      }
                       size="sm"
                     />
 
@@ -341,7 +376,9 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
 
                     {/* Amount */}
                     <div className="text-right shrink-0">
-                      <p className={`text-base font-extrabold tracking-tight ${isCredit ? "text-emerald-600" : "text-slate-900"}`}>
+                      <p
+                        className={`text-base font-extrabold tracking-tight ${isCredit ? "text-emerald-600" : "text-slate-900"}`}
+                      >
                         {formatCents(Math.abs(expense.amount_cents))}
                       </p>
                       {expense.items && expense.items.length > 0 && (
@@ -421,7 +458,13 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
 
                   {/* Comment thread */}
                   {commentIds.has(expense.id) && (
-                    <CommentThread expenseId={expense.id} groupId={groupId} members={members} currentUserId={currentUserId} />
+                    <CommentThread
+                      readOnly={readOnly}
+                      expenseId={expense.id}
+                      groupId={groupId}
+                      members={members}
+                      currentUserId={currentUserId}
+                    />
                   )}
                 </div>
               );

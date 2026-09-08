@@ -9,6 +9,7 @@ import { ChevronRight, Plus, BarChart3, CreditCard, Settings, Users } from "luci
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
 type Props = {
+  readOnly?: boolean;
   groupId: string;
   groupName: string;
   memberCount: number;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export function GroupHeader({
+  readOnly = false,
   groupId,
   groupName,
   memberCount,
@@ -38,11 +40,11 @@ export function GroupHeader({
   // pages (on this page the FAB opens the dialog via local state).
   const addParam = searchParams.get("add");
   useEffect(() => {
-    if (addParam === "expense") {
+    if (addParam === "expense" && !readOnly) {
       onShowExpenseDialogChange(true);
       router.replace(pathname, { scroll: false });
     }
-  }, [addParam, pathname, router, onShowExpenseDialogChange]);
+  }, [addParam, pathname, router, onShowExpenseDialogChange, readOnly]);
 
   return (
     <>
@@ -95,7 +97,12 @@ export function GroupHeader({
             </Link>
 
             {/* Primary CTA */}
-            <Button size="sm" leftIcon={Plus} onClick={() => onShowExpenseDialogChange(true)}>
+            <Button
+              disabled={readOnly}
+              size="sm"
+              leftIcon={Plus}
+              onClick={() => onShowExpenseDialogChange(true)}
+            >
               Add Expense
             </Button>
           </div>
@@ -103,7 +110,7 @@ export function GroupHeader({
       </div>
 
       <AddExpenseDialog
-        open={showExpenseDialog}
+        open={showExpenseDialog && !readOnly}
         onClose={() => onShowExpenseDialogChange(false)}
         groupId={groupId}
         members={members}

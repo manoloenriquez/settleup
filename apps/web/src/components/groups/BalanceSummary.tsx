@@ -24,6 +24,7 @@ import type { GroupMember } from "@template/supabase";
 import type { MemberBalance, SimplifiedDebt, CreditorPaymentProfile } from "@template/shared";
 
 type Props = {
+  readOnly?: boolean;
   members: GroupMember[];
   balances: MemberBalance[];
   groupId: string;
@@ -70,10 +71,7 @@ function buildMessage(
   return `Hi ${member.display_name}! You're all settled for ${groupName}.`;
 }
 
-function buildGroupMessage(
-  balances: MemberBalance[],
-  debts: SimplifiedDebt[],
-): string {
+function buildGroupMessage(balances: MemberBalance[], debts: SimplifiedDebt[]): string {
   const total = debts.reduce((sum, d) => sum + d.amount_cents, 0);
   const lines = [
     "SIMPLIFIED DEBTS",
@@ -87,6 +85,7 @@ function buildGroupMessage(
 }
 
 export function BalanceSummary({
+  readOnly = false,
   members,
   balances,
   groupId,
@@ -125,7 +124,7 @@ export function BalanceSummary({
     debtsToMap.set(d.to_member_id, toList);
   }
 
-  function handleRecordPayment(): void {
+  async function handleRecordPayment(): Promise<void> {
     if (isPending) return; // guard against double-submit creating duplicate payments
     setPaymentError(null);
     const amount_cents = parsePHPAmount(paymentAmountStr);
@@ -142,20 +141,27 @@ export function BalanceSummary({
       const clientId = crypto.randomUUID();
       const fromName = memberMap.get(fromMemberId)?.display_name ?? "Someone";
       const toName = memberMap.get(toMemberId)?.display_name ?? "someone";
-      void enqueue({
-        id: clientId,
-        kind: "payment.record",
-        entityId: clientId,
-        groupId,
-        payload: {
-          group_id: groupId,
-          from_member_id: fromMemberId,
-          to_member_id: toMemberId,
-          amount_cents,
-        },
-        createdAt: new Date().toISOString(),
-        summary: { title: `${fromName} → ${toName}`, amountCents: amount_cents },
-      });
+      try {
+        await enqueue({
+          id: clientId,
+          kind: "payment.record",
+          entityId: clientId,
+          groupId,
+          payload: {
+            group_id: groupId,
+            from_member_id: fromMemberId,
+            to_member_id: toMemberId,
+            amount_cents,
+          },
+          createdAt: new Date().toISOString(),
+          summary: { title: `${fromName} → ${toName}`, amountCents: amount_cents },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       setShowPaymentForm(false);
       setFromMemberId("");
@@ -237,6 +243,7 @@ export function BalanceSummary({
             variant="primary"
             size="sm"
             leftIcon={Banknote}
+            disabled={readOnly}
             onClick={() => setShowPaymentForm(!showPaymentForm)}
           >
             {showPaymentForm ? "Cancel" : "Record Payment"}
@@ -245,6 +252,7 @@ export function BalanceSummary({
             variant="ghost"
             size="sm"
             leftIcon={Undo2}
+            disabled={readOnly}
             onClick={() => setShowUndoMine(true)}
           >
             Undo
@@ -270,11 +278,7 @@ export function BalanceSummary({
                 </option>
               ))}
             </Select>
-            <Select
-              label="To"
-              value={toMemberId}
-              onChange={(e) => setToMemberId(e.target.value)}
-            >
+            <Select label="To" value={toMemberId} onChange={(e) => setToMemberId(e.target.value)}>
               <option value="">Select member</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -291,20 +295,13 @@ export function BalanceSummary({
             placeholder="e.g. 1500.00"
           />
           {paymentError && <p className="text-sm text-red-600">{paymentError}</p>}
-          <Button
-            variant="primary"
-            size="sm"
-            isLoading={isPending}
-            onClick={handleRecordPayment}
-          >
+          <Button variant="primary" size="sm" isLoading={isPending} onClick={handleRecordPayment}>
             Submit Payment
           </Button>
         </div>
       )}
 
-      {balances.length === 0 && (
-        <p className="text-sm text-slate-400">No members yet.</p>
-      )}
+      {balances.length === 0 && <p className="text-sm text-slate-400">No members yet.</p>}
 
       {balances.map((balance) => {
         const member = memberMap.get(balance.member_id);
@@ -312,7 +309,15 @@ export function BalanceSummary({
         const link = `${origin}/p/${member.share_token}`;
         const memberDebtsFrom = debtsFromMap.get(balance.member_id) ?? [];
         const memberDebtsTo = debtsToMap.get(balance.member_id) ?? [];
-        const message = buildMessage(member, balance, groupName, paymentProfileText, link, memberDebtsFrom, memberDebtsTo);
+        const message = buildMessage(
+          member,
+          balance,
+          groupName,
+          paymentProfileText,
+          link,
+          memberDebtsFrom,
+          memberDebtsTo,
+        );
 
         const isSettled = balance.net_cents === 0;
         const isOwed = balance.net_cents > 0;
@@ -331,10 +336,10 @@ export function BalanceSummary({
           >
             <Avatar name={balance.display_name} size="md" />
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-slate-900 truncate text-sm">{balance.display_name}</p>
-              {isSettled && (
-                <p className="text-xs text-emerald-600 font-medium">All settled</p>
-              )}
+              <p className="font-semibold text-slate-900 truncate text-sm">
+                {balance.display_name}
+              </p>
+              {isSettled && <p className="text-xs text-emerald-600 font-medium">All settled</p>}
               {owes && (
                 <p className="text-xs text-rose-700 font-medium">
                   Owes {formatCents(Math.abs(balance.net_cents))}
@@ -346,7 +351,10 @@ export function BalanceSummary({
                 </p>
               )}
               {isOwed && !creditorMemberIds.has(balance.member_id) && (
-                <Link href="/account/payment" className="flex items-center gap-1 text-[10px] text-brand-600 hover:text-brand-700 mt-0.5">
+                <Link
+                  href="/account/payment"
+                  className="flex items-center gap-1 text-[10px] text-brand-600 hover:text-brand-700 mt-0.5"
+                >
                   <CreditCard size={10} />
                   Add payment details
                 </Link>
@@ -396,12 +404,16 @@ export function BalanceSummary({
                   },
                   icon: <MessageSquare size={14} />,
                 },
-                {
-                  label: "Remove Member",
-                  onClick: () => setDeleteTarget(member),
-                  variant: "danger",
-                  icon: <Trash2 size={14} />,
-                },
+                ...(!readOnly && !member.departed_at
+                  ? [
+                      {
+                        label: "Remove Member",
+                        onClick: () => setDeleteTarget(member),
+                        variant: "danger" as const,
+                        icon: <Trash2 size={14} />,
+                      },
+                    ]
+                  : []),
               ]}
             />
           </div>

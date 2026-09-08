@@ -47,15 +47,17 @@ import { CopyButton } from "@/components/groups/CopyButton";
 
 const EXPENSES_PAGE_SIZE = 50;
 
-function buildPaymentProfileText(profile: {
-  payer_display_name?: string | null;
-  gcash_name?: string | null;
-  gcash_number?: string | null;
-  bank_name?: string | null;
-  bank_account_name?: string | null;
-  bank_account_number?: string | null;
-  notes?: string | null;
-} | null): string {
+function buildPaymentProfileText(
+  profile: {
+    payer_display_name?: string | null;
+    gcash_name?: string | null;
+    gcash_number?: string | null;
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    notes?: string | null;
+  } | null,
+): string {
   if (!profile) return "";
   const lines: string[] = [];
   if (profile.payer_display_name) lines.push(profile.payer_display_name);
@@ -101,7 +103,10 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   const paymentProfile = paymentProfileQ.data ?? null;
   const paymentProfileText = buildPaymentProfileText(paymentProfile);
   const hasPaymentDetails = Boolean(
-    paymentProfile?.gcash_number || paymentProfile?.gcash_qr_url || paymentProfile?.bank_account_number || paymentProfile?.bank_qr_url,
+    paymentProfile?.gcash_number ||
+    paymentProfile?.gcash_qr_url ||
+    paymentProfile?.bank_account_number ||
+    paymentProfile?.bank_qr_url,
   );
 
   const balances = balancesQ.data ?? [];
@@ -112,6 +117,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     slug: b.slug,
     share_token: b.share_token,
     user_id: b.user_id,
+    departed_at: null,
     role: (b.role ?? "member") as "owner" | "admin" | "member",
     group_id: groupId,
     created_at: "",
@@ -150,21 +156,20 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     );
   }
 
+  const readOnly = group.owner_user_id === null;
   const isOwner = group.owner_user_id === currentUserId;
   const currentMember = members.find((m) => m.user_id === currentUserId);
-  const isAdminOrOwner = isOwner || currentMember?.role === "admin";
+  const isAdminOrOwner = !readOnly && (isOwner || currentMember?.role === "admin");
   const debts = simplifyDebts(balances);
   // Group-wide aggregates come from the lightweight summaries (all rows), not
   // the paginated expense list.
   const totalSpentCents = summaries.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
   const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
   const myNetCents = currentMember
-    ? balances.find((b) => b.member_id === currentMember.id)?.net_cents ?? 0
+    ? (balances.find((b) => b.member_id === currentMember.id)?.net_cents ?? 0)
     : 0;
   const settledPct =
-    totalSpentCents > 0
-      ? Math.round((1 - totalOutstandingCents / totalSpentCents) * 100)
-      : 100;
+    totalSpentCents > 0 ? Math.round((1 - totalOutstandingCents / totalSpentCents) * 100) : 100;
 
   // Charts tab data — pure computation from the all-rows summaries; the AI
   // summary stays on the dedicated insights page.
@@ -217,9 +222,16 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
+      {readOnly && (
+        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+          This group is read-only because its owner closed their account. Your shared expense
+          history is preserved.
+        </p>
+      )}
       <GroupRealtimeRefresher groupId={groupId} />
       {/* Group header with breadcrumb + CTAs */}
       <GroupHeader
+        readOnly={readOnly}
         groupId={groupId}
         groupName={group.name}
         memberCount={members.length}
@@ -230,7 +242,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         onShowExpenseDialogChange={setShowExpenseDialog}
       />
 
-      <GroupSetupChecklist groupId={groupId} items={setupItems} />
+      {!readOnly && <GroupSetupChecklist groupId={groupId} items={setupItems} />}
 
       {/* Member avatars */}
       <MemberAvatarRow groupId={groupId} members={members} currentUserId={currentUserId} />
@@ -240,14 +252,22 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-slate-500">Group balance</p>
-            <p className={`mt-1 text-3xl font-extrabold tracking-tight tabular-nums ${isFullySettled ? "text-emerald-600" : "text-slate-900"}`}>
+            <p
+              className={`mt-1 text-3xl font-extrabold tracking-tight tabular-nums ${isFullySettled ? "text-emerald-600" : "text-slate-900"}`}
+            >
               {isFullySettled ? "All settled" : formatCents(totalOutstandingCents)}
             </p>
             <p className="mt-1 text-sm text-slate-500">
               {myNetCents > 0 ? (
-                <>You are owed <span className="font-bold text-emerald-600">{formatCents(myNetCents)}</span></>
+                <>
+                  You are owed{" "}
+                  <span className="font-bold text-emerald-600">{formatCents(myNetCents)}</span>
+                </>
               ) : myNetCents < 0 ? (
-                <>You owe <span className="font-bold text-rose-600">{formatCents(-myNetCents)}</span></>
+                <>
+                  You owe{" "}
+                  <span className="font-bold text-rose-600">{formatCents(-myNetCents)}</span>
+                </>
               ) : (
                 "You’re settled up"
               )}
@@ -263,7 +283,9 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
             style={{ width: `${Math.max(0, Math.min(100, settledPct))}%` }}
           />
         </div>
-        <p className="mt-1.5 text-xs text-slate-400">{Math.max(0, Math.min(100, settledPct))}% settled</p>
+        <p className="mt-1.5 text-xs text-slate-400">
+          {Math.max(0, Math.min(100, settledPct))}% settled
+        </p>
       </div>
 
       {/* Budget progress */}
@@ -289,6 +311,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       <GroupDetailTabs
         expensesContent={
           <ExpenseList
+            readOnly={readOnly}
             members={members}
             categories={categories}
             currentUserId={currentUserId}
@@ -301,17 +324,19 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
           <div className="flex flex-col gap-6">
             {pendingLocalCount > 0 && (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                {pendingLocalCount} pending offline {pendingLocalCount === 1 ? "change" : "changes"} not yet included in balances
+                {pendingLocalCount} pending offline {pendingLocalCount === 1 ? "change" : "changes"}{" "}
+                not yet included in balances
               </p>
             )}
             <PendingPayments
               groupId={groupId}
               pending={pendingPaymentsQ.data ?? []}
               members={members}
-              currentUserId={currentUserId}
+              currentUserId={readOnly ? "" : currentUserId}
               isAdminOrOwner={isAdminOrOwner}
             />
             <DebtSummary
+              readOnly={readOnly}
               debts={debts}
               groupId={groupId}
               groupName={group.name}
@@ -320,6 +345,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
               currentMemberId={currentMember?.id ?? null}
             />
             <BalanceSummary
+              readOnly={readOnly}
               members={members}
               balances={balances}
               groupId={groupId}
@@ -329,7 +355,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
               creditorProfiles={creditorProfiles}
             />
             <div className="border-t border-slate-100 pt-4">
-              <AddMemberForm groupId={groupId} />
+              {!readOnly && <AddMemberForm groupId={groupId} />}
             </div>
             <div className="border-t border-slate-100 pt-4">
               <ActivityTimeline activities={activities} />
@@ -339,7 +365,10 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         chartsContent={
           <div className="flex flex-col gap-4">
             <div className="grid gap-4 lg:grid-cols-2">
-              <CategoryDonut categories={insights.categories} totalAmountCents={insights.total_amount_cents} />
+              <CategoryDonut
+                categories={insights.categories}
+                totalAmountCents={insights.total_amount_cents}
+              />
               <SpendOverTime
                 points={summaries.map((e) => ({
                   date: e.expense_date ?? e.created_at.slice(0, 10),
@@ -366,7 +395,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         }
       />
 
-      <GroupFab onClick={() => setShowExpenseDialog(true)} />
+      {!readOnly && <GroupFab onClick={() => setShowExpenseDialog(true)} />}
     </div>
   );
 }
