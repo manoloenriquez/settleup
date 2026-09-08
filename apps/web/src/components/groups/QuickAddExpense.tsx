@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
@@ -41,9 +41,12 @@ export function QuickAddExpense({
   onClose,
   onMoreOptions,
 }: Props): React.ReactElement {
+  const clientIdRef = useRef(crypto.randomUUID());
   const [itemName, setItemName] = useState("");
   const [amountStr, setAmountStr] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(categories.find((category) => category.slug === "other")?.id ?? null);
+  const [categoryId, setCategoryId] = useState<string | null>(
+    categories.find((category) => category.slug === "other")?.id ?? null,
+  );
   const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
   const [selectedIds, setSelectedIds] = useState<string[]>(members.map((m) => m.id));
   const [error, setError] = useState<string | null>(null);
@@ -66,12 +69,10 @@ export function QuickAddExpense({
   }
 
   function toggleMember(id: string): void {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  function handleSubmit(e: React.FormEvent): void {
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     setError(null);
 
@@ -95,9 +96,10 @@ export function QuickAddExpense({
 
     // Client-generated UUID = the create_expense idempotency key, shared by
     // the online action and the offline outbox replay.
-    const clientId = crypto.randomUUID();
+    const clientId = clientIdRef.current;
 
     const resetForm = (): void => {
+      clientIdRef.current = crypto.randomUUID();
       setItemName("");
       setAmountStr("");
       setExpenseDate(localTodayISO());
@@ -118,15 +120,22 @@ export function QuickAddExpense({
         participantIds: selectedIds,
         payers: [{ memberId: payerId, paidCents: cents }],
       });
-      void enqueue({
-        id: clientId,
-        kind: "expense.create",
-        entityId: clientId,
-        groupId,
-        payload: JSON.parse(JSON.stringify(payload)) as OutboxJson,
-        createdAt: new Date().toISOString(),
-        summary: { title: itemName.trim(), amountCents: cents },
-      });
+      try {
+        await enqueue({
+          id: clientId,
+          kind: "expense.create",
+          entityId: clientId,
+          groupId,
+          payload: JSON.parse(JSON.stringify(payload)) as OutboxJson,
+          createdAt: new Date().toISOString(),
+          summary: { title: itemName.trim(), amountCents: cents },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       resetForm();
       onClose?.();
@@ -271,12 +280,16 @@ export function QuickAddExpense({
                   <Check size={13} strokeWidth={3} />
                 </span>
                 <Avatar name={member.display_name} size="sm" />
-                <span className={`flex-1 truncate text-sm font-medium ${selected ? "text-slate-900" : "text-slate-400"}`}>
+                <span
+                  className={`flex-1 truncate text-sm font-medium ${selected ? "text-slate-900" : "text-slate-400"}`}
+                >
                   {member.display_name}
                   {member.user_id === currentUserId ? " (you)" : ""}
                 </span>
-                <span className={`shrink-0 text-sm font-semibold tabular-nums ${selected ? "text-slate-900" : "text-slate-300"}`}>
-                  {formatCents(selected ? shares.get(member.id) ?? 0 : 0)}
+                <span
+                  className={`shrink-0 text-sm font-semibold tabular-nums ${selected ? "text-slate-900" : "text-slate-300"}`}
+                >
+                  {formatCents(selected ? (shares.get(member.id) ?? 0) : 0)}
                 </span>
               </label>
             );
@@ -291,7 +304,12 @@ export function QuickAddExpense({
       {/* Footer actions */}
       <div className="flex gap-3">
         {onMoreOptions && (
-          <Button type="button" variant="secondary" onClick={onMoreOptions} leftIcon={SlidersHorizontal}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onMoreOptions}
+            leftIcon={SlidersHorizontal}
+          >
             More options
           </Button>
         )}

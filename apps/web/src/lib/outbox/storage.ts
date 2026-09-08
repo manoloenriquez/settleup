@@ -24,15 +24,14 @@ export const outboxStorage: OutboxStorageAdapter = {
       // Structured clone requires plain data; state is JSON-safe by contract.
       await set(OUTBOX_STORAGE_KEY, JSON.parse(JSON.stringify(state)));
     } catch (error) {
-      // Quota/eviction: the in-memory queue keeps working this session; only
-      // crash-persistence degrades. Surface a breadcrumb, never a throw into
-      // the enqueue caller.
+      // A mutation is not saved until it is durable. Let callers retain the draft.
       Sentry.addBreadcrumb({
         category: "outbox",
         message: "Failed to persist outbox state",
         level: "warning",
         data: { error: error instanceof Error ? error.message : String(error) },
       });
+      throw new Error("Could not save on this device. Free up storage and try again.");
     }
   },
 };

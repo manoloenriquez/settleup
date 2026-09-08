@@ -30,7 +30,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
   const online = useOnline();
   const { enqueue } = useWebOutbox();
 
-  function handleSubmit(): void {
+  async function handleSubmit(): Promise<void> {
     if (isPending) return; // guard against double-submit creating duplicate payments
     setError(null);
     const amountCents = parsePHPAmount(amountStr);
@@ -44,23 +44,30 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
     const clientId = crypto.randomUUID();
 
     if (!online) {
-      void enqueue({
-        id: clientId,
-        kind: "payment.record",
-        entityId: clientId,
-        groupId,
-        payload: {
-          group_id: groupId,
-          from_member_id: debt.from_member_id,
-          to_member_id: debt.to_member_id,
-          amount_cents: amountCents,
-        },
-        createdAt: new Date().toISOString(),
-        summary: {
-          title: `${debt.from_display_name} → ${debt.to_display_name}`,
-          amountCents,
-        },
-      });
+      try {
+        await enqueue({
+          id: clientId,
+          kind: "payment.record",
+          entityId: clientId,
+          groupId,
+          payload: {
+            group_id: groupId,
+            from_member_id: debt.from_member_id,
+            to_member_id: debt.to_member_id,
+            amount_cents: amountCents,
+          },
+          createdAt: new Date().toISOString(),
+          summary: {
+            title: `${debt.from_display_name} → ${debt.to_display_name}`,
+            amountCents,
+          },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       onClose();
       return;
@@ -97,9 +104,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
           value={amountStr}
           onChange={(e) => setAmountStr(e.target.value)}
         />
-        <p className="text-xs text-slate-500">
-          Suggested: {formatCents(debt.amount_cents)}
-        </p>
+        <p className="text-xs text-slate-500">Suggested: {formatCents(debt.amount_cents)}</p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button onClick={handleSubmit} isLoading={isPending}>
           Record Payment
@@ -119,12 +124,7 @@ export function SettleUpButton({ debt, groupId }: Props): React.ReactElement {
 
   return (
     <>
-      <Button
-        size="sm"
-        variant="secondary"
-        leftIcon={Banknote}
-        onClick={() => setOpen(true)}
-      >
+      <Button size="sm" variant="secondary" leftIcon={Banknote} onClick={() => setOpen(true)}>
         Settle
       </Button>
       <SettleUpDialog debt={debt} groupId={groupId} open={open} onClose={() => setOpen(false)} />

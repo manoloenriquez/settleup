@@ -42,6 +42,7 @@ import { invalidationKeysFor, stampLocalInvalidate } from "@/lib/query-keys";
 type OutboxContextValue = {
   entries: OutboxEntry[];
   enqueue: (input: NewOutboxEntry) => Promise<void>;
+  enqueueBatch: (inputs: NewOutboxEntry[]) => Promise<void>;
   retry: (id: string) => Promise<void>;
   discard: (id: string) => Promise<void>;
 };
@@ -97,7 +98,9 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
         for (const key of invalidationKeysFor(groupIds)) {
           void queryClient.invalidateQueries({ queryKey: key });
         }
-        toast.success(`Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`);
+        toast.success(
+          `Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`,
+        );
       }
       if (result.failed > 0) {
         toast.error(
@@ -198,6 +201,17 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
     [engine, drain],
   );
 
+  const enqueueBatch = useCallback(
+    async (inputs: NewOutboxEntry[]): Promise<void> => {
+      await withOutboxLock(async () => {
+        await engine.init();
+        await engine.enqueueBatch(inputs);
+      });
+      void drain();
+    },
+    [engine, drain],
+  );
+
   const discard = useCallback(
     async (id: string): Promise<void> => {
       await withOutboxLock(async () => {
@@ -209,8 +223,8 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
   );
 
   const value = useMemo(
-    () => ({ entries: state.entries, enqueue, retry, discard }),
-    [state.entries, enqueue, retry, discard],
+    () => ({ entries: state.entries, enqueue, enqueueBatch, retry, discard }),
+    [state.entries, enqueue, enqueueBatch, retry, discard],
   );
 
   return <OutboxContext.Provider value={value}>{children}</OutboxContext.Provider>;

@@ -24,22 +24,29 @@ export function CreateGroupForm(): React.ReactElement {
   // double submits of the same form can't create two groups.
   const clientIdRef = useRef<string>(crypto.randomUUID());
 
-  function handleSubmit(formData: FormData): void {
+  async function handleSubmit(formData: FormData): Promise<void> {
     const name = String(formData.get("name") ?? "").trim();
     if (!name) return;
 
     if (!online) {
       // Queue for replay; the group appears as a pending card in the list.
       // Never navigate into it — its page can't exist until it syncs.
-      void enqueue({
-        id: clientIdRef.current,
-        kind: "group.create",
-        entityId: clientIdRef.current,
-        groupId: clientIdRef.current,
-        payload: { name },
-        createdAt: new Date().toISOString(),
-        summary: { title: name, amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: clientIdRef.current,
+          kind: "group.create",
+          entityId: clientIdRef.current,
+          groupId: clientIdRef.current,
+          payload: { name },
+          createdAt: new Date().toISOString(),
+          summary: { title: name, amountCents: 0 },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — the group will be created when you're back online");
       router.push(ROUTES.GROUPS);
       return;
@@ -62,9 +69,7 @@ export function CreateGroupForm(): React.ReactElement {
         autoFocus
         maxLength={100}
       />
-      {state?.error && (
-        <p className="text-sm text-red-600">{state.error}</p>
-      )}
+      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       <Button type="submit" isLoading={isPending}>
         Create Group
       </Button>

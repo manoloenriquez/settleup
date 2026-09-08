@@ -467,8 +467,14 @@ describe("group/category/payment-resolution kinds", () => {
 
   it("coalesces a second queued category.update of the same category", () => {
     let state = createEmptyOutboxState();
-    state = enqueue(state, makeInput({ kind: "category.update", entityId: "cat-1", payload: { name: "Food" } }));
-    state = enqueue(state, makeInput({ kind: "category.update", entityId: "cat-1", payload: { name: "Food & Drink" } }));
+    state = enqueue(
+      state,
+      makeInput({ kind: "category.update", entityId: "cat-1", payload: { name: "Food" } }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ kind: "category.update", entityId: "cat-1", payload: { name: "Food & Drink" } }),
+    );
     expect(state.entries).toHaveLength(1);
     expect(state.entries[0]!.payload).toEqual({ name: "Food & Drink" });
   });
@@ -493,8 +499,14 @@ describe("group/category/payment-resolution kinds", () => {
 describe("group dependency ordering", () => {
   it("does not run a dependent entry before its group.create", () => {
     let state = createEmptyOutboxState();
-    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
-    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
+    state = enqueue(
+      state,
+      makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }),
+    );
     // group.create runs first
     expect(nextRunnable(state, new Date().toISOString())?.id).toBe("g");
     // while the group.create is backing off, the dependent expense must wait
@@ -510,8 +522,14 @@ describe("group dependency ordering", () => {
 
   it("terminal group.create failure blocks the group's queued entries", () => {
     let state = createEmptyOutboxState();
-    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
-    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
+    state = enqueue(
+      state,
+      makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }),
+    );
     state = markTerminalFailure(state, "g", { class: "terminal", code: null, message: "boom" });
     const dependent = state.entries.find((e) => e.id === "e");
     expect(dependent?.status).toBe("failed");
@@ -520,18 +538,36 @@ describe("group dependency ordering", () => {
 
   it("discarding a failed group.create drops everything queued inside the group", () => {
     let state = createEmptyOutboxState();
-    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
-    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
-    state = enqueue(state, makeInput({ id: "other", kind: "expense.create", entityId: "exp-2", groupId: "group-y" }));
+    state = enqueue(
+      state,
+      makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ id: "other", kind: "expense.create", entityId: "exp-2", groupId: "group-y" }),
+    );
     state = discardEntry(state, "g");
     expect(state.entries.map((e) => e.id)).toEqual(["other"]);
   });
 
   it("unrelated groups drain past a blocked group.create", () => {
     let state = createEmptyOutboxState();
-    state = enqueue(state, makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }));
-    state = enqueue(state, makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }));
-    state = enqueue(state, makeInput({ id: "other", kind: "expense.create", entityId: "exp-2", groupId: "group-y" }));
+    state = enqueue(
+      state,
+      makeInput({ id: "g", kind: "group.create", entityId: "group-x", groupId: "group-x" }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ id: "e", kind: "expense.create", entityId: "exp-1", groupId: "group-x" }),
+    );
+    state = enqueue(
+      state,
+      makeInput({ id: "other", kind: "expense.create", entityId: "exp-2", groupId: "group-y" }),
+    );
     const blocked: OutboxState = {
       entries: state.entries.map((e) =>
         e.id === "g"
@@ -540,5 +576,94 @@ describe("group dependency ordering", () => {
       ),
     };
     expect(nextRunnable(blocked, new Date().toISOString())?.id).toBe("other");
+  });
+});
+
+describe("durable enqueue", () => {
+  it("keeps the prior state when persistence fails and retries without duplicates", async () => {
+    let fail = false;
+    const storage = memoryStorage();
+    const engine = createSyncEngine({
+      storage: {
+        ...storage,
+        save: async (state) => {
+          if (fail) throw new Error("quota");
+          await storage.save(state);
+        },
+      },
+      executor: async () => ({ ok: true }),
+    });
+    await engine.init();
+    const input = makeInput();
+    fail = true;
+    await expect(engine.enqueue(input)).rejects.toThrow("quota");
+    expect(engine.getState().entries).toHaveLength(0);
+    fail = false;
+    await engine.enqueue(input);
+    await engine.enqueue(input);
+    expect(engine.getState().entries).toHaveLength(1);
+  });
+});
+
+describe("overlapping durable writes", () => {
+  it("preserves concurrent entries during initialization and persistence", async () => {
+    const storage = memoryStorage();
+    const engine = createSyncEngine({ storage, executor: async () => ({ ok: true }) });
+    await Promise.all([
+      engine.enqueue(makeInput({ id: "first" })),
+      engine.enqueue(makeInput({ id: "second" })),
+    ]);
+    expect(engine.getState().entries.map((entry) => entry.id)).toEqual(["first", "second"]);
+    expect(storage.saved.at(-1)?.entries).toHaveLength(2);
+  });
+
+  it("does not lose a new entry while another entry is syncing", async () => {
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let started: (() => void) | undefined;
+    const executing = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const engine = createSyncEngine({
+      storage: memoryStorage(),
+      executor: async (entry) => {
+        if (entry.id === "first") {
+          started?.();
+          await held;
+        }
+        return { ok: true };
+      },
+    });
+    await engine.enqueue(makeInput({ id: "first" }));
+    const drain = engine.drain();
+    await executing;
+    await engine.enqueue(makeInput({ id: "second" }));
+    release?.();
+    expect((await drain).synced).toBe(2);
+    expect(engine.getState().entries).toHaveLength(0);
+  });
+
+  it("persists a batch atomically and keeps it absent on storage failure", async () => {
+    let fail = false;
+    const engine = createSyncEngine({
+      storage: {
+        load: async () => null,
+        save: async () => {
+          if (fail) throw new Error("Quota exceeded");
+        },
+      },
+      executor: async () => ({ ok: true }),
+    });
+    await engine.init();
+    fail = true;
+    const batch = [makeInput({ id: "first" }), makeInput({ id: "second" })];
+    await expect(engine.enqueueBatch(batch)).rejects.toThrow("Quota exceeded");
+    expect(engine.getState().entries).toHaveLength(0);
+    fail = false;
+    await engine.enqueueBatch(batch);
+    await engine.enqueueBatch(batch);
+    expect(engine.getState().entries).toHaveLength(2);
   });
 });

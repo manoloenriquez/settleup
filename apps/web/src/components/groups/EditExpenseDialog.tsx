@@ -70,7 +70,12 @@ function sameIdSet(a: string[], b: string[]): boolean {
   return b.every((id) => set.has(id));
 }
 
-export function EditExpenseDialog({ expense, members, categories, onClose }: Props): React.ReactElement | null {
+export function EditExpenseDialog({
+  expense,
+  members,
+  categories,
+  onClose,
+}: Props): React.ReactElement | null {
   if (!expense) return null;
   return (
     <EditExpenseDialogInner
@@ -90,7 +95,12 @@ type InnerProps = {
   onClose: () => void;
 };
 
-function EditExpenseDialogInner({ expense, members, categories, onClose }: InnerProps): React.ReactElement {
+function EditExpenseDialogInner({
+  expense,
+  members,
+  categories,
+  onClose,
+}: InnerProps): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const online = useOnline();
@@ -98,14 +108,18 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
   const [name, setName] = useState(expense.item_name);
-  const [amount, setAmount] = useState(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+  const [amount, setAmount] = useState(
+    formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""),
+  );
   const [date, setDate] = useState(expense.expense_date ?? "");
   const [categoryId, setCategoryId] = useState<string | null>(expense.category_id);
   const [participantIds, setParticipantIds] = useState<string[]>(
     expense.participants.map((participant) => participant.member_id),
   );
   const [itemParticipantIds, setItemParticipantIds] = useState<string[][]>(
-    (expense.items ?? []).map((item) => item.item_participants.map((participant) => participant.member_id)),
+    (expense.items ?? []).map((item) =>
+      item.item_participants.map((participant) => participant.member_id),
+    ),
   );
 
   const items = expense.items ?? [];
@@ -138,7 +152,7 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
     );
   }
 
-  function handleEdit(): void {
+  async function handleEdit(): Promise<void> {
     const parsedAmount = parsePHPAmount(amount);
     if (!parsedAmount || parsedAmount <= 0) {
       toast.error("Invalid amount");
@@ -168,19 +182,23 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
     }
 
     const useEqual = wasEqual || participantsChanged;
-    const customSplitAmounts = isItemized || useEqual
-      ? null
-      : scalePositiveAmounts(
-          expense.participants.map((participant) => participant.share_cents),
-          parsedAmount,
-        );
+    const customSplitAmounts =
+      isItemized || useEqual
+        ? null
+        : scalePositiveAmounts(
+            expense.participants.map((participant) => participant.share_cents),
+            parsedAmount,
+          );
     if (!isItemized && !useEqual && !customSplitAmounts) {
       toast.error("Amount is too small to preserve custom splits.");
       return;
     }
 
     const itemAmounts = isItemized
-      ? scalePositiveAmounts(items.map((item) => item.amount_cents), parsedAmount)
+      ? scalePositiveAmounts(
+          items.map((item) => item.amount_cents),
+          parsedAmount,
+        )
       : null;
     if (isItemized && !itemAmounts) {
       toast.error("Amount is too small to preserve itemized shares.");
@@ -224,15 +242,22 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
       // Queue the exact RPC input for replay on reconnect; the entry chains
       // on the expense id, so it coalesces with earlier queued edits and is
       // cancelled by a queued delete.
-      void enqueue({
-        id: crypto.randomUUID(),
-        kind: isItemized ? "expense.update_itemized" : "expense.update",
-        entityId: expense.id,
-        groupId: expense.group_id,
-        payload: JSON.parse(JSON.stringify(rpcInput)) as OutboxJson,
-        createdAt: new Date().toISOString(),
-        summary: { title: name.trim(), amountCents: parsedAmount },
-      });
+      try {
+        await enqueue({
+          id: crypto.randomUUID(),
+          kind: isItemized ? "expense.update_itemized" : "expense.update",
+          entityId: expense.id,
+          groupId: expense.group_id,
+          payload: JSON.parse(JSON.stringify(rpcInput)) as OutboxJson,
+          createdAt: new Date().toISOString(),
+          summary: { title: name.trim(), amountCents: parsedAmount },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       onClose();
       return;
@@ -290,7 +315,11 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
   }
 
   const equalPreview =
-    !isItemized && (wasEqual || participantsChanged) && amountCents && amountCents > 0 && participantIds.length > 0
+    !isItemized &&
+    (wasEqual || participantsChanged) &&
+    amountCents &&
+    amountCents > 0 &&
+    participantIds.length > 0
       ? `Split ${participantIds.length} ways: ~${formatCents(equalSplit(amountCents, participantIds.length)[0] ?? 0)} each`
       : null;
 
@@ -309,7 +338,9 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
     >
       <div className="flex flex-col gap-4 mt-2">
         <div>
-          <label className="text-sm font-medium text-slate-700" htmlFor="edit-name">Name</label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="edit-name">
+            Name
+          </label>
           <Input
             id="edit-name"
             value={name}
@@ -319,7 +350,9 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-700" htmlFor="edit-amount">Amount</label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="edit-amount">
+            Amount
+          </label>
           <Input
             id="edit-amount"
             value={amount}
@@ -330,7 +363,9 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-700" htmlFor="edit-date">Date</label>
+          <label className="text-sm font-medium text-slate-700" htmlFor="edit-date">
+            Date
+          </label>
           <Input
             id="edit-date"
             type="date"
@@ -344,7 +379,11 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
         {!isItemized && (
           <div>
             <p className="mb-2 text-sm font-medium text-slate-700">Split between</p>
-            <MemberChips members={members} selectedIds={participantIds} onToggle={toggleParticipant} />
+            <MemberChips
+              members={members}
+              selectedIds={participantIds}
+              onToggle={toggleParticipant}
+            />
             {equalPreview && <p className="mt-1.5 text-xs text-slate-500">{equalPreview}</p>}
             {!wasEqual && participantsChanged && (
               <p className="mt-1.5 text-xs text-amber-600">
@@ -360,10 +399,15 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
             {items.map((item, index) => {
               const selected = itemParticipantIds[index] ?? [];
               return (
-                <div key={item.id} className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-2">
+                <div
+                  key={item.id}
+                  className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-2"
+                >
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium text-slate-700 truncate">{item.name}</span>
-                    <span className="text-slate-500 whitespace-nowrap shrink-0">{formatCents(item.amount_cents)}</span>
+                    <span className="text-slate-500 whitespace-nowrap shrink-0">
+                      {formatCents(item.amount_cents)}
+                    </span>
                   </div>
                   <MemberChips
                     size="sm"
@@ -373,7 +417,8 @@ function EditExpenseDialogInner({ expense, members, categories, onClose }: Inner
                   />
                   {selected.length > 0 ? (
                     <p className="text-xs text-slate-500">
-                      {selected.length} {selected.length === 1 ? "person" : "people"} · ~{formatCents(equalSplit(item.amount_cents, selected.length)[0] ?? 0)} each
+                      {selected.length} {selected.length === 1 ? "person" : "people"} · ~
+                      {formatCents(equalSplit(item.amount_cents, selected.length)[0] ?? 0)} each
                     </p>
                   ) : (
                     <p className="text-xs text-red-600">Needs at least one person</p>
