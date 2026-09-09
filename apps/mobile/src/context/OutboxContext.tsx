@@ -13,7 +13,6 @@ import * as Sentry from "@sentry/react-native";
 import {
   createEmptyOutboxState,
   createSyncEngine,
-  OUTBOX_UPDATE_KINDS,
   type NewOutboxEntry,
   type OutboxEntry,
   type OutboxState,
@@ -181,32 +180,7 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
 
   const retry = useCallback(
     async (id: string): Promise<void> => {
-      // Retrying a CAS-conflicted edit is the user explicitly choosing
-      // "reapply my change on top of the latest server state" — drop the
-      // stale snapshot so the replay doesn't just conflict again.
-      const entry = engine.getState().entries.find((e) => e.id === id);
-      if (
-        entry &&
-        entry.lastError?.class === "conflict" &&
-        OUTBOX_UPDATE_KINDS.has(entry.kind) &&
-        entry.payload !== null &&
-        typeof entry.payload === "object" &&
-        !Array.isArray(entry.payload)
-      ) {
-        const { expected_updated_at: _stale, ...payload } = entry.payload;
-        await engine.discard(id);
-        await engine.enqueue({
-          id: entry.id,
-          kind: entry.kind,
-          entityId: entry.entityId,
-          groupId: entry.groupId,
-          payload,
-          createdAt: entry.createdAt,
-          summary: entry.summary,
-        });
-      } else {
-        await engine.retry(id);
-      }
+      await engine.retry(id);
       void drain();
     },
     [engine, drain],

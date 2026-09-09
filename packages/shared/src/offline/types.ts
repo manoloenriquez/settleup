@@ -55,7 +55,7 @@ export type SyncErrorClass =
   | "conflict"
   /** Target row is gone (PT404 / deleted elsewhere) — needs the user's attention. */
   | "not_found"
-  /** Unique violation on a replayed insert (23505) — the write already applied; treat as success. */
+  /** Legacy persisted error label; new executors must verify replay and return ok: true. */
   | "duplicate"
   /** Validation/authorization/unknown — retrying will not help. */
   | "terminal";

@@ -83,8 +83,6 @@ export const outboxExecutor: OutboxExecutor = async (
         return toExecutionResult(error);
       }
       case "comment.create": {
-        // Client PK doubles as the idempotency key: a replay hits 23505,
-        // which the sync engine classifies as success.
         const payload = entry.payload as {
           expense_id: string;
           author_user_id: string;
@@ -95,6 +93,30 @@ export const outboxExecutor: OutboxExecutor = async (
           .from("expense_comments")
           .insert({ id: entry.entityId, ...payload })
           .abortSignal(signal);
+        if (error?.code === "23505") {
+          const { data: saved, error: readError } = await supabase
+            .schema("settleup")
+            .from("expense_comments")
+            .select("expense_id, author_user_id, body")
+            .eq("id", entry.entityId)
+            .abortSignal(signal)
+            .maybeSingle();
+          if (readError) return toExecutionResult(readError);
+          if (
+            saved &&
+            saved.expense_id === payload.expense_id &&
+            saved.author_user_id === payload.author_user_id &&
+            saved.body === payload.body
+          ) {
+            return { ok: true };
+          }
+          return {
+            ok: false,
+            code: "PT409",
+            message:
+              "This comment ID belongs to a different or inaccessible record. Your draft has been kept.",
+          };
+        }
         return toExecutionResult(error);
       }
       case "group.create": {

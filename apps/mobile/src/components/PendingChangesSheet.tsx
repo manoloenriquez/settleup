@@ -1,3 +1,5 @@
+import { useRouter } from "expo-router";
+import { useToast } from "@/components/ui/Toast";
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
@@ -42,11 +44,13 @@ function statusBadge(entry: OutboxEntry): { label: string; variant: "warning" | 
 
 /**
  * Every queued offline change with its status; failed entries expose the
- * error and Retry / Discard actions. Retry on a conflict is an explicit
- * "reapply my change on top of the latest server state".
+ * error and review, retry or discard actions. Conflicting edits retain their
+ * original stale-write protection until the user reviews and edits again.
  */
 export function PendingChangesSheet({ visible, onClose }: PendingChangesSheetProps) {
   const { entries, retry, discard } = useOutbox();
+  const router = useRouter();
+  const toast = useToast();
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -76,9 +80,9 @@ export function PendingChangesSheet({ visible, onClose }: PendingChangesSheetPro
                           : ""}
                       </Text>
                       {entry.status === "failed" && entry.lastError && (
-                        <Text style={styles.rowError} numberOfLines={2}>
+                        <Text style={styles.rowError}>
                           {entry.lastError.class === "conflict"
-                            ? "Changed by someone else since you edited it."
+                            ? "Conflicts with a saved record. Review the group and edit again. Your queued draft is kept."
                             : entry.lastError.class === "not_found"
                               ? "It was deleted by someone else."
                               : entry.lastError.message}
@@ -89,21 +93,45 @@ export function PendingChangesSheet({ visible, onClose }: PendingChangesSheetPro
                       <Badge label={badge.label} variant={badge.variant} />
                       {entry.status === "failed" && (
                         <View style={styles.actions}>
+                          {entry.lastError?.class === "conflict" ||
+                          entry.lastError?.class === "duplicate" ? (
+                            <TouchableOpacity
+                              style={styles.actionBtn}
+                              accessibilityRole="button"
+                              onPress={() => {
+                                onClose();
+                                router.push(`/groups/${entry.groupId}`);
+                              }}
+                            >
+                              <Text style={styles.actionText}>Review group</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity
+                              onPress={() =>
+                                void retry(entry.id).catch(() =>
+                                  toast.error("Could not retry. Your saved change has been kept."),
+                                )
+                              }
+                              style={styles.actionBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Retry ${entry.summary.title}`}
+                            >
+                              <Text style={styles.actionText}>Retry</Text>
+                            </TouchableOpacity>
+                          )}
                           <TouchableOpacity
-                            onPress={() => void retry(entry.id)}
-                            style={styles.actionBtn}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Retry ${entry.summary.title}`}
-                          >
-                            <Text style={styles.actionText}>Retry</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => void discard(entry.id)}
+                            onPress={() =>
+                              void discard(entry.id).catch(() =>
+                                toast.error("Could not discard. Your saved change has been kept."),
+                              )
+                            }
                             style={styles.actionBtn}
                             accessibilityRole="button"
                             accessibilityLabel={`Discard ${entry.summary.title}`}
                           >
-                            <Text style={[styles.actionText, { color: colors.danger }]}>Discard</Text>
+                            <Text style={[styles.actionText, { color: colors.danger }]}>
+                              Discard
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       )}

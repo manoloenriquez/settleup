@@ -23,8 +23,8 @@ function toExecutionResult(error: RpcError | null): OutboxExecutionResult {
 /**
  * Replays one outbox entry against Supabase. Every call is idempotent:
  * creates/payments carry a client-generated id the RPCs recognize, deletes
- * treat 0 affected rows as success, comment replays surface 23505 which the
- * engine classifies as already-applied.
+ * treat 0 affected rows as success. A comment replay is accepted only after
+ * an authorized read confirms the saved identity and complete payload.
  */
 export const outboxExecutor: OutboxExecutor = async (
   entry: OutboxEntry,
@@ -96,13 +96,35 @@ export const outboxExecutor: OutboxExecutor = async (
           author_user_id: string;
           body: string;
         };
-        // Client-supplied PK; a replay hits the unique constraint (23505),
-        // which the engine treats as success.
         const { error } = await supabase
           .schema("settleup")
           .from("expense_comments")
           .insert({ id: entry.entityId, ...payload })
           .abortSignal(signal);
+        if (error?.code === "23505") {
+          const { data: saved, error: readError } = await supabase
+            .schema("settleup")
+            .from("expense_comments")
+            .select("expense_id, author_user_id, body")
+            .eq("id", entry.entityId)
+            .abortSignal(signal)
+            .maybeSingle();
+          if (readError) return toExecutionResult(readError);
+          if (
+            saved &&
+            saved.expense_id === payload.expense_id &&
+            saved.author_user_id === payload.author_user_id &&
+            saved.body === payload.body
+          ) {
+            return { ok: true };
+          }
+          return {
+            ok: false,
+            code: "PT409",
+            message:
+              "This comment ID belongs to a different or inaccessible record. Your draft has been kept.",
+          };
+        }
         return toExecutionResult(error);
       }
       case "group.create": {

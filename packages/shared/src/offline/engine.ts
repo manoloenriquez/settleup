@@ -139,11 +139,6 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
       const outboxError = toOutboxError(execution.code, execution.message);
       switch (outboxError.class) {
-        case "duplicate":
-          // Already applied server-side — this replay is a success.
-          await setState((current) => markSynced(current, entry.id));
-          result.synced += 1;
-          break;
         case "network":
           await setState((current) => requeue(current, entry.id));
           result.stoppedOffline = true;

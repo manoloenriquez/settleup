@@ -82,8 +82,7 @@ export function parseOutboxState(raw: unknown): OutboxState {
 
 /**
  * Kinds whose payload carries an `expected_updated_at` CAS token. Exported so
- * both platforms' conflict-retry ("reapply on top of latest") uses one
- * definition.
+ * both platforms can identify edits that require stale-write protection.
  */
 export const OUTBOX_UPDATE_KINDS: ReadonlySet<OutboxEntry["kind"]> = new Set<OutboxEntry["kind"]>([
   "expense.update",
@@ -233,6 +232,10 @@ export function markTerminalFailure(
 
 /** User-initiated retry: back to the queue with a clean slate. */
 export function retryEntry(state: OutboxState, id: string): OutboxState {
+  const entry = state.entries.find((candidate) => candidate.id === id);
+  if (entry?.lastError?.class === "conflict" || entry?.lastError?.class === "duplicate") {
+    throw new Error("Review the latest record and edit it again. Your queued draft has been kept.");
+  }
   return mapEntry(state, id, (e) => ({
     ...e,
     status: "queued",

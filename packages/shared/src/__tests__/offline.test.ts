@@ -101,7 +101,7 @@ describe("classifySyncError", () => {
     expect(classifySyncError("PT409", "Expense was modified by someone else")).toBe("conflict");
     expect(classifySyncError("PT404", "Expense not found")).toBe("not_found");
     expect(classifySyncError("23505", "duplicate key value violates unique constraint")).toBe(
-      "duplicate",
+      "conflict",
     );
   });
 
@@ -300,15 +300,17 @@ describe("createSyncEngine", () => {
     expect(storage.saved.length).toBeGreaterThan(0);
   });
 
-  it("treats duplicate-key replays (23505) as success", async () => {
+  it("retains unverified duplicate-key failures (23505) for review", async () => {
     const { engine } = makeEngine({
       a: [{ ok: false, code: "23505", message: "duplicate key value" }],
     });
     await engine.init();
     await engine.enqueue(makeInput({ id: "a" }));
     const result = await engine.drain();
-    expect(result.synced).toBe(1);
-    expect(engine.getState().entries).toEqual([]);
+    expect(result.synced).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(engine.getState().entries[0]?.lastError?.class).toBe("conflict");
+    await expect(engine.retry("a")).rejects.toThrow("Review the latest record");
   });
 
   it("stops the drain on a network error without consuming an attempt", async () => {
@@ -424,7 +426,7 @@ describe("createSyncEngine", () => {
 
   it("retry resets a failed entry; discard removes it; clear empties the queue", async () => {
     const { engine } = makeEngine({
-      a: [{ ok: false, code: "PT409", message: "conflict" }],
+      a: [{ ok: false, code: "42501", message: "Membership required" }],
     });
     await engine.init();
     await engine.enqueue(makeInput({ id: "a" }));
@@ -667,5 +669,21 @@ describe("overlapping durable writes", () => {
     await engine.enqueueBatch(batch);
     await engine.enqueueBatch(batch);
     expect(engine.getState().entries).toHaveLength(2);
+  });
+});
+
+describe("stale edit protection", () => {
+  it("keeps the draft and its timestamp intact when retrying a conflict", async () => {
+    const { engine } = makeEngine({ a: [{ ok: false, code: "PT409", message: "Changed" }] });
+    const payload = {
+      item_name: "Dinner",
+      amount_cents: 4200,
+      expected_updated_at: "2026-01-01T00:00:00Z",
+    };
+    await engine.enqueue(makeInput({ id: "a", kind: "expense.update", payload }));
+    await engine.drain();
+    await expect(engine.retry("a")).rejects.toThrow("Review the latest record");
+    expect(engine.getState().entries[0]?.payload).toEqual(payload);
+    expect(engine.getState().entries[0]?.status).toBe("failed");
   });
 });
