@@ -563,7 +563,7 @@ export function GroupSettingsClient({
 
       {/* Member list */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-700 mb-4">
+        <h2 id="members" className="text-base font-semibold text-slate-700 mb-4">
           Members ({memberList.length})
         </h2>
 

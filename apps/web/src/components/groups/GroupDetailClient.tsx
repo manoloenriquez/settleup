@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { simplifyDebts, formatCents } from "@template/shared";
 import { computeInsights } from "@template/ai/insights";
@@ -96,18 +96,30 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   const pendingLocalPayments = usePendingPaymentRecords(groupId);
   const pendingLocalCount = pendingLocalExpenses.length + pendingLocalPayments.length;
 
+  const [linkCopied, setLinkCopied] = useState(false);
+  const sharedKey = `tabkind:link-copied:${currentUserIdOrNull}:${groupId}`;
+  useEffect(() => {
+    try {
+      setLinkCopied(localStorage.getItem(sharedKey) === "1");
+    } catch {
+      setLinkCopied(false);
+    }
+  }, [sharedKey]);
+  function markLinkCopied(): void {
+    setLinkCopied(true);
+    try {
+      localStorage.setItem(sharedKey, "1");
+    } catch {
+      /* Checklist remains complete for this visit. */
+    }
+  }
+
   const group = groupQ.data ?? null;
   // Never let a null user id accidentally match unclaimed members (user_id null).
   const currentUserId = currentUserIdOrNull ?? "";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const paymentProfile = paymentProfileQ.data ?? null;
   const paymentProfileText = buildPaymentProfileText(paymentProfile);
-  const hasPaymentDetails = Boolean(
-    paymentProfile?.gcash_number ||
-    paymentProfile?.gcash_qr_url ||
-    paymentProfile?.bank_account_number ||
-    paymentProfile?.bank_qr_url,
-  );
 
   const balances = balancesQ.data ?? [];
   const creditorProfiles = creditorProfilesQ.data ?? [];
@@ -117,7 +129,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     slug: b.slug,
     share_token: b.share_token,
     user_id: b.user_id,
-    departed_at: null,
+    departed_at: b.departed_at ?? null,
     role: (b.role ?? "member") as "owner" | "admin" | "member",
     group_id: groupId,
     created_at: "",
@@ -156,6 +168,29 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     );
   }
 
+  if (balancesQ.isError || expensesQ.isError || summariesQ.isError) {
+    return (
+      <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h2 className="font-semibold">The group ledger could not be loaded</h2>
+        <p className="mt-2 text-sm">
+          Check your connection and make sure the app is up to date. Your saved expenses have not
+          changed.
+        </p>
+        <button
+          type="button"
+          className="mt-4 rounded-lg border border-amber-300 px-4 py-2 text-sm font-medium"
+          onClick={() => {
+            void balancesQ.refetch();
+            void expensesQ.refetch();
+            void summariesQ.refetch();
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   const readOnly = group.owner_user_id === null;
   const isOwner = group.owner_user_id === currentUserId;
   const currentMember = members.find((m) => m.user_id === currentUserId);
@@ -190,7 +225,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     {
       label: "Add members",
       complete: members.length > 1,
-      href: `/groups/${groupId}`,
+      href: `/groups/${groupId}/settings#members`,
       icon: setupChecklistIcons.members,
     },
     {
@@ -200,22 +235,17 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       icon: setupChecklistIcons.claim,
     },
     {
-      label: "Add payment details",
-      complete: hasPaymentDetails,
-      href: "/account/payment",
-      icon: setupChecklistIcons.payment,
-    },
-    {
-      label: "Share group link",
-      complete: members.length > 1,
+      label: "Copy group balance link",
+      complete: linkCopied,
+      onCopied: markLinkCopied,
       copyText: `${origin}/g/${group.share_token}`,
-      copyLabel: "Share",
+      copyLabel: "Copy balance link",
       icon: setupChecklistIcons.share,
     },
     {
       label: "Add first expense",
       complete: totalExpenseCount > 0,
-      href: `/groups/${groupId}`,
+      onClick: () => setShowExpenseDialog(true),
       icon: setupChecklistIcons.expense,
     },
   ];
@@ -303,7 +333,11 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         </div>
         <div className="flex gap-2 shrink-0">
           {isDev && <SeedButton />}
-          <CopyButton text={`${origin}/g/${group.share_token}`} label="Share" />
+          <CopyButton
+            text={`${origin}/g/${group.share_token}`}
+            label="Copy balance link"
+            onCopied={markLinkCopied}
+          />
         </div>
       </div>
 
