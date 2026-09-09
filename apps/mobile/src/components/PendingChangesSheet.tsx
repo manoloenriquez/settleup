@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useToast } from "@/components/ui/Toast";
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatCents } from "@template/shared";
 import type { OutboxEntry } from "@template/shared";
@@ -121,8 +121,23 @@ export function PendingChangesSheet({ visible, onClose }: PendingChangesSheetPro
                           )}
                           <TouchableOpacity
                             onPress={() =>
-                              void discard(entry.id).catch(() =>
-                                toast.error("Could not discard. Your saved change has been kept."),
+                              Alert.alert(
+                                "Discard saved draft?",
+                                "This removes only this device's pending change. Changes already saved to the group will remain.",
+                                [
+                                  { text: "Keep draft", style: "cancel" },
+                                  {
+                                    text: "Discard",
+                                    style: "destructive",
+                                    onPress: () => {
+                                      void discard(entry.id).catch(() =>
+                                        toast.error(
+                                          "Could not discard. Your saved change has been kept.",
+                                        ),
+                                      );
+                                    },
+                                  },
+                                ],
                               )
                             }
                             style={styles.actionBtn}

@@ -120,11 +120,17 @@ export function PendingChangesPopover(): React.ReactElement | null {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() =>
-                          void discard(entry.id).catch(() =>
-                            toast.error("Could not discard. Your saved change has been kept."),
-                          )
-                        }
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Discard this saved draft? This removes only this device's pending change. Changes already saved to the group will remain.",
+                            )
+                          ) {
+                            void discard(entry.id).catch(() =>
+                              toast.error("Could not discard. Your saved change has been kept."),
+                            );
+                          }
+                        }}
                       >
                         Discard
                       </Button>

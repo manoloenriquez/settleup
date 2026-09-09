@@ -56,6 +56,7 @@ const outboxEntrySchema = z.object({
   groupId: z.string().min(1),
   payload: outboxJsonSchema,
   status: z.enum(["queued", "inflight", "failed_retryable", "failed"]),
+  hasBeenSent: z.boolean().default(true),
   attempts: z.number().int().nonnegative(),
   createdAt: z.string().min(1),
   nextAttemptAt: z.string().nullable(),
@@ -113,11 +114,25 @@ const DELETE_KINDS = new Set<OutboxEntry["kind"]>(["expense.delete", "category.d
  *   (the delete makes them moot).
  */
 export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState {
-  if (state.entries.some((e) => e.id === input.id)) return state;
+  const existing = state.entries.find((entry) => entry.id === input.id);
+  if (existing) {
+    if (
+      existing.kind !== input.kind ||
+      existing.entityId !== input.entityId ||
+      existing.groupId !== input.groupId ||
+      !sameJson(existing.payload, input.payload)
+    ) {
+      throw new Error(
+        "This saved attempt has different details. Keep your draft and review pending changes before trying again.",
+      );
+    }
+    return state;
+  }
 
   const entry: OutboxEntry = {
     ...input,
     status: "queued",
+    hasBeenSent: false,
     attempts: 0,
     nextAttemptAt: null,
     lastError: null,
@@ -136,13 +151,18 @@ export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState 
 
   if (DELETE_KINDS.has(entry.kind)) {
     const hasUnsyncedCreate = state.entries.some(
-      (e) => e.entityId === entry.entityId && CREATE_KINDS.has(e.kind) && e.status !== "inflight",
+      (e) =>
+        e.entityId === entry.entityId &&
+        CREATE_KINDS.has(e.kind) &&
+        e.hasBeenSent === false &&
+        e.status !== "inflight",
     );
     const entries = state.entries.filter(
       (e) => !(e.entityId === entry.entityId && e.status !== "inflight"),
     );
     if (hasUnsyncedCreate) {
-      // The row never reached the server — cancel locally, enqueue nothing.
+      // No transmission ever started. Otherwise send a delete: the server may
+      // have saved the create even if its response was lost.
       return { entries };
     }
     return { entries: [...entries, entry] };
@@ -152,7 +172,7 @@ export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState 
 }
 
 export function markInflight(state: OutboxState, id: string): OutboxState {
-  return mapEntry(state, id, (e) => ({ ...e, status: "inflight" }));
+  return mapEntry(state, id, (e) => ({ ...e, status: "inflight", hasBeenSent: true }));
 }
 
 /** The entry synced (or was already applied server-side) — remove it. */
@@ -324,4 +344,24 @@ function mapEntry(
   update: (entry: OutboxEntry) => OutboxEntry,
 ): OutboxState {
   return { entries: state.entries.map((e) => (e.id === id ? update(e) : e)) };
+}
+
+/** JSON object key order does not change the meaning of a retried payload. */
+function sameJson(left: OutboxJson, right: OutboxJson): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object")
+    return false;
+  if (Array.isArray(left)) {
+    return (
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameJson(value, right[index]!))
+    );
+  }
+  if (Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => Object.hasOwn(right, key) && sameJson(left[key]!, right[key]!))
+  );
 }

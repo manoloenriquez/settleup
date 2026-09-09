@@ -157,7 +157,7 @@ describe("outbox reducer", () => {
     const b = makeInput({ id: "b" });
     state = enqueue(state, a);
     state = enqueue(state, b);
-    state = enqueue(state, { ...b, payload: { changed: true } });
+    expect(() => enqueue(state, { ...b, payload: { changed: true } })).toThrow("different details");
     expect(state.entries.map((e) => e.id)).toEqual(["a", "b"]);
     expect(state.entries[1]!.payload).toEqual(b.payload);
   });
@@ -685,5 +685,48 @@ describe("stale edit protection", () => {
     await expect(engine.retry("a")).rejects.toThrow("Review the latest record");
     expect(engine.getState().entries[0]?.payload).toEqual(payload);
     expect(engine.getState().entries[0]?.status).toBe("failed");
+  });
+});
+
+describe("uncertain outcomes and stable attempt identities", () => {
+  it("sends a compensating delete after a create response is lost", async () => {
+    const { engine, calls } = makeEngine({
+      create: [{ ok: false, code: null, message: "Failed to fetch" }],
+    });
+    await engine.enqueue(makeInput({ id: "create", entityId: "expense" }));
+    await engine.drain();
+    await engine.enqueue(
+      makeInput({ id: "delete", entityId: "expense", kind: "expense.delete", payload: {} }),
+    );
+    expect(engine.getState().entries.map((entry) => entry.kind)).toEqual(["expense.delete"]);
+    await engine.drain();
+    expect(calls).toEqual(["create", "delete"]);
+  });
+
+  it("treats older queued creates as possibly transmitted when deleting after upgrade", () => {
+    const initial = enqueue(
+      createEmptyOutboxState(),
+      makeInput({ id: "create", entityId: "expense" }),
+    );
+    const { hasBeenSent: _legacyMissingField, ...oldEntry } = initial.entries[0]!;
+    const restored = parseOutboxState({ entries: [oldEntry] });
+    expect(
+      enqueue(
+        restored,
+        makeInput({ kind: "expense.delete", entityId: "expense", payload: {} }),
+      ).entries.map((entry) => entry.kind),
+    ).toEqual(["expense.delete"]);
+  });
+
+  it("rejects changed details with a reused operation ID without losing the original saved attempt", async () => {
+    const { engine } = makeEngine({});
+    const original = makeInput({ id: "same-id" });
+    await engine.enqueue(original);
+    await engine.enqueue({ ...original, payload: { amount_cents: 500, item_name: "Coffee" } });
+    expect(engine.getState().entries).toHaveLength(1);
+    await expect(
+      engine.enqueue({ ...original, payload: { item_name: "Coffee", amount_cents: 900 } }),
+    ).rejects.toThrow("different details");
+    expect(engine.getState().entries[0]?.payload).toEqual(original.payload);
   });
 });
