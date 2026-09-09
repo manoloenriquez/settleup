@@ -76,6 +76,18 @@ through the same RPCs with client-generated UUIDs as idempotency keys and an
 `expected_updated_at` compare-and-swap guard on edits. Full design, server
 contract, and the manual test matrix: `docs/brain/04-offline.md`.
 
+## Product Analytics
+
+First-party and privacy-minimal: `packages/shared/src/analytics` defines the
+sixteen PRD 12.4 events as a typed union with enumerated properties, a
+`Sink` interface and a fire-and-forget `createTracker`. Sinks:
+`apps/web/src/lib/analytics/client.ts` (browser, lazy Supabase client),
+`apps/web/src/lib/analytics/server.ts` (`trackServer` inside `after()` for
+Server Actions; `trackPublic` for guest pages via the `track_public_event`
+RPC), `apps/mobile/src/lib/analytics.ts`. Rows land in
+`settleup.product_events`; the admin page lists the latest 100. No vendor is
+wired; swap the sink to add one. Details: `docs/brain/03-supabase.md`.
+
 ## AI Layer
 
 Provider-abstracted LLM integration in `apps/web/src/lib/ai/`.

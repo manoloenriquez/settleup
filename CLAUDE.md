@@ -9,6 +9,7 @@ This file is authoritative context for Claude Code. Follow these rules strictly.
 - `docs/brain/02-conventions.md` — naming, file placement, how to add a feature
 - `docs/brain/03-supabase.md` — schema reference, RLS policies, RPCs, migrations
 - `docs/brain/04-offline.md` — offline-first architecture, sync engine, idempotency/CAS contract, test matrix
+- `docs/launch-readiness.md` — launch status and evidence; `docs/launch-implementation-plan.md` — remaining work and scope decisions
 
 ---
 
@@ -53,6 +54,7 @@ supabase/
 | Test (shared) | `pnpm --filter @template/shared test` |
 | New migration | `supabase/migrations/YYYYMMDDHHMMSS_description.sql` |
 | Regen DB types | `pnpm supabase gen types typescript --local > packages/supabase/src/database.types.ts` |
+| SQL tests (local Supabase) | see `docs/brain/03-supabase.md` → SQL Tests; CI job `db-tests` runs them |
 
 ---
 

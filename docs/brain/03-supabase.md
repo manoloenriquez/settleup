@@ -253,6 +253,35 @@ owed_cents = GREATEST(0, -net_cents)
 | `public.handle_new_user()`     | `SECURITY DEFINER` trig | Auto-inserts `profiles` row on signup         |
 | `public.prevent_role_escalation()` | `SECURITY DEFINER` trig | Blocks non-admin role changes at DB level |
 
+## Push Delivery (migrations `20260612020000`, `20260909120000`)
+
+- Triggers on `expenses` (insert), `payments` (pending insert, pending→paid update) call `settleup.notify_push_event()`, a `SECURITY DEFINER` trigger function. It is a no-op until `settleup.app_config` holds `push_webhook_url` and `push_webhook_secret` (table has RLS and no policies: owner SQL only).
+- `settleup.build_push_messages(event, row)` resolves recipients (linked, non-departed members; the creator is excluded for expenses; the creditor for pending payments; the payer for confirmations) and their `push_tokens`, and returns finished Expo messages: group name as title, short body, `data: { group_id, event, route }`. Not client-callable.
+- The trigger posts `{ messages }` via `pg_net` to the `send-push` Edge Function, which holds **no service-role key**: it verifies `x-push-secret`, forwards to Expo, and prunes `DeviceNotRegistered` tokens through `settleup.prune_push_tokens(secret, tokens)` (anon-executable, secret-guarded, max 500). Runbook: `supabase/functions/send-push/README.md`.
+- `push_tokens` is owner-RLS; mobile registers/rotates its own row (`apps/mobile/src/services/push.ts`).
+
+## Product Events (migration `20260909130000`)
+
+- `settleup.product_events(id, event_name, occurred_at, user_id, platform, properties)` holds the sixteen PRD 12.4 events. `settleup.product_event_spec(name)` is the allowlist of enumerated property keys and values; a CHECK constraint rejects anything else, so no free text can be stored. The shared `PRODUCT_EVENT_SPEC` in `packages/shared/src/analytics` must match it (a shared test parses the migration and compares).
+- Signed-in clients insert their own rows (`user_id = auth.uid()`, per-column INSERT grant, no update/delete). Only `public.is_admin()` can read. Account closure detaches `user_id`; global Auth deletion sets it null.
+- Public pages record through `settleup.track_public_event(share_token, name, properties)`: three public events only, resolved to a member or group id and limited to 60 per five minutes per id (`product_event_limits`). A null token records only an invalid-link open against a sentinel key.
+- Server-derived events: `account_created` (trigger on `auth.users` insert) and `group_settled` (trigger after a payment becomes PAID and every member balance is zero, recorded once per ledger state via `group_settlements`). When the deferred currency migration is activated, `record_group_settled()` must compare balances per currency.
+
+## SQL Tests
+
+`supabase/tests/*.sql` are transactional (`BEGIN … ROLLBACK`) and assert with `ASSERT`/`RAISE`. CI runs them against a local Supabase with every migration applied (`db-tests` job in `.github/workflows/ci.yml`). Locally:
+
+```bash
+supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,realtime,storage-api,supavisor
+for f in supabase/tests/*.sql; do psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$f"; done
+```
+
+Files: `launch_security.sql` (invitations, guest reports, resolution authorization), `public_payloads.sql` (public payload allowlists, rotation, anonymous access to private RPCs), `account_closure.sql`, `currency_ledger.sql`, `push_delivery.sql`, `product_events.sql`.
+
+## Currency Migration Status
+
+`20260908163441_currency_ledger.sql` adds `currency_code` columns, versioned `_v2` RPCs, the `x-ledger-version: 2` header gate and `PT426` rejection for legacy RPCs on non-PHP ledgers. It is **applied locally and in CI but intentionally not applied to the shared remote project** (launch decision D1: PHP-only beta). Clients call only legacy RPCs and default absent codes to PHP, so they work either way as long as all data stays PHP.
+
 ## Regenerating Types After Schema Changes
 
 ```bash

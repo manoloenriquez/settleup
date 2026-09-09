@@ -17,6 +17,18 @@ Each of these changes scope. They are stated so the owner can overturn them befo
 | D5 | **Push delivery moves the service role out of the Edge Function entirely.** The database builds the complete delivery payload (tokens plus minimal title/body) inside the existing trigger and posts it; the function only forwards to Expo. | Launch-readiness item; CLAUDE.md forbids service-role use outside the account-closure route, and that route no longer uses it either. |
 | D6 | **Nothing is pushed, deployed, or applied to the remote database in this plan without the owner saying so.** Commits stay local. | Repository rules and the shared Supabase project. |
 
+## Status (2026-09-10)
+
+| Workstream | Status | Commit |
+|---|---|---|
+| WS1 bookkeeping | done | `e26bba6` |
+| WS2 correctness and config hardening | done | `e62682a` |
+| WS3 push without service role | done, unapplied remotely, function uncompiled locally | `4bb0e10` |
+| WS4 product events | done, unapplied remotely | `98278c6` |
+| WS5 mobile AI draft parity | done (native edit date change left out) | `4bad5c1` |
+| WS6 SQL tests in CI | done; first execution will be in CI | see below |
+| WS7 documentation | done | see below |
+
 ## Workstreams
 
 Order is by risk reduction per hour. Reviewed by the Codex plan reviewer on 2026-09-09; both findings (mobile payer path, no IP-keyed limiter) were accepted and folded in. Each workstream ends in its own commit, runs the shared/web/mobile suites plus typecheck and lint, and is sent to the Codex code reviewer; if Codex is unavailable, an internal review is recorded in the commit message and the readiness doc.
