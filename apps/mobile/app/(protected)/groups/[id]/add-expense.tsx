@@ -24,7 +24,21 @@ import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailabi
 import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner, useToast, Avatar } from "@/components/ui";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
-import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
+import { ReceiptItemEditor, type EditableLineItem } from "@/components/scan/ReceiptItemEditor";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ExpenseDraft } from "@template/shared/types";
+import {
+  applySmartSplit,
+  draftStorageKey,
+  isDraftEmpty,
+  isDraftResolved,
+  parsePersistedDraft,
+  reconcileReceipt,
+  resolutionEdited,
+  resolveDraft,
+  type DraftResolution,
+  type PersistedDraft,
+} from "@/lib/expense-draft";
 import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
 import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit } from "@template/shared";
@@ -35,6 +49,13 @@ import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 type Mode = "quick" | "chat" | "receipt" | "detailed" | "itemized";
 type SplitMode = "equal" | "percent" | "shares" | "custom";
 type LineItem = { name: string; amountStr: string; participantIds: string[] };
+/** An AI chat suggestion awaiting explicit member resolution; never saved directly. */
+type AiReview = {
+  draft: ExpenseDraft;
+  auto: DraftResolution;
+  resolution: DraftResolution;
+  categoryId: string | null;
+};
 
 /** Local YYYY-MM-DD (never UTC — toISOString is a day off after 8am PH). */
 function localTodayISO(): string {
@@ -135,11 +156,16 @@ export default function AddExpenseScreen() {
   // Confirmation step state (quick / detailed / itemized)
   const [confirming, setConfirming] = useState(false);
 
-  // Chat mode state
+  // Chat mode state: the suggestion under review lives here until the user
+  // resolves every name and moves it into the shared form.
   const [chatInput, setChatInput] = useState("");
-  const [draftItem, setDraftItem] = useState("");
-  const [draftAmount, setDraftAmount] = useState("");
-  const [draftMembers, setDraftMembers] = useState<Set<string>>(new Set());
+  const [aiReview, setAiReview] = useState<AiReview | null>(null);
+  const [notes, setNotes] = useState("");
+  // Receipt mode: editable line items seeded from the scan result
+  const [receiptItems, setReceiptItems] = useState<EditableLineItem[]>([]);
+  const draftHydrated = useRef(false);
+  const latestDraft = useRef<PersistedDraft | null>(null);
+  const draftCleared = useRef(false);
   const hasInitializedMembersRef = useRef(false);
 
   // Initialize payer to first member that matches user
@@ -167,6 +193,144 @@ export default function AddExpenseScreen() {
     if (categoryId || categories.length === 0) return;
     setCategoryId(categories.find((category) => category.slug === "other")?.id ?? categories[0]?.id ?? null);
   }, [categories, categoryId]);
+
+  // Restore this account's unsaved draft for the group so leaving the screen
+  // loses nothing. Keyed by account so a shared device never surfaces another
+  // person's draft.
+  const draftUserId = session?.user.id ?? "";
+  useEffect(() => {
+    if (!draftUserId) return;
+    let cancelled = false;
+    draftHydrated.current = false;
+    draftCleared.current = false;
+    AsyncStorage.getItem(draftStorageKey(draftUserId, groupId))
+      .then((raw) => {
+        if (cancelled) return;
+        const saved = parsePersistedDraft(raw);
+        if (saved && !isDraftEmpty(saved)) {
+          setMode(saved.mode === "chat" || saved.mode === "receipt" ? "detailed" : saved.mode);
+          setItemName(saved.itemName);
+          setAmount(saved.amount);
+          setNotes(saved.notes);
+          setSelectedMembers(new Set(saved.selectedMemberIds));
+          hasInitializedMembersRef.current = true;
+          setPayerMemberId(saved.payerMemberId);
+          setCategoryId(saved.categoryId);
+          setExpenseDate(saved.expenseDate);
+          setSplitMode(saved.splitMode);
+          setCustomShares(saved.customShares);
+          setPercentShares(saved.percentShares);
+          setShareWeights(saved.shareWeights);
+          setRepeats(saved.repeats);
+          setMultiPayer(saved.multiPayer);
+          setPayerAmounts(saved.payerAmounts);
+          setLineItems(saved.lineItems);
+          toast.info("Restored your unsaved draft");
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) draftHydrated.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per account and group
+  }, [draftUserId, groupId]);
+
+  useEffect(() => {
+    if (!draftHydrated.current || !draftUserId) return;
+    const snapshot: PersistedDraft = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      mode,
+      itemName,
+      amount,
+      notes,
+      selectedMemberIds: [...selectedMembers],
+      payerMemberId,
+      categoryId,
+      expenseDate,
+      splitMode,
+      customShares,
+      percentShares,
+      shareWeights,
+      repeats,
+      multiPayer,
+      payerAmounts,
+      lineItems,
+    };
+    latestDraft.current = snapshot;
+    draftCleared.current = false;
+    const key = draftStorageKey(draftUserId, groupId);
+    const timer = setTimeout(() => {
+      if (isDraftEmpty(snapshot)) void AsyncStorage.removeItem(key).catch(() => undefined);
+      else void AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => undefined);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [
+    draftUserId,
+    groupId,
+    mode,
+    itemName,
+    amount,
+    notes,
+    selectedMembers,
+    payerMemberId,
+    categoryId,
+    expenseDate,
+    splitMode,
+    customShares,
+    percentShares,
+    shareWeights,
+    repeats,
+    multiPayer,
+    payerAmounts,
+    lineItems,
+  ]);
+
+  // Leaving inside the debounce window must not drop the newest edits.
+  useEffect(() => {
+    return () => {
+      const snapshot = latestDraft.current;
+      if (!draftHydrated.current || draftCleared.current || !snapshot || !draftUserId) return;
+      const key = draftStorageKey(draftUserId, groupId);
+      if (isDraftEmpty(snapshot)) void AsyncStorage.removeItem(key).catch(() => undefined);
+      else void AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => undefined);
+    };
+  }, [draftUserId, groupId]);
+
+  function clearPersistedDraft(): void {
+    draftCleared.current = true;
+    latestDraft.current = null;
+    if (!draftUserId) return;
+    void AsyncStorage.removeItem(draftStorageKey(draftUserId, groupId)).catch(() => undefined);
+  }
+
+  // Seed the editable receipt review from each new scan result.
+  useEffect(() => {
+    const receipt = receiptScan.receipt;
+    if (!receipt) {
+      setReceiptItems([]);
+      return;
+    }
+    setReceiptItems(
+      receipt.line_items.length > 0
+        ? receipt.line_items.map((item) => ({ ...item, included: true }))
+        : [
+            {
+              description: receipt.merchant ?? "Total",
+              quantity: 1,
+              unit_price_cents: receipt.total_cents,
+              total_cents: receipt.total_cents,
+              included: true,
+            },
+          ],
+    );
+  }, [receiptScan.receipt]);
+
+  const activeGroupMembers = members.filter((member) => !member.departed_at);
+  const aiResolved = aiReview ? isDraftResolved(aiReview.resolution, members) : false;
 
   function toggleMember(id: string) {
     setSelectedMembers((prev) => {
@@ -273,7 +437,7 @@ export default function AddExpenseScreen() {
     track({ name: "expense_save_failed", properties: { error_class: errorClassFor(error) } });
   }
 
-  const draftOrigin = useRef<"receipt" | null>(null);
+  const draftOrigin = useRef<"chat" | "receipt" | null>(null);
 
   function trackSaved(entryMode: "quick" | "detailed" | "itemized" | "chat", participants: number): void {
     const origin = entryMode === "detailed" ? draftOrigin.current : null;
@@ -298,9 +462,11 @@ export default function AddExpenseScreen() {
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
       expenseDate,
+      notes,
     });
     if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
     trackSaved("quick", selectedMembers.size);
+    clearPersistedDraft();
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
     router.back();
@@ -352,11 +518,20 @@ export default function AddExpenseScreen() {
       // percent/shares resolve to exact cents and reuse the custom-split path
       const customSplits = resolveCustomSplits(amountCents);
       if (!customSplits) { toast.error("Could not resolve the split. Check the values and try again."); return; }
-      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate });
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", customSplits.length);
+    } else if (multiPayer) {
+      // Equal split with several payers: the equal-split RPC accepts one payer,
+      // so send exact equal shares through the custom path with every payer.
+      const ids = [...selectedMembers];
+      const shares = equalSplit(amountCents, ids.length);
+      const customSplits = ids.map((memberId, index) => ({ memberId, shareCents: shares[index] ?? 0 }));
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate, notes });
+      if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+      trackSaved("detailed", ids.length);
     } else {
-      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate });
+      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", selectedMembers.size);
     }
@@ -375,6 +550,7 @@ export default function AddExpenseScreen() {
         toast.error(`Expense added, but the ${repeats} repeat could not be saved`);
       }
     }
+    clearPersistedDraft();
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
     router.back();
@@ -387,48 +563,66 @@ export default function AddExpenseScreen() {
 
     const aiResult = await conversationAI.sendMessage(userMsg);
 
-    // Sync AI draft into local form state
+    // Hold the suggestion for review. Names resolve only by exact match; the
+    // user must pick a member for anything unknown before it enters the form.
     const aiDraft = aiResult.draft;
     if (aiDraft) {
       track({ name: "ai_draft_generated", properties: { source: "chat" } });
-      setDraftItem(aiDraft.item_name);
-      setDraftAmount(aiDraft.amount_cents > 0 ? String(aiDraft.amount_cents / 100) : "");
-      // Match participant names to member IDs
-      const matchedIds = aiDraft.participant_names.length > 0
-        ? members
-            .filter((m) => aiDraft.participant_names.includes(m.display_name))
-            .map((m) => m.id)
-        : members.map((m) => m.id);
-      setDraftMembers(new Set(matchedIds));
-      if (aiDraft.date) setExpenseDate(aiDraft.date);
+      const auto = resolveDraft(aiDraft, members);
       const suggested = categories.find((category) => category.is_default && category.slug === aiDraft.category_slug);
-      if (suggested) setCategoryId(suggested.id);
+      setAiReview({ draft: aiDraft, auto, resolution: auto, categoryId: suggested?.id ?? categoryId });
     }
   }
 
-  async function handleChatSave() {
-    const amountCents = parsePHPAmount(draftAmount) ?? 0;
-    if (!draftItem || amountCents <= 0) {
-      toast.error("Could not extract expense details. Please fill in manually.");
-      return;
-    }
-    const memberIds = draftMembers.size > 0 ? [...draftMembers] : members.map((m) => m.id);
-    const result = await addExpense.mutateAsync({
-      groupId,
-      itemName: draftItem,
-      amountCents,
-      categoryId,
-      memberIds,
-      payerMemberId: effectivePayerId,
-      createdByUserId: session?.user.id ?? "",
-      expenseDate,
+  /** Moves the reviewed suggestion into the shared form; saving stays a human step. */
+  function applyAiReview(): void {
+    if (!aiReview || !aiResolved) return;
+    track({
+      name: "ai_draft_resolved",
+      properties: { status: resolutionEdited(aiReview.auto, aiReview.resolution) ? "edited" : "accepted" },
     });
-    if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
-    track({ name: "ai_draft_resolved", properties: { status: "accepted" } });
-    trackSaved("chat", memberIds.length);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    const { draft, resolution } = aiReview;
+    setItemName(draft.item_name);
+    setAmount(draft.amount_cents > 0 ? (draft.amount_cents / 100).toFixed(2) : "");
+    setNotes(draft.notes ?? "");
+    setSelectedMembers(new Set(resolution.participants.map((participant) => participant.memberId)));
+    setPayerMemberId(resolution.payerId);
+    setMultiPayer(false);
+    setSplitMode("equal");
+    if (aiReview.categoryId) setCategoryId(aiReview.categoryId);
+    if (draft.date) setExpenseDate(draft.date);
+    draftOrigin.current = "chat";
+    setAiReview(null);
+    conversationAI.clearDraft();
+    setMode("detailed");
+  }
+
+  function dismissAiReview(): void {
+    track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+    setAiReview(null);
+    conversationAI.clearDraft();
+  }
+
+  function setReviewPayer(memberId: string): void {
+    setAiReview((current) =>
+      current ? { ...current, resolution: { ...current.resolution, payerId: memberId } } : current,
+    );
+  }
+
+  function setReviewParticipant(index: number, memberId: string): void {
+    setAiReview((current) =>
+      current
+        ? {
+            ...current,
+            resolution: {
+              ...current.resolution,
+              participants: current.resolution.participants.map((participant, position) =>
+                position === index ? { ...participant, memberId } : participant,
+              ),
+            },
+          }
+        : current,
+    );
   }
 
   function updateLineItem(i: number, patch: Partial<LineItem>) {
@@ -482,6 +676,7 @@ export default function AddExpenseScreen() {
       categoryId,
       payers,
       expenseDate,
+      notes,
       lineItems: filledItems.map((li) => ({
         name: li.name.trim(),
         amountCents: parsePHPAmount(li.amountStr) ?? 0,
@@ -489,6 +684,7 @@ export default function AddExpenseScreen() {
       })),
     });
     if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+    clearPersistedDraft();
     trackSaved(
       "itemized",
       new Set(
@@ -618,15 +814,7 @@ export default function AddExpenseScreen() {
               { value: "itemized" as Mode, label: "Itemized" },
             ]}
             value={mode}
-            onChange={(m) => {
-              setMode(m);
-              if (m !== "chat") {
-                if (conversationAI.draft) {
-                  track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
-                }
-                conversationAI.reset();
-              }
-            }}
+            onChange={setMode}
           />
 
           {/* ---- QUICK MODE ---- */}
@@ -719,13 +907,63 @@ export default function AddExpenseScreen() {
                   </View>
                 )}
               </View>
-              {draftItem ? (
-                <View style={styles.draftCard}>
-                  <Text style={styles.draftTitle}>DRAFT</Text>
-                  <Text style={styles.draftItem}>{draftItem}</Text>
-                  <Text style={styles.draftAmount}>{draftAmount ? `\u20B1${draftAmount}` : "\u2014"}</Text>
-                  <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
-                  <AppButton title="Confirm & Save" onPress={handleChatSave} isLoading={addExpense.isPending} />
+              {aiReview ? (
+                <View style={styles.draftCard} accessibilityLabel="Review AI suggestion">
+                  <Text style={styles.draftTitle}>REVIEW SUGGESTION</Text>
+                  <Text style={styles.draftItem}>{aiReview.draft.item_name}</Text>
+                  <Text style={styles.draftAmount}>{formatCents(aiReview.draft.amount_cents)}</Text>
+                  <Text style={styles.chatHint}>
+                    Check who paid and who shared this. Anything the assistant could not match to a member must be chosen before you continue.
+                  </Text>
+                  <View>
+                    <Text style={styles.sublabel}>
+                      Paid by{aiReview.resolution.payerSuggested ? ` · suggested "${aiReview.resolution.payerSuggested}"` : ""}
+                      {aiReview.resolution.payerId ? "" : " · choose a member"}
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                      {activeGroupMembers.map((m) => {
+                        const selected = aiReview.resolution.payerId === m.id;
+                        return (
+                          <TouchableOpacity key={m.id} style={[styles.payerChip, selected && styles.payerChipActive]} onPress={() => setReviewPayer(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`Resolved payer ${m.display_name}`}>
+                            <Text style={[styles.payerChipText, selected && styles.payerChipTextActive]}>{m.display_name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                  {aiReview.resolution.participants.map((participant, index) => (
+                    <View key={index}>
+                      <Text style={styles.sublabel}>
+                        Participant {index + 1}
+                        {participant.suggested ? ` · suggested "${participant.suggested}"` : ""}
+                        {participant.memberId ? "" : " · choose a member"}
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                        {activeGroupMembers.map((m) => {
+                          const selected = participant.memberId === m.id;
+                          return (
+                            <TouchableOpacity key={m.id} style={[styles.payerChip, selected && styles.payerChipActive]} onPress={() => setReviewParticipant(index, m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`Resolved participant ${index + 1} ${m.display_name}`}>
+                              <Text style={[styles.payerChipText, selected && styles.payerChipTextActive]}>{m.display_name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  ))}
+                  {aiResolved && aiReview.draft.amount_cents > 0 && (
+                    <Text style={styles.sublabel}>
+                      Share: {formatCents(equalSplit(aiReview.draft.amount_cents, aiReview.resolution.participants.length)[0] ?? 0)} each
+                    </Text>
+                  )}
+                  <CategoryPicker categories={categories} selectedId={aiReview.categoryId} onSelect={(id) => setAiReview((current) => (current ? { ...current, categoryId: id } : current))} />
+                  <View style={styles.quickActionsRow}>
+                    <TouchableOpacity style={styles.moreOptionsBtn} onPress={dismissAiReview} activeOpacity={0.7}>
+                      <Text style={styles.moreOptionsText}>Dismiss</Text>
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <AppButton title="Edit and review before saving" onPress={applyAiReview} disabled={!aiResolved} />
+                    </View>
+                  </View>
                 </View>
               ) : null}
               <View style={styles.chatInputRow}>
@@ -752,19 +990,39 @@ export default function AddExpenseScreen() {
                 onRetake={() => void receiptScan.retake()}
               />
               {receiptScan.receipt && (
-                <ReceiptReviewCard
-                  receipt={receiptScan.receipt}
+                <ReceiptItemEditor
+                  merchant={receiptScan.receipt.merchant}
+                  date={receiptScan.receipt.date}
+                  items={receiptItems}
+                  confidence={receiptScan.receipt.confidence}
                   provider={receiptScan.provider}
-                  onAccept={(name, cents) => {
-                    track({ name: "ai_draft_resolved", properties: { status: "accepted" } });
+                  onItemsChange={setReceiptItems}
+                  onContinue={(name, cents, items) => {
+                    const original = receiptScan.receipt;
+                    if (!original) return;
+                    const included = items.filter((item) => item.included && item.total_cents > 0);
+                    if (included.length === 0) {
+                      toast.error("Keep at least one item to continue.");
+                      return;
+                    }
+                    const edited =
+                      cents !== original.total_cents ||
+                      included.length !== Math.max(original.line_items.length, 1);
+                    track({ name: "ai_draft_resolved", properties: { status: edited ? "edited" : "accepted" } });
                     draftOrigin.current = "receipt";
+                    const everyone = activeGroupMembers.map((m) => m.id);
+                    const reconciled = reconcileReceipt(original, items, everyone);
                     setItemName(name);
-                    setAmount(String(cents / 100));
-                    if (receiptScan.receipt?.date) setExpenseDate(receiptScan.receipt.date);
+                    setAmount((reconciled.totalCents / 100).toFixed(2));
+                    if (original.date) setExpenseDate(original.date);
+                    setLineItems(reconciled.lineItems);
+                    if (reconciled.chargesCents > 0) {
+                      toast.info(`Added a shared "Tax & charges" line of ${formatCents(reconciled.chargesCents)} so the total matches the receipt.`);
+                    }
                     receiptScan.clear();
-                    setMode("detailed");
+                    setMode("itemized");
                   }}
-                  onDismiss={() => {
+                  onBack={() => {
                     track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
                     receiptScan.clear();
                   }}
@@ -779,6 +1037,7 @@ export default function AddExpenseScreen() {
               <AppTextInput label="Expense Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
               <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} />
               <DateField value={expenseDate} onChange={setExpenseDate} />
+              <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything worth remembering" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Line items */}
@@ -902,6 +1161,7 @@ export default function AddExpenseScreen() {
               <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
               <DateField value={expenseDate} onChange={setExpenseDate} />
+              <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="e.g. Ana's birthday dinner" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Recurring cadence */}
@@ -1109,12 +1369,12 @@ export default function AddExpenseScreen() {
             void smartSplit.suggest({ itemName, amountCents, memberNames, context });
           }}
           onApply={(result) => {
-            const newShares: Record<string, string> = {};
-            for (const s of result.suggestions) {
-              const member = members.find((m) => m.display_name === s.member_name);
-              if (member) newShares[member.id] = String(s.share_cents / 100);
+            const applied = applySmartSplit(result.suggestions, members);
+            setCustomShares(applied.shares);
+            setSplitMode("custom");
+            if (applied.unmatched.length > 0) {
+              toast.info(`Could not match ${applied.unmatched.join(", ")} to a member — check the custom amounts.`);
             }
-            setCustomShares(newShares);
             setShowSmartSplit(false);
             smartSplit.clear();
           }}

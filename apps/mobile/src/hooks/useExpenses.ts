@@ -32,6 +32,7 @@ import {
 } from "@/services/expenses";
 
 type AddExpenseParams = {
+  notes?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
@@ -44,6 +45,7 @@ type AddExpenseParams = {
 };
 
 type AddExpenseCustomSplitParams = {
+  notes?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
@@ -55,6 +57,7 @@ type AddExpenseCustomSplitParams = {
 };
 
 type AddItemizedExpenseParams = {
+  notes?: string;
   groupId: string;
   expenseName: string;
   amountCents: number;
@@ -131,6 +134,7 @@ function makeLocalExpense(params: {
   currencyCode?: CurrencyCode;
   expenseDate?: string;
   createdByUserId?: string;
+  notes?: string;
 }): Expense {
   const nowISO = new Date().toISOString();
   return {
@@ -140,7 +144,7 @@ function makeLocalExpense(params: {
     item_name: params.itemName,
     currency_code: params.currencyCode ?? "PHP",
     amount_cents: params.amountCents,
-    notes: null,
+    notes: params.notes?.trim() || null,
     expense_date: params.expenseDate ?? localISODate(),
     created_by_user_id: params.createdByUserId ?? null,
     created_at: nowISO,
@@ -181,6 +185,7 @@ export function useAddExpense(groupId: string) {
         if (params.memberIds.length === 0)
           return { data: null, error: "Select at least one participant" };
         const payload = buildEqualExpenseRpcInput({
+          notes: params.notes,
           clientId,
           groupId: params.groupId,
           categoryId: params.categoryId,
@@ -232,6 +237,7 @@ export function useAddExpenseCustomSplit(groupId: string) {
           };
         }
         const payload = buildCustomExpenseRpcInput({
+          notes: params.notes,
           clientId,
           groupId: params.groupId,
           categoryId: params.categoryId,
@@ -271,6 +277,7 @@ export function useAddItemizedExpense(groupId: string) {
         if (params.lineItems.length === 0)
           return { data: null, error: "At least one line item is required" };
         const payload = buildItemizedExpenseRpcInput({
+          notes: params.notes,
           clientId,
           groupId: params.groupId,
           categoryId: params.categoryId,
@@ -302,6 +309,7 @@ export function useAddItemizedExpense(groupId: string) {
 }
 
 type UpdateExpenseParams = {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot from the row being edited (expense.updated_at). */
   expectedUpdatedAt?: string;
@@ -314,6 +322,7 @@ type UpdateExpenseParams = {
 };
 
 type UpdateExpenseCustomSplitParams = {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot from the row being edited (expense.updated_at). */
   expectedUpdatedAt?: string;
@@ -326,6 +335,7 @@ type UpdateExpenseCustomSplitParams = {
 };
 
 type UpdateItemizedExpenseParams = {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot from the row being edited (expense.updated_at). */
   expectedUpdatedAt?: string;
@@ -353,6 +363,7 @@ export function useUpdateExpense(groupId: string) {
         if (params.participantIds.length === 0)
           return { data: null, error: "Select at least one participant" };
         const payload = buildUpdateEqualExpenseRpcInput({
+          notes: params.notes,
           expenseId: params.expenseId,
           expectedUpdatedAt: params.expectedUpdatedAt,
           categoryId: params.categoryId,
@@ -392,6 +403,7 @@ export function useUpdateExpenseCustomSplit(groupId: string) {
         if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
         if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
         const payload = buildUpdateCustomExpenseRpcInput({
+          notes: params.notes,
           expenseId: params.expenseId,
           expectedUpdatedAt: params.expectedUpdatedAt,
           categoryId: params.categoryId,
@@ -433,6 +445,7 @@ export function useUpdateItemizedExpense(groupId: string) {
         if (params.lineItems.length === 0)
           return { data: null, error: "At least one line item is required" };
         const payload = buildUpdateItemizedExpenseRpcInput({
+          notes: params.notes,
           expenseId: params.expenseId,
           expectedUpdatedAt: params.expectedUpdatedAt,
           categoryId: params.categoryId,

@@ -142,6 +142,7 @@ export default function GroupDetailScreen() {
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editParticipantIds, setEditParticipantIds] = useState<Set<string>>(new Set());
   const [editItemAssignments, setEditItemAssignments] = useState<string[][]>([]);
@@ -289,6 +290,7 @@ export default function GroupDetailScreen() {
 
     setEditingExpense(expense);
     setEditName(expense.item_name);
+    setEditNotes(expense.notes ?? "");
     setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
     setEditCategoryId(expense.category_id);
     setEditParticipantIds(
@@ -374,6 +376,7 @@ export default function GroupDetailScreen() {
           expenseId: editingExpense.id,
           expectedUpdatedAt: editingExpense.updated_at,
           expenseName: editName.trim(),
+          notes: editNotes,
           amountCents,
           categoryId: editCategoryId,
           payers: editingExpense.payers.map((payer, index) => ({
@@ -406,6 +409,7 @@ export default function GroupDetailScreen() {
           expenseId: editingExpense.id,
           expectedUpdatedAt: editingExpense.updated_at,
           itemName: editName.trim(),
+          notes: editNotes,
           amountCents,
           categoryId: editCategoryId,
           participantIds: [...editParticipantIds],
@@ -433,6 +437,7 @@ export default function GroupDetailScreen() {
         expenseId: editingExpense.id,
         expectedUpdatedAt: editingExpense.updated_at,
         itemName: editName.trim(),
+          notes: editNotes,
         amountCents,
         categoryId: editCategoryId,
         customSplits: editingExpense.participants.map((participant, index) => ({
@@ -783,6 +788,14 @@ export default function GroupDetailScreen() {
                 placeholder="0.00"
                 placeholderTextColor={colors.gray400}
                 keyboardType="decimal-pad"
+              />
+              <Text style={styles.modalLabel}>Notes</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Optional"
+                placeholderTextColor={colors.gray400}
               />
               <CategoryPicker
                 categories={categoriesQ.data ?? []}

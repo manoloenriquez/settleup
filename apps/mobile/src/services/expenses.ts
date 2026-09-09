@@ -32,6 +32,7 @@ type ExpenseWithDetailsRow = Expense & {
 };
 
 export async function addExpense(params: {
+  notes?: string;
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
   clientId?: string;
   groupId: string;
@@ -51,6 +52,7 @@ export async function addExpense(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
+        notes: params.notes,
         clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
@@ -68,6 +70,7 @@ export async function addExpense(params: {
 }
 
 export async function addExpenseCustomSplit(params: {
+  notes?: string;
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
   clientId?: string;
   groupId: string;
@@ -96,6 +99,7 @@ export async function addExpenseCustomSplit(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildCustomExpenseRpcInput({
+        notes: params.notes,
         clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
@@ -113,6 +117,7 @@ export async function addExpenseCustomSplit(params: {
 }
 
 export async function addItemizedExpense(params: {
+  notes?: string;
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
   clientId?: string;
   groupId: string;
@@ -131,6 +136,7 @@ export async function addItemizedExpense(params: {
     .schema("settleup")
     .rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
+        notes: params.notes,
         clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
@@ -148,6 +154,7 @@ export async function addItemizedExpense(params: {
 }
 
 export async function updateExpense(params: {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot: server rejects with PT409 if the expense changed since. */
   expectedUpdatedAt?: string;
@@ -165,6 +172,7 @@ export async function updateExpense(params: {
     .schema("settleup")
     .rpc("update_expense", {
       p_input: buildUpdateEqualExpenseRpcInput({
+        notes: params.notes,
         expenseId: params.expenseId,
         expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
@@ -181,6 +189,7 @@ export async function updateExpense(params: {
 }
 
 export async function updateExpenseCustomSplit(params: {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot: server rejects with PT409 if the expense changed since. */
   expectedUpdatedAt?: string;
@@ -197,6 +206,7 @@ export async function updateExpenseCustomSplit(params: {
     .schema("settleup")
     .rpc("update_expense", {
       p_input: buildUpdateCustomExpenseRpcInput({
+        notes: params.notes,
         expenseId: params.expenseId,
         expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
@@ -213,6 +223,7 @@ export async function updateExpenseCustomSplit(params: {
 }
 
 export async function updateItemizedExpense(params: {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot: server rejects with PT409 if the expense changed since. */
   expectedUpdatedAt?: string;
@@ -230,6 +241,7 @@ export async function updateItemizedExpense(params: {
     .schema("settleup")
     .rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
+        notes: params.notes,
         expenseId: params.expenseId,
         expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
