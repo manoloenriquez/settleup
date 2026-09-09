@@ -42,7 +42,9 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { outboxExecutor } from "../outbox/executor";
+import { supabase } from "@/lib/supabase";
+import { createOutboxExecutor } from "../outbox/executor";
+const outboxExecutor = createOutboxExecutor(supabase);
 
 function entry(overrides: Partial<OutboxEntry>): OutboxEntry {
   return {

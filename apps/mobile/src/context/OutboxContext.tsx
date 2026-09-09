@@ -7,18 +7,21 @@ import {
   useRef,
   useState,
 } from "react";
-import { AppState } from "react-native";
+import { AppState, Text, View } from "react-native";
 import { onlineManager, useQueryClient } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react-native";
 import {
   createEmptyOutboxState,
+  createAccountOutboxExecutor,
+  type OutboxIdentity,
   createSyncEngine,
   type NewOutboxEntry,
   type OutboxEntry,
   type OutboxState,
 } from "@template/shared";
-import { outboxExecutor } from "@/lib/outbox/executor";
-import { clearOutboxStorage, outboxStorage } from "@/lib/outbox/storage";
+import { createTokenClient } from "@template/supabase";
+import { createOutboxExecutor } from "@/lib/outbox/executor";
+import { hasLegacyOutbox, outboxStorageFor, withOutboxLock } from "@/lib/outbox/storage";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
 
@@ -63,38 +66,120 @@ function invalidationKeysFor(groupIds: Set<string>): (string | undefined)[][] {
   return keys;
 }
 
-export function OutboxProvider({ children }: { children: React.ReactNode }) {
+export function OutboxProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const identityRef = useRef<OutboxIdentity | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const getIdentity = useCallback(() => identityRef.current, []);
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      identityRef.current = session
+        ? { userId: session.user.id, accessToken: session.access_token }
+        : null;
+      setOwnerId(session?.user.id ?? null);
+    });
+    return () => {
+      identityRef.current = null;
+      subscription.unsubscribe();
+    };
+  }, []);
+  return (
+    <AccountOutboxProvider
+      key={ownerId ?? "signed-out"}
+      ownerId={ownerId}
+      getIdentity={getIdentity}
+    >
+      {children}
+    </AccountOutboxProvider>
+  );
+}
+
+type AccountOutboxProps = {
+  children: React.ReactNode;
+  ownerId: string | null;
+  getIdentity: () => OutboxIdentity | null;
+};
+
+function AccountOutboxProvider({
+  children,
+  ownerId,
+  getIdentity,
+}: AccountOutboxProps): React.ReactElement {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const activeRef = useRef(true);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [legacyPending, setLegacyPending] = useState(false);
+  const isActive = useCallback(
+    (): boolean => activeRef.current && ownerId !== null && getIdentity()?.userId === ownerId,
+    [getIdentity, ownerId],
+  );
+  const requireAccount = useCallback((): void => {
+    if (!isActive()) throw new Error("Sign in to save changes to this account.");
+  }, [isActive]);
+  useEffect(() => {
+    activeRef.current = true;
+    if (ownerId)
+      void hasLegacyOutbox()
+        .then((pending) => {
+          if (activeRef.current) setLegacyPending(pending);
+        })
+        .catch(() => {
+          if (activeRef.current)
+            setStorageError("Saved changes could not be read. They have been kept on this device.");
+        });
+    return () => {
+      activeRef.current = false;
+    };
+  }, [ownerId]);
   const [state, setState] = useState<OutboxState>(createEmptyOutboxState());
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const engine = useMemo(
     () =>
-      createSyncEngine({
-        storage: outboxStorage,
-        executor: outboxExecutor,
-        onChange: setState,
-        onEntryFailed: (entry) => {
-          Sentry.addBreadcrumb({
-            category: "outbox",
-            message: `Entry failed terminally: ${entry.kind}`,
-            level: "warning",
-            data: { code: entry.lastError?.code ?? null },
-          });
-        },
-      }),
-    [],
+      ownerId
+        ? createSyncEngine({
+            storage: outboxStorageFor(ownerId),
+            executor: createAccountOutboxExecutor(
+              ownerId,
+              () => (isActive() ? getIdentity() : null),
+              (token) =>
+                createOutboxExecutor(
+                  createTokenClient(
+                    process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
+                    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+                    token,
+                  ),
+                ),
+            ),
+            onChange: (next) => {
+              if (isActive()) setState(next);
+            },
+            onEntryFailed: (entry) =>
+              Sentry.addBreadcrumb({
+                category: "outbox",
+                message: `Entry failed: ${entry.kind}`,
+                level: "warning",
+                data: { code: entry.lastError?.code ?? null },
+              }),
+          })
+        : null,
+    [ownerId, getIdentity, isActive],
   );
 
   const drain = useCallback(async (): Promise<void> => {
-    if (!onlineManager.isOnline()) return;
+    if (!engine || !ownerId || !isActive() || !onlineManager.isOnline()) return;
     try {
-      const before = engine.getState().entries;
-      if (before.length === 0) return;
-      const groupIds = new Set(before.map((e) => e.groupId));
-
-      const result = await engine.drain();
+      const groupIds = new Set<string>();
+      const result = await withOutboxLock(ownerId, async () => {
+        requireAccount();
+        await engine.init();
+        for (const entry of engine.getState().entries) groupIds.add(entry.groupId);
+        return engine.drain();
+      });
+      if (!isActive()) return;
+      setStorageError(null);
 
       if (result.synced > 0) {
         for (const key of invalidationKeysFor(groupIds)) {
@@ -118,38 +203,31 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
         retryTimerRef.current = setTimeout(() => void drain(), delay);
       }
     } catch {
+      if (!isActive()) return;
+      setStorageError(
+        "Offline sync is paused. Your saved changes are kept. Retry when device storage is available.",
+      );
       toast.error(
         "Offline sync paused. Saved changes have been kept; try again when storage is available.",
       );
     }
-  }, [engine, queryClient, toast]);
+  }, [engine, queryClient, toast, ownerId, isActive, requireAccount]);
 
   // Boot: restore the persisted queue (interrupted sends requeue), then try
   // to drain whatever survived a crash or kill.
   useEffect(() => {
-    void engine
-      .init()
+    if (!engine || !ownerId) return;
+    void withOutboxLock(ownerId, async () => {
+      requireAccount();
+      return engine.init();
+    })
       .then(() => void drain())
-      .catch(() => toast.error("Saved changes could not be read. Your queue has been kept."));
-  }, [engine, drain, toast]);
-
-  // Sign-out drops the queue (in memory and on disk): queued writes belong
-  // to the account that made them and must not replay under another login.
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") {
-        void engine
-          .clear()
-          .then(() => clearOutboxStorage())
-          .catch(() =>
-            toast.error("Could not clear local changes. Restart before switching accounts."),
-          );
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [engine, toast]);
+      .catch(() => {
+        if (!isActive()) return;
+        setStorageError("Saved changes could not be read. They have been kept on this device.");
+        toast.error("Saved changes could not be read. Your queue has been kept.");
+      });
+  }, [engine, drain, toast, ownerId, requireAccount, isActive]);
 
   // Drain on reconnect and on app foreground.
   useEffect(() => {
@@ -168,29 +246,47 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
 
   const enqueue = useCallback(
     async (input: NewOutboxEntry): Promise<void> => {
-      await engine.enqueue(input);
+      requireAccount();
+      if (!engine || !ownerId) throw new Error("Sign in to save offline changes.");
+      await withOutboxLock(ownerId, async () => {
+        requireAccount();
+        await engine.init();
+        await engine.enqueue(input);
+      });
       if (onlineManager.isOnline()) {
         void drain();
       } else {
         toast.info("Saved offline — will sync when you're back online");
       }
     },
-    [engine, drain, toast],
+    [engine, drain, toast, ownerId, requireAccount],
   );
 
   const retry = useCallback(
     async (id: string): Promise<void> => {
-      await engine.retry(id);
+      requireAccount();
+      if (!engine || !ownerId) throw new Error("Sign in to review offline changes.");
+      await withOutboxLock(ownerId, async () => {
+        requireAccount();
+        await engine.init();
+        await engine.retry(id);
+      });
       void drain();
     },
-    [engine, drain],
+    [engine, drain, ownerId, requireAccount],
   );
 
   const discard = useCallback(
     async (id: string): Promise<void> => {
-      await engine.discard(id);
+      requireAccount();
+      if (!engine || !ownerId) throw new Error("Sign in to review offline changes.");
+      await withOutboxLock(ownerId, async () => {
+        requireAccount();
+        await engine.init();
+        await engine.discard(id);
+      });
     },
-    [engine],
+    [engine, ownerId, requireAccount],
   );
 
   const value = useMemo(
@@ -198,7 +294,19 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
     [state.entries, enqueue, retry, discard, drain],
   );
 
-  return <OutboxContext.Provider value={value}>{children}</OutboxContext.Provider>;
+  return (
+    <OutboxContext.Provider value={value}>
+      {ownerId && (storageError || legacyPending) && (
+        <View accessibilityRole="alert" style={{ padding: 12, backgroundColor: "#fffbeb" }}>
+          <Text style={{ color: "#78350f" }}>
+            {storageError ??
+              "Changes from an older app version are still saved on this device. Their account could not be identified. Contact support before clearing app data."}
+          </Text>
+        </View>
+      )}
+      {children}
+    </OutboxContext.Provider>
+  );
 }
 
 export function useOutbox(): OutboxContextValue {
@@ -206,6 +314,3 @@ export function useOutbox(): OutboxContextValue {
   if (!ctx) throw new Error("useOutbox must be used within <OutboxProvider>");
   return ctx;
 }
-
-/** Sign-out cleanup: drop the queue in memory and on disk. */
-export { clearOutboxStorage };

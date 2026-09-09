@@ -33,14 +33,7 @@ export {
 export type { SupabaseClient, User } from "@supabase/supabase-js";
 
 // Database type helpers
-export type {
-  Database,
-  Json,
-  Tables,
-  TablesInsert,
-  TablesUpdate,
-  Enums,
-} from "./database.types";
+export type { Database, Json, Tables, TablesInsert, TablesUpdate, Enums } from "./database.types";
 
 // Named row types — import directly in app code
 export type {
@@ -85,3 +78,5 @@ export type {
   ExpenseItemParticipantInsert,
   ExpenseItemParticipantUpdate,
 } from "./database.types";
+
+export { createTokenClient } from "./token";
