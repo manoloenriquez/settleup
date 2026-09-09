@@ -34,12 +34,12 @@ Notifications.setNotificationHandler({
 });
 
 // Initialize Sentry as early as possible. No-op if no DSN is configured.
-const sentryDsn = process.env["EXPO_PUBLIC_SENTRY_DSN"];
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
     enabled: !__DEV__,
-    environment: process.env["EXPO_PUBLIC_SENTRY_ENV"] ?? (__DEV__ ? "development" : "production"),
+    environment: process.env.EXPO_PUBLIC_SENTRY_ENV ?? (__DEV__ ? "development" : "production"),
     tracesSampleRate: 0.1,
   });
 }
