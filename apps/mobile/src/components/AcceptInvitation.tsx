@@ -5,11 +5,12 @@ import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { claimMember, joinGroupByInvite } from "@/services/collaboration";
 import { clearAuthDestination, saveAuthDestination } from "@/lib/auth-links";
-import { queryClient } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Props = { kind: "claim" | "join"; token: string };
 export function AcceptInvitation({ kind, token }: Props): React.ReactElement {
   const { session } = useAuth();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

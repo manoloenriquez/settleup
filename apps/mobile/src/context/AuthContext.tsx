@@ -4,7 +4,6 @@ import { Alert } from "react-native";
 import { onlineManager } from "@tanstack/react-query";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { clearPersistedQueryCache, queryClient } from "@/lib/queryClient";
 import { emailSchema, passwordSchema, signInSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Profile } from "@template/supabase";
@@ -111,12 +110,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           onlineManager.isOnline()
         ) {
           Alert.alert("Session expired", "Please sign in again to continue.");
-        }
-        if (event === "SIGNED_OUT") {
-          // No cross-account bleed: drop the in-memory query cache and its
-          // persisted snapshot along with the session.
-          queryClient.clear();
-          void clearPersistedQueryCache();
         }
         hadSessionRef.current = false;
         setProfile(null);

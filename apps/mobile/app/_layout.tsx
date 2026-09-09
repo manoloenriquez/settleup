@@ -2,7 +2,7 @@ import { useEffect, useState, Component, type ReactNode } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { QueryProvider } from "@/context/QueryContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import * as Sentry from "@sentry/react-native";
@@ -12,7 +12,6 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { PendingChangesSheet } from "@/components/PendingChangesSheet";
 import { usePendingCounts } from "@/hooks/useOutbox";
-import { queryClient, persistOptions } from "@/lib/queryClient";
 import { setupReactQueryNetworkWiring } from "@/lib/network";
 import { hydrateOnDeviceAiSetting } from "@/lib/settings/on-device-ai";
 import { supabase } from "@/lib/supabase";
@@ -223,7 +222,7 @@ function RootLayout() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+        <QueryProvider>
           <AuthProvider>
             <ToastProvider>
               <OutboxProvider>
@@ -235,7 +234,7 @@ function RootLayout() {
               </OutboxProvider>
             </ToastProvider>
           </AuthProvider>
-        </PersistQueryClientProvider>
+        </QueryProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );

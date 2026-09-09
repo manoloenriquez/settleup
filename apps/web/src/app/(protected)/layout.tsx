@@ -9,13 +9,16 @@ import { OutboxProvider } from "@/components/OutboxProvider";
 import { PendingChangesPopover } from "@/components/PendingChangesPopover";
 import { QueryProvider } from "@/components/QueryProvider";
 
-
-export default async function ProtectedLayout({ children }: { children: React.ReactNode }): Promise<React.ReactElement> {
+export default async function ProtectedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}): Promise<React.ReactElement> {
   const profile = await cachedProfile();
   if (!profile) redirect(ROUTES.LOGIN);
 
   return (
-    <QueryProvider>
+    <QueryProvider ownerId={profile.id}>
       <OutboxProvider>
         <div className="min-h-screen bg-slate-50">
           <OfflineBanner />
