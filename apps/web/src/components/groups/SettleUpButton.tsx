@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ type DialogProps = {
 
 /** Record-payment dialog, controllable from any trigger (row button or the "Settle balance" CTA). */
 export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): React.ReactElement {
+  const clientIdRef = useRef(crypto.randomUUID());
   const [amountStr, setAmountStr] = useState((debt.amount_cents / 100).toFixed(2));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -41,7 +42,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
 
     // Client-generated UUID = the record_payment idempotency key, shared by
     // the online action and the offline outbox replay.
-    const clientId = crypto.randomUUID();
+    const clientId = clientIdRef.current;
 
     if (!online) {
       try {
@@ -69,6 +70,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
         return;
       }
       toast.info("Saved offline — will sync when you're back online");
+      clientIdRef.current = crypto.randomUUID();
       onClose();
       return;
     }
@@ -85,6 +87,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
         setError(result.error);
       } else {
         toast.success("Payment recorded!");
+        clientIdRef.current = crypto.randomUUID();
         onClose();
         invalidateGroupData(queryClient, groupId);
       }
@@ -105,6 +108,9 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
           onChange={(e) => setAmountStr(e.target.value)}
         />
         <p className="text-xs text-slate-500">Suggested: {formatCents(debt.amount_cents)}</p>
+        <p className="text-xs text-slate-500">
+          Recording a payment does not transfer money. Pay using your agreed payment method first.
+        </p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button onClick={handleSubmit} isLoading={isPending}>
           Record Payment
