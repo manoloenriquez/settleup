@@ -1,3 +1,4 @@
+import type { CurrencyCode } from "@template/shared";
 /**
  * Hand-written to match supabase/migrations/*.sql.
  *
@@ -182,6 +183,9 @@ export type Database = {
       };
       groups: {
         Row: {
+          default_currency_code: CurrencyCode;
+          budget_currency_code: CurrencyCode;
+
           id: string;
           name: string;
           owner_user_id: string | null;
@@ -192,6 +196,9 @@ export type Database = {
           budget_cents: number | null;
         };
         Insert: {
+          default_currency_code?: CurrencyCode;
+          budget_currency_code?: CurrencyCode;
+
           id?: string;
           name: string;
           owner_user_id?: string | null;
@@ -202,6 +209,9 @@ export type Database = {
           budget_cents?: number | null;
         };
         Update: {
+          default_currency_code?: CurrencyCode;
+          budget_currency_code?: CurrencyCode;
+
           id?: string;
           name?: string;
           owner_user_id?: string | null;
@@ -317,6 +327,8 @@ export type Database = {
       };
       expenses: {
         Row: {
+          currency_code: CurrencyCode;
+
           id: string;
           group_id: string;
           category_id: string | null;
@@ -329,6 +341,8 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id: string;
           category_id?: string | null;
@@ -341,6 +355,8 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id?: string;
           category_id?: string | null;
@@ -502,6 +518,8 @@ export type Database = {
       };
       payments: {
         Row: {
+          currency_code: CurrencyCode;
+
           id: string;
           group_id: string;
           amount_cents: number;
@@ -515,6 +533,8 @@ export type Database = {
           report_request_id: string | null;
         };
         Insert: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id: string;
           amount_cents: number;
@@ -528,6 +548,8 @@ export type Database = {
           report_request_id?: string | null;
         };
         Update: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id?: string;
           amount_cents?: number;
@@ -552,6 +574,8 @@ export type Database = {
       };
       recurring_expenses: {
         Row: {
+          currency_code: CurrencyCode;
+
           id: string;
           group_id: string;
           item_name: string;
@@ -567,6 +591,8 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id: string;
           item_name: string;
@@ -582,6 +608,8 @@ export type Database = {
           created_at?: string;
         };
         Update: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id?: string;
           item_name?: string;
@@ -696,6 +724,70 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      get_member_balances_v2: {
+        Args: { p_group_id: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_creditor_profiles_v2: {
+        Args: { p_group_id: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_groups_with_stats_v2: { Args: { p_currency_code?: CurrencyCode }; Returns: Json };
+      get_dashboard_summary_v2: { Args: { p_currency_code?: CurrencyCode }; Returns: Json };
+      get_user_activity_v2: {
+        Args: { p_limit?: number; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_friend_view_v2: {
+        Args: { p_share_token: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_group_overview_v2: {
+        Args: { p_share_token: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      undo_last_payment_v2: { Args: { p_group_id: string; p_currency_code: CurrencyCode }; Returns: Json };
+      undo_last_payment_for_member_v2: { Args: { p_from_member_id: string; p_currency_code: CurrencyCode }; Returns: Json };
+      get_group_currencies: { Args: { p_group_id: string }; Returns: Json };
+      get_friend_payment_reports_v2: {
+        Args: { p_share_token: string; p_currency_code: CurrencyCode };
+        Returns: Json;
+      };
+      create_group_v2: {
+        Args: {
+          p_name: string;
+          p_id: string;
+          p_currency_code: CurrencyCode;
+          p_display_name: string;
+        };
+        Returns: Json;
+      };
+      record_payment_v2: {
+        Args: {
+          p_group_id: string;
+          p_from_member_id: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+          p_id: string;
+          p_currency_code: CurrencyCode;
+        };
+        Returns: Json;
+      };
+      set_group_budget_v2: {
+        Args: { p_group_id: string; p_budget_cents: number | null; p_currency_code: CurrencyCode };
+        Returns: Json;
+      };
+      submit_friend_payment_v2: {
+        Args: {
+          p_share_token: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+          p_request_id: string;
+          p_note?: string;
+          p_currency_code?: CurrencyCode;
+        };
+        Returns: Json;
+      };
       close_account: { Args: Record<string, never>; Returns: undefined };
       is_account_closed: { Args: Record<string, never>; Returns: boolean };
       get_friend_view: {

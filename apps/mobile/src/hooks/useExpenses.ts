@@ -1,4 +1,11 @@
-import { onlineManager, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CurrencyCode } from "@template/shared";
+import {
+  onlineManager,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import {
   buildCustomExpenseRpcInput,
@@ -12,12 +19,23 @@ import {
 } from "@template/supabase";
 import type { ApiResponse, NewOutboxEntry, OutboxJson } from "@template/shared";
 import { useOutbox } from "@/context/OutboxContext";
-import { addExpense, addExpenseCustomSplit, addItemizedExpense, deleteExpense, listExpenses, listExpenseTotals, updateExpense, updateExpenseCustomSplit, updateItemizedExpense } from "@/services/expenses";
+import {
+  addExpense,
+  addExpenseCustomSplit,
+  addItemizedExpense,
+  deleteExpense,
+  listExpenses,
+  listExpenseTotals,
+  updateExpense,
+  updateExpenseCustomSplit,
+  updateItemizedExpense,
+} from "@/services/expenses";
 
 type AddExpenseParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   categoryId?: string | null;
   memberIds: string[];
   payerMemberId: string;
@@ -29,6 +47,7 @@ type AddExpenseCustomSplitParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -39,6 +58,7 @@ type AddItemizedExpenseParams = {
   groupId: string;
   expenseName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -108,6 +128,7 @@ function makeLocalExpense(params: {
   categoryId?: string | null;
   itemName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   expenseDate?: string;
   createdByUserId?: string;
 }): Expense {
@@ -117,6 +138,7 @@ function makeLocalExpense(params: {
     group_id: params.groupId,
     category_id: params.categoryId ?? null,
     item_name: params.itemName,
+    currency_code: params.currencyCode ?? "PHP",
     amount_cents: params.amountCents,
     notes: null,
     expense_date: params.expenseDate ?? localISODate(),
@@ -156,7 +178,8 @@ export function useAddExpense(groupId: string) {
       if (!onlineManager.isOnline()) {
         if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
         if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
-        if (params.memberIds.length === 0) return { data: null, error: "Select at least one participant" };
+        if (params.memberIds.length === 0)
+          return { data: null, error: "Select at least one participant" };
         const payload = buildEqualExpenseRpcInput({
           clientId,
           groupId: params.groupId,
@@ -168,7 +191,14 @@ export function useAddExpense(groupId: string) {
           payers: [{ memberId: params.payerMemberId, paidCents: params.amountCents }],
         });
         await enqueue(
-          expenseOutboxEntry(clientId, "expense.create", params.groupId, payload, params.itemName.trim(), params.amountCents),
+          expenseOutboxEntry(
+            clientId,
+            "expense.create",
+            params.groupId,
+            payload,
+            params.itemName.trim(),
+            params.amountCents,
+          ),
         );
         return { data: makeLocalExpense({ id: clientId, ...params }), error: null };
       }
@@ -189,11 +219,17 @@ export function useAddExpenseCustomSplit(groupId: string) {
         if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
         const splitSum = params.customSplits.reduce((s, p) => s + p.shareCents, 0);
         if (splitSum !== params.amountCents) {
-          return { data: null, error: `Split total (${splitSum}) must equal amount (${params.amountCents})` };
+          return {
+            data: null,
+            error: `Split total (${splitSum}) must equal amount (${params.amountCents})`,
+          };
         }
         const payerSum = params.payers.reduce((s, p) => s + p.paidCents, 0);
         if (payerSum !== params.amountCents) {
-          return { data: null, error: `Payer total (${payerSum}) must equal amount (${params.amountCents})` };
+          return {
+            data: null,
+            error: `Payer total (${payerSum}) must equal amount (${params.amountCents})`,
+          };
         }
         const payload = buildCustomExpenseRpcInput({
           clientId,
@@ -206,7 +242,14 @@ export function useAddExpenseCustomSplit(groupId: string) {
           payers: params.payers,
         });
         await enqueue(
-          expenseOutboxEntry(clientId, "expense.create", params.groupId, payload, params.itemName.trim(), params.amountCents),
+          expenseOutboxEntry(
+            clientId,
+            "expense.create",
+            params.groupId,
+            payload,
+            params.itemName.trim(),
+            params.amountCents,
+          ),
         );
         return { data: makeLocalExpense({ id: clientId, ...params }), error: null };
       }
@@ -225,7 +268,8 @@ export function useAddItemizedExpense(groupId: string) {
       if (!onlineManager.isOnline()) {
         if (!params.expenseName.trim()) return { data: null, error: "Expense name is required" };
         if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
-        if (params.lineItems.length === 0) return { data: null, error: "At least one line item is required" };
+        if (params.lineItems.length === 0)
+          return { data: null, error: "At least one line item is required" };
         const payload = buildItemizedExpenseRpcInput({
           clientId,
           groupId: params.groupId,
@@ -237,7 +281,14 @@ export function useAddItemizedExpense(groupId: string) {
           lineItems: params.lineItems,
         });
         await enqueue(
-          expenseOutboxEntry(clientId, "expense.create_itemized", params.groupId, payload, params.expenseName.trim(), params.amountCents),
+          expenseOutboxEntry(
+            clientId,
+            "expense.create_itemized",
+            params.groupId,
+            payload,
+            params.expenseName.trim(),
+            params.amountCents,
+          ),
         );
         return {
           data: makeLocalExpense({ id: clientId, itemName: params.expenseName, ...params }),
@@ -256,6 +307,7 @@ type UpdateExpenseParams = {
   expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
@@ -267,6 +319,7 @@ type UpdateExpenseCustomSplitParams = {
   expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -278,6 +331,7 @@ type UpdateItemizedExpenseParams = {
   expectedUpdatedAt?: string;
   expenseName: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -296,7 +350,8 @@ export function useUpdateExpense(groupId: string) {
       if (!onlineManager.isOnline()) {
         if (!params.itemName.trim()) return { data: null, error: "Item name is required" };
         if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
-        if (params.participantIds.length === 0) return { data: null, error: "Select at least one participant" };
+        if (params.participantIds.length === 0)
+          return { data: null, error: "Select at least one participant" };
         const payload = buildUpdateEqualExpenseRpcInput({
           expenseId: params.expenseId,
           expectedUpdatedAt: params.expectedUpdatedAt,
@@ -307,7 +362,15 @@ export function useUpdateExpense(groupId: string) {
           payers: params.payers,
         });
         await enqueue(
-          expenseOutboxEntry(Crypto.randomUUID(), "expense.update", groupId, payload, params.itemName.trim(), params.amountCents, params.expenseId),
+          expenseOutboxEntry(
+            Crypto.randomUUID(),
+            "expense.update",
+            groupId,
+            payload,
+            params.itemName.trim(),
+            params.amountCents,
+            params.expenseId,
+          ),
         );
         return {
           data: makeLocalExpense({ id: params.expenseId, groupId, ...params }),
@@ -338,7 +401,15 @@ export function useUpdateExpenseCustomSplit(groupId: string) {
           payers: params.payers,
         });
         await enqueue(
-          expenseOutboxEntry(Crypto.randomUUID(), "expense.update", groupId, payload, params.itemName.trim(), params.amountCents, params.expenseId),
+          expenseOutboxEntry(
+            Crypto.randomUUID(),
+            "expense.update",
+            groupId,
+            payload,
+            params.itemName.trim(),
+            params.amountCents,
+            params.expenseId,
+          ),
         );
         return {
           data: makeLocalExpense({ id: params.expenseId, groupId, ...params }),
@@ -359,7 +430,8 @@ export function useUpdateItemizedExpense(groupId: string) {
       if (!onlineManager.isOnline()) {
         if (!params.expenseName.trim()) return { data: null, error: "Expense name is required" };
         if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
-        if (params.lineItems.length === 0) return { data: null, error: "At least one line item is required" };
+        if (params.lineItems.length === 0)
+          return { data: null, error: "At least one line item is required" };
         const payload = buildUpdateItemizedExpenseRpcInput({
           expenseId: params.expenseId,
           expectedUpdatedAt: params.expectedUpdatedAt,
@@ -370,10 +442,23 @@ export function useUpdateItemizedExpense(groupId: string) {
           lineItems: params.lineItems,
         });
         await enqueue(
-          expenseOutboxEntry(Crypto.randomUUID(), "expense.update_itemized", groupId, payload, params.expenseName.trim(), params.amountCents, params.expenseId),
+          expenseOutboxEntry(
+            Crypto.randomUUID(),
+            "expense.update_itemized",
+            groupId,
+            payload,
+            params.expenseName.trim(),
+            params.amountCents,
+            params.expenseId,
+          ),
         );
         return {
-          data: makeLocalExpense({ id: params.expenseId, groupId, itemName: params.expenseName, ...params }),
+          data: makeLocalExpense({
+            id: params.expenseId,
+            groupId,
+            itemName: params.expenseName,
+            ...params,
+          }),
           error: null,
         };
       }

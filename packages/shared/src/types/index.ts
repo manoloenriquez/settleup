@@ -1,3 +1,4 @@
+import type { CurrencyCode } from "../utils/currency";
 // ---------------------------------------------------------------------------
 // NOTE: Domain entity types (Profile, Waitlist, UserRole) live in
 // @template/supabase — they are generated from the DB schema.
@@ -30,15 +31,14 @@ export type PaginatedResponse<T> = {
 export type RequireFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
 /** Make every key optional recursively */
-export type DeepPartial<T> = T extends object
-  ? { [P in keyof T]?: DeepPartial<T[P]> }
-  : T;
+export type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T;
 
 // ---------------------------------------------------------------------------
 // SettleUp domain types
 // ---------------------------------------------------------------------------
 
 export type SimplifiedDebt = {
+  currency_code?: CurrencyCode;
   from_member_id: string;
   from_display_name: string;
   to_member_id: string;
@@ -98,6 +98,8 @@ export type CategorySpendingSummary = ExpenseCategorySummary & {
 };
 
 export type MemberBalance = {
+  currency_code?: CurrencyCode;
+  departed_at?: string | null;
   member_id: string;
   display_name: string;
   slug: string;

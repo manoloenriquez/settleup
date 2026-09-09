@@ -1,5 +1,7 @@
 import {
   dashboardSummarySchema,
+  currencyCodeSchema,
+  type CurrencyCode,
   type ApiResponse,
   type DashboardSummary,
   type GroupWithStats,
@@ -8,6 +10,7 @@ import type { Expense, Group, GroupMember, Json, Payment } from "./database.type
 import { z } from "zod";
 
 type EqualExpenseRpcInput = {
+  currencyCode?: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -21,6 +24,7 @@ type EqualExpenseRpcInput = {
 };
 
 type CustomExpenseRpcInput = {
+  currencyCode?: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -34,6 +38,7 @@ type CustomExpenseRpcInput = {
 };
 
 type ItemizedExpenseRpcInput = {
+  currencyCode?: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -47,6 +52,7 @@ type ItemizedExpenseRpcInput = {
 };
 
 type UpdateEqualExpenseRpcInput = {
+  currencyCode?: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -60,6 +66,7 @@ type UpdateEqualExpenseRpcInput = {
 };
 
 type UpdateCustomExpenseRpcInput = {
+  currencyCode?: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -73,6 +80,7 @@ type UpdateCustomExpenseRpcInput = {
 };
 
 type UpdateItemizedExpenseRpcInput = {
+  currencyCode?: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -86,6 +94,8 @@ type UpdateItemizedExpenseRpcInput = {
 };
 
 const groupSchema = z.object({
+  default_currency_code: currencyCodeSchema.default("PHP"),
+  budget_currency_code: currencyCodeSchema.default("PHP"),
   id: z.string().uuid(),
   name: z.string(),
   owner_user_id: z.string().uuid().nullable(),
@@ -109,6 +119,7 @@ const groupMemberSchema = z.object({
 });
 
 const expenseSchema = z.object({
+  currency_code: currencyCodeSchema.default("PHP"),
   id: z.string().uuid(),
   group_id: z.string().uuid(),
   category_id: z.string().uuid().nullable(),
@@ -122,6 +133,7 @@ const expenseSchema = z.object({
 });
 
 const paymentSchema = z.object({
+  currency_code: currencyCodeSchema.default("PHP"),
   id: z.string().uuid(),
   group_id: z.string().uuid(),
   amount_cents: z.number().int(),
@@ -183,6 +195,7 @@ export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -201,6 +214,7 @@ export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -222,6 +236,7 @@ export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Js
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -243,6 +258,7 @@ export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInpu
     expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -261,6 +277,7 @@ export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcIn
     expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -282,6 +299,7 @@ export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseR
     expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,

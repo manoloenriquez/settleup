@@ -1,3 +1,4 @@
+import type { CurrencyCode } from "@template/shared";
 import { onlineManager, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import type { ApiResponse } from "@template/shared";
@@ -16,6 +17,7 @@ type RecordPaymentParams = {
   fromMemberId: string;
   toMemberId: string;
   amountCents: number;
+  currencyCode?: CurrencyCode;
 };
 
 export function useRecordPayment(groupId: string) {
@@ -40,6 +42,7 @@ export function useRecordPayment(groupId: string) {
             group_id: params.groupId,
             from_member_id: params.fromMemberId,
             to_member_id: params.toMemberId,
+            currency_code: params.currencyCode ?? "PHP",
             amount_cents: params.amountCents,
           },
           createdAt: new Date().toISOString(),
@@ -50,6 +53,7 @@ export function useRecordPayment(groupId: string) {
           data: {
             id: clientId,
             group_id: params.groupId,
+            currency_code: params.currencyCode ?? "PHP",
             amount_cents: params.amountCents,
             status: "PAID",
             from_member_id: params.fromMemberId,

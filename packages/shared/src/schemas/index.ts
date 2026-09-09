@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { currencyCodeSchema } from "../utils/currency";
 
 export * from "./ai";
 
@@ -52,6 +53,8 @@ export const updatePasswordSchema = z
 // ---------------------------------------------------------------------------
 
 export const createGroupSchema = z.object({
+  currency_code: currencyCodeSchema.default("PHP"),
+  display_name: z.string().trim().min(1).max(80).optional(),
   /** Optional client-generated group id — the offline outbox's idempotency key. */
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -113,7 +116,8 @@ export const addExpenseSchema = z
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
@@ -139,7 +143,8 @@ const expenseItemSchema = z.object({
   id: clientIdSchema,
   category_id: expenseCategoryIdSchema,
   item_name: z.string().trim().min(1, "Item name is required").max(200),
-  amount_cents: z.number().int().positive("Amount must be positive"),
+  currency_code: currencyCodeSchema.default("PHP"),
+  amount_cents: z.number().int().safe().positive("Amount must be positive"),
   notes: z.string().optional(),
   expense_date: expenseDateSchema,
   split_mode: z.enum(["equal", "custom"]),
@@ -194,7 +199,7 @@ export const addExpensesBatchSchema = z
 
 const lineItemSchema = z.object({
   name: z.string().trim().min(1, "Item name is required").max(200),
-  amount_cents: z.number().int().positive("Amount must be positive"),
+  amount_cents: z.number().int().safe().positive("Amount must be positive"),
   participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
 });
 
@@ -204,7 +209,8 @@ export const addItemizedExpenseSchema = z
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -238,7 +244,8 @@ export const updateExpenseSchema = z
     expected_updated_at: expectedUpdatedAtSchema,
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     split_mode: z.enum(["equal", "custom"]),
@@ -288,7 +295,8 @@ export const updateItemizedExpenseSchema = z
     expected_updated_at: expectedUpdatedAtSchema,
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -319,7 +327,8 @@ export const recordPaymentSchema = z
     group_id: z.string().uuid(),
     from_member_id: z.string().uuid(),
     to_member_id: z.string().uuid(),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
   })
   .refine((val) => val.from_member_id !== val.to_member_id, {
     message: "Cannot pay yourself",
