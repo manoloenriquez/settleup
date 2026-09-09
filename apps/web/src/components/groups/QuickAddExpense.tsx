@@ -6,6 +6,8 @@ import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { addExpense } from "@/app/actions/expenses";
 import { parsePHPAmount, equalSplit, formatCents } from "@template/shared";
+import { errorClassFor, participantBucket } from "@template/shared/analytics";
+import { track } from "@/lib/analytics/client";
 import { buildEqualExpenseRpcInput } from "@template/supabase";
 import type { OutboxJson } from "@template/shared";
 import { useWebOutbox } from "@/components/OutboxProvider";
@@ -161,6 +163,10 @@ export function QuickAddExpense({
         return;
       }
       toast.info("Saved offline — will sync when you're back online");
+      track({
+        name: "expense_saved",
+        properties: { entry_mode: "quick", participant_bucket: participantBucket(selectedIds.length) },
+      });
       resetForm();
       onClose?.();
       return;
@@ -180,8 +186,13 @@ export function QuickAddExpense({
       });
       if (result.error) {
         setError(result.error);
+        track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
       } else {
         toast.success("Expense added!");
+        track({
+          name: "expense_saved",
+          properties: { entry_mode: "quick", participant_bucket: participantBucket(selectedIds.length) },
+        });
         resetForm();
         invalidateGroupData(queryClient, groupId);
         onClose?.();

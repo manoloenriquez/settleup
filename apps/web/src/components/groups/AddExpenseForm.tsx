@@ -15,6 +15,8 @@ import {
   sharesSplit,
 } from "@template/shared";
 import type { OutboxJson } from "@template/shared";
+import { errorClassFor, participantBucket } from "@template/shared/analytics";
+import { track } from "@/lib/analytics/client";
 import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
@@ -50,6 +52,8 @@ type LineItemState = {
 };
 
 export type ItemState = {
+  /** Set when the item was prefilled by an AI draft; reported as the entry mode. */
+  origin?: "chat" | "receipt";
   id: string;
   categoryId: string | null;
   itemName: string;
@@ -66,6 +70,20 @@ export type ItemState = {
   lineItems: LineItemState[];
   repeats: "none" | "weekly" | "monthly";
 };
+
+function trackItemSaved(item: ItemState): void {
+  const participants =
+    item.expenseMode === "itemized"
+      ? new Set(item.lineItems.flatMap((line) => line.participantIds)).size
+      : item.selectedIds.length;
+  track({
+    name: "expense_saved",
+    properties: {
+      entry_mode: item.origin ?? (item.expenseMode === "itemized" ? "itemized" : "detailed"),
+      participant_bucket: participantBucket(participants),
+    },
+  });
+}
 
 export function makeEmptyItem(
   allMemberIds: string[],
@@ -427,6 +445,7 @@ export function AddExpenseForm({
           );
         }
         toast.info("Saved offline — will sync when you're back online");
+        for (const item of items) trackItemSaved(item);
         setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
         setExpenseDate(localTodayISO());
         onSaved();
@@ -484,6 +503,7 @@ export function AddExpenseForm({
           // The batch RPC is atomic — on error nothing was saved, so the user
           // can fix the problem and resubmit without creating duplicates.
           setError(result.error);
+          track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
           return;
         }
       }
@@ -520,6 +540,7 @@ export function AddExpenseForm({
 
         if (result.error) {
           setError(result.error);
+          track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
           return;
         }
       }
@@ -557,6 +578,7 @@ export function AddExpenseForm({
         }
       }
 
+      for (const item of items) trackItemSaved(item);
       setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
       setExpenseDate(localTodayISO());
       onSaved();

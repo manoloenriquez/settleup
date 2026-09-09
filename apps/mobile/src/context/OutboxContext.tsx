@@ -23,6 +23,8 @@ import { createTokenClient } from "@template/supabase";
 import { createOutboxExecutor } from "@/lib/outbox/executor";
 import { hasLegacyOutbox, outboxStorageFor, withOutboxLock } from "@/lib/outbox/storage";
 import { supabase } from "@/lib/supabase";
+import { track } from "@/lib/analytics";
+import { offlineFailureStatus } from "@template/shared/analytics";
 import { useToast } from "@/components/ui/Toast";
 
 // ---------------------------------------------------------------------------
@@ -156,13 +158,20 @@ function AccountOutboxProvider({
             onChange: (next) => {
               if (isActive()) setState(next);
             },
-            onEntryFailed: (entry) =>
+            onEntryFailed: (entry) => {
               Sentry.addBreadcrumb({
                 category: "outbox",
                 message: `Entry failed: ${entry.kind}`,
                 level: "warning",
                 data: { code: entry.lastError?.code ?? null },
-              }),
+              });
+              track({
+                name: "offline_action_resolved",
+                properties: { status: offlineFailureStatus(entry) },
+              });
+            },
+            onEntrySynced: () =>
+              track({ name: "offline_action_resolved", properties: { status: "synced" } }),
           })
         : null,
     [ownerId, getIdentity, isActive],
@@ -253,6 +262,7 @@ function AccountOutboxProvider({
         await engine.init();
         await engine.enqueue(input);
       });
+      track({ name: "offline_action_queued" });
       if (onlineManager.isOnline()) {
         void drain();
       } else {

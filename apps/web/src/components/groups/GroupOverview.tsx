@@ -2,6 +2,7 @@
 
 import { formatCents, buildSuggestedSettlements, computePairwiseDebts } from "@template/shared";
 import { CopyButton } from "@/components/groups/CopyButton";
+import { trackPublicEvent } from "@/app/actions/analytics";
 import { OverviewMemberBreakdown } from "@/components/groups/OverviewMemberBreakdown";
 import { OverviewPairwiseDebts } from "@/components/groups/OverviewPairwiseDebts";
 import { OverviewSettleUpCard } from "@/components/groups/OverviewSettleUpCard";
@@ -13,6 +14,7 @@ import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared
 
 type Props = {
   payload: GroupOverviewPayload;
+  shareToken: string;
 };
 
 function computeSettlements(payload: GroupOverviewPayload): SuggestedSettlement[] {
@@ -117,7 +119,7 @@ function formatPaymentDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
-export function GroupOverview({ payload }: Props): React.ReactElement {
+export function GroupOverview({ payload, shareToken }: Props): React.ReactElement {
   const settlements = computeSettlements(payload);
   const payments = payload.payments ?? [];
   const totalOwed = payload.members.reduce(
@@ -169,6 +171,13 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
           groupName={payload.group.name}
           settlements={settlements}
           ownerProfile={payload.payment_profile}
+          onAction={(action) => {
+            void trackPublicEvent({
+              share_token: shareToken,
+              name: "payment_details_actioned",
+              properties: { action },
+            });
+          }}
         />
 
         {/* Recorded payments */}

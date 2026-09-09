@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics";
 import type { CurrencyCode } from "@template/shared";
 import { onlineManager, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
@@ -129,7 +130,13 @@ export function useResolvePendingPayment(groupId: string) {
       }
       return resolvePendingPayment(params.paymentId, params.action);
     },
-    onSuccess: () => {
+    onSuccess: (result, params) => {
+      if (!result.error && onlineManager.isOnline()) {
+        track({
+          name: "payment_claim_resolved",
+          properties: { status: params.action === "confirm" ? "confirmed" : "rejected" },
+        });
+      }
       void qc.invalidateQueries({ queryKey: ["pending-payments", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });

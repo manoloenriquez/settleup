@@ -28,6 +28,8 @@ import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
 import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
 import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit } from "@template/shared";
+import { errorClassFor, participantBucket } from "@template/shared/analytics";
+import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type Mode = "quick" | "chat" | "receipt" | "detailed" | "itemized";
@@ -267,6 +269,24 @@ export default function AddExpenseScreen() {
     setConfirming(true);
   }
 
+  function trackSaveFailed(error: string): void {
+    track({ name: "expense_save_failed", properties: { error_class: errorClassFor(error) } });
+  }
+
+  const draftOrigin = useRef<"receipt" | null>(null);
+
+  function trackSaved(entryMode: "quick" | "detailed" | "itemized" | "chat", participants: number): void {
+    const origin = entryMode === "detailed" ? draftOrigin.current : null;
+    track({
+      name: "expense_saved",
+      properties: { entry_mode: origin ?? entryMode, participant_bucket: participantBucket(participants) },
+    });
+  }
+
+  useEffect(() => {
+    track({ name: "expense_draft_started", properties: { entry_mode: mode } });
+  }, [mode]);
+
   async function handleQuickSave() {
     const amountCents = parsePHPAmount(amount) ?? 0;
     const result = await addExpense.mutateAsync({
@@ -279,7 +299,8 @@ export default function AddExpenseScreen() {
       createdByUserId: session?.user.id ?? "",
       expenseDate,
     });
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+    trackSaved("quick", selectedMembers.size);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
     router.back();
@@ -332,10 +353,12 @@ export default function AddExpenseScreen() {
       const customSplits = resolveCustomSplits(amountCents);
       if (!customSplits) { toast.error("Could not resolve the split. Check the values and try again."); return; }
       const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate });
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+      trackSaved("detailed", customSplits.length);
     } else {
       const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate });
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+      trackSaved("detailed", selectedMembers.size);
     }
     if (repeats !== "none") {
       const recurringResult = await createRecurring.mutateAsync({
@@ -367,6 +390,7 @@ export default function AddExpenseScreen() {
     // Sync AI draft into local form state
     const aiDraft = aiResult.draft;
     if (aiDraft) {
+      track({ name: "ai_draft_generated", properties: { source: "chat" } });
       setDraftItem(aiDraft.item_name);
       setDraftAmount(aiDraft.amount_cents > 0 ? String(aiDraft.amount_cents / 100) : "");
       // Match participant names to member IDs
@@ -399,7 +423,9 @@ export default function AddExpenseScreen() {
       createdByUserId: session?.user.id ?? "",
       expenseDate,
     });
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+    track({ name: "ai_draft_resolved", properties: { status: "accepted" } });
+    trackSaved("chat", memberIds.length);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
     router.back();
@@ -462,7 +488,15 @@ export default function AddExpenseScreen() {
         participantIds: li.participantIds.length > 0 ? li.participantIds : members.map((m) => m.id),
       })),
     });
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+    trackSaved(
+      "itemized",
+      new Set(
+        filledItems.flatMap((li) =>
+          li.participantIds.length > 0 ? li.participantIds : members.map((m) => m.id),
+        ),
+      ).size,
+    );
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
     router.back();
@@ -584,7 +618,15 @@ export default function AddExpenseScreen() {
               { value: "itemized" as Mode, label: "Itemized" },
             ]}
             value={mode}
-            onChange={(m) => { setMode(m); if (m !== "chat") conversationAI.reset(); }}
+            onChange={(m) => {
+              setMode(m);
+              if (m !== "chat") {
+                if (conversationAI.draft) {
+                  track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+                }
+                conversationAI.reset();
+              }
+            }}
           />
 
           {/* ---- QUICK MODE ---- */}
@@ -714,13 +756,18 @@ export default function AddExpenseScreen() {
                   receipt={receiptScan.receipt}
                   provider={receiptScan.provider}
                   onAccept={(name, cents) => {
+                    track({ name: "ai_draft_resolved", properties: { status: "accepted" } });
+                    draftOrigin.current = "receipt";
                     setItemName(name);
                     setAmount(String(cents / 100));
                     if (receiptScan.receipt?.date) setExpenseDate(receiptScan.receipt.date);
                     receiptScan.clear();
                     setMode("detailed");
                   }}
-                  onDismiss={receiptScan.clear}
+                  onDismiss={() => {
+                    track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+                    receiptScan.clear();
+                  }}
                 />
               )}
             </View>

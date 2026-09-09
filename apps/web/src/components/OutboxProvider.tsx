@@ -26,6 +26,8 @@ import { createOutboxExecutor } from "@/lib/outbox/executor";
 import { hasLegacyOutbox, outboxStorageFor } from "@/lib/outbox/storage";
 import { requestPersistentStorage } from "@/lib/pwa/storage";
 import { supabase } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics/client";
+import { offlineFailureStatus } from "@template/shared/analytics";
 import { invalidationKeysFor, stampLocalInvalidate } from "@/lib/query-keys";
 
 // ---------------------------------------------------------------------------
@@ -148,13 +150,20 @@ function AccountOutboxProvider({
             onChange: (next) => {
               if (isActive()) setState(next);
             },
-            onEntryFailed: (entry) =>
+            onEntryFailed: (entry) => {
               Sentry.addBreadcrumb({
                 category: "outbox",
                 message: `Entry failed: ${entry.kind}`,
                 level: "warning",
                 data: { code: entry.lastError?.code ?? null },
-              }),
+              });
+              track({
+                name: "offline_action_resolved",
+                properties: { status: offlineFailureStatus(entry) },
+              });
+            },
+            onEntrySynced: () =>
+              track({ name: "offline_action_resolved", properties: { status: "synced" } }),
           })
         : null,
     [ownerId, getIdentity, isActive],
@@ -249,6 +258,7 @@ function AccountOutboxProvider({
         await engine.init();
         await engine.enqueue(input);
       });
+      track({ name: "offline_action_queued" });
       // Pending writes are critical app data. Ask the browser to exempt the
       // IndexedDB queue and runtime caches from automatic storage eviction.
       void requestPersistentStorage();
@@ -282,6 +292,7 @@ function AccountOutboxProvider({
         await engine.init();
         await engine.enqueueBatch(inputs);
       });
+      for (let i = 0; i < inputs.length; i++) track({ name: "offline_action_queued" });
       void drain();
     },
     [engine, drain, ownerId, requireAccount],

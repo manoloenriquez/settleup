@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createAnonClient } from "@template/supabase";
 import { GroupOverview } from "@/components/groups/GroupOverview";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
+import { trackPublic } from "@/lib/analytics/server";
 import type { GroupOverviewPayload } from "@template/shared";
 
 type Props = {
@@ -40,10 +41,19 @@ export default async function GroupOverviewPage({ params }: Props): Promise<Reac
     p_share_token: shareToken,
   });
 
-  if (error || !data) notFound();
+  if (error || !data || (data as GroupOverviewPayload).error) {
+    trackPublic(null, {
+      name: "public_link_opened",
+      properties: { link_type: "group", status: "invalid" },
+    });
+    notFound();
+  }
 
   const payload = data as GroupOverviewPayload;
-  if (payload.error) notFound();
+  trackPublic(shareToken, {
+    name: "public_link_opened",
+    properties: { link_type: "group", status: "valid" },
+  });
 
-  return <GroupOverview payload={payload} />;
+  return <GroupOverview payload={payload} shareToken={shareToken} />;
 }

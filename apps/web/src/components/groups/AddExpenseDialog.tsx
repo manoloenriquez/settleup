@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { track } from "@/lib/analytics/client";
 import { ContentDialog } from "@/components/ui/ContentDialog";
 import { QuickAddExpense } from "./QuickAddExpense";
 import { ConversationInput } from "./ConversationInput";
@@ -75,15 +76,22 @@ export function AddExpenseDialog({
     participantIds.every((id) => validMembers.has(id)) &&
     new Set(participantIds).size === participantIds.length;
   const shares = draft && resolved ? equalSplit(draft.amount_cents, participantIds.length) : [];
+  const autoResolved = useRef<string>("");
+
+  useEffect(() => {
+    if (open) track({ name: "expense_draft_started", properties: { entry_mode: mode } });
+  }, [open, mode]);
 
   function handleDraft(value: ExpenseDraft): void {
+    track({ name: "ai_draft_generated", properties: { source: "chat" } });
     setDraft(value);
-    setPayerId(resolveExactMember(value.payer_name, activeMembers) ?? "");
-    setParticipantIds(
-      value.participant_names.length
-        ? value.participant_names.map((name) => resolveExactMember(name, activeMembers) ?? "")
-        : activeMembers.map((member) => member.id),
-    );
+    const payer = resolveExactMember(value.payer_name, activeMembers) ?? "";
+    const participants = value.participant_names.length
+      ? value.participant_names.map((name) => resolveExactMember(name, activeMembers) ?? "")
+      : activeMembers.map((member) => member.id);
+    autoResolved.current = JSON.stringify([payer, participants]);
+    setPayerId(payer);
+    setParticipantIds(participants);
     setDraftCategoryId(
       categories.find((category) => category.slug === value.category_slug)?.id ?? defaultCategory,
     );
@@ -91,9 +99,17 @@ export function AddExpenseDialog({
 
   function reviewDraft(): void {
     if (!draft || !resolved) return;
+    track({
+      name: "ai_draft_resolved",
+      properties: {
+        status:
+          autoResolved.current === JSON.stringify([payerId, participantIds]) ? "accepted" : "edited",
+      },
+    });
     setItems([
       {
         ...emptyItem(),
+        origin: "chat",
         itemName: draft.item_name,
         amountStr: minorToDecimal(draft.amount_cents, "PHP"),
         notes: draft.notes ?? "",
@@ -108,9 +124,14 @@ export function AddExpenseDialog({
   }
 
   function reviewReceipt(value: ReceiptReview): void {
+    const edited =
+      receipt !== null &&
+      (value.totalCents !== receipt.total_cents || value.items.length !== receipt.line_items.length);
+    track({ name: "ai_draft_resolved", properties: { status: edited ? "edited" : "accepted" } });
     setItems([
       {
         ...emptyItem(),
+        origin: "receipt",
         itemName: value.itemName,
         amountStr: minorToDecimal(value.totalCents, "PHP"),
         expenseMode: "itemized",
@@ -248,7 +269,13 @@ export function AddExpenseDialog({
               <Button onClick={reviewDraft} disabled={!resolved}>
                 Edit and review before saving
               </Button>
-              <Button variant="ghost" onClick={() => setDraft(null)}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+                  setDraft(null);
+                }}
+              >
                 Dismiss suggestion
               </Button>
             </div>
@@ -321,10 +348,18 @@ export function AddExpenseDialog({
             <ReceiptReviewForm
               receipt={receipt}
               onContinue={reviewReceipt}
-              onDismiss={() => setReceipt(null)}
+              onDismiss={() => {
+                track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+                setReceipt(null);
+              }}
             />
           ) : (
-            <ReceiptUploader onParsed={setReceipt} />
+            <ReceiptUploader
+              onParsed={(parsed) => {
+                track({ name: "ai_draft_generated", properties: { source: "receipt" } });
+                setReceipt(parsed);
+              }}
+            />
           )}
         </div>
       </div>

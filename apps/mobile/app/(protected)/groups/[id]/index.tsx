@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics";
 import { useState } from "react";
 import {
   Alert,
@@ -171,7 +172,10 @@ export default function GroupDetailScreen() {
     }
     const url = `${WEB_ORIGIN}/g/${group.share_token}`;
     try {
-      await Share.share({ message: url, url });
+      const shared = await Share.share({ message: url, url });
+      if (shared.action !== Share.dismissedAction) {
+        track({ name: "public_link_copied", properties: { link_type: "group" } });
+      }
     } catch {
       // User cancelled — no action needed
     }

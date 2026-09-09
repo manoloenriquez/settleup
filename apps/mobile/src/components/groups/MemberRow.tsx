@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics";
 import { Alert, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Avatar, Badge, useToast } from "@/components/ui";
@@ -38,6 +39,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
         text: "Copy Share Link",
         onPress: async () => {
           await Clipboard.setStringAsync(link);
+          track({ name: "public_link_copied", properties: { link_type: "member" } });
           toast.success(`Share link for ${member.display_name} copied`);
         },
       });
@@ -53,6 +55,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
         onPress: async () => {
           const msg = `${balanceText}\n\nView details: ${link}`;
           await Clipboard.setStringAsync(msg);
+          track({ name: "public_link_copied", properties: { link_type: "member" } });
           toast.success("Balance message copied");
         },
       });

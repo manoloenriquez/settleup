@@ -1,3 +1,5 @@
+import { errorClassFor, participantBucket } from "@template/shared/analytics";
+import { track } from "@/lib/analytics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -80,6 +82,12 @@ export default function ScanScreen(): React.ReactElement {
   }
 
   function handleReviewContinue(name: string, cents: number, items: EditableLineItem[]): void {
+    const original = receiptScan.receipt;
+    const edited =
+      !original ||
+      cents !== original.total_cents ||
+      items.filter((item) => item.included).length !== Math.max(original.line_items.length, 1);
+    track({ name: "ai_draft_resolved", properties: { status: edited ? "edited" : "accepted" } });
     setExpenseName(name);
     setTotalCents(cents);
     setEditedItems(items);
@@ -157,6 +165,7 @@ export default function ScanScreen(): React.ReactElement {
       });
       if (result.error) {
         toast.error(result.error);
+        track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
         return;
       }
     } else {
@@ -170,10 +179,15 @@ export default function ScanScreen(): React.ReactElement {
       });
       if (result.error) {
         toast.error(result.error);
+        track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
         return;
       }
     }
 
+    track({
+      name: "expense_saved",
+      properties: { entry_mode: "receipt", participant_bucket: participantBucket(selectedMembers.size) },
+    });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Expense added");
     resetAll();

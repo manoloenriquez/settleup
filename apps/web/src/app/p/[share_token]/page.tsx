@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { createAnonClient } from "@template/supabase";
 import { FriendView } from "@/components/friend/FriendView";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
+import { trackPublic } from "@/lib/analytics/server";
 import { z } from "zod";
 import { formatCents } from "@template/shared";
 import type { FriendViewPayload } from "@template/shared";
@@ -42,10 +43,19 @@ export default async function FriendPage({ params }: Props): Promise<React.React
     p_share_token: share_token,
   });
 
-  if (error || !data) notFound();
+  if (error || !data || (data as FriendViewPayload).error) {
+    trackPublic(null, {
+      name: "public_link_opened",
+      properties: { link_type: "member", status: "invalid" },
+    });
+    notFound();
+  }
 
   const payload = data as FriendViewPayload;
-  if (payload.error) notFound();
+  trackPublic(share_token, {
+    name: "public_link_opened",
+    properties: { link_type: "member", status: "valid" },
+  });
 
   const host = headersList.get("host") ?? "localhost:3000";
   const protocol = host.startsWith("localhost") ? "http" : "https";

@@ -730,3 +730,37 @@ describe("uncertain outcomes and stable attempt identities", () => {
     expect(engine.getState().entries[0]?.payload).toEqual(original.payload);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Outcome callbacks (telemetry hooks)
+// ---------------------------------------------------------------------------
+
+describe("engine outcome callbacks", () => {
+  it("reports synced entries and terminal failures separately", async () => {
+    const storage = memoryStorage();
+    const { executor } = scriptedExecutor({
+      ok: [],
+      conflict: [{ ok: false, code: "PT409", message: "Expense was modified by someone else" }],
+    });
+    const synced: string[] = [];
+    const failed: string[] = [];
+    const engine = createSyncEngine({
+      storage,
+      executor,
+      now: () => new Date(1_700_000_000_000),
+      random: () => 0.5,
+      onEntrySynced: (entry) => synced.push(entry.id),
+      onEntryFailed: (entry) => failed.push(`${entry.id}:${entry.lastError?.class ?? "?"}`),
+    });
+    await engine.init();
+    await engine.enqueue(makeInput({ id: "ok", entityId: "ok" }));
+    await engine.enqueue(makeInput({ id: "conflict", entityId: "conflict" }));
+
+    const result = await engine.drain();
+
+    expect(result.synced).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(synced).toEqual(["ok"]);
+    expect(failed).toEqual(["conflict:conflict"]);
+  });
+});

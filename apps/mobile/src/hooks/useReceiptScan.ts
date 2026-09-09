@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics";
 import { useState, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import type { ExpenseExtraction } from "@template/shared/types";
@@ -57,6 +58,7 @@ export function useReceiptScan() {
       if (result.error) {
         setError(result.error);
       } else {
+        track({ name: "ai_draft_generated", properties: { source: "receipt" } });
         setReceipt(result.data);
         setProvider(result.provider);
       }

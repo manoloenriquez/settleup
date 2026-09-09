@@ -45,6 +45,8 @@ export type SyncEngineOptions = {
   onChange?: (state: OutboxState) => void;
   /** Called when an entry fails terminally (drive toasts from this). */
   onEntryFailed?: (entry: OutboxEntry) => void;
+  /** Called when an entry is confirmed applied on the server (telemetry). */
+  onEntrySynced?: (entry: OutboxEntry) => void;
 };
 
 export type SyncEngine = {
@@ -134,6 +136,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       if (execution.ok) {
         await setState((current) => markSynced(current, entry.id));
         result.synced += 1;
+        options.onEntrySynced?.(entry);
         continue;
       }
 

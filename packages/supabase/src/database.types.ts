@@ -650,6 +650,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      product_events: {
+        Row: {
+          id: string;
+          event_name: string;
+          occurred_at: string;
+          user_id: string | null;
+          platform: string;
+          properties: Json;
+        };
+        Insert: {
+          event_name: string;
+          user_id: string | null;
+          platform: string;
+          properties: Json;
+        };
+        Update: never;
+        Relationships: [];
+      };
       push_tokens: {
         Row: {
           user_id: string;
@@ -748,6 +766,10 @@ export type Database = {
       };
       undo_last_payment_v2: { Args: { p_group_id: string; p_currency_code: CurrencyCode }; Returns: Json };
       undo_last_payment_for_member_v2: { Args: { p_from_member_id: string; p_currency_code: CurrencyCode }; Returns: Json };
+      track_public_event: {
+        Args: { p_share_token: string | null; p_event_name: string; p_properties?: Json };
+        Returns: boolean;
+      };
       prune_push_tokens: {
         Args: { p_secret: string; p_tokens: string[] };
         Returns: number;

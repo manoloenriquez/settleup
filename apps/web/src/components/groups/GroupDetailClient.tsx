@@ -1,5 +1,7 @@
 "use client";
 
+import { track } from "@/lib/analytics/client";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { simplifyDebts, formatCents } from "@template/shared";
@@ -106,6 +108,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     }
   }, [sharedKey]);
   function markLinkCopied(): void {
+    track({ name: "public_link_copied", properties: { link_type: "group" } });
     setLinkCopied(true);
     try {
       localStorage.setItem(sharedKey, "1");

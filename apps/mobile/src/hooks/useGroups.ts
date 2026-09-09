@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { archiveGroup, createGroup, deleteGroup, listArchivedGroups, listGroupsWithStats, renameGroup, restoreGroup, setGroupBudget, transferOwnership } from "@/services/groups";
@@ -25,6 +26,7 @@ export function useCreateGroup() {
     mutationFn: (name: string) => createGroup(name),
     onSuccess: (result) => {
       if (result.data) {
+        track({ name: "group_created" });
         qc.setQueryData<GroupWithStats[]>(["groups"], (existing = []) => {
           if (existing.some((group) => group.id === result.data?.id)) {
             return existing;

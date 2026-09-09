@@ -1,5 +1,7 @@
 "use server";
 
+import { trackServer } from "@/lib/analytics/server";
+
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { addMemberSchema, addMembersBatchSchema, generateSlug, renameMemberSchema } from "@template/shared";
@@ -53,6 +55,7 @@ export async function addMember(input: unknown): Promise<ApiResponse<GroupMember
       .single();
 
     if (error || !data) return { data: null, error: "Failed to add member." };
+    trackServer({ name: "member_added" });
     return { data, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
@@ -101,6 +104,7 @@ export async function addMembersBatch(input: unknown): Promise<ApiResponse<Group
     const { data, error } = await db.from("group_members").insert(rows).select();
 
     if (error || !data) return { data: null, error: "Failed to add members." };
+    for (let i = 0; i < data.length; i++) trackServer({ name: "member_added" });
     return { data, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

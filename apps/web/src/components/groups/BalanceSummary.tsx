@@ -11,6 +11,7 @@ import { recordPayment, undoLastPayment, undoMyLastPayment } from "@/app/actions
 import { deleteMember } from "@/app/actions/members";
 import { formatCents, parsePHPAmount, simplifyDebts } from "@template/shared";
 import { CopyButton } from "./CopyButton";
+import { track } from "@/lib/analytics/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -392,6 +393,7 @@ export function BalanceSummary({
                   label: "Copy Link",
                   onClick: () => {
                     void navigator.clipboard.writeText(link);
+                    track({ name: "public_link_copied", properties: { link_type: "member" } });
                     toast.success("Link copied");
                   },
                   icon: <LinkIcon size={14} />,
@@ -400,6 +402,7 @@ export function BalanceSummary({
                   label: "Copy Message",
                   onClick: () => {
                     void navigator.clipboard.writeText(message);
+                    track({ name: "public_link_copied", properties: { link_type: "member" } });
                     toast.success("Message copied");
                   },
                   icon: <MessageSquare size={14} />,

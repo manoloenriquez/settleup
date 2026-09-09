@@ -1,5 +1,7 @@
 "use server";
 
+import { trackServer } from "@/lib/analytics/server";
+
 import { redirect } from "next/navigation";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
@@ -47,6 +49,7 @@ export async function createGroup(_: unknown, formData: FormData): Promise<ApiRe
     if (groupResult.error) return { data: null, error: groupResult.error };
     if (groupResult.data === null) return { data: null, error: "Failed to create group." };
 
+    trackServer({ name: "group_created" });
     redirect(`/groups/${groupResult.data.id}`);
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

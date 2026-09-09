@@ -8,23 +8,38 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Smartphone, Landmark, ArrowRight, MessageCircle, Hash, ZoomIn, X } from "lucide-react";
 import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
 
+type PaymentDetailAction = "copy" | "qr";
+
 type Props = {
   groupName: string;
   settlements: SuggestedSettlement[];
   ownerProfile: GroupOverviewPayload["payment_profile"];
+  /** Telemetry hook for copy and QR-enlarge actions on payment details. */
+  onAction?: (action: PaymentDetailAction) => void;
 };
 
 function isMasked(value: string): boolean {
   return value.includes("*");
 }
 
-function QrImage({ src, alt }: { src: string; alt: string }): React.ReactElement {
+function QrImage({
+  src,
+  alt,
+  onReveal,
+}: {
+  src: string;
+  alt: string;
+  onReveal?: () => void;
+}): React.ReactElement {
   const [zoomed, setZoomed] = useState(false);
   return (
     <>
       <button
         type="button"
-        onClick={() => setZoomed(true)}
+        onClick={() => {
+          onReveal?.();
+          setZoomed(true);
+        }}
         className="group relative mx-auto block"
         aria-label={`Enlarge ${alt}`}
       >
@@ -64,11 +79,13 @@ function AccountLine({
   methodLabel,
   accountNumber,
   accountName,
+  onCopied,
 }: {
   icon: React.ReactNode;
   methodLabel: string;
   accountNumber: string;
   accountName: string | null;
+  onCopied?: () => void;
 }): React.ReactElement {
   const masked = isMasked(accountNumber);
   return (
@@ -88,7 +105,9 @@ function AccountLine({
           {accountName && <span className="text-slate-400"> — {accountName}</span>}
         </p>
       </div>
-      {!masked && <CopyButton text={accountNumber} label="Copy" className="ml-auto shrink-0" />}
+      {!masked && (
+        <CopyButton text={accountNumber} label="Copy" className="ml-auto shrink-0" onCopied={onCopied} />
+      )}
     </div>
   );
 }
@@ -116,7 +135,10 @@ export function OverviewSettleUpCard({
   groupName,
   settlements,
   ownerProfile,
+  onAction,
 }: Props): React.ReactElement | null {
+  const onQr = (): void => onAction?.("qr");
+  const onCopied = (): void => onAction?.("copy");
   if (settlements.length > 0) {
     return (
       <Card>
@@ -159,6 +181,7 @@ export function OverviewSettleUpCard({
                   <div className="flex flex-col gap-2.5 pl-2 border-l-2 border-brand-100">
                     {p.gcash_number && (
                       <AccountLine
+                        onCopied={onCopied}
                         icon={<Smartphone size={12} className="text-blue-500" />}
                         methodLabel="GCash"
                         accountNumber={p.gcash_number}
@@ -166,10 +189,11 @@ export function OverviewSettleUpCard({
                       />
                     )}
                     {p.gcash_qr_url && (
-                      <QrImage src={p.gcash_qr_url} alt={`${s.to_display_name}'s GCash QR`} />
+                      <QrImage src={p.gcash_qr_url} alt={`${s.to_display_name}'s GCash QR`} onReveal={onQr} />
                     )}
                     {p.bank_name && p.bank_account_number && (
                       <AccountLine
+                        onCopied={onCopied}
                         icon={<Landmark size={12} className="text-brand-500" />}
                         methodLabel={p.bank_name}
                         accountNumber={p.bank_account_number}
@@ -177,7 +201,7 @@ export function OverviewSettleUpCard({
                       />
                     )}
                     {p.bank_qr_url && (
-                      <QrImage src={p.bank_qr_url} alt={`${s.to_display_name}'s bank QR`} />
+                      <QrImage src={p.bank_qr_url} alt={`${s.to_display_name}'s bank QR`} onReveal={onQr} />
                     )}
                     {(isMasked(p.gcash_number ?? "") || isMasked(p.bank_account_number ?? "")) && (
                       <p className="text-[11px] text-slate-400">
@@ -233,23 +257,25 @@ export function OverviewSettleUpCard({
         {pp.gcash_number && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex flex-col gap-2">
             <AccountLine
+                        onCopied={onCopied}
               icon={<Smartphone size={14} className="text-blue-500" />}
               methodLabel="GCash"
               accountNumber={pp.gcash_number}
               accountName={pp.gcash_name}
             />
-            {pp.gcash_qr_url && <QrImage src={pp.gcash_qr_url} alt="GCash QR" />}
+            {pp.gcash_qr_url && <QrImage src={pp.gcash_qr_url} alt="GCash QR" onReveal={onQr} />}
           </div>
         )}
         {pp.bank_name && pp.bank_account_number && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex flex-col gap-2">
             <AccountLine
+                        onCopied={onCopied}
               icon={<Landmark size={14} className="text-brand-500" />}
               methodLabel={pp.bank_name}
               accountNumber={pp.bank_account_number}
               accountName={pp.bank_account_name}
             />
-            {pp.bank_qr_url && <QrImage src={pp.bank_qr_url} alt="Bank QR" />}
+            {pp.bank_qr_url && <QrImage src={pp.bank_qr_url} alt="Bank QR" onReveal={onQr} />}
           </div>
         )}
         {(isMasked(pp.gcash_number ?? "") || isMasked(pp.bank_account_number ?? "")) && (

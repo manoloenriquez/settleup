@@ -1,5 +1,7 @@
 "use server";
 
+import { trackPublic, trackServer } from "@/lib/analytics/server";
+
 import { headers } from "next/headers";
 import { createAnonClient } from "@template/supabase";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
@@ -65,6 +67,7 @@ export async function submitFriendPayment(
     if (error || !data) return { data: null, error: "Could not submit payment. Please try again." };
     const paymentId = (data as { payment_id?: string }).payment_id;
     if (!paymentId) return { data: null, error: "Could not submit payment. Please try again." };
+    trackPublic(parsed.data.share_token, { name: "payment_claim_submitted" });
     return { data: { payment_id: paymentId }, error: null };
   } catch {
     return { data: null, error: "Something went wrong." };
@@ -114,6 +117,10 @@ async function resolvePayment(
         : await db.rpc("reject_payment", { p_payment_id: parsed.data });
 
     if (error) return { data: null, error: `Failed to ${action} payment.` };
+    trackServer({
+      name: "payment_claim_resolved",
+      properties: { status: action === "confirm" ? "confirmed" : "rejected" },
+    });
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
