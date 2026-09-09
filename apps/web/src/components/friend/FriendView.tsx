@@ -4,8 +4,19 @@ import { IvePaidButton } from "./IvePaidButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Receipt, CheckCircle2, TrendingDown, ArrowUpRight, Smartphone, Landmark } from "lucide-react";
-import type { FriendViewPayload, CreditorPaymentProfile, SuggestedSettlement } from "@template/shared";
+import {
+  Receipt,
+  CheckCircle2,
+  TrendingDown,
+  ArrowUpRight,
+  Smartphone,
+  Landmark,
+} from "lucide-react";
+import type {
+  FriendViewPayload,
+  CreditorPaymentProfile,
+  SuggestedSettlement,
+} from "@template/shared";
 
 type Props = {
   payload: FriendViewPayload;
@@ -28,18 +39,20 @@ function resolveCreditorProfiles(payload: FriendViewPayload): CreditorPaymentPro
   }
   // Fallback: wrap owner payment_profile as a single creditor
   if (payload.payment_profile) {
-    return [{
-      member_id: "",
-      display_name: payload.payment_profile.payer_display_name ?? "Group Owner",
-      gcash_name: payload.payment_profile.gcash_name,
-      gcash_number: payload.payment_profile.gcash_number,
-      gcash_qr_url: payload.payment_profile.gcash_qr_url,
-      bank_name: payload.payment_profile.bank_name,
-      bank_account_name: payload.payment_profile.bank_account_name,
-      bank_account_number: payload.payment_profile.bank_account_number,
-      bank_qr_url: payload.payment_profile.bank_qr_url,
-      notes: payload.payment_profile.notes,
-    }];
+    return [
+      {
+        member_id: "",
+        display_name: payload.payment_profile.payer_display_name ?? "Group Owner",
+        gcash_name: payload.payment_profile.gcash_name,
+        gcash_number: payload.payment_profile.gcash_number,
+        gcash_qr_url: payload.payment_profile.gcash_qr_url,
+        bank_name: payload.payment_profile.bank_name,
+        bank_account_name: payload.payment_profile.bank_account_name,
+        bank_account_number: payload.payment_profile.bank_account_number,
+        bank_qr_url: payload.payment_profile.bank_qr_url,
+        notes: payload.payment_profile.notes,
+      },
+    ];
   }
   return [];
 }
@@ -134,12 +147,11 @@ function ProfilePaymentDetails({ pp }: { pp: CreditorPaymentProfile }): React.Re
 
 export function FriendView({ payload, shareLink, shareToken }: Props): React.ReactElement {
   const creditorProfiles = resolveCreditorProfiles(payload);
-  const mySettlements: SuggestedSettlement[] =
-    payload.all_balances?.length
-      ? buildSuggestedSettlements(payload.all_balances, payload.creditor_profiles ?? []).filter(
-          (s) => s.from_member_id === payload.member.id,
-        )
-      : [];
+  const mySettlements: SuggestedSettlement[] = payload.all_balances?.length
+    ? buildSuggestedSettlements(payload.all_balances, payload.creditor_profiles ?? []).filter(
+        (s) => s.from_member_id === payload.member.id,
+      )
+    : [];
   const message = buildMessage(payload, shareLink);
   const owedAmount = payload.owed_cents ?? Math.max(0, -(payload.net_cents ?? 0));
   const isPaid = owedAmount === 0;
@@ -162,7 +174,9 @@ export function FriendView({ payload, shareLink, shareToken }: Props): React.Rea
     <div className="min-h-screen bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-lg flex flex-col gap-5 animate-fade-in">
         {/* Gradient Hero */}
-        <div className={`${heroBg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}>
+        <div
+          className={`${heroBg} rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden`}
+        >
           {/* Texture */}
           <div className="absolute inset-0 opacity-10 bg-dot-grid" />
           <div className="relative">
@@ -176,7 +190,9 @@ export function FriendView({ payload, shareLink, shareToken }: Props): React.Rea
             <div className="flex items-center gap-3 mb-2">
               <Avatar name={payload.member.display_name} size="md" />
               <div>
-                <p className="text-sm font-medium text-white/70">Hi {payload.member.display_name}</p>
+                <p className="text-sm font-medium text-white/70">
+                  Hi {payload.member.display_name}
+                </p>
                 <p className="text-3xl sm:text-4xl font-extrabold tracking-tight">
                   {isPaid ? "All Settled!" : formatCents(owedAmount)}
                 </p>
@@ -189,49 +205,56 @@ export function FriendView({ payload, shareLink, shareToken }: Props): React.Rea
         </div>
 
         {/* Payment details — per settlement (with "I've paid" reporting) */}
-        {owes && mySettlements.length > 0 && mySettlements.map((s) => (
-          <Card key={s.to_member_id}>
-            <CardHeader>
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Pay {s.to_display_name} · {formatCents(s.amount_cents)}
-              </h2>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {s.creditor_profile ? (
-                <ProfilePaymentDetails pp={s.creditor_profile} />
-              ) : (
-                <p className="text-sm text-slate-500">
-                  {s.to_display_name} hasn&apos;t added payment details yet — ask them how they&apos;d like to be paid.
-                </p>
-              )}
-              <IvePaidButton
-                shareToken={shareToken}
-                toMemberId={s.to_member_id}
-                creditorName={s.to_display_name}
-                suggestedAmountCents={s.amount_cents}
-              />
-            </CardContent>
-          </Card>
-        ))}
+        {owes &&
+          mySettlements.length > 0 &&
+          mySettlements.map((s) => (
+            <Card key={s.to_member_id}>
+              <CardHeader>
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Pay {s.to_display_name} · {formatCents(s.amount_cents)}
+                </h2>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {s.creditor_profile ? (
+                  <ProfilePaymentDetails pp={s.creditor_profile} />
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    {s.to_display_name} hasn&apos;t added payment details yet — ask them how
+                    they&apos;d like to be paid.
+                  </p>
+                )}
+                <IvePaidButton
+                  shareToken={shareToken}
+                  toMemberId={s.to_member_id}
+                  creditorName={s.to_display_name}
+                  suggestedAmountCents={s.amount_cents}
+                />
+              </CardContent>
+            </Card>
+          ))}
 
         {/* Fallback: owner payment profile only (no per-member settlements available) */}
-        {owes && mySettlements.length === 0 && creditorProfiles.map((pp, idx) => (
-          <Card key={pp.member_id || idx}>
-            <CardHeader>
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {pp.display_name ? `Pay ${pp.display_name}` : "How to pay"}
-              </h2>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <ProfilePaymentDetails pp={pp} />
-            </CardContent>
-          </Card>
-        ))}
+        {owes &&
+          mySettlements.length === 0 &&
+          creditorProfiles.map((pp, idx) => (
+            <Card key={pp.member_id || idx}>
+              <CardHeader>
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {pp.display_name ? `Pay ${pp.display_name}` : "How to pay"}
+                </h2>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <ProfilePaymentDetails pp={pp} />
+              </CardContent>
+            </Card>
+          ))}
 
         {/* Expense breakdown */}
         <Card>
           <CardHeader>
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your expenses</h2>
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Your expenses
+            </h2>
           </CardHeader>
           <CardContent>
             {payload.expenses.length > 0 ? (
@@ -249,14 +272,20 @@ export function FriendView({ payload, shareLink, shareToken }: Props): React.Rea
                     </div>
                     {exp.category && (
                       <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: exp.category.color }} />
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: exp.category.color }}
+                        />
                         {exp.category.name}
                       </div>
                     )}
                     {exp.items && exp.items.length > 0 && (
                       <div className="mt-1.5 ml-3 border-l-2 border-brand-100 pl-3 flex flex-col gap-0.5">
                         {exp.items.map((item, j) => (
-                          <div key={j} className="flex items-center justify-between text-xs text-slate-500">
+                          <div
+                            key={j}
+                            className="flex items-center justify-between text-xs text-slate-500"
+                          >
                             <span>{item.name}</span>
                             <span>{formatCents(item.share_cents)}</span>
                           </div>
@@ -267,7 +296,11 @@ export function FriendView({ payload, shareLink, shareToken }: Props): React.Rea
                 ))}
               </div>
             ) : (
-              <EmptyState icon={Receipt} title="No expenses yet" description="Your expenses will appear here." />
+              <EmptyState
+                icon={Receipt}
+                title="No expenses yet"
+                description="Your expenses will appear here."
+              />
             )}
           </CardContent>
         </Card>
@@ -290,7 +323,7 @@ export function FriendView({ payload, shareLink, shareToken }: Props): React.Rea
           <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
             <span className="text-white text-[10px] font-bold">S</span>
           </div>
-          <span>Powered by SettleUp</span>
+          <span>Powered by Tabkind</span>
         </div>
       </div>
     </div>

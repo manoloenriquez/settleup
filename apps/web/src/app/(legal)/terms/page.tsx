@@ -1,3 +1,4 @@
+import { SUPPORT_HREF, SUPPORT_EMAIL } from "@/lib/branding";
 import type { Metadata } from "next";
 import { APP_NAME } from "@template/shared";
 
@@ -76,8 +77,8 @@ export default function TermsPage(): React.ReactElement {
       <Section title="Contact">
         <p>
           Questions:{" "}
-          <a href="mailto:hello@settleup.app" className="text-brand-600 hover:text-brand-700">
-            hello@settleup.app
+          <a href={SUPPORT_HREF} className="text-brand-600 hover:text-brand-700">
+            {SUPPORT_EMAIL ?? "Contact support"}
           </a>
         </p>
       </Section>

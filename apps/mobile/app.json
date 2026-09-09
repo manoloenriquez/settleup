@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "SettleUp",
+    "name": "Tabkind",
     "slug": "settleup",
     "description": "Split group expenses, simplify balances, and settle debts without awkward math.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "settleup",
+    "scheme": ["tabkind", "settleup"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {

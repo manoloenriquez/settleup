@@ -17,7 +17,7 @@ export default async function RegisterPage({
       <div className="mb-8 flex flex-col items-center gap-3">
         <Link href={ROUTES.HOME} className="flex items-center gap-2.5 group">
           <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shadow-md group-hover:bg-brand-700 transition-colors">
-            <span className="text-white text-base font-bold">S</span>
+            <span className="text-white text-base font-bold">{APP_NAME[0]}</span>
           </div>
           <span className="text-xl font-extrabold text-slate-900 tracking-tight">{APP_NAME}</span>
         </Link>

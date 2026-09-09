@@ -48,14 +48,10 @@ export function AppNav({ profile }: Props): React.ReactElement {
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 pt-safe">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-
         {/* Brand */}
-        <Link
-          href={ROUTES.DASHBOARD}
-          className="flex items-center gap-2 group"
-        >
+        <Link href={ROUTES.DASHBOARD} className="flex items-center gap-2 group">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-sm group-hover:bg-brand-700 transition-colors">
-            <span className="text-white text-sm font-bold">S</span>
+            <span className="text-white text-sm font-bold">{APP_NAME[0]}</span>
           </div>
           <span className="text-base font-bold text-slate-900 tracking-tight">{APP_NAME}</span>
         </Link>
@@ -109,7 +105,9 @@ export function AppNav({ profile }: Props): React.ReactElement {
               <div className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center">
                 <span className="text-white text-xs font-semibold">{initials}</span>
               </div>
-              <span className="text-sm text-slate-700 max-w-[120px] truncate font-medium">{displayName}</span>
+              <span className="text-sm text-slate-700 max-w-[120px] truncate font-medium">
+                {displayName}
+              </span>
               <ChevronDown size={14} className="text-slate-400" />
             </button>
 

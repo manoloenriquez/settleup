@@ -19,7 +19,7 @@ import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/compone
 import { deleteAccount } from "@/services/account";
 import { getRegisteredPushToken, registerForPush, unregisterFromPush } from "@/services/push";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { BETA_SUPPORT_EMAIL } from "@template/shared";
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
 
 export default function AccountScreen() {
   const toast = useToast();
@@ -102,11 +102,18 @@ export default function AccountScreen() {
   }
 
   async function handleBetaFeedback() {
-    const subject = encodeURIComponent("SettleUp beta feedback");
-    const url = `mailto:${BETA_SUPPORT_EMAIL}?subject=${subject}`;
+    if (!SUPPORT_EMAIL) {
+      Alert.alert(
+        "Preview support",
+        "Please contact the person who shared this preview. The support mailbox is not configured yet.",
+      );
+      return;
+    }
+    const subject = encodeURIComponent("Tabkind feedback");
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}`;
     const supported = await Linking.canOpenURL(url);
     if (!supported) {
-      Alert.alert("Email unavailable", `Send feedback to ${BETA_SUPPORT_EMAIL}.`);
+      Alert.alert("Email unavailable", `Send feedback to ${SUPPORT_EMAIL}.`);
       return;
     }
     await Linking.openURL(url);

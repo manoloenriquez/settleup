@@ -35,20 +35,20 @@ export const metadata: Metadata = {
     locale: "en_PH",
     url: "/",
     siteName: APP_NAME,
-    title: "SettleUp — Split it fair. Settle it simple.",
+    title: "Tabkind — Split it fair. Settle it simple.",
     description,
     images: [
       {
         url: "/og/settleup-social.png",
         width: 1200,
         height: 630,
-        alt: "SettleUp — Split it fair. Settle it simple.",
+        alt: "Tabkind — Split it fair. Settle it simple.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "SettleUp — Split it fair. Settle it simple.",
+    title: "Tabkind — Split it fair. Settle it simple.",
     description,
     images: ["/og/settleup-social.png"],
   },

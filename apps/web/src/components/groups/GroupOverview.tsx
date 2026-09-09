@@ -37,7 +37,10 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
     }
   }
 
-  const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
+  const totalOwed = payload.members.reduce(
+    (sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))),
+    0,
+  );
   lines.push("", `Total outstanding: ${formatCents(totalOwed)}`);
 
   // Direct pairwise debts (before netting)
@@ -46,7 +49,9 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
     if (pairwise.length > 0) {
       lines.push("", "WHO OWES WHOM (before netting):");
       for (const d of pairwise) {
-        lines.push(`${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`);
+        lines.push(
+          `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`,
+        );
       }
     }
   }
@@ -56,10 +61,13 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   if (settlements.length > 0) {
     lines.push("", "SUGGESTED SETTLEMENTS:");
     for (const s of settlements) {
-      lines.push(`${s.from_display_name} pays ${formatCents(s.amount_cents)} to ${s.to_display_name}`);
+      lines.push(
+        `${s.from_display_name} pays ${formatCents(s.amount_cents)} to ${s.to_display_name}`,
+      );
       const pp = s.creditor_profile;
       if (pp?.gcash_number) lines.push(`  GCash: ${pp.gcash_number}`);
-      if (pp?.bank_name && pp?.bank_account_number) lines.push(`  Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+      if (pp?.bank_name && pp?.bank_account_number)
+        lines.push(`  Bank: ${pp.bank_name} ${pp.bank_account_number}`);
     }
   } else {
     // Fallback to owner profile
@@ -67,7 +75,8 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
     if (pp) {
       if (pp.payer_display_name) lines.push("", `Pay to: ${pp.payer_display_name}`);
       if (pp.gcash_number) lines.push(`GCash: ${pp.gcash_number}`);
-      if (pp.bank_name && pp.bank_account_number) lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+      if (pp.bank_name && pp.bank_account_number)
+        lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
       if (pp.notes) lines.push(pp.notes);
     }
   }
@@ -83,10 +92,14 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   if (payload.expenses.length > 0) {
     lines.push("", "EXPENSES:");
     for (const exp of payload.expenses) {
-      const parts = exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ");
+      const parts = exp.participants
+        .map((p) => `${p.display_name} (${formatCents(p.share_cents)})`)
+        .join(", ");
       lines.push(`• ${exp.item_name} — ${formatCents(exp.amount_cents)}`);
       if (exp.payers && exp.payers.length > 0) {
-        lines.push(`  Paid by ${exp.payers.map((p) => `${p.display_name} (${formatCents(p.paid_cents)})`).join(", ")}`);
+        lines.push(
+          `  Paid by ${exp.payers.map((p) => `${p.display_name} (${formatCents(p.paid_cents)})`).join(", ")}`,
+        );
       }
       if (parts) lines.push(`  ${parts}`);
       if (exp.items && exp.items.length > 0) {
@@ -107,7 +120,10 @@ function formatPaymentDate(dateStr: string): string {
 export function GroupOverview({ payload }: Props): React.ReactElement {
   const settlements = computeSettlements(payload);
   const payments = payload.payments ?? [];
-  const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
+  const totalOwed = payload.members.reduce(
+    (sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))),
+    0,
+  );
   const summaryText = buildSummaryText(payload);
 
   return (
@@ -126,7 +142,9 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{payload.group.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {payload.group.name}
+            </h1>
             {totalOwed > 0 && (
               <p className="mt-1 text-sm text-white/70">{formatCents(totalOwed)} outstanding</p>
             )}
@@ -137,7 +155,11 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
         </div>
 
         {/* Member balances with per-member "why" breakdown */}
-        <OverviewMemberBreakdown members={payload.members} expenses={payload.expenses} payments={payments} />
+        <OverviewMemberBreakdown
+          members={payload.members}
+          expenses={payload.expenses}
+          payments={payments}
+        />
 
         {/* Direct pairwise debts, before netting into the Settle Up plan */}
         <OverviewPairwiseDebts expenses={payload.expenses} payments={payments} />
@@ -153,22 +175,31 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
         {payments.length > 0 && (
           <Card>
             <CardHeader>
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Payments recorded</h2>
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Payments recorded
+              </h2>
               <p className="mt-1 text-xs text-slate-400 normal-case">
                 Already paid? These settlements are counted in the balances above.
               </p>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
               {payments.map((p, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm rounded-xl bg-slate-50/70 border border-slate-100 px-3 py-2.5">
+                <div
+                  key={i}
+                  className="flex items-center gap-2 text-sm rounded-xl bg-slate-50/70 border border-slate-100 px-3 py-2.5"
+                >
                   <Avatar name={p.from_display_name} size="sm" />
                   <span className="text-slate-700 min-w-0 truncate">{p.from_display_name}</span>
                   <ArrowRight size={13} className="text-slate-400 shrink-0" />
                   <Avatar name={p.to_display_name} size="sm" />
                   <span className="text-slate-700 min-w-0 truncate">{p.to_display_name}</span>
                   <span className="ml-auto text-right shrink-0">
-                    <span className="block font-semibold text-slate-900">{formatCents(p.amount_cents)}</span>
-                    <span className="block text-[11px] text-slate-400">{formatPaymentDate(p.created_at)}</span>
+                    <span className="block font-semibold text-slate-900">
+                      {formatCents(p.amount_cents)}
+                    </span>
+                    <span className="block text-[11px] text-slate-400">
+                      {formatPaymentDate(p.created_at)}
+                    </span>
                   </span>
                 </div>
               ))}
@@ -184,7 +215,7 @@ export function GroupOverview({ payload }: Props): React.ReactElement {
           <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
             <span className="text-white text-[10px] font-bold">S</span>
           </div>
-          <span>Powered by SettleUp</span>
+          <span>Powered by Tabkind</span>
         </div>
       </div>
     </div>

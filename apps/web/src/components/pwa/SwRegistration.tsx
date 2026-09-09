@@ -31,7 +31,7 @@ export function SwRegistration(): null {
     });
 
     function promptForUpdate(waiting: ServiceWorker): void {
-      toast("A new version of SettleUp is available", {
+      toast("A new version of Tabkind is available", {
         duration: Infinity,
         action: {
           label: "Refresh",

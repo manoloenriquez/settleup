@@ -1,3 +1,4 @@
+import { SUPPORT_HREF, SUPPORT_EMAIL } from "@/lib/branding";
 import type { Metadata } from "next";
 import { APP_NAME } from "@template/shared";
 
@@ -14,9 +15,9 @@ export default function PrivacyPage(): React.ReactElement {
       </header>
 
       <p>
-        This Privacy Policy explains what information {APP_NAME} (&quot;we&quot;, &quot;our&quot;) collects,
-        how we use it, and the choices you have. {APP_NAME} is currently in beta testing and
-        intended for personal, non-commercial use.
+        This Privacy Policy explains what information {APP_NAME} (&quot;we&quot;, &quot;our&quot;)
+        collects, how we use it, and the choices you have. {APP_NAME} is currently in beta testing
+        and intended for personal, non-commercial use.
       </p>
 
       <Section title="What we collect">
@@ -45,8 +46,8 @@ export default function PrivacyPage(): React.ReactElement {
           <li>To provide the core expense-splitting features you actively use.</li>
           <li>
             To send a receipt image to a third-party AI provider for parsing, only when you
-            explicitly tap &quot;scan receipt&quot;. Images are not retained by the AI provider beyond the
-            request.
+            explicitly tap &quot;scan receipt&quot;. Images are not retained by the AI provider
+            beyond the request.
           </li>
           <li>To diagnose crashes and improve reliability.</li>
         </ul>
@@ -81,8 +82,8 @@ export default function PrivacyPage(): React.ReactElement {
       <Section title="Contact">
         <p>
           Questions or requests:{" "}
-          <a href="mailto:hello@settleup.app" className="text-brand-600 hover:text-brand-700">
-            hello@settleup.app
+          <a href={SUPPORT_HREF} className="text-brand-600 hover:text-brand-700">
+            {SUPPORT_EMAIL ?? "Contact support"}
           </a>
         </p>
       </Section>

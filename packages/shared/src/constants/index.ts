@@ -2,9 +2,8 @@
 // App metadata
 // ---------------------------------------------------------------------------
 
-export const APP_NAME = "SettleUp" as const;
+export const APP_NAME = "Tabkind" as const;
 export const APP_VERSION = "0.1.0" as const;
-export const BETA_SUPPORT_EMAIL = "hello@settleup.app" as const;
 
 // ---------------------------------------------------------------------------
 // Navigation routes — keep in sync across web and mobile
@@ -67,8 +66,20 @@ export const AI_LIMITS = {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
-  { slug: "food-drinks", name: "Food & Drinks", icon: "utensils", color: "#ef4444", sort_order: 10 },
-  { slug: "groceries", name: "Groceries", icon: "shopping-basket", color: "#10b981", sort_order: 20 },
+  {
+    slug: "food-drinks",
+    name: "Food & Drinks",
+    icon: "utensils",
+    color: "#ef4444",
+    sort_order: 10,
+  },
+  {
+    slug: "groceries",
+    name: "Groceries",
+    icon: "shopping-basket",
+    color: "#10b981",
+    sort_order: 20,
+  },
   { slug: "transport", name: "Transport", icon: "car", color: "#3b82f6", sort_order: 30 },
   { slug: "lodging", name: "Lodging", icon: "bed", color: "#8b5cf6", sort_order: 40 },
   { slug: "activities", name: "Activities", icon: "ticket", color: "#f59e0b", sort_order: 50 },
