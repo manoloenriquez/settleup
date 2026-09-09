@@ -90,40 +90,49 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
 
   const drain = useCallback(async (): Promise<void> => {
     if (!onlineManager.isOnline()) return;
-    const before = engine.getState().entries;
-    if (before.length === 0) return;
-    const groupIds = new Set(before.map((e) => e.groupId));
+    try {
+      const before = engine.getState().entries;
+      if (before.length === 0) return;
+      const groupIds = new Set(before.map((e) => e.groupId));
 
-    const result = await engine.drain();
+      const result = await engine.drain();
 
-    if (result.synced > 0) {
-      for (const key of invalidationKeysFor(groupIds)) {
-        void queryClient.invalidateQueries({ queryKey: key });
+      if (result.synced > 0) {
+        for (const key of invalidationKeysFor(groupIds)) {
+          void queryClient.invalidateQueries({ queryKey: key });
+        }
+        toast.success(
+          `Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`,
+        );
       }
-      toast.success(
-        `Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`,
-      );
-    }
-    if (result.failed > 0) {
-      toast.error(
-        `Couldn't sync ${result.failed} ${result.failed === 1 ? "change" : "changes"} — tap the banner to review`,
-      );
-    }
+      if (result.failed > 0) {
+        toast.error(
+          `Couldn't sync ${result.failed} ${result.failed === 1 ? "change" : "changes"} — tap the banner to review`,
+        );
+      }
 
-    // Arm a wake-up for the earliest scheduled backoff retry, if any.
-    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    const nextAttemptAt = engine.earliestNextAttemptAt();
-    if (nextAttemptAt) {
-      const delay = Math.max(1_000, new Date(nextAttemptAt).getTime() - Date.now());
-      retryTimerRef.current = setTimeout(() => void drain(), delay);
+      // Arm a wake-up for the earliest scheduled backoff retry, if any.
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      const nextAttemptAt = engine.earliestNextAttemptAt();
+      if (nextAttemptAt) {
+        const delay = Math.max(1_000, new Date(nextAttemptAt).getTime() - Date.now());
+        retryTimerRef.current = setTimeout(() => void drain(), delay);
+      }
+    } catch {
+      toast.error(
+        "Offline sync paused. Saved changes have been kept; try again when storage is available.",
+      );
     }
   }, [engine, queryClient, toast]);
 
   // Boot: restore the persisted queue (interrupted sends requeue), then try
   // to drain whatever survived a crash or kill.
   useEffect(() => {
-    void engine.init().then(() => void drain());
-  }, [engine, drain]);
+    void engine
+      .init()
+      .then(() => void drain())
+      .catch(() => toast.error("Saved changes could not be read. Your queue has been kept."));
+  }, [engine, drain, toast]);
 
   // Sign-out drops the queue (in memory and on disk): queued writes belong
   // to the account that made them and must not replay under another login.
@@ -132,11 +141,16 @@ export function OutboxProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
-        void engine.clear().then(() => clearOutboxStorage());
+        void engine
+          .clear()
+          .then(() => clearOutboxStorage())
+          .catch(() =>
+            toast.error("Could not clear local changes. Restart before switching accounts."),
+          );
       }
     });
     return () => subscription.unsubscribe();
-  }, [engine]);
+  }, [engine, toast]);
 
   // Drain on reconnect and on app foreground.
   useEffect(() => {

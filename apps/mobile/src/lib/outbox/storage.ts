@@ -6,8 +6,7 @@ const OUTBOX_STORAGE_KEY = "settleup-outbox";
 
 /**
  * AsyncStorage-backed persistence for the offline outbox. The engine
- * Zod-validates whatever `load` returns, so corrupt or outdated JSON
- * degrades to an empty queue instead of crashing.
+ * Zod-validates whatever `load` returns, so invalid JSON stops sync and preserves the saved queue.
  */
 export const outboxStorage: OutboxStorageAdapter = {
   async load(): Promise<unknown> {
@@ -17,11 +16,11 @@ export const outboxStorage: OutboxStorageAdapter = {
     } catch (error) {
       Sentry.addBreadcrumb({
         category: "outbox",
-        message: "Failed to load persisted outbox; starting empty",
+        message: "Failed to load persisted outbox; preserving stored data",
         level: "warning",
         data: { error: error instanceof Error ? error.message : String(error) },
       });
-      return null;
+      throw new Error("Could not read saved changes. The existing queue has been kept.");
     }
   },
 

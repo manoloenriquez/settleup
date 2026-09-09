@@ -267,10 +267,12 @@ describe("persistence guards", () => {
     expect(recoverInflight(state).entries[0]!.status).toBe("queued");
   });
 
-  it("degrades corrupt persisted state to an empty queue", () => {
+  it("preserves unreadable saved work instead of treating it as an empty queue", () => {
     expect(parseOutboxState(null)).toEqual({ entries: [] });
-    expect(parseOutboxState("garbage")).toEqual({ entries: [] });
-    expect(parseOutboxState({ entries: [{ nonsense: true }] })).toEqual({ entries: [] });
+    expect(() => parseOutboxState("garbage")).toThrow("stored queue has been kept");
+    expect(() => parseOutboxState({ entries: [{ nonsense: true }] })).toThrow(
+      "stored queue has been kept",
+    );
   });
 
   it("round-trips valid state", () => {

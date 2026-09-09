@@ -7,15 +7,14 @@ const OUTBOX_STORAGE_KEY = "settleup-outbox";
 /**
  * IndexedDB-backed persistence for the web offline outbox (idb-keyval —
  * IndexedDB survives storage pressure far better than localStorage). The
- * engine Zod-validates whatever `load` returns, so corrupt state degrades to
- * an empty queue instead of crashing.
+ * engine Zod-validates whatever `load` returns, so invalid state stops sync without overwriting the saved queue.
  */
 export const outboxStorage: OutboxStorageAdapter = {
   async load(): Promise<unknown> {
     try {
       return (await get<unknown>(OUTBOX_STORAGE_KEY)) ?? null;
     } catch {
-      return null;
+      throw new Error("Could not read saved changes. The existing queue has been kept.");
     }
   },
 

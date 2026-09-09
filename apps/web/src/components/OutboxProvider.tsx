@@ -49,12 +49,14 @@ type OutboxContextValue = {
 
 const OutboxContext = createContext<OutboxContextValue | null>(null);
 
-/** Serialize an outbox operation across tabs; falls back to direct call. */
+/** Do not risk cross-tab overwrites when exclusive browser locks are unavailable. */
 async function withOutboxLock<T>(fn: () => Promise<T>): Promise<T> {
   if (typeof navigator !== "undefined" && "locks" in navigator) {
     return navigator.locks.request("settleup-outbox", fn);
   }
-  return fn();
+  throw new Error(
+    "This browser cannot safely store offline changes. Use an updated browser and keep your draft open.",
+  );
 }
 
 export function OutboxProvider({ children }: { children: React.ReactNode }): React.ReactElement {
@@ -82,44 +84,57 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
 
   const drain = useCallback(async (): Promise<void> => {
     if (!navigator.onLine) return;
-    const groupIds = new Set<string>();
-    const result = await withOutboxLock(async () => {
-      await engine.init(); // pick up entries persisted by other tabs
-      const entries = engine.getState().entries;
-      if (entries.length === 0) return null;
-      for (const entry of entries) groupIds.add(entry.groupId);
-      return engine.drain();
-    });
-    if (result) {
-      if (result.synced > 0) {
-        // Stamp before invalidating so the realtime echo of our own replayed
-        // writes doesn't trigger a second refetch wave.
-        for (const groupId of groupIds) stampLocalInvalidate(groupId);
-        for (const key of invalidationKeysFor(groupIds)) {
-          void queryClient.invalidateQueries({ queryKey: key });
+    try {
+      const groupIds = new Set<string>();
+      const result = await withOutboxLock(async () => {
+        await engine.init(); // pick up entries persisted by other tabs
+        const entries = engine.getState().entries;
+        if (entries.length === 0) return null;
+        for (const entry of entries) groupIds.add(entry.groupId);
+        return engine.drain();
+      });
+      if (result) {
+        if (result.synced > 0) {
+          // Stamp before invalidating so the realtime echo of our own replayed
+          // writes doesn't trigger a second refetch wave.
+          for (const groupId of groupIds) stampLocalInvalidate(groupId);
+          for (const key of invalidationKeysFor(groupIds)) {
+            void queryClient.invalidateQueries({ queryKey: key });
+          }
+          toast.success(
+            `Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`,
+          );
         }
-        toast.success(
-          `Synced ${result.synced} offline ${result.synced === 1 ? "change" : "changes"}`,
-        );
+        if (result.failed > 0) {
+          toast.error(
+            `Couldn't sync ${result.failed} ${result.failed === 1 ? "change" : "changes"} — see pending changes`,
+          );
+        }
       }
-      if (result.failed > 0) {
-        toast.error(
-          `Couldn't sync ${result.failed} ${result.failed === 1 ? "change" : "changes"} — see pending changes`,
-        );
-      }
-    }
 
-    // Arm a wake-up for the earliest scheduled backoff retry, if any.
-    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    const nextAttemptAt = engine.earliestNextAttemptAt();
-    if (nextAttemptAt) {
-      const delay = Math.max(1_000, new Date(nextAttemptAt).getTime() - Date.now());
-      retryTimerRef.current = setTimeout(() => void drain(), delay);
+      // Arm a wake-up for the earliest scheduled backoff retry, if any.
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      const nextAttemptAt = engine.earliestNextAttemptAt();
+      if (nextAttemptAt) {
+        const delay = Math.max(1_000, new Date(nextAttemptAt).getTime() - Date.now());
+        retryTimerRef.current = setTimeout(() => void drain(), delay);
+      }
+    } catch {
+      toast.error(
+        "Offline sync paused. Saved changes have been kept; try again when storage is available.",
+        { id: "outbox-storage-error", duration: 10000 },
+      );
     }
   }, [engine, queryClient]);
 
   useEffect(() => {
-    void withOutboxLock(() => engine.init()).then(() => void drain());
+    void withOutboxLock(() => engine.init())
+      .then(() => void drain())
+      .catch(() => {
+        toast.error("Saved changes could not be read. Your queue has been kept.", {
+          id: "outbox-storage-error",
+        });
+      });
 
     const onOnline = (): void => void drain();
     const onVisible = (): void => {
@@ -143,6 +158,10 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
         void withOutboxLock(async () => {
           await engine.clear();
           await clearOutboxStorage();
+        }).catch(() => {
+          toast.error(
+            "Could not clear local changes. Close this tab before signing in to another account.",
+          );
         });
       }
     });

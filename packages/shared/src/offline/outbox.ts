@@ -7,21 +7,15 @@
 // ---------------------------------------------------------------------------
 
 import { z } from "zod";
-import type {
-  NewOutboxEntry,
-  OutboxEntry,
-  OutboxError,
-  OutboxJson,
-  OutboxState,
-} from "./types";
+import type { NewOutboxEntry, OutboxEntry, OutboxError, OutboxJson, OutboxState } from "./types";
 
 export function createEmptyOutboxState(): OutboxState {
   return { entries: [] };
 }
 
 // ---------------------------------------------------------------------------
-// Persistence validation — corrupt or outdated stored state must degrade to
-// an empty queue, never crash the app.
+// Persistence validation — unreadable state must remain in storage. Never
+// replace an existing queue with an empty one after a read or schema failure.
 // ---------------------------------------------------------------------------
 
 const outboxJsonSchema: z.ZodType<OutboxJson> = z.lazy(() =>
@@ -71,10 +65,15 @@ const outboxEntrySchema = z.object({
 
 const outboxStateSchema = z.object({ entries: z.array(outboxEntrySchema) });
 
-/** Validates persisted state; anything unparseable becomes an empty queue. */
+/** New installs start empty; unreadable saved work stops sync without data loss. */
 export function parseOutboxState(raw: unknown): OutboxState {
+  if (raw === null || raw === undefined) return createEmptyOutboxState();
   const result = outboxStateSchema.safeParse(raw);
-  return result.success ? result.data : createEmptyOutboxState();
+  if (!result.success)
+    throw new Error(
+      "Saved changes could not be read. Update the app or contact support; your stored queue has been kept.",
+    );
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +194,11 @@ export function markRetryableFailure(
  * the user, and every later queued entry that targets the same entity is
  * blocked — replaying an edit on top of a failed create/edit makes no sense.
  */
-export function markTerminalFailure(state: OutboxState, id: string, error: OutboxError): OutboxState {
+export function markTerminalFailure(
+  state: OutboxState,
+  id: string,
+  error: OutboxError,
+): OutboxState {
   const target = state.entries.find((e) => e.id === id);
   if (!target) return state;
 
