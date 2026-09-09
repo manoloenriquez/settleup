@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const initialised = useRef(false);
   const hadSessionRef = useRef(false);
+  const profileRequest = useRef(0);
   const intentionalSignOutRef = useRef(false);
 
   // -------------------------------------------------------------------------
@@ -59,16 +60,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // -------------------------------------------------------------------------
 
   const loadProfile = useCallback((userId: string) => {
+    const request = ++profileRequest.current;
     void (async () => {
       try {
         const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
         const { data: closed } = await supabase.schema("settleup").rpc("is_account_closed");
+        if (request !== profileRequest.current) return;
         setAccountClosed(closed === true);
         setProfile(data ?? null);
       } catch {
-        setProfile(null);
+        if (request === profileRequest.current) setProfile(null);
       } finally {
-        if (!initialised.current) {
+        if (request === profileRequest.current && !initialised.current) {
           setLoading(false);
           initialised.current = true;
         }
@@ -81,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // -------------------------------------------------------------------------
 
   useEffect(() => {
+    const requestCounter = profileRequest;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
@@ -96,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Trigger async profile load — callback itself stays synchronous.
         loadProfile(newSession.user.id);
       } else {
+        profileRequest.current++;
         // Detect session expiry: had a session, now SIGNED_OUT without a deliberate signOut() call.
         // Skip the alert while offline — a refresh that failed for lack of
         // connectivity is not an expired session, and supabase-js retries it.
@@ -123,7 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      requestCounter.current++;
+      subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
   // -------------------------------------------------------------------------
