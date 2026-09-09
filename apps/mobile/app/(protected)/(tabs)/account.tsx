@@ -17,7 +17,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useOnDeviceAi } from "@/hooks/useOnDeviceAi";
 import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
-import { getRegisteredPushToken, registerForPush, unregisterFromPush } from "@/services/push";
+import { getPushRegistration, registerForPush, unregisterFromPush } from "@/services/push";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
 
@@ -31,9 +31,17 @@ export default function AccountScreen() {
   const [pushBusy, setPushBusy] = useState(false);
   const onDeviceAi = useOnDeviceAi();
 
+  const userId = session?.user.id;
   useEffect(() => {
-    void getRegisteredPushToken().then((token) => setPushEnabled(token !== null));
-  }, []);
+    if (!userId) return;
+    let active = true;
+    void getPushRegistration(userId).then((res) => {
+      if (active && res.data !== null) setPushEnabled(res.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   async function handleTogglePush(next: boolean) {
     const userId = session?.user.id;

@@ -1,20 +1,15 @@
-// send-push: receives database trigger events (via pg_net) and delivers
-// Expo push notifications to the relevant group members.
+// send-push: forwards database-built Expo push messages to Expo.
 //
-// Deploy:  supabase functions deploy send-push --no-verify-jwt
-// Configure (SQL, per environment):
-//   INSERT INTO settleup.app_config (key, value) VALUES
-//     ('push_webhook_url',    'https://<ref>.supabase.co/functions/v1/send-push'),
-//     ('push_webhook_secret', '<random secret>');
-// The same secret must be set as a function secret:
-//   supabase secrets set PUSH_WEBHOOK_SECRET=<random secret>
+// The database trigger settleup.notify_push_event() resolves recipients and
+// device tokens itself and posts `{ messages: ExpoPushMessage[] }` here.
+// This function holds no database read access and no service-role key: it
+// verifies the shared secret, forwards the messages, and asks the database to
+// prune tokens Expo reports as DeviceNotRegistered through one narrow RPC
+// that is guarded by the same secret.
+//
+// See README.md in this directory for deployment and configuration.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-type TriggerPayload = {
-  event: "expense_added" | "payment_pending" | "payment_confirmed";
-  record: Record<string, unknown>;
-};
 
 type ExpoPushMessage = {
   to: string;
@@ -24,103 +19,133 @@ type ExpoPushMessage = {
   sound: "default";
 };
 
-const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+type ExpoTicket =
+  | { status: "ok"; id: string }
+  | { status: "error"; message?: string; details?: { error?: string } };
 
-function formatPHP(cents: number): string {
-  return `₱${(cents / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+const EXPO_BATCH = 100;
+const MAX_MESSAGES = 1000;
+const TOKEN_PATTERN = /^Expo(nent)?PushToken\[[^\]\s]{1,200}\]$/;
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+  // Compare against self on length mismatch so timing does not reveal length.
+  const other = left.length === right.length ? right : left;
+  let diff = left.length === right.length ? 0 : 1;
+  for (let i = 0; i < left.length; i++) diff |= left[i] ^ other[i];
+  return diff === 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseMessages(input: unknown): ExpoPushMessage[] | null {
+  if (!isRecord(input) || !Array.isArray(input.messages)) return null;
+  if (input.messages.length > MAX_MESSAGES) return null;
+  const messages: ExpoPushMessage[] = [];
+  for (const candidate of input.messages) {
+    if (!isRecord(candidate)) return null;
+    const { to, title, body, data } = candidate;
+    if (typeof to !== "string" || !TOKEN_PATTERN.test(to)) return null;
+    if (typeof title !== "string" || title.length === 0 || title.length > 200) return null;
+    if (typeof body !== "string" || body.length === 0 || body.length > 500) return null;
+    if (!isRecord(data)) return null;
+    messages.push({ to, title, body, data, sound: "default" });
+  }
+  return messages;
+}
+
+async function pruneTokens(secret: string, tokens: string[]): Promise<number> {
+  if (tokens.length === 0) return 0;
+  const url = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anonKey) {
+    console.error("prune skipped: SUPABASE_URL or SUPABASE_ANON_KEY missing");
+    return 0;
+  }
+  const supabase = createClient(url, anonKey, { db: { schema: "settleup" } });
+  const { data, error } = await supabase.rpc("prune_push_tokens", {
+    p_secret: secret,
+    p_tokens: tokens,
+  });
+  if (error) {
+    console.error("prune_push_tokens failed", error.code);
+    return 0;
+  }
+  return typeof data === "number" ? data : 0;
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
+
   const secret = Deno.env.get("PUSH_WEBHOOK_SECRET");
-  if (!secret || req.headers.get("x-push-secret") !== secret) {
+  const presented = req.headers.get("x-push-secret") ?? "";
+  if (!secret || !timingSafeEqual(presented, secret)) {
     return new Response("unauthorized", { status: 401 });
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { db: { schema: "settleup" } },
-  );
-
-  let payload: TriggerPayload;
+  let payload: unknown;
   try {
-    payload = (await req.json()) as TriggerPayload;
+    payload = await req.json();
   } catch {
     return new Response("bad request", { status: 400 });
   }
+  const messages = parseMessages(payload);
+  if (messages === null) return new Response("bad request", { status: 400 });
+  if (messages.length === 0) return Response.json({ sent: 0, failed: 0, pruned: 0 });
 
-  const record = payload.record;
-  const groupId = record["group_id"] as string | undefined;
-  if (!groupId) return new Response("ok", { status: 200 });
+  const expoHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  const expoAccessToken = Deno.env.get("EXPO_ACCESS_TOKEN");
+  if (expoAccessToken) expoHeaders["Authorization"] = `Bearer ${expoAccessToken}`;
 
-  const [{ data: group }, { data: members }] = await Promise.all([
-    supabase.from("groups").select("name").eq("id", groupId).single(),
-    supabase.from("group_members").select("id, display_name, user_id").eq("group_id", groupId),
-  ]);
-  const groupName = group?.name ?? "your group";
-  const memberById = new Map((members ?? []).map((m) => [m.id as string, m]));
+  let sent = 0;
+  let failed = 0;
+  const unregistered: string[] = [];
 
-  // Decide recipients (user ids) + message per event
-  let recipientUserIds: string[] = [];
-  let title = groupName;
-  let body = "";
-
-  if (payload.event === "expense_added") {
-    const itemName = (record["item_name"] as string) ?? "an expense";
-    const amount = formatPHP((record["amount_cents"] as number) ?? 0);
-    const creator = record["created_by_user_id"] as string | null;
-    recipientUserIds = (members ?? [])
-      .map((m) => m.user_id as string | null)
-      .filter((id): id is string => id !== null && id !== creator);
-    body = `New expense: ${itemName} (${amount})`;
-  } else if (payload.event === "payment_pending") {
-    const from = memberById.get(record["from_member_id"] as string);
-    const to = memberById.get(record["to_member_id"] as string);
-    const amount = formatPHP((record["amount_cents"] as number) ?? 0);
-    const toUserId = to?.user_id as string | null;
-    if (toUserId) recipientUserIds = [toUserId];
-    body = `${from?.display_name ?? "Someone"} says they paid you ${amount} — tap to confirm`;
-  } else if (payload.event === "payment_confirmed") {
-    const from = memberById.get(record["from_member_id"] as string);
-    const to = memberById.get(record["to_member_id"] as string);
-    const amount = formatPHP((record["amount_cents"] as number) ?? 0);
-    const fromUserId = from?.user_id as string | null;
-    if (fromUserId) recipientUserIds = [fromUserId];
-    body = `${to?.display_name ?? "The recipient"} confirmed your ${amount} payment`;
-  }
-
-  if (recipientUserIds.length === 0 || !body) {
-    return new Response("ok", { status: 200 });
-  }
-
-  const { data: tokens } = await supabase
-    .from("push_tokens")
-    .select("token")
-    .in("user_id", recipientUserIds);
-
-  const messages: ExpoPushMessage[] = (tokens ?? []).map((t) => ({
-    to: t.token as string,
-    title,
-    body,
-    data: { group_id: groupId, event: payload.event },
-    sound: "default",
-  }));
-
-  // Expo accepts batches of up to 100 messages
-  for (let i = 0; i < messages.length; i += 100) {
-    const chunk = messages.slice(i, i + 100);
-    const res = await fetch(EXPO_PUSH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(chunk),
-    });
-    if (!res.ok) {
-      console.error("expo push send failed", res.status, await res.text());
+  for (let i = 0; i < messages.length; i += EXPO_BATCH) {
+    const chunk = messages.slice(i, i + EXPO_BATCH);
+    let tickets: ExpoTicket[] = [];
+    try {
+      const res = await fetch(EXPO_PUSH_URL, {
+        method: "POST",
+        headers: expoHeaders,
+        body: JSON.stringify(chunk),
+      });
+      if (!res.ok) {
+        console.error("expo push send failed", res.status);
+        failed += chunk.length;
+        continue;
+      }
+      const parsed = (await res.json()) as { data?: ExpoTicket[] };
+      tickets = Array.isArray(parsed.data) ? parsed.data : [];
+    } catch (e) {
+      console.error("expo push request error", e instanceof Error ? e.message : String(e));
+      failed += chunk.length;
+      continue;
     }
+
+    chunk.forEach((message, index) => {
+      const ticket = tickets[index];
+      if (ticket?.status === "ok") {
+        sent += 1;
+        return;
+      }
+      failed += 1;
+      if (ticket?.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
+        unregistered.push(message.to);
+      } else if (ticket?.status === "error") {
+        // Log the error class only; tokens and bodies stay out of logs.
+        console.error("expo ticket error", ticket.details?.error ?? "unknown");
+      }
+    });
   }
 
-  return new Response(JSON.stringify({ sent: messages.length }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+  const pruned = await pruneTokens(secret, unregistered);
+  return Response.json({ sent, failed, pruned });
 });

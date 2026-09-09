@@ -41,7 +41,7 @@ Order is by risk reduction per hour. Reviewed by the Codex plan reviewer on 2026
 Migration `YYYYMMDDHHMMSS_push_delivery_payload.sql`:
 
 - `notify_push_event()` resolves recipients and tokens in SQL (it is already `SECURITY DEFINER`), builds `{ messages: [{ to, title, body, data }] }` with no full-row dump, and posts that. Group name stays in the title; the body carries only item name or amount as today.
-- `payment_pending` and `payment_confirmed` payloads carry `data.event` and `data.group_id`; `data.route` names the destination (`/groups/<id>` or `/groups/<id>/settle-up`).
+- Payloads carry `data.event`, `data.group_id` and `data.route`. All three events currently route to `/groups/<id>`, since the pending-payment confirmation card lives on the group screen; the route field exists so the database can retarget without a client release.
 - Keep the `app_config` toggle semantics: no URL or secret configured means no-op.
 
 Edge Function `send-push`:

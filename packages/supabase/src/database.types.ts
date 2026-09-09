@@ -748,6 +748,10 @@ export type Database = {
       };
       undo_last_payment_v2: { Args: { p_group_id: string; p_currency_code: CurrencyCode }; Returns: Json };
       undo_last_payment_for_member_v2: { Args: { p_from_member_id: string; p_currency_code: CurrencyCode }; Returns: Json };
+      prune_push_tokens: {
+        Args: { p_secret: string; p_tokens: string[] };
+        Returns: number;
+      };
       get_group_currencies: { Args: { p_group_id: string }; Returns: Json };
       get_friend_payment_reports_v2: {
         Args: { p_share_token: string; p_currency_code: CurrencyCode };

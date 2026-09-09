@@ -16,6 +16,8 @@ import { setupReactQueryNetworkWiring } from "@/lib/network";
 import { hydrateOnDeviceAiSetting } from "@/lib/settings/on-device-ai";
 import { supabase } from "@/lib/supabase";
 import { pendingAuthDestination, saveAuthDestination } from "@/lib/auth-links";
+import { subscribeToPushTokenRotation } from "@/services/push";
+import { notificationGroupRoute } from "@/lib/notifications";
 import { colors } from "@/theme";
 
 // Load the on-device AI opt-in into memory before any scan can run; until it
@@ -143,19 +145,26 @@ function OfflineStatusArea() {
 // Root stack
 // ---------------------------------------------------------------------------
 
+function PushTokenSync(): null {
+  const { session } = useAuth();
+  const userId = session?.user.id;
+  useEffect(() => {
+    if (!userId) return;
+    return subscribeToPushTokenRotation(userId);
+  }, [userId]);
+  return null;
+}
+
 function NotificationNavigation(): null {
   const router = useRouter();
   const { session } = useAuth();
   useEffect(() => {
     const handle = (response: Notifications.NotificationResponse): void => {
-      const groupId: unknown = response.notification.request.content.data["group_id"];
-      if (
-        typeof groupId !== "string" ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId)
-      )
-        return;
+      const route = notificationGroupRoute(response.notification.request.content.data);
+      if (!route) return;
+      const groupId = route.slice("/groups/".length);
       void (async () => {
-        await saveAuthDestination(`/groups/${groupId}`);
+        await saveAuthDestination(route);
         router.push(
           session
             ? { pathname: "/(protected)/groups/[id]", params: { id: groupId } }
@@ -230,6 +239,7 @@ function RootLayout() {
                 <OfflineStatusArea />
                 <RouteGuard />
                 <NotificationNavigation />
+                <PushTokenSync />
                 <RootStack />
               </OutboxProvider>
             </ToastProvider>
