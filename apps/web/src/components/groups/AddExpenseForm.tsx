@@ -1,7 +1,7 @@
 "use client";
 
 import type { NewOutboxEntry } from "@template/shared";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
@@ -53,6 +53,7 @@ export type ItemState = {
   id: string;
   categoryId: string | null;
   itemName: string;
+  notes: string;
   amountStr: string;
   selectedIds: string[];
   splitMode: SplitMode;
@@ -66,7 +67,7 @@ export type ItemState = {
   repeats: "none" | "weekly" | "monthly";
 };
 
-function makeEmptyItem(
+export function makeEmptyItem(
   allMemberIds: string[],
   firstMemberId: string,
   categoryId: string | null,
@@ -76,6 +77,7 @@ function makeEmptyItem(
     id: crypto.randomUUID(),
     categoryId,
     itemName: "",
+    notes: "",
     amountStr: "",
     selectedIds: previousSelectedIds ?? allMemberIds,
     splitMode: "equal",
@@ -98,16 +100,26 @@ type Props = {
   groupId: string;
   members: GroupMember[];
   categories: ExpenseCategory[];
+  items: ItemState[];
+  setItems: Dispatch<SetStateAction<ItemState[]>>;
+  expenseDate: string;
+  setExpenseDate: Dispatch<SetStateAction<string>>;
+  onSaved: () => void;
 };
 
-export function AddExpenseForm({ groupId, members, categories }: Props): React.ReactElement {
+export function AddExpenseForm({
+  groupId,
+  members,
+  categories,
+  items,
+  setItems,
+  expenseDate,
+  setExpenseDate,
+  onSaved,
+}: Props): React.ReactElement {
   const allMemberIds = members.map((m) => m.id);
   const firstMemberId = members[0]?.id ?? "";
   const defaultCategoryId = categories.find((category) => category.slug === "other")?.id ?? null;
-  const [items, setItems] = useState<ItemState[]>([
-    makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId),
-  ]);
-  const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
@@ -262,6 +274,14 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   }
 
   function isItemValid(item: ItemState): boolean {
+    const activeIds = new Set(
+      members.filter((member) => !member.departed_at).map((member) => member.id),
+    );
+    if (
+      item.selectedIds.some((id) => !activeIds.has(id)) ||
+      item.payers.some((payer) => !activeIds.has(payer.memberId))
+    )
+      return false;
     const amountCents = parsePHPAmount(item.amountStr) ?? 0;
     if (!item.itemName.trim() || amountCents <= 0) return false;
     if (item.payers.length === 0) return false;
@@ -335,6 +355,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   groupId,
                   categoryId: item.categoryId,
                   itemName: item.itemName.trim(),
+                  notes: item.notes || undefined,
                   amountCents,
                   expenseDate: expenseDate || undefined,
                   participantIds: item.selectedIds,
@@ -345,6 +366,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   groupId,
                   categoryId: item.categoryId,
                   itemName: item.itemName.trim(),
+                  notes: item.notes || undefined,
                   amountCents,
                   expenseDate: expenseDate || undefined,
                   customSplits: (resolveCustomSplits(item, amountCents) ?? []).map((s) => ({
@@ -372,6 +394,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
             groupId,
             categoryId: item.categoryId,
             itemName: item.itemName.trim(),
+            notes: item.notes || undefined,
             amountCents,
             expenseDate: expenseDate || undefined,
             payers: itemPayers(item, amountCents),
@@ -406,6 +429,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
         toast.info("Saved offline — will sync when you're back online");
         setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
         setExpenseDate(localTodayISO());
+        onSaved();
         setShowAdvanced({});
         setConfirming(false);
       })();
@@ -430,6 +454,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
             return {
               id: item.id,
               item_name: item.itemName.trim(),
+              notes: item.notes || undefined,
               amount_cents,
               category_id: item.categoryId,
               expense_date: expenseDate || undefined,
@@ -443,6 +468,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           return {
             id: item.id,
             item_name: item.itemName.trim(),
+            notes: item.notes || undefined,
             amount_cents,
             category_id: item.categoryId,
             expense_date: expenseDate || undefined,
@@ -484,6 +510,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           id: item.id,
           group_id: groupId,
           item_name: item.itemName.trim(),
+          notes: item.notes || undefined,
           amount_cents,
           category_id: item.categoryId,
           expense_date: expenseDate || undefined,
@@ -532,6 +559,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
       setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
       setExpenseDate(localTodayISO());
+      onSaved();
       setShowAdvanced({});
       setConfirming(false);
       toast.success("Expense added!");
@@ -725,6 +753,11 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
               />
             </div>
 
+            <Input
+              label="Notes (optional)"
+              value={item.notes}
+              onChange={(event) => updateItem(index, { notes: event.target.value })}
+            />
             <CategorySelect
               categories={categories}
               value={item.categoryId}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { CategorySelect } from "./CategoryControls";
+import { makeEmptyItem, type ItemState } from "./AddExpenseForm";
 import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 
@@ -29,6 +30,10 @@ type Props = {
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
+  item: ItemState;
+  setItem: (update: (item: ItemState) => ItemState) => void;
+  expenseDate: string;
+  setExpenseDate: Dispatch<SetStateAction<string>>;
   onClose?: () => void;
   onMoreOptions?: () => void;
 };
@@ -38,17 +43,26 @@ export function QuickAddExpense({
   members,
   categories,
   currentUserId,
+  item,
+  setItem,
+  expenseDate,
+  setExpenseDate,
   onClose,
   onMoreOptions,
 }: Props): React.ReactElement {
-  const clientIdRef = useRef(crypto.randomUUID());
-  const [itemName, setItemName] = useState("");
-  const [amountStr, setAmountStr] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(
-    categories.find((category) => category.slug === "other")?.id ?? null,
-  );
-  const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
-  const [selectedIds, setSelectedIds] = useState<string[]>(members.map((m) => m.id));
+  const { itemName, amountStr, categoryId, selectedIds } = item;
+  const payerId = item.payers[0]?.memberId ?? "";
+  const setItemName = (value: string): void =>
+    setItem((previous) => ({ ...previous, itemName: value }));
+  const setAmountStr = (value: string): void =>
+    setItem((previous) => ({ ...previous, amountStr: value }));
+  const setCategoryId = (value: string | null): void =>
+    setItem((previous) => ({ ...previous, categoryId: value }));
+  const setPayerId = (value: string): void =>
+    setItem((previous) => ({
+      ...previous,
+      payers: [{ memberId: value, amountStr: previous.amountStr }],
+    }));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
@@ -56,7 +70,6 @@ export function QuickAddExpense({
   const { enqueue } = useWebOutbox();
 
   const myMemberId = members.find((m) => m.user_id === currentUserId)?.id ?? members[0]?.id ?? "";
-  const [payerId, setPayerId] = useState(myMemberId);
   const payer = members.find((m) => m.id === payerId);
 
   // Live per-member preview of the equal split, in member-list order.
@@ -64,12 +77,17 @@ export function QuickAddExpense({
   const shares = new Map<string, number>();
   if (amountCents > 0 && selectedIds.length > 0) {
     const parts = equalSplit(amountCents, selectedIds.length);
-    const ordered = members.filter((m) => selectedIds.includes(m.id));
-    ordered.forEach((m, i) => shares.set(m.id, parts[i] ?? 0));
+    const ordered = [...selectedIds].sort();
+    ordered.forEach((id, i) => shares.set(id, parts[i] ?? 0));
   }
 
   function toggleMember(id: string): void {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setItem((previous) => ({
+      ...previous,
+      selectedIds: previous.selectedIds.includes(id)
+        ? previous.selectedIds.filter((x) => x !== id)
+        : [...previous.selectedIds, id],
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -85,8 +103,11 @@ export function QuickAddExpense({
       setError("Enter a description");
       return;
     }
-    if (!payerId) {
-      setError("No members in group");
+    if (
+      !members.some((member) => member.id === payerId) ||
+      selectedIds.some((id) => !members.some((member) => member.id === id))
+    ) {
+      setError("The group membership changed. Review the payer and participants.");
       return;
     }
     if (selectedIds.length === 0) {
@@ -96,15 +117,17 @@ export function QuickAddExpense({
 
     // Client-generated UUID = the create_expense idempotency key, shared by
     // the online action and the offline outbox replay.
-    const clientId = clientIdRef.current;
+    const clientId = item.id;
 
     const resetForm = (): void => {
-      clientIdRef.current = crypto.randomUUID();
-      setItemName("");
-      setAmountStr("");
+      setItem(() =>
+        makeEmptyItem(
+          members.map((member) => member.id),
+          myMemberId,
+          categories.find((category) => category.slug === "other")?.id ?? null,
+        ),
+      );
       setExpenseDate(localTodayISO());
-      setSelectedIds(members.map((m) => m.id));
-      setCategoryId(categories.find((category) => category.slug === "other")?.id ?? null);
     };
 
     if (!online) {
@@ -115,6 +138,7 @@ export function QuickAddExpense({
         groupId,
         categoryId,
         itemName: itemName.trim(),
+        notes: item.notes || undefined,
         amountCents: cents,
         expenseDate: expenseDate || undefined,
         participantIds: selectedIds,
@@ -148,6 +172,7 @@ export function QuickAddExpense({
         group_id: groupId,
         category_id: categoryId,
         item_name: itemName.trim(),
+        notes: item.notes || undefined,
         amount_cents: cents,
         expense_date: expenseDate || undefined,
         participant_ids: selectedIds,

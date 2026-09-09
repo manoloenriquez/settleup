@@ -109,14 +109,16 @@ export function GroupHeader({
         </div>
       </div>
 
-      <AddExpenseDialog
-        open={showExpenseDialog && !readOnly}
-        onClose={() => onShowExpenseDialogChange(false)}
-        groupId={groupId}
-        members={members}
-        categories={categories}
-        currentUserId={currentUserId}
-      />
+      {members.length > 0 && currentUserId && (
+        <AddExpenseDialog
+          open={showExpenseDialog && !readOnly}
+          onClose={() => onShowExpenseDialogChange(false)}
+          groupId={groupId}
+          members={members}
+          categories={categories}
+          currentUserId={currentUserId}
+        />
+      )}
     </>
   );
 }
