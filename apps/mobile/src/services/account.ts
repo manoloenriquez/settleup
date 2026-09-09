@@ -2,9 +2,10 @@ import { getApiBase } from "@/lib/api-base";
 import type { ApiResponse } from "@template/shared";
 
 /**
- * Permanently delete the authenticated user's account.
- * Calls apps/api DELETE /account with the user JWT. Shared ledgers and
- * the Auth login used by other applications are preserved.
+ * Close the authenticated user's account in this app.
+ * Calls apps/api DELETE /account with the user JWT; the API responds with
+ * `{ data: { closed: true } }`. Shared ledgers and the Auth login used by
+ * other applications are preserved.
  */
 export async function deleteAccount(accessToken: string): Promise<ApiResponse<null>> {
   const apiBase = getApiBase();

@@ -24,6 +24,9 @@ async function assertGroupMember(userId: string, groupId: string): Promise<boole
 
 async function enforceRateLimit(userId: string): Promise<string | null> {
   const rate = await checkRateLimit(userId);
+  if (rate.unavailable) {
+    return "AI is temporarily unavailable. Please try again shortly.";
+  }
   if (!rate.allowed) {
     return `Rate limited. Try again in ${Math.ceil(rate.retryAfterMs / 1000)}s.`;
   }

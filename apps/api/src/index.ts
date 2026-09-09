@@ -1,3 +1,5 @@
+import "./instrument";
+import * as Sentry from "@sentry/node";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -54,6 +56,8 @@ app.route("/account", account);
 app.notFound((c) => c.json({ data: null, error: "Not found" }, 404));
 
 app.onError((err, c) => {
+  // Report only the error; request bodies may hold receipts or ledger data.
+  Sentry.captureException(err, { tags: { route: c.req.path, method: c.req.method } });
   console.error("[api] unhandled error:", err);
   return c.json({ data: null, error: "Something went wrong." }, 500);
 });

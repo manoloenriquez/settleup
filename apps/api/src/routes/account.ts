@@ -13,7 +13,7 @@ account.delete("/", authMiddleware, async (c) => {
     console.error("[api] account closure failed", { userId: c.get("user").id, code: error.code });
     return c.json({ data: null, error: "Could not close account. Please try again." }, 500);
   }
-  return c.json({ data: { deleted: true }, error: null });
+  return c.json({ data: { closed: true }, error: null });
 });
 
 export default account;

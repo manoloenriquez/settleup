@@ -56,17 +56,26 @@ export async function requireGroupMember(token: string, userId: string, groupId:
   return { ok: true, data: undefined };
 }
 
+/**
+ * Consumes one AI rate-limit token via the `consume_ai_rate_limit` RPC.
+ *
+ * Fails closed: these routes bill a third-party provider per call, so an
+ * unavailable or malformed limiter result returns 503 rather than letting the
+ * request through unmetered. Mirrors apps/api/src/middleware/rate-limit.ts.
+ */
 export async function enforceAiRateLimit(token: string): Promise<RouteResult<void>> {
   const supabase = createUserScopedClient(token);
   const { data, error } = await supabase.rpc("consume_ai_rate_limit");
 
   if (error) {
-    return { ok: true, data: undefined };
+    console.error("[ai] consume_ai_rate_limit RPC failed:", error.message);
+    return { ok: false, response: rateLimiterUnavailable() };
   }
 
   const parsed = rateLimitResultSchema.safeParse(data);
   if (!parsed.success) {
-    return { ok: true, data: undefined };
+    console.error("[ai] unexpected consume_ai_rate_limit result:", parsed.error.message);
+    return { ok: false, response: rateLimiterUnavailable() };
   }
 
   if (!parsed.data.allowed) {
@@ -83,4 +92,11 @@ export async function enforceAiRateLimit(token: string): Promise<RouteResult<voi
   }
 
   return { ok: true, data: undefined };
+}
+
+function rateLimiterUnavailable(): Response {
+  return jsonResponse(
+    { data: null, error: "Rate limiter unavailable. Please try again shortly." },
+    { status: 503 },
+  );
 }

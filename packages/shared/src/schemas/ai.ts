@@ -68,7 +68,7 @@ export const parsedReceiptSchema = parsedReceiptBaseSchema
 
 export const expenseDraftSchema = z.strictObject({
   item_name: z.string().min(1),
-  amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
+  amount_cents: z.number().int().positive("Amount must be positive"),
   confidence: z.number().min(0).max(1),
   participant_names: z.array(z.string()),
   payer_name: z.string().nullable(),

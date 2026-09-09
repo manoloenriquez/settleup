@@ -4,6 +4,11 @@ export function GET(): Response {
     .split(",")
     .map((value) => value.trim())
     .filter((value) => /^(?:[A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}$/.test(value));
+  if ((!packageName || !fingerprints.length) && process.env.NODE_ENV === "production") {
+    console.warn(
+      "[well-known] assetlinks.json served empty: set ANDROID_PACKAGE and ANDROID_SHA256_CERT_FINGERPRINTS",
+    );
+  }
   return Response.json(
     packageName && fingerprints.length
       ? [

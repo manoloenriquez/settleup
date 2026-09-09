@@ -680,4 +680,9 @@ describe("expenseDraftSchema", () => {
     const result = expenseDraftSchema.safeParse({ ...base, mood: "hungry" });
     expect(result.success).toBe(false);
   });
+
+  it("rejects non-positive amounts like the write schemas", () => {
+    expect(expenseDraftSchema.safeParse({ ...base, amount_cents: 0 }).success).toBe(false);
+    expect(expenseDraftSchema.safeParse({ ...base, amount_cents: -100 }).success).toBe(false);
+  });
 });
