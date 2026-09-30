@@ -8,6 +8,8 @@ import * as Notifications from "expo-notifications";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { OutboxProvider } from "@/context/OutboxContext";
+import { PreferencesProvider, usePreferences } from "@/context/PreferencesContext";
+import { PersonalLedgerProvider } from "@/context/PersonalLedgerContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { PendingChangesSheet } from "@/components/PendingChangesSheet";
@@ -17,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { pendingAuthDestination, saveAuthDestination } from "@/lib/auth-links";
 import { subscribeToPushTokenRotation } from "@/services/push";
 import { notificationGroupRoute } from "@/lib/notifications";
+import { isGuestAllowed, ROUTES } from "@/lib/routes";
 import { colors } from "@/theme";
 
 // Show push notifications as banners while the app is foregrounded.
@@ -60,10 +63,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Something went wrong</Text>
+        <View style={styles.errorContainer} accessibilityRole="alert">
+          <Text style={styles.errorTitle}>Talli ran into a problem</Text>
           <Text style={styles.errorMessage}>
-            {this.state.error?.message ?? "An unexpected error occurred."}
+            Your expenses are safe on this iPhone. Try again, and if this keeps happening, close
+            and reopen the app.
+          </Text>
+          <Text
+            style={styles.errorRetry}
+            accessibilityRole="button"
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            Try Again
           </Text>
         </View>
       );
@@ -78,16 +89,25 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 
 function RouteGuard() {
   const { session, loading, accountClosed, recovering } = useAuth();
+  const { loaded: prefsLoaded, onboarded, preferences, completeOnboarding } = usePreferences();
   const segments = useSegments();
   const router = useRouter();
 
+  // People who already had an account before onboarding existed skip it.
   useEffect(() => {
-    if (loading) return;
+    if (prefsLoaded && session && !onboarded) {
+      void completeOnboarding(preferences.defaultCurrency).catch(() => undefined);
+    }
+  }, [prefsLoaded, session, onboarded, preferences.defaultCurrency, completeOnboarding]);
+
+  useEffect(() => {
+    if (loading || !prefsLoaded) return;
 
     const inAuthGroup = segments[0] === "(auth)";
     const inProtectedGroup = segments[0] === "(protected)";
     const path = segments.join("/");
     const publicLink = path === "claim" || path === "join" || path === "auth/callback";
+    const inOnboarding = path === "onboarding";
     if (session && accountClosed) {
       if (path !== "account-closed") router.replace("/account-closed");
       return;
@@ -98,21 +118,34 @@ function RouteGuard() {
       return;
     }
     if (path === "(auth)/update-password" || publicLink) return;
-    if (!session && !inAuthGroup) router.replace("/(auth)/login");
-    else if (session && !inProtectedGroup) {
+
+    if (!session) {
+      // Guests: onboarding once, then the parts of the app that need no account.
+      if (!onboarded) {
+        if (!inOnboarding && !inAuthGroup) router.replace(ROUTES.onboarding);
+        return;
+      }
+      if (inAuthGroup) return;
+      if (inProtectedGroup && isGuestAllowed(segments)) return;
+      // Account-only screens explain themselves on the Shared tab.
+      router.replace(inProtectedGroup ? ROUTES.shared : ROUTES.home);
+      return;
+    }
+
+    if (!inProtectedGroup) {
       let cancelled = false;
       void pendingAuthDestination()
         .then((destination) => {
           if (!cancelled) router.replace(destination);
         })
         .catch(() => {
-          if (!cancelled) router.replace("/(protected)/(tabs)/dashboard");
+          if (!cancelled) router.replace(ROUTES.home);
         });
       return () => {
         cancelled = true;
       };
     }
-  }, [session, loading, accountClosed, recovering, segments, router]);
+  }, [session, loading, prefsLoaded, onboarded, accountClosed, recovering, segments, router]);
 
   return null;
 }
@@ -179,8 +212,9 @@ function NotificationNavigation(): null {
 
 function RootStack() {
   const { loading } = useAuth();
+  const { loaded: prefsLoaded } = usePreferences();
 
-  if (loading) {
+  if (loading || !prefsLoaded) {
     return (
       <View style={styles.splash}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -191,6 +225,7 @@ function RootStack() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(protected)" />
     </Stack>
@@ -228,16 +263,20 @@ function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <QueryProvider>
           <AuthProvider>
-            <ToastProvider>
-              <OutboxProvider>
-                <StatusBar style="auto" />
-                <OfflineStatusArea />
-                <RouteGuard />
-                <NotificationNavigation />
-                <PushTokenSync />
-                <RootStack />
-              </OutboxProvider>
-            </ToastProvider>
+            <PreferencesProvider>
+              <PersonalLedgerProvider>
+                <ToastProvider>
+                  <OutboxProvider>
+                    <StatusBar style="auto" />
+                    <OfflineStatusArea />
+                    <RouteGuard />
+                    <NotificationNavigation />
+                    <PushTokenSync />
+                    <RootStack />
+                  </OutboxProvider>
+                </ToastProvider>
+              </PersonalLedgerProvider>
+            </PreferencesProvider>
           </AuthProvider>
         </QueryProvider>
       </GestureHandlerRootView>
@@ -269,7 +308,16 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 14,
+    lineHeight: 20,
     color: colors.gray500,
     textAlign: "center",
+  },
+  errorRetry: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.primary,
   },
 });

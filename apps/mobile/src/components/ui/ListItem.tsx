@@ -18,11 +18,13 @@ export function ListItem({ left, title, subtitle, right, onPress, style, showChe
       style={[styles.row, style]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
     >
       {left && <View style={styles.left}>{left}</View>}
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
-        {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
+        {subtitle && <Text style={styles.subtitle} numberOfLines={3}>{subtitle}</Text>}
       </View>
       {right && <View style={styles.right}>{right}</View>}
       {showChevron && <Text style={styles.chevron}>›</Text>}
@@ -35,7 +37,7 @@ const styles = StyleSheet.create({
   left: { marginRight: spacing.md },
   content: { flex: 1 },
   title: { fontSize: fontSize.md, color: colors.gray900, fontWeight: "500" },
-  subtitle: { fontSize: fontSize.sm, color: colors.gray400, marginTop: 2 },
+  subtitle: { fontSize: fontSize.sm, lineHeight: 18, color: colors.gray500, marginTop: 2 },
   right: { marginLeft: spacing.sm },
   chevron: { fontSize: 22, color: colors.gray300, marginLeft: 4 },
 });

@@ -1,0 +1,35 @@
+name: TalliUIDriver
+options:
+  bundleIdPrefix: dev.talli.uidriver
+  deploymentTarget:
+    iOS: "27.0"
+settings:
+  base:
+    CODE_SIGNING_ALLOWED: "NO"
+    SWIFT_VERSION: "6.0"
+targets:
+  UIDriverHost:
+    type: application
+    platform: iOS
+    sources: [Host]
+    info:
+      path: Host/Info.plist
+      properties:
+        UILaunchScreen: {}
+  TalliJourneys:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Journeys]
+    dependencies:
+      - target: UIDriverHost
+    settings:
+      base:
+        TEST_TARGET_NAME: UIDriverHost
+schemes:
+  TalliJourneys:
+    build:
+      targets:
+        UIDriverHost: all
+        TalliJourneys: [test]
+    test:
+      targets: [TalliJourneys]

@@ -1,66 +1,38 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useState } from "react";
-import { Stack, useRouter } from "expo-router";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDashboardSummary } from "@/hooks/useDashboard";
-import { useRecentActivity } from "@/hooks/useActivity";
-import { useProfile } from "@/hooks/useProfile";
-import { formatCents, APP_NAME } from "@template/shared";
+import { formatCents } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { SkeletonCard, ErrorBanner, Avatar } from "@/components/ui";
-import type { RecentActivityItem } from "@/services/activity";
+import { SkeletonCard, ErrorBanner } from "@/components/ui";
+import { ROUTES } from "@/lib/routes";
 
-function relativeTime(dateStr: string): string {
-  const diffMin = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-}
-
-function activityAmount(item: RecentActivityItem): { text: string; color: string } {
-  const amount = formatCents(item.amount_cents);
-  if (item.direction === "in") return { text: `+${amount}`, color: colors.success };
-  if (item.direction === "out") return { text: `-${amount}`, color: colors.danger };
-  return { text: amount, color: colors.gray700 };
-}
-
-export default function DashboardScreen() {
+/**
+ * Balances with other people (signed-in users only): net position, who owes
+ * whom, and each group. Group amounts are pesos until groups carry their own
+ * currency (audit phase 5).
+ */
+export function SharedBalances() {
   const router = useRouter();
   const { data: summary, isLoading: loadingSummary, refetch: refetchSummary, error: summaryError } = useDashboardSummary();
-  const { data: activity, refetch: refetchActivity } = useRecentActivity(5);
-  const { data: profile } = useProfile();
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  async function handleRefresh() {
-    setIsRefreshing(true);
-    await Promise.all([refetchSummary(), refetchActivity()]);
-    setIsRefreshing(false);
-  }
 
   const groups = summary?.groups ?? [];
   const netCents = summary?.net_balance_cents ?? 0;
   const isOwed = netCents > 0;
   const owes = netCents < 0;
-  const displayName = profile?.full_name ?? "there";
-  const firstName = displayName.split(" ")[0] ?? displayName;
   const owedCount = summary?.owed_counterparty_count ?? 0;
   const oweCount = summary?.owe_counterparty_count ?? 0;
-  const recentItems = activity ?? [];
 
   return (
-    <>
-      <Stack.Screen options={{ title: APP_NAME, headerShown: true }} />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-      >
+    <View>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle} accessibilityRole="header">
+          Shared with others
+        </Text>
+        <TouchableOpacity onPress={() => router.push(ROUTES.shared)} accessibilityRole="button" hitSlop={8}>
+          <Text style={styles.sectionLink}>All Groups</Text>
+        </TouchableOpacity>
+      </View>
         {summaryError && (
           <ErrorBanner
             message={summaryError instanceof Error ? summaryError.message : "Couldn't load your dashboard."}
@@ -68,27 +40,9 @@ export default function DashboardScreen() {
           />
         )}
 
-        {/* Greeting */}
-        <View style={styles.greetingRow}>
-          <View style={styles.greetingLeft}>
-            <Avatar name={displayName} size={38} />
-            <View>
-              <Text style={styles.greetingSub}>Welcome back</Text>
-              <Text style={styles.greetingName}>{firstName}</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.bellBtn}
-            onPress={() => router.push("/(protected)/(tabs)/activity")}
-            accessibilityLabel="Activity"
-          >
-            <Ionicons name="notifications-outline" size={18} color={colors.gray500} />
-          </TouchableOpacity>
-        </View>
-
         {/* Total balance */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>Total balance</Text>
+          <Text style={styles.heroLabel}>Your balance with others</Text>
           <Text
             style={[
               styles.heroAmount,
@@ -99,7 +53,7 @@ export default function DashboardScreen() {
             {netCents === 0 ? "All clear" : formatCents(netCents)}
           </Text>
           <Text style={styles.heroSub}>
-            {owes ? "Time to settle up" : "You’re in good shape! 🎉"}
+            {owes ? "You owe more than you’re owed" : isOwed ? "Others owe you" : "Nobody owes anybody"}
           </Text>
         </View>
 
@@ -131,64 +85,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Recent activity */}
-        {recentItems.length > 0 && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent activity</Text>
-              <TouchableOpacity onPress={() => router.push("/(protected)/(tabs)/activity")}>
-                <Text style={styles.sectionLink}>View all</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.activityCard}>
-              {recentItems.map((item, index) => {
-                const amount = activityAmount(item);
-                return (
-                  <TouchableOpacity
-                    key={`${item.type}-${item.id}`}
-                    style={[styles.activityRow, index > 0 && styles.activityRowBorder]}
-                    onPress={() => router.push(`/(protected)/groups/${item.group_id}`)}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.activityIcon,
-                        {
-                          backgroundColor:
-                            item.type === "payment"
-                              ? colors.successLight
-                              : (item.category?.color ?? colors.gray500) + "1a",
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={item.type === "payment" ? "cash-outline" : "receipt-outline"}
-                        size={16}
-                        color={item.type === "payment" ? colors.success : item.category?.color ?? colors.gray500}
-                      />
-                    </View>
-                    <View style={styles.activityBody}>
-                      <Text style={styles.activityTitle} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.activitySub} numberOfLines={1}>{item.subtitle}</Text>
-                    </View>
-                    <View style={styles.activityRight}>
-                      <Text style={[styles.activityAmount, { color: amount.color }]}>{amount.text}</Text>
-                      <Text style={styles.activityTime}>{relativeTime(item.created_at)}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* Groups Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your groups</Text>
-          <TouchableOpacity onPress={() => router.push("/(protected)/groups/new")}>
-            <Text style={styles.sectionLink}>+ New</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Groups */}
 
         {loadingSummary ? (
           <View style={styles.skeletonWrapper}>
@@ -200,8 +97,8 @@ export default function DashboardScreen() {
             <View style={styles.emptyIconWrap}>
               <Ionicons name="people-outline" size={32} color={colors.gray400} />
             </View>
-            <Text style={styles.emptyTitle}>No groups yet</Text>
-            <Text style={styles.emptySub}>Create a group to start tracking expenses</Text>
+            <Text style={styles.emptyTitle}>No shared expenses yet</Text>
+            <Text style={styles.emptySub}>Create a group for a trip, a household or a night out.</Text>
             <TouchableOpacity
               style={styles.emptyAction}
               onPress={() => router.push("/(protected)/groups/new")}
@@ -246,15 +143,11 @@ export default function DashboardScreen() {
             })}
           </ScrollView>
         )}
-      </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.base, paddingBottom: spacing["2xl"] },
-
   greetingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.base },
   greetingLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   greetingSub: { fontSize: fontSize.xs, color: colors.gray500 },

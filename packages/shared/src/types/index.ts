@@ -6,6 +6,7 @@ import type { CurrencyCode } from "../utils/currency";
 // ---------------------------------------------------------------------------
 
 export * from "./ai";
+export * from "./personal";
 
 // ---------------------------------------------------------------------------
 // Generic API response wrappers

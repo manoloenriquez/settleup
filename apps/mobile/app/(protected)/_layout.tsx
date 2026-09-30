@@ -1,18 +1,14 @@
 import { Stack } from "expo-router";
-import { colors, fontWeight, fontSize } from "@/theme";
+import { stackScreenOptions } from "@/lib/navigation";
 
 export default function ProtectedLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.gray900,
-        headerTitleStyle: { fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-        headerShadowVisible: false,
-        headerBackTitle: " ",
-      }}
-    >
+    <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "" }} />
+      {/* Personal expense forms are native page sheets: swipe down to cancel. */}
+      <Stack.Screen name="expense/new" options={{ presentation: "modal" }} />
+      <Stack.Screen name="expense/[id]" options={{ presentation: "modal" }} />
+      <Stack.Screen name="activity" options={{ title: "Activity" }} />
     </Stack>
   );
 }

@@ -9,7 +9,8 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
+import { ROUTES } from "@/lib/routes";
 import { useAuth } from "@/context/AuthContext";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
@@ -26,6 +27,7 @@ function ConfirmEmailState({
   email: string;
   onChange: () => void;
 }): React.ReactElement {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [nextAt, setNextAt] = useState(0);
@@ -60,11 +62,12 @@ function ConfirmEmailState({
       </View>
       <Text style={styles.confirmTitle}>Check your email</Text>
       <Text style={styles.confirmSubtitle}>
-        Check {email} for your confirmation link. Open it to activate your account and return to
-        your invitation.
+        We sent a confirmation link to {email}. Open it on this iPhone to finish creating your
+        account. You can keep using Talli in the meantime.
       </Text>
-      <AppButton title="Resend confirmation email" onPress={resend} isLoading={busy} />
-      <AppButton title="Change email address" onPress={onChange} variant="secondary" />
+      <AppButton title="Keep Using Talli" onPress={() => router.replace(ROUTES.home)} />
+      <AppButton title="Resend Email" variant="secondary" onPress={resend} isLoading={busy} />
+      <AppButton title="Use a Different Email" onPress={onChange} variant="ghost" />
       {message ? <Text accessibilityRole="alert">{message}</Text> : null}
       <Link href="/(auth)/login" asChild>
         <Pressable style={styles.backToLogin}>

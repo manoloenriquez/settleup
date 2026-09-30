@@ -14,9 +14,59 @@ import { Stack, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
 import { formatCents } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { Badge, EmptyState, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
+import { AppButton, Badge, EmptyState, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
+import { useAuth } from "@/context/AuthContext";
+import { HeaderAddButton } from "@/components/HeaderAddButton";
+import { largeTitleOptions } from "@/lib/navigation";
+import { ROUTES } from "@/lib/routes";
+import { presentChoices } from "@/hooks/useAddMenu";
 
-export default function GroupsScreen() {
+export default function SharedScreen() {
+  const { session } = useAuth();
+  return session ? <GroupsScreen /> : <SharedGuestScreen />;
+}
+
+/** Guests see what sharing is and how to start, not an error. */
+function SharedGuestScreen() {
+  const router = useRouter();
+  return (
+    <>
+      <Stack.Screen options={{ ...largeTitleOptions, title: "Shared" }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.guest} contentInsetAdjustmentBehavior="automatic">
+        <View style={styles.guestIcon}>
+          <Ionicons name="people" size={32} color={colors.primary} />
+        </View>
+        <Text style={styles.guestTitle} accessibilityRole="header">
+          Share expenses with an account
+        </Text>
+        <Text style={styles.guestBody}>
+          Create a free account to split trips, rent and dinners with friends. Talli keeps the
+          balances, and people you add don’t need the app — they get a link showing what they owe
+          and how to pay you.
+        </Text>
+        <View style={styles.guestPoints}>
+          {[
+            ["people-outline", "Groups and friends with shared balances"],
+            ["link-outline", "A payment link with your GCash or bank details"],
+            ["sync-outline", "Your expenses backed up and on every device"],
+          ].map(([icon, text]) => (
+            <View key={text} style={styles.guestPoint}>
+              <Ionicons name={icon as React.ComponentProps<typeof Ionicons>["name"]} size={20} color={colors.primary} />
+              <Text style={styles.guestPointText}>{text}</Text>
+            </View>
+          ))}
+        </View>
+        <AppButton title="Create Account" onPress={() => router.push(ROUTES.register)} />
+        <AppButton title="Sign In" variant="secondary" onPress={() => router.push(ROUTES.login)} />
+        <Text style={styles.guestNote}>
+          Your personal expenses keep working without an account.
+        </Text>
+      </ScrollView>
+    </>
+  );
+}
+
+function GroupsScreen() {
   const toast = useToast();
   const router = useRouter();
   const { data: groups, isLoading, isFetching, isError, refetch } = useGroupsWithStats();
@@ -48,31 +98,35 @@ export default function GroupsScreen() {
     <>
       <Stack.Screen
         options={{
-          title: "Groups",
-          headerShown: true,
+          ...largeTitleOptions,
+          title: "Shared",
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.push(ROUTES.activity)}
+              accessibilityRole="button"
+              accessibilityLabel="Activity"
+              hitSlop={12}
+            >
+              <Ionicons name="time-outline" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          ),
           headerRight: () => (
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                onPress={() => router.push("/(protected)/join-group")}
-                style={styles.headerBtn}
-              >
-                <Ionicons name="add" size={18} color={colors.primary} />
-                <Text style={styles.headerBtnText}>Join</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/(protected)/groups/new")}
-                style={styles.headerBtn}
-              >
-                <Ionicons name="add" size={18} color={colors.primary} />
-                <Text style={styles.headerBtnText}>New</Text>
-              </TouchableOpacity>
-            </View>
+            <HeaderAddButton
+              label="Create or join a group"
+              onPress={() =>
+                presentChoices("Shared expenses", [
+                  { label: "Create Group", run: () => router.push(ROUTES.newGroup) },
+                  { label: "Join with an Invite Code", run: () => router.push(ROUTES.joinGroup) },
+                ])
+              }
+            />
           ),
         }}
       />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !isLoading}
@@ -109,9 +163,9 @@ export default function GroupsScreen() {
           <EmptyState
             icon="people-outline"
             title="No groups yet"
-            description="Create a group to start tracking shared expenses"
+            description="Create a group for a trip, a household or a night out, or join one with an invite code."
             actionLabel="Create Group"
-            onAction={() => router.push("/(protected)/groups/new")}
+            onAction={() => router.push(ROUTES.newGroup)}
           />
         ) : (
           <View style={styles.list}>
@@ -141,8 +195,8 @@ export default function GroupsScreen() {
                   </View>
                   <View style={styles.cardRight}>
                     {(group.total_owed_cents ?? 0) > 0 ? (
-                      <Text style={[styles.cardAmount, { color: colors.danger }]}>
-                        {formatCents(group.total_owed_cents ?? 0)}
+                      <Text style={[styles.cardAmount, { color: colors.gray700 }]}>
+                        {formatCents(group.total_owed_cents ?? 0)} open
                       </Text>
                     ) : (
                       <Badge label="Settled" variant="success" />
@@ -180,7 +234,12 @@ export default function GroupsScreen() {
                     <Text style={styles.archivedName} numberOfLines={1}>
                       {group.name}
                     </Text>
-                    <TouchableOpacity onPress={() => handleRestore(group.id, group.name)}>
+                    <TouchableOpacity
+                      onPress={() => handleRestore(group.id, group.name)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Restore ${group.name}`}
+                      hitSlop={10}
+                    >
                       <Text style={styles.restoreBtn}>Restore</Text>
                     </TouchableOpacity>
                   </View>
@@ -195,6 +254,21 @@ export default function GroupsScreen() {
 }
 
 const styles = StyleSheet.create({
+  guest: { padding: spacing.xl, gap: spacing.base },
+  guestIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900 },
+  guestBody: { fontSize: fontSize.md, lineHeight: 22, color: colors.gray600 },
+  guestPoints: { gap: spacing.md, marginVertical: spacing.sm },
+  guestPoint: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  guestPointText: { flex: 1, fontSize: fontSize.base, color: colors.gray800 },
+  guestNote: { fontSize: fontSize.sm, color: colors.gray500, textAlign: "center" },
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.base, paddingBottom: spacing["2xl"] },
   list: { gap: spacing.sm },

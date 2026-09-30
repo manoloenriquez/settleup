@@ -30,7 +30,7 @@ export async function pendingAuthDestination(): Promise<Href> {
     return { pathname: "/join", params: { code: url.searchParams.get("code") ?? "" } };
   const groupId = /^\/groups\/([0-9a-f-]{36})$/.exec(url.pathname)?.[1];
   if (groupId) return { pathname: "/(protected)/groups/[id]", params: { id: groupId } };
-  return "/(protected)/(tabs)/dashboard";
+  return "/(protected)/(tabs)/home";
 }
 
 /** Accept only a callback opened by the OS or the OAuth auth-session browser. */

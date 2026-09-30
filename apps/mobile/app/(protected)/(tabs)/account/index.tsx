@@ -17,7 +17,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useAiAvailability } from "@/hooks/useAiAvailability";
 import { usePendingCounts } from "@/hooks/useOutbox";
 import { useOutbox } from "@/context/OutboxContext";
-import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
+import { AppButton, Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
 import {
   getPushRegistration,
@@ -26,9 +26,92 @@ import {
   unregisterFromPush,
 } from "@/services/push";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { currencyName } from "@template/shared";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
+import { usePreferences } from "@/context/PreferencesContext";
+import { usePersonalLedger } from "@/context/PersonalLedgerContext";
+import { largeTitleOptions } from "@/lib/navigation";
+import { ROUTES } from "@/lib/routes";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
 
-export default function AccountScreen() {
+export default function AccountTab() {
+  const { session } = useAuth();
+  return session ? <AccountScreen /> : <GuestAccountScreen />;
+}
+
+/** Default currency and what runs on this iPhone — shown to everyone. */
+function PreferencesSection() {
+  const { preferences, setDefaultCurrency } = usePreferences();
+  const aiAvailability = useAiAvailability();
+  const toast = useToast();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <>
+      <Text style={styles.sectionLabel}>PREFERENCES</Text>
+      <Card padding={0}>
+        <ListItem
+          title="Main Currency"
+          subtitle={`${currencyName(preferences.defaultCurrency)} (${preferences.defaultCurrency}) · new expenses start in it`}
+          left={<Ionicons name="cash-outline" size={20} color={colors.primary} />}
+          showChevron
+          onPress={() => setPickerOpen(true)}
+        />
+        <View style={styles.divider} />
+        <ListItem
+          title="On-device intelligence"
+          subtitle={
+            aiAvailability.state === "ready"
+              ? "Receipt scanning and “Describe it” run on this iPhone with Apple Intelligence. Photos and expenses never leave the device for this."
+              : aiAvailability.state === "checking"
+                ? "Checking Apple Intelligence…"
+                : (aiAvailability.reason ?? "Apple Intelligence isn't available on this device.")
+          }
+          left={<Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />}
+        />
+      </Card>
+      <CurrencyPicker
+        visible={pickerOpen}
+        selected={preferences.defaultCurrency}
+        onSelect={(code) => {
+          void setDefaultCurrency(code).then(
+            () => toast.success(`New expenses will use ${code}`),
+            () => toast.error("The currency couldn’t be saved."),
+          );
+        }}
+        onClose={() => setPickerOpen(false)}
+      />
+    </>
+  );
+}
+
+function GuestAccountScreen() {
+  const router = useRouter();
+  const { expenses } = usePersonalLedger();
+  return (
+    <>
+      <Stack.Screen options={{ ...largeTitleOptions, title: "Account" }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+        <Card style={styles.profileCard}>
+          <Text style={styles.profileName}>You’re using Talli without an account</Text>
+          <Text style={styles.guestBody}>
+            {expenses.length > 0
+              ? `Your ${expenses.length} ${expenses.length === 1 ? "expense is" : "expenses are"} saved on this iPhone only. `
+              : "Everything you add is saved on this iPhone only. "}
+            Create a free account to back them up, use them on other devices, and share expenses with
+            friends.
+          </Text>
+          <View style={styles.guestActions}>
+            <AppButton title="Create Account" onPress={() => router.push(ROUTES.register)} />
+            <AppButton title="Sign In" variant="secondary" onPress={() => router.push(ROUTES.login)} />
+          </View>
+        </Card>
+        <PreferencesSection />
+      </ScrollView>
+    </>
+  );
+}
+
+function AccountScreen() {
   const toast = useToast();
   const router = useRouter();
   const { session, signOut } = useAuth();
@@ -36,7 +119,6 @@ export default function AccountScreen() {
   const [deleting, setDeleting] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const aiAvailability = useAiAvailability();
   const { pending } = usePendingCounts();
   const { drain } = useOutbox();
 
@@ -166,8 +248,8 @@ export default function AccountScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Account", headerShown: true }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ ...largeTitleOptions, title: "Account" }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         {isLoading ? (
           <SkeletonCard />
         ) : (
@@ -186,14 +268,16 @@ export default function AccountScreen() {
           </Card>
         )}
 
+        <PreferencesSection />
+
         <Text style={styles.sectionLabel}>SETTINGS</Text>
         <Card padding={0}>
           <ListItem
-            title="Payment Settings"
-            subtitle="GCash, bank details, QR code"
+            title="Payment Details"
+            subtitle="GCash, bank account and QR code people use to pay you"
             left={<Ionicons name="card-outline" size={20} color={colors.primary} />}
             showChevron
-            onPress={() => router.push("/(protected)/account/payment")}
+            onPress={() => router.push("/(protected)/(tabs)/account/payment")}
           />
           <View style={styles.divider} />
           <ListItem
@@ -203,7 +287,7 @@ export default function AccountScreen() {
               <Ionicons name="pencil-outline" size={20} color={colors.gray600 ?? colors.gray400} />
             }
             showChevron
-            onPress={() => router.push("/(protected)/account/edit-profile")}
+            onPress={() => router.push("/(protected)/(tabs)/account/edit-profile")}
           />
           <View style={styles.divider} />
           <ListItem
@@ -219,18 +303,6 @@ export default function AccountScreen() {
                 accessibilityLabel="Push notifications"
               />
             }
-          />
-          <View style={styles.divider} />
-          <ListItem
-            title="On-device intelligence"
-            subtitle={
-              aiAvailability.state === "ready"
-                ? "Receipt scanning, chat entry, smart split and insights run on this iPhone with Apple Intelligence. Photos and expenses never leave the device."
-                : aiAvailability.state === "checking"
-                  ? "Checking Apple Intelligence…"
-                  : aiAvailability.reason ?? "Apple Intelligence isn't available on this device."
-            }
-            left={<Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />}
           />
           <View style={styles.divider} />
           <ListItem
@@ -278,6 +350,8 @@ const styles = StyleSheet.create({
   content: { padding: spacing.base, paddingBottom: spacing["2xl"] },
 
   profileCard: { marginBottom: spacing.base },
+  guestBody: { fontSize: fontSize.base, lineHeight: 21, color: colors.gray600, marginTop: spacing.sm },
+  guestActions: { gap: spacing.sm, marginTop: spacing.base },
   profileTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   profileInfo: { flex: 1 },
   profileName: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900 },

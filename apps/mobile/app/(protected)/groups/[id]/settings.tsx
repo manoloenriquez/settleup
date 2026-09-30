@@ -188,7 +188,7 @@ export default function GroupSettingsScreen() {
               toast.error(r.error);
               return;
             }
-            router.replace("/(protected)/(tabs)/groups");
+            router.replace("/(protected)/(tabs)/shared");
           },
         },
       ],
@@ -426,7 +426,7 @@ export default function GroupSettingsScreen() {
               toast.error(r.error);
               return;
             }
-            router.replace("/(protected)/(tabs)/groups");
+            router.replace("/(protected)/(tabs)/shared");
           },
         },
       ],

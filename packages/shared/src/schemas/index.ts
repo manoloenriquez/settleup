@@ -2,6 +2,7 @@ import { z } from "zod";
 import { currencyCodeSchema } from "../utils/currency";
 
 export * from "./ai";
+export * from "./personal";
 
 // ---------------------------------------------------------------------------
 // Primitives
