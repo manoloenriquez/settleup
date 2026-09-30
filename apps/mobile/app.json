@@ -18,11 +18,13 @@
       "policy": "appVersion"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.settleup.app",
+      "supportsTablet": false,
+      "bundleIdentifier": "com.manoloenriquez.talli",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "L8Y7B5Z7EQ",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
