@@ -74,3 +74,17 @@ The next competitive phase remains friends/one-to-one balances, previewed import
 ## Release configuration
 
 Use the checked-in `.env.example` files, then run `pnpm check:launch-config` with the release environment. Missing settings are reported without printing their values. Required identities include the owned web origin, a verified support mailbox, EAS project, iOS team/bundle, Android package and Play signing fingerprints. Configure the matching Auth redirect allowlist and verify both `/.well-known/` routes from the deployed HTTPS domain. Presence checks are not evidence of ownership, mailbox delivery or verified native links.
+
+## Apple Intelligence migration (2026-10-01)
+
+All language-model features moved on-device (FoundationModels + Vision, iOS 27).
+OpenAI, the `/ai/*` API routes, the web `/api/ai/*` handlers, the AI rate
+limiter and every AI provider key were removed; `packages/ai` keeps only the
+deterministic web helpers. The iOS minimum deployment target is 27.0. Receipt
+numbers are reconciled against the OCR text and receipt arithmetic in
+`packages/shared` (`reconcileReceiptExtraction`), and the review screen shows
+per-field states instead of a confidence percentage. Regression check:
+`pnpm eval:receipts` (design, device requirements and results in
+`docs/brain/05-apple-intelligence.md`). Web and Android keep the deterministic
+paths only; the UI says AI needs an iPhone with Apple Intelligence.
+

@@ -36,7 +36,6 @@ apps/web/src/
 │   └── <feature>/         Feature-specific components
 ├── lib/
 │   ├── supabase/          Supabase client helpers
-│   ├── ai/                LLM provider abstraction
 │   └── tokens.ts          Share token helpers (server-only, Node.js crypto)
 └── middleware.ts
 ```

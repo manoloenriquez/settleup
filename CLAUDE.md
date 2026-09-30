@@ -9,6 +9,7 @@ This file is authoritative context for Claude Code. Follow these rules strictly.
 - `docs/brain/02-conventions.md` — naming, file placement, how to add a feature
 - `docs/brain/03-supabase.md` — schema reference, RLS policies, RPCs, migrations
 - `docs/brain/04-offline.md` — offline-first architecture, sync engine, idempotency/CAS contract, test matrix
+- `docs/brain/05-apple-intelligence.md` — on-device AI pipeline, availability states, device requirements, receipt evaluation suite
 - `docs/launch-readiness.md` — launch status and evidence; `docs/launch-implementation-plan.md` — remaining work and scope decisions
 
 ---
@@ -55,6 +56,7 @@ supabase/
 | New migration | `supabase/migrations/YYYYMMDDHHMMSS_description.sql` |
 | Regen DB types | `pnpm supabase gen types typescript --local > packages/supabase/src/database.types.ts` |
 | SQL tests (local Supabase) | see `docs/brain/03-supabase.md` → SQL Tests; CI job `db-tests` runs them |
+| Receipt eval (macOS 27) | `pnpm eval:receipts` |
 
 ---
 
@@ -74,7 +76,7 @@ type ApiResponse<T> = { data: T; error: null } | { data: null; error: string };
 
 **Security:** No `SUPABASE_SERVICE_ROLE_KEY` in web/mobile app code; validate MIME type + size before Storage uploads; only `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` vars in client bundles. The only allowed service-role use is the `apps/api` authenticated self-account-deletion route.
 
-**AI:** `generateJSON<T>()` in `apps/web/src/lib/ai/` — validate all output with Zod; rate limit per user; AI never writes to DB directly; handle `LLM_ENABLED=false` gracefully.
+**AI:** on-device only (Apple Intelligence, iOS 27) via the local Expo module `apps/mobile/modules/apple-intelligence` and `apps/mobile/src/lib/ai/`; validate every native payload with Zod; the model labels, deterministic code (`packages/shared` receipt-reconcile, split utils) computes every number; AI never writes to DB directly; no cloud AI provider or fallback may be added. Handle every `SystemLanguageModel` availability state. Run `pnpm eval:receipts` after prompt or OCR changes (`docs/brain/05-apple-intelligence.md`).
 
 ---
 

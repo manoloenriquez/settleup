@@ -90,42 +90,25 @@ wired; swap the sink to add one. Details: `docs/brain/03-supabase.md`.
 
 ## AI Layer
 
-Provider-abstracted LLM integration in `apps/web/src/lib/ai/`.
+Every language-model feature runs on the iPhone with Apple Intelligence
+(FoundationModels + Vision, iOS 27). No cloud AI provider exists in the
+repository. Full design, availability handling, offline behaviour, device
+requirements and the evaluation suite: `05-apple-intelligence.md`.
 
 ```
-generateJSON<T>({ system, prompt, schema, userId })
-    │
-    ├── isLLMEnabled() check (LLM_ENABLED env var)
-    ├── checkRateLimit(userId) — in-memory, per-user
-    ├── createProvider() — OpenAI
-    ├── provider.generate({ system, prompt, imageBase64? })
-    ├── JSON.parse(result.text)
-    └── schema.safeParse(parsed) — Zod validation
-        → returns ApiResponse<T>
+Receipt photo → Vision OCR rows → FoundationModels @Generable extraction
+   → reconcileReceiptExtraction() (packages/shared, deterministic)
+   → ReceiptReview (verified / likely / needs_review / missing per field)
+   → review screen → existing expense RPCs
 ```
 
-Feature modules:
-- `receipt.ts` — vision LLM image → expense draft (falls back to OCR+text LLM → regex)
-- `smart-split.ts` — suggest split amounts
-- `insights.ts` — spending analysis
-- `conversation.ts` — natural language expense entry
+- Native code: `apps/mobile/modules/apple-intelligence/` (local Expo module).
+- TypeScript layer: `apps/mobile/src/lib/ai/` (bridge, pure mappers, features).
+- Web keeps deterministic helpers in `packages/ai` (Tesseract + regex receipt
+  parse, keyword expense parser, equal split, computed insights). Android and
+  ineligible iPhones use manual entry; the UI states why.
 
 **AI never writes to DB.** All AI output is a draft that the user must confirm.
-
-### On-device receipt scanning (mobile, iOS-only)
-
-Receipt scans on mobile route through `structureExpenseFromImage()` in
-`apps/mobile/src/lib/ai/receipt.ts`. Routing truth is
-`shouldUseOnDevice() = user opt-in && apple.isAvailable()` — the opt-in is a
-device-local AsyncStorage flag (`settleup.on_device_ai`, default OFF, toggle on
-the Account screen) and availability is checked live per scan, never persisted.
-When true: Apple Vision OCR (`expo-text-extractor`) → Apple Foundation Models
-guided generation (`@react-native-ai/apple`), fully offline — on failure the
-user is sent to retake/manual entry, the image is **never** uploaded. When
-false (toggle off, Android, incapable device): multipart upload to the existing
-`/ai/receipt?strict=true` endpoint, unchanged. Both paths return the shared
-`ParsedReceipt` (`ExpenseExtraction`) type. Requires a dev build (Expo Go can't
-load the native modules) — already the project baseline.
 
 ## Environment Variables
 
@@ -137,11 +120,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY     client-safe (RLS enforced)
 NEXT_PUBLIC_APP_URL               client-safe
 
 SUPABASE_SERVICE_ROLE_KEY         server-only — NEVER use in app code
-LLM_ENABLED                       true | false
-OPENAI_API_KEY                    required when LLM_ENABLED=true
-OPENAI_MODEL                      default: gpt-4o-mini (text tasks)
-OPENAI_VISION_MODEL               default: gpt-5.4-mini (receipt scanning)
 ```
+
+No AI provider keys exist: language-model features run on-device.
 
 ### Mobile (`apps/mobile/.env`)
 

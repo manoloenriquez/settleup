@@ -95,8 +95,6 @@ for (const key of ["NEXT_PUBLIC_SUPPORT_EMAIL", "EXPO_PUBLIC_SUPPORT_EMAIL"])
 
 if (process.env.NODE_ENV !== "production")
   warnings.push("NODE_ENV is not production: the API reflects exp:// origins and Sentry stays disabled");
-if (process.env.LLM_ENABLED !== "true" && process.env.LLM_ENABLED !== "false")
-  warnings.push("LLM_ENABLED is not an explicit true/false; AI stays off unless it is exactly \"true\"");
 for (const [surface, keys] of monitoring)
   if (!keys.some((key) => process.env[key]))
     warnings.push(`No Sentry DSN for ${surface}; production errors there will not be reported`);

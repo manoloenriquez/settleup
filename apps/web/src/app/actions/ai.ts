@@ -10,6 +10,11 @@ import type { ApiResponse } from "@template/shared/types";
 import type { ParsedReceipt, SmartSplitResult, ExpenseDraft } from "@template/shared/types";
 import { z } from "zod";
 
+// These actions are deterministic and self-hosted (Tesseract OCR + regex,
+// keyword parsing, equal splits). No third-party AI provider is called from the
+// web app; the language-model features run on iPhone with Apple Intelligence.
+// Receipt OCR is the one CPU-heavy path, so it keeps the per-user limiter.
+
 async function assertGroupMember(userId: string, groupId: string): Promise<boolean> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -22,17 +27,6 @@ async function assertGroupMember(userId: string, groupId: string): Promise<boole
   return data !== null;
 }
 
-async function enforceRateLimit(userId: string): Promise<string | null> {
-  const rate = await checkRateLimit(userId);
-  if (rate.unavailable) {
-    return "AI is temporarily unavailable. Please try again shortly.";
-  }
-  if (!rate.allowed) {
-    return `Rate limited. Try again in ${Math.ceil(rate.retryAfterMs / 1000)}s.`;
-  }
-  return null;
-}
-
 // ---------------------------------------------------------------------------
 // Receipt parsing
 // ---------------------------------------------------------------------------
@@ -43,8 +37,9 @@ export async function parseReceipt(
   try {
     const user = await assertAuth();
 
-    const rateError = await enforceRateLimit(user.id);
-    if (rateError) return { data: null, error: rateError };
+    const rate = await checkRateLimit(user.id);
+    if (rate.unavailable) return { data: null, error: "Receipt scanning is temporarily unavailable. Please try again shortly." };
+    if (!rate.allowed) return { data: null, error: `Too many scans. Try again in ${Math.ceil(rate.retryAfterMs / 1000)}s.` };
 
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -98,9 +93,6 @@ export async function getSmartSplit(
       return { data: null, error: "You are not a member of this group." };
     }
 
-    const rateError = await enforceRateLimit(user.id);
-    if (rateError) return { data: null, error: rateError };
-
     return await suggestSplit({
       item_name: parsed.data.item_name,
       amount_cents: parsed.data.amount_cents,
@@ -138,9 +130,6 @@ export async function parseConversationMessage(
     if (!isMember) {
       return { data: null, error: "You are not a member of this group." };
     }
-
-    const rateError = await enforceRateLimit(user.id);
-    if (rateError) return { data: null, error: rateError };
 
     return await parseConversation({
       messages: parsed.data.messages,

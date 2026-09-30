@@ -45,9 +45,9 @@ export default function PrivacyPage(): React.ReactElement {
         <ul className="list-disc space-y-1.5 pl-5">
           <li>To provide the core expense-splitting features you actively use.</li>
           <li>
-            To send a receipt image to a third-party AI provider for parsing, only when you
-            explicitly tap &quot;scan receipt&quot;. Images are not retained by the AI provider
-            beyond the request.
+            To read receipts and expense descriptions with on-device intelligence on iPhone (Apple
+            Intelligence). Receipt photos and expense text used for these features are processed on
+            your device and are never sent to us or to any AI provider.
           </li>
           <li>To diagnose crashes and improve reliability.</li>
         </ul>
@@ -56,8 +56,8 @@ export default function PrivacyPage(): React.ReactElement {
       <Section title="Sharing">
         <p>
           We do not sell or rent your data. We share data only with the service providers required
-          to run the app (Supabase for database/auth/storage, OpenAI for receipt parsing when you
-          opt in). We do not use your data to train AI models.
+          to run the app (Supabase for database/auth/storage). No third-party AI provider receives
+          your data. We do not use your data to train AI models.
         </p>
       </Section>
 

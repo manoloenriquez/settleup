@@ -1,23 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { computeInsights } from "@template/ai/insights";
-import { getGroupInsights } from "@/app/actions/insights";
 import { useExpenseSummaries, useGroupRow, useMembersWithBalances } from "@/hooks/queries";
 import { InsightsDashboard } from "@/components/groups/InsightsDashboard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
-import { ChevronRight, BarChart3, Sparkles } from "lucide-react";
+import { ChevronRight, BarChart3 } from "lucide-react";
 
 type Props = {
   groupId: string;
 };
 
 /**
- * Numeric insights render instantly from the cached expense summaries; the
- * LLM summary (rate-limited, seconds-slow) streams in after paint via its own
- * query — "insights" is in NON_PERSISTED_KEYS so AI output never persists.
+ * Numeric insights render instantly from the cached expense summaries. The
+ * narrative summary is an on-device feature of the iPhone app (Apple
+ * Intelligence); the web shows the statistics only.
  */
 export function InsightsPageClient({ groupId }: Props): React.ReactElement {
   const groupQ = useGroupRow(groupId);
@@ -27,17 +25,6 @@ export function InsightsPageClient({ groupId }: Props): React.ReactElement {
   const summaries = summariesQ.data ?? [];
   const memberNameMap = new Map((balancesQ.data ?? []).map((b) => [b.member_id, b.display_name]));
 
-  const llmQ = useQuery({
-    queryKey: ["insights", groupId],
-    queryFn: async () => {
-      const result = await getGroupInsights(groupId);
-      if (result.error !== null) throw new Error(result.error);
-      return result.data?.llm_summary ?? null;
-    },
-    staleTime: Infinity,
-    retry: 0,
-    enabled: summaries.length > 0,
-  });
 
   const group = groupQ.data ?? null;
 
@@ -102,15 +89,7 @@ export function InsightsPageClient({ groupId }: Props): React.ReactElement {
           />
         </Card>
       ) : (
-        <>
-          {llmQ.isFetching && (
-            <p className="flex items-center gap-2 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-brand-700">
-              <Sparkles size={15} className="animate-pulse" />
-              Generating AI summary…
-            </p>
-          )}
-          <InsightsDashboard insights={{ ...insights, llm_summary: llmQ.data ?? null }} />
-        </>
+        <InsightsDashboard insights={{ ...insights, llm_summary: null }} />
       )}
     </div>
   );
