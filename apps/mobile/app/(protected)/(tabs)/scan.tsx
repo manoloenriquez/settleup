@@ -22,6 +22,7 @@ import { useAddExpense, useAddItemizedExpense } from "@/hooks/useExpenses";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { ReceiptItemEditor, type EditableLineItem } from "@/components/scan/ReceiptItemEditor";
 import { GroupPicker } from "@/components/scan/GroupPicker";
+import { seedReceiptItems } from "@/lib/expense-draft";
 import { AppButton, ChipGroup, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
@@ -71,11 +72,13 @@ export default function ScanScreen(): React.ReactElement {
   function handleReceiptParsed(): void {
     if (!receiptScan.receipt) return;
     const r = receiptScan.receipt;
-    setEditedItems(
-      r.line_items.length > 0
-        ? r.line_items.map((li) => ({ ...li, included: true }))
-        : [{ description: r.merchant ?? "Total", quantity: 1, unit_price_cents: r.total_cents, total_cents: r.total_cents, included: true }],
-    );
+    // Charges become a shared line and discounts are spread across the items,
+    // so the included items already add up to what was paid.
+    const seeded = seedReceiptItems(r);
+    setEditedItems(seeded.items);
+    if (seeded.discountCents > 0) {
+      toast.info(`A discount of ${formatCents(seeded.discountCents)} was spread across the items so the total matches the receipt.`);
+    }
     setExpenseName(r.merchant ?? "Receipt Expense");
     setTotalCents(r.total_cents);
     setStep("review");
@@ -83,10 +86,7 @@ export default function ScanScreen(): React.ReactElement {
 
   function handleReviewContinue(name: string, cents: number, items: EditableLineItem[]): void {
     const original = receiptScan.receipt;
-    const edited =
-      !original ||
-      cents !== original.total_cents ||
-      items.filter((item) => item.included).length !== Math.max(original.line_items.length, 1);
+    const edited = !original || cents !== original.total_cents;
     track({ name: "ai_draft_resolved", properties: { status: edited ? "edited" : "accepted" } });
     setExpenseName(name);
     setTotalCents(cents);
@@ -251,7 +251,7 @@ export default function ScanScreen(): React.ReactElement {
               merchant={receiptScan.receipt?.merchant ?? null}
               date={receiptScan.receipt?.date ?? null}
               items={editedItems}
-              confidence={receiptScan.receipt?.confidence ?? 0}
+              review={receiptScan.review}
               provider={receiptScan.provider}
               onItemsChange={setEditedItems}
               onContinue={handleReviewContinue}

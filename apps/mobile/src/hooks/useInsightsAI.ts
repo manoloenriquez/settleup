@@ -7,7 +7,6 @@ export function useInsightsAI() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generate = useCallback(async (opts: {
-    groupId: string;
     groupName: string;
     insights: Omit<InsightsSummary, "llm_summary">;
   }) => {

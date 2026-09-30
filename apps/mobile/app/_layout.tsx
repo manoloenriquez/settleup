@@ -13,16 +13,11 @@ import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { PendingChangesSheet } from "@/components/PendingChangesSheet";
 import { usePendingCounts } from "@/hooks/useOutbox";
 import { setupReactQueryNetworkWiring } from "@/lib/network";
-import { hydrateOnDeviceAiSetting } from "@/lib/settings/on-device-ai";
 import { supabase } from "@/lib/supabase";
 import { pendingAuthDestination, saveAuthDestination } from "@/lib/auth-links";
 import { subscribeToPushTokenRotation } from "@/services/push";
 import { notificationGroupRoute } from "@/lib/notifications";
 import { colors } from "@/theme";
-
-// Load the on-device AI opt-in into memory before any scan can run; until it
-// resolves, reads default to false (cloud path).
-void hydrateOnDeviceAiSetting();
 
 // Show push notifications as banners while the app is foregrounded.
 Notifications.setNotificationHandler({

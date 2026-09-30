@@ -2,10 +2,12 @@ import { track } from "@/lib/analytics";
 import { useState, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import type { ExpenseExtraction } from "@template/shared/types";
+import type { ReceiptReview } from "@template/shared";
 import { structureExpenseFromImage, type ReceiptProvider } from "@/lib/ai/receipt";
 
 export function useReceiptScan() {
   const [receipt, setReceipt] = useState<ExpenseExtraction | null>(null);
+  const [review, setReview] = useState<ReceiptReview | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export function useReceiptScan() {
     setIsScanning(true);
     setError(null);
     setReceipt(null);
+    setReview(null);
     setProvider(null);
     setImageUri(uri);
 
@@ -60,6 +63,7 @@ export function useReceiptScan() {
       } else {
         track({ name: "ai_draft_generated", properties: { source: "receipt" } });
         setReceipt(result.data);
+        setReview(result.review);
         setProvider(result.provider);
       }
     } finally {
@@ -69,6 +73,7 @@ export function useReceiptScan() {
 
   const clear = useCallback(() => {
     setReceipt(null);
+    setReview(null);
     setImageUri(null);
     setError(null);
     setProvider(null);
@@ -80,5 +85,5 @@ export function useReceiptScan() {
     await scanFromCamera();
   }, [clear, scanFromCamera]);
 
-  return { receipt, imageUri, isScanning, error, provider, scanFromCamera, scanFromGallery, retake, clear };
+  return { receipt, review, imageUri, isScanning, error, provider, scanFromCamera, scanFromGallery, retake, clear };
 }

@@ -17,6 +17,11 @@ export default tseslint.config(
       '**/*.config.js',
       '**/*.config.ts',
       '**/babel.config.js',
+      // Expo config plugins are plain CommonJS run by the Expo CLI, outside any tsconfig project.
+      'apps/mobile/plugins/**',
+      // Generated native project (untracked prebuild output).
+      'apps/mobile/ios/**',
+      'apps/mobile/android/**',
     ],
   },
 

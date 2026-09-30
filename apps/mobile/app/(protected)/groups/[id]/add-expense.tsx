@@ -28,20 +28,22 @@ import { ReceiptItemEditor, type EditableLineItem } from "@/components/scan/Rece
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ExpenseDraft } from "@template/shared/types";
 import {
+  applyDraftSplit,
   applySmartSplit,
   draftStorageKey,
   isDraftEmpty,
   isDraftResolved,
   parsePersistedDraft,
-  reconcileReceipt,
+  receiptToLineItems,
   resolutionEdited,
   resolveDraft,
+  seedReceiptItems,
   type DraftResolution,
   type PersistedDraft,
 } from "@/lib/expense-draft";
 import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit } from "@template/shared";
+import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit, inferReceiptCategory } from "@template/shared";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -113,14 +115,15 @@ export default function AddExpenseScreen() {
 
   const membersQ = useMembers(groupId);
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
+  const myMemberName = members.find((m) => m.user_id === session?.user.id)?.display_name ?? null;
   const categoriesQ = useCategories(groupId);
   const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
   const addExpense = useAddExpense(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
   const createRecurring = useCreateRecurringExpense(groupId);
-  const conversationAI = useConversationAI({ groupId, members });
-  const smartSplit = useSmartSplit({ groupId });
+  const conversationAI = useConversationAI({ members, userName: myMemberName });
+  const smartSplit = useSmartSplit();
   const receiptScan = useReceiptScan();
   const aiAvailability = useAiAvailability();
   const [showSmartSplit, setShowSmartSplit] = useState(false);
@@ -307,26 +310,21 @@ export default function AddExpenseScreen() {
     void AsyncStorage.removeItem(draftStorageKey(draftUserId, groupId)).catch(() => undefined);
   }
 
-  // Seed the editable receipt review from each new scan result.
+  // Seed the editable receipt review from each new scan result. Charges become
+  // a shared line and discounts are spread across the items, so the included
+  // items already add up to what was paid.
   useEffect(() => {
     const receipt = receiptScan.receipt;
     if (!receipt) {
       setReceiptItems([]);
       return;
     }
-    setReceiptItems(
-      receipt.line_items.length > 0
-        ? receipt.line_items.map((item) => ({ ...item, included: true }))
-        : [
-            {
-              description: receipt.merchant ?? "Total",
-              quantity: 1,
-              unit_price_cents: receipt.total_cents,
-              total_cents: receipt.total_cents,
-              included: true,
-            },
-          ],
-    );
+    const seeded = seedReceiptItems(receipt);
+    setReceiptItems(seeded.items);
+    if (seeded.discountCents > 0) {
+      toast.info(`A discount of ${formatCents(seeded.discountCents)} was spread across the items so the total matches the receipt.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable; seed once per scan
   }, [receiptScan.receipt]);
 
   const activeGroupMembers = members.filter((member) => !member.departed_at);
@@ -585,10 +583,27 @@ export default function AddExpenseScreen() {
     setItemName(draft.item_name);
     setAmount(draft.amount_cents > 0 ? (draft.amount_cents / 100).toFixed(2) : "");
     setNotes(draft.notes ?? "");
-    setSelectedMembers(new Set(resolution.participants.map((participant) => participant.memberId)));
+    const participantIds = resolution.participants.map((participant) => participant.memberId);
+    setSelectedMembers(new Set(participantIds));
     setPayerMemberId(resolution.payerId);
     setMultiPayer(false);
-    setSplitMode("equal");
+    // An unequal split the user described in words becomes the matching split
+    // mode with its inputs prefilled; the cents are computed by the form.
+    const described = applyDraftSplit(
+      draft.split ?? null,
+      resolution.participants.map((participant, index) => ({
+        memberId: participant.memberId,
+        name: members.find((m) => m.id === participant.memberId)?.display_name ?? draft.participant_names[index] ?? "",
+      })),
+      draft.amount_cents,
+    );
+    setSplitMode(described.splitMode);
+    setPercentShares(described.percentShares);
+    setShareWeights(described.shareWeights);
+    setCustomShares(described.customShares);
+    if (described.excludedMemberIds.length > 0) {
+      setSelectedMembers(new Set(participantIds.filter((id) => !described.excludedMemberIds.includes(id))));
+    }
     if (aiReview.categoryId) setCategoryId(aiReview.categoryId);
     if (draft.date) setExpenseDate(draft.date);
     draftOrigin.current = "chat";
@@ -891,7 +906,9 @@ export default function AddExpenseScreen() {
           {/* ---- CHAT MODE ---- */}
           {mode === "chat" && (
             <View style={styles.form}>
-              {aiAvailability === "unavailable" && <ErrorBanner message={AI_UNAVAILABLE_MESSAGE} />}
+              {aiAvailability.state === "unavailable" && (
+                <ErrorBanner message={`${aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE} Simple messages like "Lunch 500 split Ana Ben" still work.`} />
+              )}
               <View style={styles.chatHistory}>
                 {conversationAI.messages.length === 0 && (
                   <Text style={styles.chatHint}>Try: "Lunch 500 split with Manolo and Ana"</Text>
@@ -970,7 +987,7 @@ export default function AddExpenseScreen() {
                 <View style={styles.chatTextInput}>
                   <AppTextInput value={chatInput} onChangeText={setChatInput} placeholder="Describe the expense…" onSubmitEditing={() => void handleChatSend()} returnKeyType="send" />
                 </View>
-                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing || aiAvailability === "unavailable"}>
+                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing}>
                   <Text style={styles.sendBtnText}>{"\u2192"}</Text>
                 </TouchableOpacity>
               </View>
@@ -994,7 +1011,7 @@ export default function AddExpenseScreen() {
                   merchant={receiptScan.receipt.merchant}
                   date={receiptScan.receipt.date}
                   items={receiptItems}
-                  confidence={receiptScan.receipt.confidence}
+                  review={receiptScan.review}
                   provider={receiptScan.provider}
                   onItemsChange={setReceiptItems}
                   onContinue={(name, cents, items) => {
@@ -1005,20 +1022,16 @@ export default function AddExpenseScreen() {
                       toast.error("Keep at least one item to continue.");
                       return;
                     }
-                    const edited =
-                      cents !== original.total_cents ||
-                      included.length !== Math.max(original.line_items.length, 1);
+                    const edited = cents !== original.total_cents;
                     track({ name: "ai_draft_resolved", properties: { status: edited ? "edited" : "accepted" } });
                     draftOrigin.current = "receipt";
                     const everyone = activeGroupMembers.map((m) => m.id);
-                    const reconciled = reconcileReceipt(original, items, everyone);
                     setItemName(name);
-                    setAmount((reconciled.totalCents / 100).toFixed(2));
+                    setAmount((cents / 100).toFixed(2));
                     if (original.date) setExpenseDate(original.date);
-                    setLineItems(reconciled.lineItems);
-                    if (reconciled.chargesCents > 0) {
-                      toast.info(`Added a shared "Tax & charges" line of ${formatCents(reconciled.chargesCents)} so the total matches the receipt.`);
-                    }
+                    const suggested = categories.find((category) => category.is_default && category.slug === inferReceiptCategory(original.merchant, included.map((item) => item.description)));
+                    if (suggested) setCategoryId(suggested.id);
+                    setLineItems(receiptToLineItems(items, everyone));
                     receiptScan.clear();
                     setMode("itemized");
                   }}
@@ -1269,8 +1282,8 @@ export default function AddExpenseScreen() {
                   <TouchableOpacity
                     style={styles.smartSplitBtn}
                     onPress={() => {
-                      if (aiAvailability === "unavailable") {
-                        toast.error(AI_UNAVAILABLE_MESSAGE);
+                      if (aiAvailability.state === "unavailable") {
+                        toast.error(aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE);
                         return;
                       }
                       setShowSmartSplit(true);

@@ -53,7 +53,17 @@
         }
       ],
       "@sentry/react-native",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "27.0"
+          }
+        }
+      ],
+      "./plugins/with-pod-deployment-target.js",
+      "./plugins/with-ios-scene-lifecycle.js"
     ],
     "experiments": {
       "typedRoutes": true

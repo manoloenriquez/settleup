@@ -29,13 +29,12 @@ export default function InsightsScreen() {
   const aiAvailability = useAiAvailability();
 
   function handleGenerateSummary() {
-    if (aiAvailability === "unavailable") {
-      toast.error(AI_UNAVAILABLE_MESSAGE);
+    if (aiAvailability.state === "unavailable") {
+      toast.error(aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE);
       return;
     }
     if (!insights || !group) return;
     void generate({
-      groupId,
       groupName: group.name,
       insights: {
         total_expenses: insights.total_expenses,

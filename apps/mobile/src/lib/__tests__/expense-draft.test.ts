@@ -7,7 +7,9 @@ import {
   isDraftResolved,
   parsePersistedDraft,
   receiptToLineItems,
-  reconcileReceipt,
+  applyDraftSplit,
+  scaleToTotal,
+  seedReceiptItems,
   resolutionEdited,
   resolveDraft,
 } from "../expense-draft";
@@ -103,39 +105,98 @@ describe("receiptToLineItems", () => {
   });
 });
 
-describe("reconcileReceipt", () => {
-  const scanned = { total_cents: 112000, line_items: [{ total_cents: 60000 }, { total_cents: 40000 }] };
-
-  it("keeps receipt-level charges as an explicit shared line so the total matches what was paid", () => {
-    const result = reconcileReceipt(
-      scanned,
-      [
-        { description: "Mains", total_cents: 60000, included: true },
-        { description: "Drinks", total_cents: 40000, included: true },
-      ],
-      ["a", "b"],
-    );
-    expect(result.chargesCents).toBe(12000);
-    expect(result.totalCents).toBe(112000);
-    expect(result.lineItems.at(-1)).toEqual({ name: "Tax & charges", amountStr: "120.00", participantIds: ["a", "b"] });
+describe("seedReceiptItems", () => {
+  const line = (description: string, total_cents: number, quantity = 1) => ({
+    description,
+    quantity,
+    unit_price_cents: Math.round(total_cents / quantity),
+    total_cents,
   });
 
-  it("still carries the charges when the user excludes an item", () => {
-    const result = reconcileReceipt(
-      scanned,
-      [
-        { description: "Mains", total_cents: 60000, included: true },
-        { description: "Drinks", total_cents: 40000, included: false },
-      ],
-      ["a"],
-    );
-    expect(result.totalCents).toBe(72000);
-    expect(result.lineItems.map((item) => item.name)).toEqual(["Mains", "Tax & charges"]);
+  it("adds receipt-level charges as an explicit shared line so the items add up to what was paid", () => {
+    const seeded = seedReceiptItems({ merchant: "Cafe", total_cents: 112000, line_items: [line("Mains", 60000), line("Drinks", 40000)] });
+    expect(seeded.chargesCents).toBe(12000);
+    expect(seeded.discountCents).toBe(0);
+    expect(seeded.items.map((item) => [item.description, item.total_cents, item.included])).toEqual([
+      ["Mains", 60000, true],
+      ["Drinks", 40000, true],
+      ["Tax & charges", 12000, true],
+    ]);
   });
 
-  it("adds nothing when the receipt had no line items or no surcharge", () => {
-    expect(reconcileReceipt({ total_cents: 5000, line_items: [] }, [{ description: "Total", total_cents: 5000 }], ["a"]).chargesCents).toBe(0);
-    expect(reconcileReceipt({ total_cents: 900, line_items: [{ total_cents: 1000 }] }, [{ description: "X", total_cents: 1000 }], ["a"]).totalCents).toBe(1000);
+  it("scales items down for a discount and keeps the sum exact", () => {
+    const seeded = seedReceiptItems({ merchant: "Kiwami", total_cents: 100000, line_items: [line("A", 60000), line("B", 40000), line("C", 66600)] });
+    expect(seeded.discountCents).toBe(66600);
+    const total = seeded.items.reduce((sum, item) => sum + item.total_cents, 0);
+    expect(total).toBe(100000);
+    expect(seeded.items.map((item) => item.total_cents)).toEqual([36014, 24010, 39976]);
+    expect(seeded.chargesCents).toBe(0);
+  });
+
+  it("turns a totals-only scan into a single line and leaves matching totals alone", () => {
+    expect(seedReceiptItems({ merchant: null, total_cents: 5000, line_items: [] }).items).toEqual([
+      { description: "Total", quantity: 1, unit_price_cents: 5000, total_cents: 5000, included: true },
+    ]);
+    const exact = seedReceiptItems({ merchant: "X", total_cents: 1000, line_items: [line("X", 1000)] });
+    expect(exact.items).toHaveLength(1);
+    expect(exact.chargesCents).toBe(0);
+    expect(exact.discountCents).toBe(0);
+  });
+});
+
+describe("scaleToTotal", () => {
+  it("uses largest-remainder rounding so the cents sum exactly", () => {
+    expect(scaleToTotal([100, 100, 100], 200)).toEqual([67, 67, 66]);
+    expect(scaleToTotal([333, 333, 334], 100)).toEqual([33, 33, 34]);
+    expect(scaleToTotal([0, 0], 100)).toEqual([0, 0]);
+  });
+});
+
+describe("applyDraftSplit", () => {
+  const participants = [
+    { memberId: "m1", name: "Manolo" },
+    { memberId: "m2", name: "Mia" },
+    { memberId: "m3", name: "Sarah" },
+  ];
+
+  it("prefills percentages", () => {
+    const split = applyDraftSplit(
+      { mode: "percent", shares: [{ member_name: "Manolo", percent: 60, weight: null, fixed_cents: null, excluded: false }, { member_name: "Mia", percent: 40, weight: null, fixed_cents: null, excluded: false }] },
+      participants.slice(0, 2),
+      360000,
+    );
+    expect(split.splitMode).toBe("percent");
+    expect(split.percentShares).toEqual({ m1: "60", m2: "40" });
+  });
+
+  it("prefills share weights, exclusions and fixed amounts", () => {
+    const weights = applyDraftSplit(
+      { mode: "shares", shares: [{ member_name: "Manolo", percent: null, weight: 2, fixed_cents: null, excluded: false }] },
+      participants,
+      30000,
+    );
+    expect(weights).toMatchObject({ splitMode: "shares", shareWeights: { m1: "2" } });
+
+    const excluded = applyDraftSplit(
+      { mode: "exclude", shares: [{ member_name: "Mia", percent: null, weight: null, fixed_cents: null, excluded: true }] },
+      participants,
+      30000,
+    );
+    expect(excluded).toMatchObject({ splitMode: "equal", excludedMemberIds: ["m2"] });
+
+    const fixed = applyDraftSplit(
+      { mode: "fixed", shares: [{ member_name: "Manolo", percent: null, weight: null, fixed_cents: 20000, excluded: false }] },
+      participants,
+      100000,
+    );
+    expect(fixed.splitMode).toBe("custom");
+    expect(fixed.customShares).toEqual({ m1: "200.00", m2: "400.00", m3: "400.00" });
+  });
+
+  it("falls back to an equal split when names do not resolve or percentages are off", () => {
+    expect(applyDraftSplit({ mode: "percent", shares: [{ member_name: "Zed", percent: 100, weight: null, fixed_cents: null, excluded: false }] }, participants, 1000).splitMode).toBe("equal");
+    expect(applyDraftSplit({ mode: "percent", shares: [{ member_name: "Manolo", percent: 30, weight: null, fixed_cents: null, excluded: false }] }, participants, 1000).splitMode).toBe("equal");
+    expect(applyDraftSplit(null, participants, 1000).splitMode).toBe("equal");
   });
 });
 

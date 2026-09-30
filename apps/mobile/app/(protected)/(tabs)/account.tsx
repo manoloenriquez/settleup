@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { useOnDeviceAi } from "@/hooks/useOnDeviceAi";
+import { useAiAvailability } from "@/hooks/useAiAvailability";
 import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
 import { getPushRegistration, registerForPush, unregisterFromPush } from "@/services/push";
@@ -29,7 +29,7 @@ export default function AccountScreen() {
   const [deleting, setDeleting] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const onDeviceAi = useOnDeviceAi();
+  const aiAvailability = useAiAvailability();
 
   const userId = session?.user.id;
   useEffect(() => {
@@ -192,22 +192,15 @@ export default function AccountScreen() {
           />
           <View style={styles.divider} />
           <ListItem
-            title="Process receipts on-device"
+            title="On-device intelligence"
             subtitle={
-              onDeviceAi.available
-                ? "Offline & private — photos stay on your phone"
-                : "Requires an Apple Intelligence-capable iPhone (iOS 26)"
+              aiAvailability.state === "ready"
+                ? "Receipt scanning, chat entry, smart split and insights run on this iPhone with Apple Intelligence. Photos and expenses never leave the device."
+                : aiAvailability.state === "checking"
+                  ? "Checking Apple Intelligence…"
+                  : aiAvailability.reason ?? "Apple Intelligence isn't available on this device."
             }
             left={<Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />}
-            right={
-              <Switch
-                value={onDeviceAi.available && onDeviceAi.intent}
-                onValueChange={(v) => void onDeviceAi.setIntent(v)}
-                disabled={!onDeviceAi.available}
-                trackColor={{ true: colors.primary }}
-                accessibilityLabel="Process receipts on-device"
-              />
-            }
           />
           <View style={styles.divider} />
           <ListItem
