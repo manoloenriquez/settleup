@@ -35,7 +35,7 @@ export function ActivityTimeline({ items }: ActivityTimelineProps) {
           <View style={styles.info}>
             <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
             <View style={styles.metaRow}>
-              <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString("en-PH")}</Text>
+              <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString(undefined)}</Text>
               {item.type === "expense" && <CategoryPill category={item.category} />}
             </View>
           </View>

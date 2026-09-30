@@ -270,7 +270,7 @@ cannot break the live ledger, then local-only features, then schema changes.
 | 2 Guest mode + onboarding | Local personal ledger (types/schemas/utils in `packages/shared`, mobile store), onboarding with default currency, system tab bar, account-required gating, personal add/edit/delete/undo/history/summary, receipt + chat entry for personal expenses, currency-aware formatting | none |
 | 3 Accounts & migration | `personal_expenses` table (SELECT RLS; SECURITY DEFINER upsert with `auth.uid()` checks; server-arrival wins; tombstones never resurrected; currency limited to the supported set); sync engine; guest → account import with per-row server acknowledgement; Sign in with Apple | additive migration |
 | 4 Expense UX | Add sheet with group picker; retire the duplicate `scan.tsx`; settle-up re-check | none |
-| 5 Multi-currency groups | Apply the existing currency-ledger migration, add the `x-ledger-version` header, move reads to `_v2`, group currency at creation, currency-aware app and public pages | apply existing migration |
+| 5 Multi-currency groups | Groups have a default currency; any expense may use another (travel). Balances, settle-up and public pages per currency — never summed or converted. Header `x-ledger-version: 2` on every client incl. `apps/api`; all reads/writes on `_v2`; recurring templates carry currency. Rollout DB-first (all existing data is PHP, so old clients keep working until a new client creates non-PHP data). | apply existing migration + small additive one |
 | 6 Groups & sharing | Group link rotate/disable (256-bit), share sheet; payment-detail visibility across *every* public endpoint; external member payment details; QR replace ordering | additive migration built on the currency-ledger function bodies |
 | 7 Friends & one-to-one | Friend invite links, friendships (unique pair, idempotent accept), direct two-member ledgers; removing a friend hides the link and never changes the ledger | additive migration |
 | 8 Polish & accessibility | Native sheets/action sheets, settings restructure, touch targets, labels, Dynamic Type, reduced motion | none |
@@ -297,6 +297,19 @@ Each phase: typecheck, lint, tests, iOS build where native code changed,
 Codex review, commit. Schema changes are applied to the live project only as
 additive migrations, never by editing applied ones.
 
+### Codex plan review of phase 5 — triage
+
+Accepted: keep the migration's multi-currency groups instead of a
+one-currency invariant (default currency per group, per-currency balances);
+no combined live dry run; DB-first rollout; header on the API client so
+account closure works for non-PHP ledgers; no naive per-currency merging;
+cover group creation, payments, outbox, recurring, activity, insights,
+export, parsers and tests. Rejected: server-side single-currency
+enforcement (moot once groups may hold several currencies).
+
 ## 7. Status
 
 - 2026-10-01: audit written; baseline tagged.
+- Phase 1 (`3b53e9c`): sign-out guard, device cleanup, public-link headers, permission recovery.
+- Phase 2 (`7517db6`): guest mode, onboarding, native tabs, personal expenses. XCUITest journey A passes on the iOS 27 simulator.
+- Phase 3 (`18e6560`): `personal_expenses` applied live; sync; guest → account import; Sign in with Apple (flagged off until the provider is configured).

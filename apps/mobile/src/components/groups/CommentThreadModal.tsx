@@ -27,7 +27,7 @@ function relativeTime(dateStr: string): string {
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
-  return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 export function CommentThreadModal({ expenseId, groupId, expenseName, members, currentUserId, onClose }: Props): React.ReactElement {

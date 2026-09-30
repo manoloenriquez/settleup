@@ -6,21 +6,42 @@ import { useGroups } from "@/hooks/useGroups";
 import { SHARE_REASON, useAccountPrompt } from "@/hooks/useAccountPrompt";
 import { ROUTES } from "@/lib/routes";
 
-export type Choice = { label: string; run: () => void };
+export type Choice = { label: string; run: () => void; destructive?: boolean };
 
 /** Native action sheet on iOS; a plain alert list elsewhere. */
 export function presentChoices(title: string, choices: Choice[]) {
   if (Platform.OS === "ios") {
+    const destructive = choices
+      .map((choice, index) => (choice.destructive ? index : -1))
+      .filter((index) => index >= 0);
     ActionSheetIOS.showActionSheetWithOptions(
-      { title, options: [...choices.map((choice) => choice.label), "Cancel"], cancelButtonIndex: choices.length },
+      {
+        title,
+        options: [...choices.map((choice) => choice.label), "Cancel"],
+        cancelButtonIndex: choices.length,
+        destructiveButtonIndex: destructive.length > 0 ? destructive : undefined,
+      },
       (index) => choices[index]?.run(),
     );
     return;
   }
-  Alert.alert(title, undefined, [
-    ...choices.map((choice) => ({ text: choice.label, onPress: choice.run })),
-    { text: "Cancel", style: "cancel" as const },
-  ]);
+  // Android alerts show at most three buttons: page longer menus with "More…".
+  // Dismissing (back button or tapping outside) cancels.
+  const page = choices.length > 3 ? choices.slice(0, 2) : choices;
+  const rest = choices.length > 3 ? choices.slice(2) : [];
+  Alert.alert(
+    title,
+    undefined,
+    [
+      ...page.map((choice) => ({
+        text: choice.label,
+        onPress: choice.run,
+        style: choice.destructive ? ("destructive" as const) : ("default" as const),
+      })),
+      ...(rest.length > 0 ? [{ text: "More…", onPress: () => presentChoices(title, rest) }] : []),
+    ],
+    { cancelable: true },
+  );
 }
 
 /**

@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRecordPayment } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
+import { useMembersWithBalances } from "@/hooks/useBalances";
 import { AmountInput, AppButton, useToast } from "@/components/ui";
-import { parsePHPAmount } from "@template/shared";
+import { amountToInput, formatCents, isUnusuallyLarge, parsePHPAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function SettleUpScreen() {
@@ -21,21 +22,58 @@ export default function SettleUpScreen() {
   const membersQ = useMembers(groupId);
   const members = membersQ.data ?? [];
   const recordPayment = useRecordPayment(groupId);
+  const balancesQ = useMembersWithBalances(groupId);
 
   const initCents = parseInt(initialAmount ?? "0", 10);
-  const [amount, setAmount] = useState(initCents > 0 ? String(initCents / 100) : "");
+  const [amount, setAmount] = useState(initCents > 0 ? amountToInput(initCents, "PHP") : "");
 
   const fromMember = members.find((m) => m.id === fromId);
   const toMember = members.find((m) => m.id === toId);
+  const fromName = fromMember?.display_name ?? "…";
+  const toName = toMember?.display_name ?? "…";
+  // What the payer owes the group right now (balances refresh while this is open).
+  const fromNet = balancesQ.data?.find((b) => b.member_id === fromId)?.net_cents;
+  const fromOwes = fromNet !== undefined ? Math.max(0, -fromNet) : null;
+  const typedCents = parsePHPAmount(amount);
+  const remaining = fromOwes !== null && typedCents !== null && typedCents > 0 ? fromOwes - typedCents : null;
 
   async function handleConfirm() {
     if (recordPayment.isPending) return; // guard against double-submit
     const amountCents = parsePHPAmount(amount);
     if (!fromId || !toId || amountCents === null || amountCents <= 0) {
-      toast.error("Enter a valid payment amount");
+      toast.error("Enter the amount that was paid, like 1250 or 1,250.50.");
       return;
     }
+    // Someone else may have recorded a payment since this screen opened.
+    const fresh = await balancesQ.refetch();
+    const freshNet = fresh.data?.find((b) => b.member_id === fromId)?.net_cents;
+    const fromOwes = freshNet !== undefined ? Math.max(0, -freshNet) : null;
+    // Re-check against the live balance: it may have changed since the list was opened.
+    if (fromOwes !== null && amountCents > fromOwes) {
+      Alert.alert(
+        fromOwes === 0 ? `${fromName} doesn’t owe anything now` : `That’s more than ${fromName} owes`,
+        fromOwes === 0
+          ? `Record ${formatCents(amountCents)} anyway? ${toName} would then owe ${fromName} that amount.`
+          : `${fromName} owes ${formatCents(fromOwes)} right now. Record ${formatCents(amountCents)} anyway? ${toName} would then owe ${fromName} ${formatCents(amountCents - fromOwes)}.`,
+        [
+          { text: "Edit Amount", style: "cancel" },
+          { text: "Record Anyway", onPress: () => void record(amountCents) },
+        ],
+      );
+      return;
+    }
+    if (isUnusuallyLarge(amountCents, "PHP")) {
+      Alert.alert(`Record ${formatCents(amountCents)}?`, "That’s a large amount. Check the decimal point.", [
+        { text: "Edit Amount", style: "cancel" },
+        { text: "Record", onPress: () => void record(amountCents) },
+      ]);
+      return;
+    }
+    void record(amountCents);
+  }
 
+  async function record(amountCents: number) {
+    if (!fromId || !toId || recordPayment.isPending) return;
     const result = await recordPayment.mutateAsync({
       groupId,
       fromMemberId: fromId,
@@ -45,25 +83,25 @@ export default function SettleUpScreen() {
 
     if (result.error) { toast.error(result.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Payment recorded");
+    toast.success(`Recorded ${formatCents(amountCents)} from ${fromName} to ${toName}`);
     router.back();
   }
 
   return (
     <>
-      <Stack.Screen options={{ title: "Settle Up", headerShown: true }} />
+      <Stack.Screen options={{ title: "Record a Payment", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.label}>From</Text>
-            <Text style={styles.name}>{fromMember?.display_name ?? fromId ?? "\u2014"}</Text>
+            <Text style={styles.label}>Paid by</Text>
+            <Text style={styles.name}>{fromName}</Text>
           </View>
           <View style={styles.arrow}>
             <Ionicons name="arrow-down" size={24} color={colors.gray300} />
           </View>
           <View style={styles.card}>
-            <Text style={styles.label}>To</Text>
-            <Text style={styles.name}>{toMember?.display_name ?? toId ?? "\u2014"}</Text>
+            <Text style={styles.label}>Paid to</Text>
+            <Text style={styles.name}>{toName}</Text>
           </View>
 
           <AmountInput
@@ -72,15 +110,32 @@ export default function SettleUpScreen() {
             onChangeText={setAmount}
             style={{ marginTop: spacing.xl }}
           />
-          {initCents > 0 && (
-            <Text style={styles.suggested}>
-              Suggested: ₱{(initCents / 100).toFixed(2)} (full amount owed)
+          {remaining !== null ? (
+            <Text style={styles.suggested} accessibilityLiveRegion="polite">
+              {remaining > 0
+                ? `After this, ${fromName} still owes ${formatCents(remaining)}.`
+                : remaining === 0
+                  ? `This settles ${fromName}’s balance.`
+                  : `This is ${formatCents(-remaining)} more than ${fromName} owes.`}
             </Text>
+          ) : (
+            initCents > 0 && (
+              <Text style={styles.suggested}>Suggested: {formatCents(initCents)}, the full amount owed.</Text>
+            )
           )}
+          <Text style={styles.note}>
+            Record a payment after the money has moved — Talli doesn’t send money.
+          </Text>
 
           <AppButton
-            title={recordPayment.isPending ? "Saving…" : "Confirm Payment"}
-            onPress={handleConfirm}
+            title={
+              recordPayment.isPending
+                ? "Saving…"
+                : typedCents
+                  ? `Record ${formatCents(typedCents)} Payment`
+                  : "Record Payment"
+            }
+            onPress={() => void handleConfirm()}
             isLoading={recordPayment.isPending}
             disabled={!amount || recordPayment.isPending}
             style={{ marginTop: spacing.md }}
@@ -98,5 +153,6 @@ const styles = StyleSheet.create({
   label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.5 },
   name: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900, marginTop: spacing.xs },
   arrow: { alignItems: "center", paddingVertical: spacing.sm },
-  suggested: { fontSize: fontSize.sm, color: colors.gray500, marginTop: spacing.xs },
+  suggested: { fontSize: fontSize.sm, color: colors.gray700, marginTop: spacing.sm },
+  note: { fontSize: fontSize.xs, color: colors.gray500, marginTop: spacing.xs },
 });

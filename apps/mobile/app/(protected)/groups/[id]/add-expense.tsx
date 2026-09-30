@@ -78,7 +78,7 @@ function dateToISO(date: Date): string {
 function DateField({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
   const [show, setShow] = useState(false);
   const date = isoToLocalDate(value);
-  const label = date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const label = date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   return (
     <View>
       <Text style={styles.label}>Date</Text>
@@ -748,7 +748,7 @@ export default function AddExpenseScreen() {
             <CategoryPill category={selectedCategory} />
             <View style={styles.confirmRow}>
               <Text style={styles.confirmLabel}>Date</Text>
-              <Text style={styles.confirmValue}>{isoToLocalDate(expenseDate).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</Text>
+              <Text style={styles.confirmValue}>{isoToLocalDate(expenseDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</Text>
             </View>
             <View style={styles.confirmRow}>
               <Text style={styles.confirmLabel}>Paid by</Text>

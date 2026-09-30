@@ -247,7 +247,7 @@ function AccountScreen() {
   const email = session?.user.email ?? "";
   const role = profile?.role ?? "user";
   const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "long" })
+    ? new Date(profile.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long" })
     : "";
 
   return (
@@ -264,7 +264,7 @@ function AccountScreen() {
                 <Text style={styles.profileName}>{displayName}</Text>
                 <Text style={styles.profileEmail}>{email}</Text>
                 <View style={styles.badgeRow}>
-                  <Badge label={role} variant={role === "admin" ? "primary" : "neutral"} />
+                  {role === "admin" && <Badge label="Admin" variant="primary" />}
                   {memberSince && <Text style={styles.memberSince}>Since {memberSince}</Text>}
                 </View>
               </View>

@@ -36,6 +36,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
+import { RowMenuButton } from "@/components/RowMenuButton";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 import { DEFAULT_CATEGORY_COLOR, formatCents, parsePHPAmount } from "@template/shared";
 
@@ -536,7 +537,12 @@ export default function GroupSettingsScreen() {
                       isLoading={renameMemberMutation.isPending}
                       style={styles.renameSaveBtn}
                     />
-                    <Text style={styles.renameCancelBtn} onPress={() => setRenamingMemberId(null)}>
+                    <Text
+                      style={styles.renameCancelBtn}
+                      onPress={() => setRenamingMemberId(null)}
+                      accessibilityRole="button"
+                      suppressHighlighting={false}
+                    >
                       Cancel
                     </Text>
                   </View>
@@ -556,47 +562,39 @@ export default function GroupSettingsScreen() {
                               : "Unlinked"
                     }
                     right={
-                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                        {(isAdminOrOwner || m.user_id === user?.id) && (
-                          <Text
-                            style={styles.renameBtn}
-                            onPress={() => startRenameMember(m.id, m.display_name)}
-                          >
-                            Rename
-                          </Text>
-                        )}
-                        {/* Owner-only: promote/demote admin */}
-                        {isOwner && m.role !== "owner" && m.user_id && m.user_id !== user?.id && (
-                          <Text
-                            style={styles.adminBtn}
-                            onPress={() =>
-                              handlePromoteMember(
-                                m.id,
-                                m.display_name,
-                                m.role === "admin" ? "member" : "admin",
-                              )
-                            }
-                          >
-                            {m.role === "admin" ? "Remove admin" : "Make admin"}
-                          </Text>
-                        )}
-                        {isOwner && m.role !== "owner" && m.user_id && (
-                          <Text
-                            style={styles.transferBtn}
-                            onPress={() => confirmTransferOwnership(m.id, m.display_name)}
-                          >
-                            Make owner
-                          </Text>
-                        )}
-                        {isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id && (
-                          <Text
-                            style={styles.removeBtn}
-                            onPress={() => confirmDeleteMember(m.id, m.display_name)}
-                          >
-                            Remove
-                          </Text>
-                        )}
-                      </View>
+                      <RowMenuButton
+                        title={m.display_name}
+                        choices={[
+                          ...(isAdminOrOwner || m.user_id === user?.id
+                            ? [{ label: "Rename", run: () => startRenameMember(m.id, m.display_name) }]
+                            : []),
+                          ...(isOwner && m.role !== "owner" && m.user_id && m.user_id !== user?.id
+                            ? [
+                                {
+                                  label: m.role === "admin" ? "Remove Admin Role" : "Make Admin",
+                                  run: () =>
+                                    handlePromoteMember(
+                                      m.id,
+                                      m.display_name,
+                                      m.role === "admin" ? "member" : "admin",
+                                    ),
+                                },
+                              ]
+                            : []),
+                          ...(isOwner && m.role !== "owner" && m.user_id
+                            ? [{ label: "Make Owner", run: () => confirmTransferOwnership(m.id, m.display_name) }]
+                            : []),
+                          ...(isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id
+                            ? [
+                                {
+                                  label: "Remove from Group",
+                                  destructive: true,
+                                  run: () => confirmDeleteMember(m.id, m.display_name),
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
                     }
                   />
                 )}
@@ -669,7 +667,11 @@ export default function GroupSettingsScreen() {
                     isLoading={updateCategory.isPending}
                     style={styles.renameSaveBtn}
                   />
-                  <Text style={styles.renameCancelBtn} onPress={() => setRenamingCategoryId(null)}>
+                  <Text
+                    style={styles.renameCancelBtn}
+                    onPress={() => setRenamingCategoryId(null)}
+                    accessibilityRole="button"
+                  >
                     Cancel
                   </Text>
                 </View>
@@ -680,44 +682,24 @@ export default function GroupSettingsScreen() {
                   subtitle={category.is_default ? "Default" : "Custom"}
                   right={
                     !category.is_default && isAdminOrOwner ? (
-                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                        <Text
-                          style={styles.renameBtn}
-                          onPress={() => handleUpdateCategory(category, category.sort_order - 15)}
-                        >
-                          Up
-                        </Text>
-                        <Text
-                          style={styles.renameBtn}
-                          onPress={() => handleUpdateCategory(category, category.sort_order + 15)}
-                        >
-                          Down
-                        </Text>
-                        <Text
-                          style={styles.renameBtn}
-                          onPress={() =>
-                            handleUpdateCategory(
-                              category,
-                              category.sort_order,
-                              nextCategoryColor(category.color),
-                            )
-                          }
-                        >
-                          Color
-                        </Text>
-                        <Text
-                          style={styles.renameBtn}
-                          onPress={() => startRenameCategory(category.id, category.name)}
-                        >
-                          Rename
-                        </Text>
-                        <Text
-                          style={styles.removeBtn}
-                          onPress={() => confirmDeleteCategory(category.id, category.name)}
-                        >
-                          Delete
-                        </Text>
-                      </View>
+                      <RowMenuButton
+                        title={category.name}
+                        choices={[
+                          { label: "Move Up", run: () => handleUpdateCategory(category, category.sort_order - 15) },
+                          { label: "Move Down", run: () => handleUpdateCategory(category, category.sort_order + 15) },
+                          {
+                            label: "Change Color",
+                            run: () =>
+                              handleUpdateCategory(category, category.sort_order, nextCategoryColor(category.color)),
+                          },
+                          { label: "Rename", run: () => startRenameCategory(category.id, category.name) },
+                          {
+                            label: "Delete Category",
+                            destructive: true,
+                            run: () => confirmDeleteCategory(category.id, category.name),
+                          },
+                        ]}
+                      />
                     ) : null
                   }
                 />
@@ -740,6 +722,9 @@ export default function GroupSettingsScreen() {
             <TouchableOpacity
               style={[styles.colorSwatch, { backgroundColor: newCategoryColor }]}
               onPress={() => setNewCategoryColor(nextCategoryColor(newCategoryColor))}
+              accessibilityRole="button"
+              accessibilityLabel="Category color. Tap to try the next color"
+              hitSlop={8}
             />
             <AppButton
               title="Add"
@@ -801,20 +786,20 @@ export default function GroupSettingsScreen() {
                   title={`${item.item_name} · ${formatCents(item.amount_cents)}`}
                   subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"}${item.payers && item.payers.length > 1 ? ` · ${item.payers.length} payers` : ""} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
                   right={
-                    <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                      <Text
-                        style={styles.renameBtn}
-                        onPress={() => handleToggleRecurring(item.id, item.active)}
-                      >
-                        {item.active ? "Pause" : "Resume"}
-                      </Text>
-                      <Text
-                        style={styles.removeBtn}
-                        onPress={() => confirmDeleteRecurring(item.id, item.item_name)}
-                      >
-                        Delete
-                      </Text>
-                    </View>
+                    <RowMenuButton
+                      title={item.item_name}
+                      choices={[
+                        {
+                          label: item.active ? "Pause" : "Resume",
+                          run: () => handleToggleRecurring(item.id, item.active),
+                        },
+                        {
+                          label: "Delete Recurring Expense",
+                          destructive: true,
+                          run: () => confirmDeleteRecurring(item.id, item.item_name),
+                        },
+                      ]}
+                    />
                   }
                 />
                 {i < (recurringQ.data ?? []).length - 1 && <View style={styles.divider} />}

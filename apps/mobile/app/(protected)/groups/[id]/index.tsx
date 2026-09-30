@@ -53,6 +53,7 @@ import {
   Avatar,
 } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
+import { presentChoices } from "@/hooks/useAddMenu";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
 import type { MemberBalance, SimplifiedDebt } from "@template/shared";
@@ -249,13 +250,12 @@ export default function GroupDetailScreen() {
   }
 
   function handleGroupActions() {
-    Alert.alert("Group actions", undefined, [
-      { text: "Public overview", onPress: () => router.push(`/(protected)/groups/${id}/overview`) },
-      { text: "Copy summary", onPress: () => void handleCopyGroupSummary() },
-      { text: "Undo my last payment", style: "destructive", onPress: handleUndoPayment },
-      { text: "Share group", onPress: () => void handleShareGroup() },
-      { text: "Settings", onPress: () => router.push(`/(protected)/groups/${id}/settings`) },
-      { text: "Cancel", style: "cancel" },
+    presentChoices(group?.name ?? "Group", [
+      { label: "Share Group Summary", run: () => void handleShareGroup() },
+      { label: "Preview Shared Page", run: () => router.push(`/(protected)/groups/${id}/overview`) },
+      { label: "Copy Summary as Text", run: () => void handleCopyGroupSummary() },
+      { label: "Group Settings", run: () => router.push(`/(protected)/groups/${id}/settings`) },
+      { label: "Undo My Last Payment", destructive: true, run: handleUndoPayment },
     ]);
   }
 
@@ -550,10 +550,12 @@ export default function GroupDetailScreen() {
             <TouchableOpacity
               style={styles.avatarItem}
               onPress={() => router.push(`/(protected)/groups/${id}/settings`)}
-              accessibilityLabel="Add member"
+              accessibilityRole="button"
+              accessibilityLabel="Add people"
+              accessibilityHint="Opens group settings, where you add or invite people"
             >
               <View style={styles.avatarAdd}>
-                <Ionicons name="add" size={20} color={colors.gray400} />
+                <Ionicons name="person-add-outline" size={20} color={colors.gray400} />
               </View>
               <Text style={styles.avatarName}>Add</Text>
             </TouchableOpacity>

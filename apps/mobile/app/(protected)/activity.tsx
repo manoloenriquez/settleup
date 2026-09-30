@@ -17,7 +17,7 @@ function relativeTime(dateStr: string): string {
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function amountColor(direction: RecentActivityItem["direction"]): string {

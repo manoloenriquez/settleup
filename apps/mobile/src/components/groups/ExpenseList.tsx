@@ -26,7 +26,7 @@ function expenseDayLabel(exp: ExpenseWithDetails): string {
   const date = match
     ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
     : new Date(day);
-  return date.toLocaleDateString("en-PH");
+  return date.toLocaleDateString(undefined);
 }
 
 export function ExpenseList({ expenses, pendingExpenses = [], onDelete, onEdit, onComments, hasMore, loadingMore, onLoadMore }: ExpenseListProps) {
