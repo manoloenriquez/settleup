@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { accountOutboxKey, parseOutboxState } from "@template/shared";
 import { queryCacheProjectPrefix } from "@/lib/queryClient";
+import { accountPersonalKey, accountPersonalPrefix } from "@/lib/personal/storage";
 
 const OUTBOX_PREFIX = "tabkind:outbox:v2:";
 
@@ -18,6 +19,7 @@ export function inactiveAccountKeys(
   currentOwnerId: string | null,
   outboxIsEmpty: (key: string) => boolean,
   queryPrefix: string,
+  personal?: { prefix: string; currentKey: string | null; isSynced: (key: string) => boolean },
 ): string[] {
   const outboxPrefix = `${OUTBOX_PREFIX}${encodeURIComponent(project)}:`;
   const currentQuery = currentOwnerId ? `${queryPrefix}${encodeURIComponent(currentOwnerId)}` : null;
@@ -25,8 +27,22 @@ export function inactiveAccountKeys(
   return allKeys.filter((key) => {
     if (key.startsWith(queryPrefix)) return key !== currentQuery;
     if (key.startsWith(outboxPrefix)) return key !== currentOutbox && outboxIsEmpty(key);
+    // An account's personal expenses: removable once everything is on the server.
+    if (personal && key.startsWith(personal.prefix)) return key !== personal.currentKey && personal.isSynced(key);
     return false;
   });
+}
+
+/** True when a stored personal ledger has nothing waiting to upload. */
+export function isFullySyncedLedger(raw: string | null): boolean {
+  if (raw === null) return true;
+  try {
+    const parsed = JSON.parse(raw) as { expenses?: { sync?: unknown }[] };
+    if (!Array.isArray(parsed.expenses)) return false;
+    return parsed.expenses.every((expense) => expense.sync === "synced");
+  } catch {
+    return false;
+  }
 }
 
 /** Only a readable envelope with an explicitly empty queue counts as empty. */
@@ -51,14 +67,20 @@ export function isEmptyOutbox(raw: string | null): boolean {
 export async function purgeInactiveAccountData(currentOwnerId: string | null): Promise<void> {
   const project = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
   const keys = await AsyncStorage.getAllKeys();
-  const outboxKeys = keys.filter((key) => key.startsWith(OUTBOX_PREFIX));
-  const values = new Map(await AsyncStorage.multiGet(outboxKeys));
+  const personalPrefix = accountPersonalPrefix();
+  const readKeys = keys.filter((key) => key.startsWith(OUTBOX_PREFIX) || key.startsWith(personalPrefix));
+  const values = new Map(await AsyncStorage.multiGet(readKeys));
   const doomed = inactiveAccountKeys(
     keys,
     project,
     currentOwnerId,
     (key) => isEmptyOutbox(values.get(key) ?? null),
     queryCacheProjectPrefix(),
+    {
+      prefix: personalPrefix,
+      currentKey: currentOwnerId ? accountPersonalKey(currentOwnerId) : null,
+      isSynced: (key) => isFullySyncedLedger(values.get(key) ?? null),
+    },
   );
   if (doomed.length > 0) await AsyncStorage.multiRemove(doomed);
 }

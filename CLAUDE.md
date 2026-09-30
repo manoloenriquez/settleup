@@ -10,6 +10,8 @@ This file is authoritative context for Claude Code. Follow these rules strictly.
 - `docs/brain/03-supabase.md` — schema reference, RLS policies, RPCs, migrations
 - `docs/brain/04-offline.md` — offline-first architecture, sync engine, idempotency/CAS contract, test matrix
 - `docs/brain/05-apple-intelligence.md` — on-device AI pipeline, availability states, device requirements, receipt evaluation suite
+- `docs/brain/06-personal-and-guest.md` — guest mode, personal expenses, device stores, sync and guest → account import
+- `docs/audit/2026-10-product-audit.md` — product/UX/architecture audit, findings and phased plan
 - `docs/launch-readiness.md` — launch status and evidence; `docs/launch-implementation-plan.md` — remaining work and scope decisions
 
 ---

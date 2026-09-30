@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { OutboxProvider } from "@/context/OutboxContext";
 import { PreferencesProvider, usePreferences } from "@/context/PreferencesContext";
 import { PersonalLedgerProvider } from "@/context/PersonalLedgerContext";
+import { GuestImportPrompt } from "@/components/GuestImportPrompt";
 import { ToastProvider } from "@/components/ui/Toast";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { PendingChangesSheet } from "@/components/PendingChangesSheet";
@@ -272,6 +273,7 @@ function RootLayout() {
                     <RouteGuard />
                     <NotificationNavigation />
                     <PushTokenSync />
+                <GuestImportPrompt />
                     <RootStack />
                   </OutboxProvider>
                 </ToastProvider>

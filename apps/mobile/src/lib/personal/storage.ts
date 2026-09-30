@@ -36,3 +36,12 @@ export async function loadPersonalLedger(key: string): Promise<PersonalLedgerSta
 export async function savePersonalLedger(key: string, state: PersonalLedgerState): Promise<void> {
   await AsyncStorage.setItem(key, JSON.stringify(state));
 }
+
+export async function removePersonalLedger(key: string): Promise<void> {
+  await AsyncStorage.removeItem(key);
+}
+
+/** Prefix of every account's store in this project (for sign-out cleanup). */
+export function accountPersonalPrefix(): string {
+  return `${ACCOUNT_PREFIX}${encodeURIComponent(process.env.EXPO_PUBLIC_SUPABASE_URL ?? "")}:`;
+}

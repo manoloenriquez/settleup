@@ -24,7 +24,8 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "appleTeamId": "L8Y7B5Z7EQ",
-      "buildNumber": "2"
+      "buildNumber": "2",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -75,7 +76,8 @@
         }
       ],
       "./plugins/with-pod-deployment-target.js",
-      "./plugins/with-ios-scene-lifecycle.js"
+      "./plugins/with-ios-scene-lifecycle.js",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

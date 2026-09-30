@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { authCallbackUrl } from "@/lib/auth-links";
 import { APP_NAME } from "@template/shared";
 import { signInWithGoogle } from "@/lib/google-auth";
+import { AppleSignInButton } from "@/components/AppleSignInButton";
 import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
 function ConfirmEmailState({
@@ -211,6 +212,8 @@ export default function RegisterScreen() {
             <Text style={styles.dividerText}>or</Text>
             <View style={styles.dividerLine} />
           </View>
+
+          <AppleSignInButton mode="signUp" onError={setError} />
 
           <AppButton
             title="Continue with Google"

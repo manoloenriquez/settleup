@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { accountOutboxKey } from "@template/shared";
-import { inactiveAccountKeys, isEmptyOutbox } from "../account-data";
+import { inactiveAccountKeys, isEmptyOutbox, isFullySyncedLedger } from "../account-data";
 
 const project = "https://p.invalid";
 const queryPrefix = `tabkind:query-cache:${encodeURIComponent(project)}:`;
@@ -47,5 +47,27 @@ describe("isEmptyOutbox", () => {
     expect(isEmptyOutbox(JSON.stringify({ version: 2, ownerId: "a" }))).toBe(false);
     expect(isEmptyOutbox("not json")).toBe(false);
     expect(isEmptyOutbox(JSON.stringify({ state: { entries: "corrupt" } }))).toBe(false);
+  });
+});
+
+describe("personal stores", () => {
+  const prefix = "talli:personal:v1:account:p:";
+  const keys = [`${prefix}alice`, `${prefix}bob`, `${prefix}carol`, "talli:personal:v1:guest"];
+  it("removes other accounts' fully synced stores only, never the guest store", () => {
+    const synced = new Set([`${prefix}bob`]);
+    const result = inactiveAccountKeys(keys, project, "alice", () => false, queryPrefix, {
+      prefix,
+      currentKey: `${prefix}alice`,
+      isSynced: (key) => synced.has(key),
+    });
+    expect(result).toEqual([`${prefix}bob`]);
+  });
+
+  it("treats pending, local or unreadable records as not synced", () => {
+    expect(isFullySyncedLedger(JSON.stringify({ version: 1, expenses: [{ sync: "synced" }] }))).toBe(true);
+    expect(isFullySyncedLedger(JSON.stringify({ version: 1, expenses: [{ sync: "pending" }] }))).toBe(false);
+    expect(isFullySyncedLedger(JSON.stringify({ version: 1, expenses: [{ sync: "local" }] }))).toBe(false);
+    expect(isFullySyncedLedger("{")).toBe(false);
+    expect(isFullySyncedLedger(null)).toBe(true);
   });
 });

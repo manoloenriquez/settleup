@@ -668,6 +668,60 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      personal_expenses: {
+        Row: {
+          id: string;
+          user_id: string;
+          description: string;
+          amount_minor: number;
+          currency_code: string;
+          category_slug: string;
+          expense_date: string;
+          notes: string | null;
+          merchant: string | null;
+          source: string;
+          client_created_at: string;
+          client_updated_at: string;
+          deleted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          description?: string;
+          amount_minor?: number;
+          currency_code?: string;
+          category_slug?: string;
+          expense_date?: string;
+          notes?: string | null;
+          merchant?: string | null;
+          source?: string;
+          client_created_at?: string;
+          client_updated_at?: string;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          description?: string;
+          amount_minor?: number;
+          currency_code?: string;
+          category_slug?: string;
+          expense_date?: string;
+          notes?: string | null;
+          merchant?: string | null;
+          source?: string;
+          client_created_at?: string;
+          client_updated_at?: string;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       push_tokens: {
         Row: {
           user_id: string;
@@ -958,6 +1012,10 @@ export type Database = {
       };
       get_creditor_profiles: {
         Args: { p_group_id: string };
+        Returns: Json;
+      };
+      upsert_personal_expenses: {
+        Args: { p_rows: Json };
         Returns: Json;
       };
       update_expense: {

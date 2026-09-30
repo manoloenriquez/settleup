@@ -119,8 +119,10 @@ function AccountScreen() {
   const [deleting, setDeleting] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const { pending } = usePendingCounts();
+  const { pending: outboxPending } = usePendingCounts();
   const { drain } = useOutbox();
+  const personal = usePersonalLedger();
+  const pending = outboxPending + personal.pendingCount;
 
   const userId = session?.user.id;
   useEffect(() => {
@@ -184,7 +186,9 @@ function AccountScreen() {
         {
           text: "Try to Sync Now",
           onPress: () => {
-            void drain().then(() => toast.success("Sync finished. Anything still waiting shows in the banner at the top."));
+            void Promise.all([drain(), personal.syncNow()]).then(() =>
+              toast.success("Sync finished. Anything still waiting shows in the banner at the top."),
+            );
           },
         },
         { text: "Sign Out Anyway", style: "destructive", onPress: () => void signOut() },
@@ -269,6 +273,41 @@ function AccountScreen() {
         )}
 
         <PreferencesSection />
+
+        <Text style={styles.sectionLabel}>YOUR EXPENSES</Text>
+        <Card padding={0}>
+          <ListItem
+            title="Backup and sync"
+            subtitle={
+              personal.syncStatus === "syncing"
+                ? "Syncing…"
+                : personal.pendingCount > 0
+                  ? `${personal.pendingCount} ${personal.pendingCount === 1 ? "change is" : "changes are"} waiting to upload${personal.syncStatus === "offline" ? " — you’re offline" : ""}.`
+                  : personal.syncStatus === "error"
+                    ? `Couldn’t sync: ${personal.syncError ?? "try again"}`
+                    : "Your personal expenses are backed up to your account."
+            }
+            left={<Ionicons name="cloud-done-outline" size={20} color={colors.primary} />}
+            onPress={() => void personal.syncNow()}
+          />
+          {personal.guestExpenseCount > 0 && (
+            <>
+              <View style={styles.divider} />
+              <ListItem
+                title={`Add ${personal.guestExpenseCount} ${personal.guestExpenseCount === 1 ? "expense" : "expenses"} from this iPhone`}
+                subtitle="Saved before you signed in. They stay on this iPhone until you add them."
+                left={<Ionicons name="phone-portrait-outline" size={20} color={colors.primary} />}
+                showChevron
+                onPress={() =>
+                  void personal.importGuestExpenses().then(
+                    () => toast.success("Added to your account"),
+                    () => toast.error("They’re still on this iPhone. Try again in a moment."),
+                  )
+                }
+              />
+            </>
+          )}
+        </Card>
 
         <Text style={styles.sectionLabel}>SETTINGS</Text>
         <Card padding={0}>

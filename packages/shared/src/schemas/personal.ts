@@ -48,6 +48,12 @@ export const personalExpenseSchema = z.object({
 export const personalLedgerStateSchema = z.object({
   version: z.literal(1),
   expenses: z.array(personalExpenseSchema),
+  /**
+   * Newest server version received by a PULL. Acknowledgements of this
+   * device's own uploads never move it, or rows other devices wrote earlier
+   * would be skipped.
+   */
+  pullCursor: isoDateTime.nullable().optional(),
 });
 
 /** What a form, receipt or chat draft provides when saving an expense. */

@@ -14,6 +14,7 @@ import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
 import { APP_NAME } from "@template/shared";
 import { signInWithGoogle } from "@/lib/google-auth";
+import { AppleSignInButton } from "@/components/AppleSignInButton";
 import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function LoginScreen() {
@@ -114,6 +115,8 @@ export default function LoginScreen() {
             <Text style={styles.dividerText}>or</Text>
             <View style={styles.dividerLine} />
           </View>
+
+          <AppleSignInButton mode="signIn" onError={setError} />
 
           <AppButton
             title="Continue with Google"

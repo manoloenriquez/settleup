@@ -13,3 +13,4 @@ export * from "./category";
 export * from "./date-mention";
 export * from "./amount";
 export * from "./personal-ledger";
+export * from "./personal-sync";
