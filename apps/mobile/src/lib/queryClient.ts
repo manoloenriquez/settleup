@@ -31,15 +31,31 @@ export function makeQueryClient(): QueryClient {
   });
 }
 
+const QUERY_CACHE_PREFIX = "tabkind:query-cache:";
+
+function accountScope(ownerId: string | null): string {
+  const project = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+  return `${encodeURIComponent(project)}:${encodeURIComponent(ownerId ?? "signed-out")}`;
+}
+
+/** Storage key of an account's persisted server snapshot in this project. */
+export function queryCacheKeyForAccount(ownerId: string): string {
+  return `${QUERY_CACHE_PREFIX}${accountScope(ownerId)}`;
+}
+
+/** Prefix shared by every account's snapshot in this project. */
+export function queryCacheProjectPrefix(): string {
+  return `${QUERY_CACHE_PREFIX}${encodeURIComponent(process.env.EXPO_PUBLIC_SUPABASE_URL ?? "")}:`;
+}
+
 export function persistOptionsForAccount(
   ownerId: string | null,
 ): Omit<PersistQueryClientOptions, "queryClient"> {
-  const project = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-  const scope = `${encodeURIComponent(project)}:${encodeURIComponent(ownerId ?? "signed-out")}`;
+  const scope = accountScope(ownerId);
   return {
     persister: createAsyncStoragePersister({
       storage: ownerId ? AsyncStorage : undefined,
-      key: `tabkind:query-cache:${scope}`,
+      key: `${QUERY_CACHE_PREFIX}${scope}`,
       throttleTime: 2_000,
     }),
     maxAge: CACHE_MAX_AGE_MS,

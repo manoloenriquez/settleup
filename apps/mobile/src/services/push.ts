@@ -79,6 +79,10 @@ export function subscribeToPushTokenRotation(userId: string): () => void {
   return () => subscription.remove();
 }
 
+/** Returned when the user has to re-enable notifications in the Settings app. */
+export const NOTIFICATIONS_BLOCKED =
+  "Notifications are off for Talli. Turn them on in Settings to get updates about shared expenses.";
+
 export async function registerForPush(userId: string): Promise<ApiResponse<string>> {
   if (!Device.isDevice) {
     return { data: null, error: "Push notifications need a physical device." };
@@ -100,9 +104,12 @@ export async function registerForPush(userId: string): Promise<ApiResponse<strin
     });
   }
 
-  const { status } = await Notifications.requestPermissionsAsync();
+  const { status, canAskAgain } = await Notifications.requestPermissionsAsync();
   if (status !== "granted") {
-    return { data: null, error: "Notification permission was not granted." };
+    return {
+      data: null,
+      error: canAskAgain ? "Notifications were not turned on." : NOTIFICATIONS_BLOCKED,
+    };
   }
 
   try {

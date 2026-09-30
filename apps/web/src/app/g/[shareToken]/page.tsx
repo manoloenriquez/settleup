@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: "Talli group overview",
+    robots: { index: false, follow: false, nocache: true },
     description: "View a private Talli group overview link.",
     openGraph: {
       title: "Talli group overview",

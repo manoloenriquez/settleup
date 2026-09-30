@@ -15,9 +15,16 @@ import { Stack, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useAiAvailability } from "@/hooks/useAiAvailability";
+import { usePendingCounts } from "@/hooks/useOutbox";
+import { useOutbox } from "@/context/OutboxContext";
 import { Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
-import { getPushRegistration, registerForPush, unregisterFromPush } from "@/services/push";
+import {
+  getPushRegistration,
+  NOTIFICATIONS_BLOCKED,
+  registerForPush,
+  unregisterFromPush,
+} from "@/services/push";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
 
@@ -30,6 +37,8 @@ export default function AccountScreen() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const aiAvailability = useAiAvailability();
+  const { pending } = usePendingCounts();
+  const { drain } = useOutbox();
 
   const userId = session?.user.id;
   useEffect(() => {
@@ -49,7 +58,12 @@ export default function AccountScreen() {
     setPushBusy(true);
     if (next) {
       const res = await registerForPush(userId);
-      if (res.error) {
+      if (res.error === NOTIFICATIONS_BLOCKED) {
+        Alert.alert("Notifications are off", NOTIFICATIONS_BLOCKED, [
+          { text: "Not Now", style: "cancel" },
+          { text: "Open Settings", onPress: () => void Linking.openSettings() },
+        ]);
+      } else if (res.error) {
         toast.error(res.error);
       } else {
         setPushEnabled(true);
@@ -67,17 +81,33 @@ export default function AccountScreen() {
     setPushBusy(false);
   }
 
-  async function handleSignOut() {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+  function confirmSignOut() {
+    Alert.alert("Sign out?", "You can sign back in at any time.", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          await signOut();
-        },
-      },
+      { text: "Sign Out", style: "destructive", onPress: () => void signOut() },
     ]);
+  }
+
+  function handleSignOut() {
+    if (pending === 0) {
+      confirmSignOut();
+      return;
+    }
+    const noun = pending === 1 ? "1 change hasn't" : `${pending} changes haven't`;
+    Alert.alert(
+      `${noun} synced yet`,
+      "They stay saved on this iPhone and upload the next time you sign in to this account. Signing in to a different account will not upload them.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Try to Sync Now",
+          onPress: () => {
+            void drain().then(() => toast.success("Sync finished. Anything still waiting shows in the banner at the top."));
+          },
+        },
+        { text: "Sign Out Anyway", style: "destructive", onPress: () => void signOut() },
+      ],
+    );
   }
 
   function handleDeleteAccount() {

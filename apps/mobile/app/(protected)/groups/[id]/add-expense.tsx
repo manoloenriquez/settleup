@@ -1001,6 +1001,7 @@ export default function AddExpenseScreen() {
                 imageUri={receiptScan.imageUri}
                 isScanning={receiptScan.isScanning}
                 error={receiptScan.error}
+                permissionBlocked={receiptScan.permissionBlocked}
                 onCamera={() => void receiptScan.scanFromCamera()}
                 onGallery={() => void receiptScan.scanFromGallery()}
                 onClear={receiptScan.clear}

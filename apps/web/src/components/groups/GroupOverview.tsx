@@ -222,7 +222,7 @@ export function GroupOverview({ payload, shareToken }: Props): React.ReactElemen
         {/* Footer */}
         <div className="flex items-center justify-center gap-2 py-2 text-xs text-slate-400">
           <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
-            <span className="text-white text-[10px] font-bold">S</span>
+            <span className="text-white text-[10px] font-bold">T</span>
           </div>
           <span>Powered by Talli</span>
         </div>

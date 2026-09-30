@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { JoinGroupForm } from "@/components/groups/JoinGroupForm";
 
-export const metadata = { title: "Join Group" };
+export const metadata = { title: "Join Group", robots: { index: false, follow: false } };
 
 interface Props {
   searchParams: Promise<{ code?: string }>;

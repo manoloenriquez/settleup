@@ -419,7 +419,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
         {/* Footer */}
         <View style={styles.footer}>
           <View style={styles.footerLogo}>
-            <Text style={styles.footerLogoText}>S</Text>
+            <Text style={styles.footerLogoText}>T</Text>
           </View>
           <Text style={styles.footerText}>Powered by Talli</Text>
         </View>
