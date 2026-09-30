@@ -50,7 +50,7 @@ xcodebuild -exportArchive -archivePath build/Talli.xcarchive \
 
 | Build | Version | Uploaded | Contents |
 |---|---|---|---|
-| 1 | 1.0.0 | — | First Talli build: on-device Apple Intelligence, Talli rebrand. |
+| 1 | 1.0.0 | 2026-10-01 | First Talli build: on-device Apple Intelligence, Talli rebrand. Symbol upload warned about missing dSYMs for the prebuilt React, ReactNativeDependencies and hermes frameworks (crash logs in those frameworks stay unsymbolicated). |
 
 ## Follow-ups that don't block TestFlight
 
