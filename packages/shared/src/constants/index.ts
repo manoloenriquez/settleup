@@ -47,7 +47,6 @@ export const API_LIMITS = {
 export const FEATURE_FLAGS = {
   SOCIAL_LOGIN: true,
   BILLING: false,
-  LLM_ENABLED: false, // toggled via LLM_ENABLED env var at runtime
 } as const;
 
 // ---------------------------------------------------------------------------

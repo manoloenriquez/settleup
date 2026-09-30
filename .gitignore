@@ -54,3 +54,6 @@ Thumbs.db
 
 # Claude
 .claude
+
+# SwiftPM build output of the receipt evaluation harness
+tools/receipt-eval/.build/
