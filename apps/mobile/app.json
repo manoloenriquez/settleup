@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Tabkind",
+    "name": "Talli",
     "slug": "settleup",
     "description": "Split group expenses, simplify balances, and settle debts without awkward math.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": ["tabkind", "settleup"],
+    "scheme": ["talli", "tabkind", "settleup"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -19,7 +19,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.settleup.app"
+      "bundleIdentifier": "com.settleup.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -44,7 +47,14 @@
           "backgroundColor": "#f8fafc"
         }
       ],
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Talli reads the receipt photo you pick so it can fill in the expense on this iPhone. Photos are never uploaded for scanning.",
+          "cameraPermission": "Talli uses the camera to photograph receipts. The photo is read on this iPhone and never uploaded for scanning.",
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-notifications",
         {

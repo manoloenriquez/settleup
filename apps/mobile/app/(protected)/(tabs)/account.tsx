@@ -117,7 +117,7 @@ export default function AccountScreen() {
       );
       return;
     }
-    const subject = encodeURIComponent("Tabkind feedback");
+    const subject = encodeURIComponent("Talli feedback");
     const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}`;
     const supported = await Linking.canOpenURL(url);
     if (!supported) {

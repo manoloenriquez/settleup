@@ -17,12 +17,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await params;
 
   return {
-    title: "Tabkind balance",
-    description: "View a private Tabkind balance link.",
+    title: "Talli balance",
+    description: "View a private Talli balance link.",
     openGraph: {
-      title: "Tabkind balance",
-      description: "View a private Tabkind balance link.",
-      images: ["/og/settleup-social.png"],
+      title: "Talli balance",
+      description: "View a private Talli balance link.",
+      images: ["/og/talli-social.png"],
     },
   };
 }

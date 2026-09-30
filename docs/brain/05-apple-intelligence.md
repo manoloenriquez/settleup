@@ -107,7 +107,7 @@ React Native 0.81 build and launch against the iOS 27 SDK:
 
 Set `SENTRY_DISABLE_AUTO_UPLOAD=true` for local builds without a Sentry org.
 `expo run:ios` could not locate Simulator.app from a non-interactive shell; a
-plain `xcodebuild -workspace ios/Tabkind.xcworkspace -scheme Tabkind
+plain `xcodebuild -workspace ios/Talli.xcworkspace -scheme Talli
 -configuration Release -sdk iphonesimulator -destination 'platform=iOS
 Simulator,id=<iOS 27 udid>' build` followed by `xcrun simctl install/launch`
 works. Release embeds the JS bundle, so no Metro is needed to smoke-test.

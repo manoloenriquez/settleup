@@ -218,7 +218,7 @@ export function OverviewSettleUpCard({
                   <MessageCircle size={12} className="mt-0.5 shrink-0" />
                   <span>
                     After paying, message {s.to_display_name} or the group owner so they can record
-                    it. If you were sent a personal Tabkind link, use its &ldquo;I&apos;ve
+                    it. If you were sent a personal Talli link, use its &ldquo;I&apos;ve
                     paid&rdquo; button instead.
                   </span>
                 </p>

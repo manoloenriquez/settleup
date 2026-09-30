@@ -2,7 +2,7 @@
 // App metadata
 // ---------------------------------------------------------------------------
 
-export const APP_NAME = "Tabkind" as const;
+export const APP_NAME = "Talli" as const;
 export const APP_VERSION = "0.1.0" as const;
 
 // ---------------------------------------------------------------------------

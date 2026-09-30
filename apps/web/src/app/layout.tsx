@@ -35,22 +35,22 @@ export const metadata: Metadata = {
     locale: "en_PH",
     url: "/",
     siteName: APP_NAME,
-    title: "Tabkind — Split it fair. Settle it simple.",
+    title: "Talli — Split it fair. Settle it simple.",
     description,
     images: [
       {
-        url: "/og/settleup-social.png",
+        url: "/og/talli-social.png",
         width: 1200,
         height: 630,
-        alt: "Tabkind — Split it fair. Settle it simple.",
+        alt: "Talli — Split it fair. Settle it simple.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tabkind — Split it fair. Settle it simple.",
+    title: "Talli — Split it fair. Settle it simple.",
     description,
-    images: ["/og/settleup-social.png"],
+    images: ["/og/talli-social.png"],
   },
   appleWebApp: {
     capable: true,

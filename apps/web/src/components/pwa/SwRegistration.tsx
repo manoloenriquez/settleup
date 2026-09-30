@@ -31,7 +31,7 @@ export function SwRegistration(): null {
     });
 
     function promptForUpdate(waiting: ServiceWorker): void {
-      toast("A new version of Tabkind is available", {
+      toast("A new version of Talli is available", {
         duration: Infinity,
         action: {
           label: "Refresh",

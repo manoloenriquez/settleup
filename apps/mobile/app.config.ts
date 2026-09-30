@@ -23,9 +23,11 @@ export default function configureApp({ config }: ConfigContext): ExpoConfig {
   }
   return {
     ...config,
-    name: "Tabkind",
+    name: "Talli",
     slug: config.slug ?? "tabkind",
-    scheme: ["tabkind", "settleup"],
+    // "talli" is the brand scheme; "tabkind" stays for the OAuth callback and
+    // links already shared, "settleup" for the original links.
+    scheme: ["talli", "tabkind", "settleup"],
     ios: {
       ...config.ios,
       ...(iosBundle ? { bundleIdentifier: iosBundle } : {}),

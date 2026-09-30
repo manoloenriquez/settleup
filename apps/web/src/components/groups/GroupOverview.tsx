@@ -224,7 +224,7 @@ export function GroupOverview({ payload, shareToken }: Props): React.ReactElemen
           <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
             <span className="text-white text-[10px] font-bold">S</span>
           </div>
-          <span>Powered by Tabkind</span>
+          <span>Powered by Talli</span>
         </div>
       </div>
     </div>

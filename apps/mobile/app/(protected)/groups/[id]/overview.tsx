@@ -421,7 +421,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
           <View style={styles.footerLogo}>
             <Text style={styles.footerLogoText}>S</Text>
           </View>
-          <Text style={styles.footerText}>Powered by Tabkind</Text>
+          <Text style={styles.footerText}>Powered by Talli</Text>
         </View>
       </ScrollView>
     </>
