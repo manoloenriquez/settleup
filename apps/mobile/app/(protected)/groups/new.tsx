@@ -79,7 +79,7 @@ export default function NewGroupScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           <Text style={styles.heading}>Create a Group</Text>
           <Text style={styles.sub}>
             For a trip, a household or a night out. You can add people next — they don’t need the app.

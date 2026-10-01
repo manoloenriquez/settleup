@@ -48,6 +48,7 @@ export default function ActivityScreen() {
     <>
       <Stack.Screen options={{ title: "Activity", headerShown: true }} />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
@@ -77,6 +78,7 @@ export default function ActivityScreen() {
           <View style={styles.card}>
             {(items ?? []).map((item, index) => (
               <TouchableOpacity
+                accessibilityRole="button"
                 key={`${item.type}-${item.id}`}
                 style={[styles.row, index > 0 && styles.rowBorder]}
                 onPress={() => router.push(`/(protected)/groups/${item.group_id}`)}

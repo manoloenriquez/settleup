@@ -103,7 +103,7 @@ export default function SettleUpScreen() {
     <>
       <Stack.Screen options={{ title: "Record a Payment", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           <View style={styles.card}>
             <Text style={styles.label}>Paid by</Text>
             <Text style={styles.name}>{fromName}</Text>
@@ -116,13 +116,9 @@ export default function SettleUpScreen() {
             <Text style={styles.name}>{toName}</Text>
           </View>
 
-          <AmountInput
-            label="Amount"
-            value={amount}
-            onChangeText={setAmount}
-            currency={currency}
-            style={{ marginTop: spacing.xl }}
-          />
+          <View style={{ marginTop: spacing.xl }}>
+            <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={currency} />
+          </View>
           {remaining !== null ? (
             <Text style={styles.suggested} accessibilityLiveRegion="polite">
               {remaining > 0

@@ -98,7 +98,7 @@ export default function PaymentSettingsScreen() {
     <>
       <Stack.Screen options={{ title: "Payment Details", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           {loadError && (
             <ErrorBanner
               message={`Couldn't load your payment settings: ${loadError}`}
@@ -110,7 +110,7 @@ export default function PaymentSettingsScreen() {
             <View style={styles.fieldGroup}>
               <AppTextInput label="GCash Name" value={gcashName} onChangeText={setGcashName} placeholder="Full name on GCash" />
               <AppTextInput label="GCash Number" value={gcashNumber} onChangeText={setGcashNumber} placeholder="09XXXXXXXXX" keyboardType="phone-pad" />
-              <TouchableOpacity style={styles.qrBtn} onPress={() => handleUploadQR("gcash")}>
+              <TouchableOpacity accessibilityRole="button" style={styles.qrBtn} onPress={() => handleUploadQR("gcash")}>
                 <Text style={styles.qrBtnText}>{gcashQrUrl ? "QR Uploaded \u2014 Tap to change" : "Upload GCash QR Code"}</Text>
               </TouchableOpacity>
             </View>
@@ -122,7 +122,7 @@ export default function PaymentSettingsScreen() {
               <AppTextInput label="Bank Name" value={bankName} onChangeText={setBankName} placeholder="e.g. BDO, BPI, UnionBank" />
               <AppTextInput label="Account Number" value={bankAccount} onChangeText={setBankAccount} placeholder="Account number" keyboardType="number-pad" />
               <AppTextInput label="Account Name" value={bankAccountName} onChangeText={setBankAccountName} placeholder="Full name on account" />
-              <TouchableOpacity style={styles.qrBtn} onPress={() => handleUploadQR("bank")}>
+              <TouchableOpacity accessibilityRole="button" style={styles.qrBtn} onPress={() => handleUploadQR("bank")}>
                 <Text style={styles.qrBtnText}>{bankQrUrl ? "QR Uploaded \u2014 Tap to change" : "Upload Bank QR Code"}</Text>
               </TouchableOpacity>
             </View>
@@ -133,7 +133,7 @@ export default function PaymentSettingsScreen() {
             <AppTextInput
               value={notes}
               onChangeText={setNotes}
-              placeholder="Any additional payment notes\u2026"
+              placeholder="Any additional payment notes…"
               multiline
               numberOfLines={3}
             />

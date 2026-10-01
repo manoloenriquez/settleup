@@ -54,7 +54,7 @@ export default function ForgotPasswordScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           {sent ? (
             <View style={styles.successCard}>
               <Text style={styles.successEmoji}>{"\uD83D\uDCE7"}</Text>
@@ -62,7 +62,7 @@ export default function ForgotPasswordScreen() {
               <Text style={styles.successSub}>
                 If an account exists for {email}, a reset link is on its way.
               </Text>
-              <TouchableOpacity onPress={() => router.back()}>
+              <TouchableOpacity accessibilityRole="button" onPress={() => router.back()}>
                 <Text style={styles.backLink}>{"\u2190"} Back to Sign In</Text>
               </TouchableOpacity>
             </View>
@@ -89,7 +89,7 @@ export default function ForgotPasswordScreen() {
                 isLoading={loading}
                 disabled={!email.trim() || loading}
               />
-              <TouchableOpacity onPress={() => router.back()} style={styles.backRow}>
+              <TouchableOpacity accessibilityRole="button" onPress={() => router.back()} style={styles.backRow}>
                 <Text style={styles.backLink}>{"\u2190"} Back to Sign In</Text>
               </TouchableOpacity>
             </View>

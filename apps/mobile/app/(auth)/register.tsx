@@ -71,7 +71,7 @@ function ConfirmEmailState({
       <AppButton title="Use a Different Email" onPress={onChange} variant="ghost" />
       {message ? <Text accessibilityRole="alert">{message}</Text> : null}
       <Link href="/(auth)/login" asChild>
-        <Pressable style={styles.backToLogin}>
+        <Pressable accessibilityRole="link" style={styles.backToLogin}>
           <Text style={styles.backToLoginText}>Back to sign in</Text>
         </Pressable>
       </Link>
@@ -227,7 +227,7 @@ export default function RegisterScreen() {
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
           <Link href="/(auth)/login" asChild>
-            <Pressable>
+            <Pressable accessibilityRole="link">
               <Text style={styles.link}>Sign in</Text>
             </Pressable>
           </Link>

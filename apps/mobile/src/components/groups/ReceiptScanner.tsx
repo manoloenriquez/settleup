@@ -45,12 +45,12 @@ export function ReceiptScanner({
         )}
         <View style={styles.previewActions}>
           {onRetake && (
-            <TouchableOpacity style={styles.retakeBtn} onPress={onRetake} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" style={styles.retakeBtn} onPress={onRetake} activeOpacity={0.7}>
               <Ionicons name="camera-outline" size={16} color={colors.primary} />
               <Text style={styles.clearBtnText}>Retake</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
             <Text style={styles.clearBtnText}>Use Different Image</Text>
           </TouchableOpacity>
         </View>

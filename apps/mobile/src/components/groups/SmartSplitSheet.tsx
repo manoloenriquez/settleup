@@ -53,7 +53,7 @@ export function SmartSplitSheet({
       <BottomSheetView style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Smart Split</Text>
-          <TouchableOpacity onPress={handleClose} hitSlop={8}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={handleClose} hitSlop={8}>
             <Text style={styles.closeBtn}>✕</Text>
           </TouchableOpacity>
         </View>

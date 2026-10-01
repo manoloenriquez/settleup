@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   useArchiveGroup,
   useGroups,
@@ -44,7 +44,11 @@ import { amountToInput, DEFAULT_CATEGORY_COLOR, formatAmount, parseAmountInput, 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
 export default function GroupSettingsScreen() {
-  const { id: groupId } = useLocalSearchParams<{ id: string }>();
+  const { id: groupId, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
+  // "Add people" on the group screen opens here with the name field ready.
+  const focusPeople = focus === "people";
+  const scrollRef = useRef<ScrollView>(null);
+  const scrolledToPeople = useRef(false);
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
@@ -441,7 +445,13 @@ export default function GroupSettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Group Settings", headerShown: true }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+      >
         {/* Group name */}
         <View style={styles.sectionLabelRow}>
           <Ionicons name="text-outline" size={12} color={colors.gray400} />
@@ -636,12 +646,20 @@ export default function GroupSettingsScreen() {
         )}
 
         {/* Add member */}
-        <View style={[styles.sectionLabelRow, { marginTop: spacing.base }]}>
+        <View
+          style={[styles.sectionLabelRow, { marginTop: spacing.base }]}
+          onLayout={(event) => {
+            if (!focusPeople || scrolledToPeople.current) return;
+            scrolledToPeople.current = true;
+            scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - spacing.base), animated: false });
+          }}
+        >
           <View style={styles.sectionLabelInner}>
             <Ionicons name="person-add-outline" size={12} color={colors.gray400} />
             <Text style={styles.sectionLabel}>ADD MEMBER</Text>
           </View>
           <TouchableOpacity
+            accessibilityRole="button"
             onPress={() => {
               setBatchMode((v) => !v);
               setNewMemberName("");
@@ -656,6 +674,8 @@ export default function GroupSettingsScreen() {
               value={newMemberName}
               onChangeText={setNewMemberName}
               placeholder={batchMode ? "Alice, Bob, Carol…" : "Member name"}
+              accessibilityLabel={batchMode ? "Member names, separated by commas" : "Member name"}
+              autoFocus={focusPeople}
               returnKeyType="done"
               onSubmitEditing={handleAddMember}
               multiline={batchMode}

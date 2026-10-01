@@ -35,7 +35,7 @@ function SharedGuestScreen() {
   return (
     <>
       <Stack.Screen options={{ ...largeTitleOptions, title: "Shared" }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.guest} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.guest} contentInsetAdjustmentBehavior="automatic">
         <View style={styles.guestIcon}>
           <Ionicons name="people" size={32} color={colors.primary} />
         </View>
@@ -136,6 +136,7 @@ function GroupsScreen() {
         }}
       />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -206,6 +207,7 @@ function GroupsScreen() {
             )}
             {filteredGroups.map((group) => (
               <TouchableOpacity
+                accessibilityRole="button"
                 key={group.id}
                 style={styles.card}
                 onPress={() => router.push(`/(protected)/groups/${group.id}`)}
@@ -243,6 +245,8 @@ function GroupsScreen() {
         {(archivedGroups ?? []).length > 0 && (
           <View style={{ marginTop: spacing.xl }}>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showArchived }}
               onPress={() => setShowArchived((v) => !v)}
               style={styles.archivedToggle}
             >

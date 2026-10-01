@@ -514,13 +514,15 @@ export default function GroupDetailScreen() {
       />
 
       {isLoading ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </ScrollView>
       ) : (
         <ScrollView
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
           style={styles.scroll}
           contentContainerStyle={styles.content}
           refreshControl={
@@ -549,6 +551,7 @@ export default function GroupDetailScreen() {
           )}
           {/* Member avatar row */}
           <ScrollView
+            keyboardShouldPersistTaps="handled"
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.avatarRow}
@@ -568,10 +571,10 @@ export default function GroupDetailScreen() {
             })}
             <TouchableOpacity
               style={styles.avatarItem}
-              onPress={() => router.push(`/(protected)/groups/${id}/settings`)}
+              onPress={() => router.push(`/(protected)/groups/${id}/settings?focus=people`)}
               accessibilityRole="button"
               accessibilityLabel="Add people"
-              accessibilityHint="Opens group settings, where you add or invite people"
+              accessibilityHint="Opens group settings with the name field ready"
             >
               <View style={styles.avatarAdd}>
                 <Ionicons name="person-add-outline" size={20} color={colors.gray400} />
@@ -764,6 +767,7 @@ export default function GroupDetailScreen() {
 
           {tab === "charts" && (
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.chartsCard}
               onPress={() => router.push(`/(protected)/groups/${id}/insights`)}
               activeOpacity={0.8}
@@ -785,6 +789,7 @@ export default function GroupDetailScreen() {
 
       {/* FAB */}
       <TouchableOpacity
+        accessibilityRole="button"
         style={styles.fab}
         onPress={() => router.push(`/(protected)/groups/${id}/add-expense`)}
         activeOpacity={0.85}
@@ -813,7 +818,7 @@ export default function GroupDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Expense</Text>
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" style={styles.modalScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalLabel}>Name</Text>
               <TextInput
                 style={styles.modalInput}
@@ -881,6 +886,8 @@ export default function GroupDetailScreen() {
                         <View style={styles.participantRow}>
                           {(membersQ.data ?? []).map((m) => (
                             <TouchableOpacity
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: assigned.includes(m.id) }}
                               key={m.id}
                               style={[
                                 styles.participantChip,
@@ -911,12 +918,14 @@ export default function GroupDetailScreen() {
             </ScrollView>
             <View style={styles.modalBtns}>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.modalCancelBtn}
                 onPress={() => setEditingExpense(null)}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={[styles.modalSaveBtn, editSaving && { opacity: 0.6 }]}
                 onPress={handleSaveEdit}
                 disabled={editSaving}

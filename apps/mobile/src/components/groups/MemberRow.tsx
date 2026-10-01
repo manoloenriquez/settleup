@@ -80,6 +80,7 @@ export function MemberRow({ currency, member, webOrigin, onUndoLastPayment }: Me
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
       style={styles.row}
       onLongPress={handleLongPress}
       activeOpacity={0.7}

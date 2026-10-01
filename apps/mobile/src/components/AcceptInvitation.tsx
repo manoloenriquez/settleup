@@ -6,6 +6,7 @@ import { AppButton } from "@/components/ui/Button";
 import { claimMember, joinGroupByInvite } from "@/services/collaboration";
 import { clearAuthDestination, saveAuthDestination } from "@/lib/auth-links";
 import { useQueryClient } from "@tanstack/react-query";
+import { openGroupFromLink } from "@/lib/navigation";
 
 type Props = { kind: "claim" | "join"; token: string };
 export function AcceptInvitation({ kind, token }: Props): React.ReactElement {
@@ -37,10 +38,7 @@ export function AcceptInvitation({ kind, token }: Props): React.ReactElement {
       }
       await clearAuthDestination();
       await queryClient.invalidateQueries();
-      router.replace({
-        pathname: "/(protected)/groups/[id]",
-        params: { id: result.data.member.group_id },
-      });
+      openGroupFromLink(router, result.data.member.group_id);
     } catch {
       setError("Could not accept the invitation. Check your connection and try again.");
     } finally {
@@ -48,7 +46,7 @@ export function AcceptInvitation({ kind, token }: Props): React.ReactElement {
     }
   }
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 16 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, gap: 16 }}>
       <Text style={{ fontSize: 24, fontWeight: "700" }}>
         {kind === "claim" ? "Accept your personal invitation" : "Join a group"}
       </Text>

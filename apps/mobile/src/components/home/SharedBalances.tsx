@@ -132,7 +132,7 @@ export function SharedBalances() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupsRow}>
+        <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupsRow}>
           {groups.map((group) => {
             const balances = groupNets.get(group.id) ?? [];
             return (

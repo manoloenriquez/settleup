@@ -37,7 +37,7 @@ export default function UpdatePasswordScreen(): React.ReactElement {
     }
   }
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 16 }}>
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, gap: 16 }}>
       <Text style={{ fontSize: 24, fontWeight: "700" }}>Choose a new password</Text>
       {session ? (
         <>

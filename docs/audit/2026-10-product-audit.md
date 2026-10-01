@@ -379,3 +379,40 @@ link) — Live SQL `sharing_and_payment_privacy.sql` + `public_payloads.sql`.
   `EXPO_PUBLIC_APPLE_SIGN_IN=true` for the next build.
 - Web deployment and universal links (`IOS_TEAM_ID`, `IOS_BUNDLE_IDENTIFIER`,
   `talli://` redirect in the Supabase allowlist).
+
+## 9. Signed-in journeys in the app (1 October 2026, after TestFlight build 3)
+
+Accounts cannot be created on the live project from this machine, so the
+signed-in journeys run against a local Supabase stack (`npx supabase start`,
+all migrations applied, every SQL suite passing locally except
+`product_events.sql`, whose migration is not applied anywhere yet). A Release
+simulator build points at it through command-line `EXPO_PUBLIC_*` overrides, so
+the TestFlight configuration never changes. Test accounts exist only locally
+(`tools/ui-driver/local-test-accounts.env`, git-ignored).
+
+| Journey | Runner | Server check |
+|---|---|---|
+| B: guest adds two expenses, creates an account, imports once, relaunch | `run.sh … AccountJourneyTests` | exactly two `personal_expenses` rows, no duplicates |
+| D: create group, add two people without accounts, ₱900 split, ₱300 repayment, shared link off/on/new | `run-group.sh` | group, members, expense and payment rows match |
+| C: friend invite opened as a link, accepted, ₱2,000 split, settled, back to tabs | `run-friend.sh` | friendship + ledger rows |
+| Payment details: save GCash, opt in to shared links, reload | `run-payment.sh` | stored profile row |
+| Recovery: crash screen "Try Again" with bad saved data | `RecoveryTests` (planted snapshot) | — |
+
+### Bugs found and fixed this round
+
+| Bug | Effect | Fix |
+|---|---|---|
+| Build 2 crashed on launch for anyone signed in on build 1 | App unusable after update | Cache buster bump; "Try Again" clears saved snapshots (commit 3088919, shipped as build 3) |
+| Save Payment Details sat under the floating tab bar | Payment details could not be saved | `contentInsetAdjustmentBehavior="automatic"` on screens pushed inside a tab |
+| Accepting a friend or group invite link opened a screen with no back button or tab bar | Dead end | Protected stack anchored on the tabs; links open the group with the anchor |
+| First tap on a button only dismissed the keyboard (Create Group, Add member, Record payment…) | Two taps needed | `keyboardShouldPersistTaps="handled"` on every scroll view |
+| "Add people" opened settings at the top; typing a name hid the field behind the keyboard | Could not see what was typed | Opens with the name field focused and scrolled into view; keyboard insets on form screens |
+| 47 buttons, links and chips had no accessibility role | VoiceOver did not announce them as buttons | Roles plus selected/checked state |
+| Settle-up amount rendered small and below the ₱ sign | Looked broken | Style no longer passed into the input |
+| Payment notes placeholder showed a literal `…` | Typo on screen | Real ellipsis |
+| Home balance card said "All clear" before balances loaded | Misleading | Shows a loading state |
+
+Not app bugs, recorded for the next person driving the simulator: iOS's
+"Save Password?" sheet swallows the next tap after sign-in; keychain sessions
+survive `simctl uninstall` (`simctl keychain <udid> reset`); another session
+was sharing the default simulator, so these runs use a dedicated one.

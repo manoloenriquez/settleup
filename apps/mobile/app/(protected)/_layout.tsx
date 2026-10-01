@@ -1,6 +1,10 @@
 import { Stack } from "expo-router";
 import { stackScreenOptions } from "@/lib/navigation";
 
+// Screens opened directly (invite links, notifications) keep the tabs underneath,
+// so they always have a back button.
+export const unstable_settings = { anchor: "(tabs)" };
+
 export default function ProtectedLayout() {
   return (
     <Stack screenOptions={stackScreenOptions}>

@@ -762,7 +762,7 @@ export default function AddExpenseScreen() {
     return (
       <>
         <Stack.Screen options={{ title: "Confirm Expense", headerShown: true }} />
-        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { justifyContent: "flex-start" }]}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={[styles.content, { justifyContent: "flex-start" }]}>
           <View style={styles.confirmCard}>
             <Text style={styles.confirmTitle}>REVIEW</Text>
             <Text style={styles.confirmName}>{itemName}</Text>
@@ -805,7 +805,7 @@ export default function AddExpenseScreen() {
           </View>
 
           <View style={styles.confirmActions}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => setConfirming(false)} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={() => setConfirming(false)} activeOpacity={0.7}>
               <Text style={styles.backBtnText}>Back to Edit</Text>
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
@@ -825,6 +825,7 @@ export default function AddExpenseScreen() {
           {/* Smart add hint — jumps into the natural-language chat mode */}
           {mode !== "chat" && (
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.smartBanner}
               onPress={() => setMode("chat")}
               activeOpacity={0.8}
@@ -870,7 +871,7 @@ export default function AddExpenseScreen() {
                 <DateField value={expenseDate} onChange={setExpenseDate} />
                 <View>
                   <Text style={styles.label}>Paid by</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                  <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                     {members.map((m) => (
                       <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
                         <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
@@ -914,7 +915,7 @@ export default function AddExpenseScreen() {
                 </View>
                 <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
                 <View style={styles.quickActionsRow}>
-                  <TouchableOpacity style={styles.moreOptionsBtn} onPress={() => setMode("detailed")} activeOpacity={0.7}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.moreOptionsBtn} onPress={() => setMode("detailed")} activeOpacity={0.7}>
                     <Text style={styles.moreOptionsText}>More options</Text>
                   </TouchableOpacity>
                   <View style={{ flex: 1 }}>
@@ -959,7 +960,7 @@ export default function AddExpenseScreen() {
                       Paid by{aiReview.resolution.payerSuggested ? ` · suggested "${aiReview.resolution.payerSuggested}"` : ""}
                       {aiReview.resolution.payerId ? "" : " · choose a member"}
                     </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                    <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                       {activeGroupMembers.map((m) => {
                         const selected = aiReview.resolution.payerId === m.id;
                         return (
@@ -977,7 +978,7 @@ export default function AddExpenseScreen() {
                         {participant.suggested ? ` · suggested "${participant.suggested}"` : ""}
                         {participant.memberId ? "" : " · choose a member"}
                       </Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                      <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                         {activeGroupMembers.map((m) => {
                           const selected = participant.memberId === m.id;
                           return (
@@ -996,7 +997,7 @@ export default function AddExpenseScreen() {
                   )}
                   <CategoryPicker categories={categories} selectedId={aiReview.categoryId} onSelect={(id) => setAiReview((current) => (current ? { ...current, categoryId: id } : current))} />
                   <View style={styles.quickActionsRow}>
-                    <TouchableOpacity style={styles.moreOptionsBtn} onPress={dismissAiReview} activeOpacity={0.7}>
+                    <TouchableOpacity accessibilityRole="button" style={styles.moreOptionsBtn} onPress={dismissAiReview} activeOpacity={0.7}>
                       <Text style={styles.moreOptionsText}>Dismiss</Text>
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
@@ -1009,7 +1010,7 @@ export default function AddExpenseScreen() {
                 <View style={styles.chatTextInput}>
                   <AppTextInput value={chatInput} onChangeText={setChatInput} placeholder="Describe the expense…" onSubmitEditing={() => void handleChatSend()} returnKeyType="send" />
                 </View>
-                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Send" style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing}>
                   <Text style={styles.sendBtnText}>{"\u2192"}</Text>
                 </TouchableOpacity>
               </View>
@@ -1086,7 +1087,7 @@ export default function AddExpenseScreen() {
                       <View style={styles.lineItemHeader}>
                         <Text style={styles.lineItemIndex}>Item {i + 1}</Text>
                         {lineItems.length > 1 && (
-                          <TouchableOpacity onPress={() => setLineItems((prev) => prev.filter((_, idx) => idx !== i))}>
+                          <TouchableOpacity accessibilityRole="button" onPress={() => setLineItems((prev) => prev.filter((_, idx) => idx !== i))}>
                             <Text style={styles.removeText}>Remove</Text>
                           </TouchableOpacity>
                         )}
@@ -1103,6 +1104,8 @@ export default function AddExpenseScreen() {
                       <View style={styles.participantRow}>
                         {members.map((m) => (
                           <TouchableOpacity
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: li.participantIds.includes(m.id) }}
                             key={m.id}
                             style={[styles.participantChip, li.participantIds.includes(m.id) && styles.participantChipActive]}
                             onPress={() => toggleLineItemParticipant(i, m.id)}
@@ -1117,6 +1120,7 @@ export default function AddExpenseScreen() {
                     </View>
                   ))}
                   <TouchableOpacity
+                    accessibilityRole="button"
                     style={styles.addLineItemBtn}
                     onPress={() => setLineItems((prev) => [...prev, { name: "", amountStr: "", participantIds: [] }])}
                   >
@@ -1150,12 +1154,12 @@ export default function AddExpenseScreen() {
               <View>
                 <View style={styles.paidByHeader}>
                   <Text style={styles.label}>Paid by</Text>
-                  <TouchableOpacity onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
                     <Text style={styles.multiPayerToggle}>{multiPayer ? "Single payer" : "Split payment"}</Text>
                   </TouchableOpacity>
                 </View>
                 {!multiPayer ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                  <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                     {members.map((m) => (
                       <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
                         <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
@@ -1223,7 +1227,7 @@ export default function AddExpenseScreen() {
                 <Text style={styles.label}>How to split</Text>
                 <View style={styles.toggleRow}>
                   {(["equal", "percent", "shares", "custom"] as SplitMode[]).map((s) => (
-                    <TouchableOpacity key={s} style={[styles.toggleBtn, splitMode === s && styles.toggleBtnActive]} onPress={() => setSplitMode(s)} activeOpacity={0.7}>
+                    <TouchableOpacity accessibilityRole="radio" accessibilityState={{ selected: splitMode === s }} key={s} style={[styles.toggleBtn, splitMode === s && styles.toggleBtnActive]} onPress={() => setSplitMode(s)} activeOpacity={0.7}>
                       <Text style={[styles.toggleBtnText, splitMode === s && styles.toggleBtnTextActive]}>
                         {s === "equal" ? "Equal" : s === "percent" ? "%" : s === "shares" ? "Shares" : "Custom"}
                       </Text>
@@ -1304,6 +1308,7 @@ export default function AddExpenseScreen() {
               {splitMode === "custom" && selectedMembers.size > 0 && (
                 <View style={styles.customSplitSection}>
                   <TouchableOpacity
+                    accessibilityRole="button"
                     style={styles.smartSplitBtn}
                     onPress={() => {
                       if (aiAvailability.state === "unavailable") {
@@ -1349,13 +1354,13 @@ export default function AddExpenseScreen() {
               <View>
                 <View style={styles.paidByHeader}>
                   <Text style={styles.label}>Paid by</Text>
-                  <TouchableOpacity onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
                     <Text style={styles.multiPayerToggle}>{multiPayer ? "Single payer" : "Split payment"}</Text>
                   </TouchableOpacity>
                 </View>
 
                 {!multiPayer ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                  <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
                     {members.map((m) => (
                       <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
                         <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>

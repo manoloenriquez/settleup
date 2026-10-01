@@ -8,6 +8,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { clearAuthDestination, saveAuthDestination } from "@/lib/auth-links";
 import { acceptFriendInvite, previewFriendInvite, type FriendInvitePreview } from "@/services/friends";
 import { ROUTES } from "@/lib/routes";
+import { openGroupFromLink } from "@/lib/navigation";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 /** Opened from a friend's invite link: preview, then accept (sign-in first if needed). */
@@ -55,7 +56,7 @@ export default function FriendInviteScreen() {
     void qc.invalidateQueries({ queryKey: ["friends"] });
     void qc.invalidateQueries({ queryKey: ["groups"] });
     void qc.invalidateQueries({ queryKey: ["dashboard"] });
-    router.replace({ pathname: "/(protected)/groups/[id]", params: { id: res.data.directGroupId } });
+    openGroupFromLink(router, res.data.directGroupId);
   }
 
   if (!preview) {
@@ -68,7 +69,7 @@ export default function FriendInviteScreen() {
 
   const inviter = preview.inviter_name ?? "Someone";
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {preview.status === "open" ? (
         <>
           <Text style={styles.title} accessibilityRole="header">

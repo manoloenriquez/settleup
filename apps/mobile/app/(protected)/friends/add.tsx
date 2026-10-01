@@ -51,7 +51,7 @@ export default function AddFriendScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Add a Friend" }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView automaticallyAdjustKeyboardInsets style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.lead}>
           Talli makes a private link for one friend. When they open it and sign in, you’ll share a
           simple tab between the two of you. Nobody can find you by searching.

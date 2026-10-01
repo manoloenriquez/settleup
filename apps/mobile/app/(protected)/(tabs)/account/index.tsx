@@ -90,7 +90,7 @@ function GuestAccountScreen() {
   return (
     <>
       <Stack.Screen options={{ ...largeTitleOptions, title: "Account" }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         <Card style={styles.profileCard}>
           <Text style={styles.profileName}>You’re using Talli without an account</Text>
           <Text style={styles.guestBody}>
@@ -253,7 +253,7 @@ function AccountScreen() {
   return (
     <>
       <Stack.Screen options={{ ...largeTitleOptions, title: "Account" }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         {isLoading ? (
           <SkeletonCard />
         ) : (
@@ -359,12 +359,13 @@ function AccountScreen() {
           />
         </Card>
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
         <Text style={styles.dangerLabel}>DANGER ZONE</Text>
         <TouchableOpacity
+          accessibilityRole="button"
           style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
           onPress={handleDeleteAccount}
           activeOpacity={0.7}

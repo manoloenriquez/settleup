@@ -64,6 +64,7 @@ export default function InsightsScreen() {
     <>
       <Stack.Screen options={{ title: "Group Insights", headerShown: true }} />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -149,6 +150,7 @@ export default function InsightsScreen() {
               </Card>
             ) : (
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.generateBtn}
                 onPress={handleGenerateSummary}
                 activeOpacity={0.7}

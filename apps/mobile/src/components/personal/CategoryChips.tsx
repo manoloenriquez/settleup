@@ -14,6 +14,7 @@ export function CategoryChips({ value, onChange, suggested = false }: Props) {
         Category{suggested ? <Text style={styles.hint}>  · suggested</Text> : null}
       </Text>
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}

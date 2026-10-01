@@ -236,6 +236,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
       <Stack.Screen options={{ title: "Group Overview" }} />
 
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -272,6 +273,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
           )}
           <View style={styles.heroActions}>
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.heroBtn}
               onPress={handleCopySummary}
               activeOpacity={0.7}
@@ -281,6 +283,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
             </TouchableOpacity>
             {WEB_ORIGIN ? (
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.heroBtn}
                 onPress={handleShareLink}
                 activeOpacity={0.7}

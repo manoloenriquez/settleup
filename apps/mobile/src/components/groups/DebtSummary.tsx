@@ -127,6 +127,7 @@ export function DebtSummary({
                 <Ionicons name="notifications-outline" size={13} color={colors.gray500} />
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.settleBtn}
                 onPress={() => onSettle(debt)}
                 activeOpacity={0.7}
@@ -182,6 +183,7 @@ export function DebtSummary({
           </View>
           {myDebt && (
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.settleAllBtn}
               onPress={() => onSettle(myDebt)}
               activeOpacity={0.85}

@@ -43,7 +43,7 @@ export default function EditProfileScreen() {
     <>
       <Stack.Screen options={{ title: "Edit Profile", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentInsetAdjustmentBehavior="automatic" style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <AppTextInput
             label="Display Name"
             value={fullName}

@@ -150,7 +150,7 @@ export function ReceiptItemEditor({
           <Text style={styles.itemCount}>{includedItems.length} of {items.length} selected</Text>
         </View>
 
-        <ScrollView style={styles.itemsList} nestedScrollEnabled>
+        <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" style={styles.itemsList} nestedScrollEnabled>
           {items.map((item, i) => {
             const state = stateFor(item);
             const flagged = state === "needs_review";
@@ -197,7 +197,7 @@ export function ReceiptItemEditor({
           })}
         </ScrollView>
 
-        <TouchableOpacity style={styles.addItemBtn} onPress={addItem} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" style={styles.addItemBtn} onPress={addItem} activeOpacity={0.7}>
           <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
           <Text style={styles.addItemText}>Add item</Text>
         </TouchableOpacity>

@@ -58,7 +58,7 @@ export function PendingChangesSheet({ visible, onClose }: PendingChangesSheetPro
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>Pending changes</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Close">
+            <TouchableOpacity accessibilityRole="button" onPress={onClose} hitSlop={8} accessibilityLabel="Close">
               <Ionicons name="close" size={22} color={colors.gray500} />
             </TouchableOpacity>
           </View>
@@ -66,7 +66,7 @@ export function PendingChangesSheet({ visible, onClose }: PendingChangesSheetPro
           {entries.length === 0 ? (
             <Text style={styles.empty}>Everything is synced.</Text>
           ) : (
-            <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={styles.list} contentContainerStyle={styles.listContent}>
               {entries.map((entry) => {
                 const badge = statusBadge(entry);
                 return (

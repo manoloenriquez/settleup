@@ -1,4 +1,5 @@
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
+import type { Href } from "expo-router";
 import { colors } from "@/theme";
 
 /**
@@ -19,3 +20,14 @@ export const largeTitleOptions: NativeStackNavigationOptions = {
   headerLargeTitle: true,
   headerLargeTitleShadowVisible: false,
 };
+
+type GroupRouter = { replace: (href: Href, options?: { withAnchor?: boolean }) => void };
+
+/**
+ * Open a group from a screen that sits outside the app's tabs (an invite or
+ * friend link). A plain replace would leave the group with no back button and
+ * no tab bar; with the anchor, the tabs are rendered underneath it.
+ */
+export function openGroupFromLink(router: GroupRouter, groupId: string): void {
+  router.replace({ pathname: "/(protected)/groups/[id]", params: { id: groupId } }, { withAnchor: true });
+}

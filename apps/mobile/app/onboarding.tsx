@@ -55,7 +55,7 @@ export default function OnboardingScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.primary} />
         </TouchableOpacity>
       )}
-      <ScrollView contentContainerStyle={styles.content} bounces={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} bounces={false}>
         {step === "welcome" && (
           <>
             <View style={styles.logo}>

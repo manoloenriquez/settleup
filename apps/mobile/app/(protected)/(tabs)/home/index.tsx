@@ -54,6 +54,7 @@ export default function HomeScreen() {
         }}
       />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
