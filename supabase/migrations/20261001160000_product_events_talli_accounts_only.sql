@@ -7,6 +7,11 @@
 DROP TRIGGER IF EXISTS trg_record_account_created ON auth.users;
 DROP FUNCTION IF EXISTS settleup.record_account_created();
 
+-- Rows the dropped trigger wrote (platform 'server') may belong to other
+-- apps' users; Talli clients record their own from now on.
+DELETE FROM settleup.product_events
+WHERE event_name = 'account_created' AND platform = 'server';
+
 -- Keep the earliest account_created per user before enforcing one.
 DELETE FROM settleup.product_events a
 USING settleup.product_events b

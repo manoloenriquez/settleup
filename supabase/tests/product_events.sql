@@ -111,6 +111,38 @@ BEGIN
   SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND user_id=owner_id;
   ASSERT n=1, 'Re-settling the same ledger state must not record again, got '||n;
 
+  -- Balances in different currencies never net: with a US$20 expense still
+  -- open, PHP payments that net to zero must not record group_settled.
+  PERFORM set_config('request.headers','{"x-ledger-version":"2"}',true);
+  PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
+  PERFORM settleup.create_expense(jsonb_build_object(
+    'group_id',v_group_id,'item_name','Taxi','amount_cents',2000,'currency_code','USD','split_mode','equal',
+    'participant_ids',jsonb_build_array(owner_member,linked_member),
+    'payers',jsonb_build_array(jsonb_build_object('member_id',owner_member,'paid_cents',2000))));
+  -- now() is fixed inside this transaction: move the earlier settlement
+  -- marker into the past, as it would be in real time.
+  PERFORM set_config('role','postgres',true);
+  UPDATE settleup.group_settlements SET settled_at = settled_at - interval '1 minute' WHERE group_id = v_group_id;
+  UPDATE settleup.expenses SET created_at = created_at - interval '30 seconds' WHERE group_id = v_group_id AND item_name <> 'Taxi';
+  PERFORM set_config('role','authenticated',true);
+  -- Owner is now owed US$10 and owes ₱10: summed across currencies that is
+  -- zero, which the old check wrongly treated as settled.
+  PERFORM settleup.create_expense(jsonb_build_object(
+    'group_id',v_group_id,'item_name','Snacks','amount_cents',2000,'currency_code','PHP','split_mode','equal',
+    'participant_ids',jsonb_build_array(owner_member,linked_member),
+    'payers',jsonb_build_array(jsonb_build_object('member_id',linked_member,'paid_cents',2000))));
+  PERFORM settleup.record_payment_v2(v_group_id,linked_member,owner_member,100::bigint,gen_random_uuid(),'PHP');
+  PERFORM settleup.record_payment_v2(v_group_id,owner_member,linked_member,100::bigint,gen_random_uuid(),'PHP');
+  PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
+  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND user_id=owner_id;
+  ASSERT n=1, 'Balances in different currencies must not cancel out, got '||n;
+  PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
+  PERFORM settleup.record_payment_v2(v_group_id,linked_member,owner_member,1000::bigint,gen_random_uuid(),'USD');
+  PERFORM settleup.record_payment_v2(v_group_id,owner_member,linked_member,1000::bigint,gen_random_uuid(),'PHP');
+  PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
+  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND user_id=owner_id;
+  ASSERT n=2, 'Clearing the last currency records group_settled, got '||n;
+
   -- Closing the app account detaches its events.
   PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
   PERFORM settleup.close_account();

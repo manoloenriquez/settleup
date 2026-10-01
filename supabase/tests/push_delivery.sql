@@ -70,6 +70,14 @@ BEGIN
   ASSERT messages->0->>'body'='Owner confirmed your ₱25.00 payment' OR messages->0->>'body' LIKE '% confirmed your ₱25.00 payment', 'Confirmed body mismatch: '||(messages->0->>'body');
 
   -- Unknown events and foreign groups produce nothing.
+  -- Amounts use the expense's own currency (multi-currency ledger).
+  messages := settleup.build_push_messages('expense_added', jsonb_build_object(
+    'group_id', v_group_id, 'item_name', 'Taxi', 'amount_cents', 4500, 'currency_code', 'USD', 'created_by_user_id', owner_id));
+  ASSERT messages->0->>'body'='New expense: Taxi (USD 45.00)', 'USD body mismatch: '||(messages->0->>'body');
+  messages := settleup.build_push_messages('expense_added', jsonb_build_object(
+    'group_id', v_group_id, 'item_name', 'Ramen', 'amount_cents', 1500, 'currency_code', 'JPY', 'created_by_user_id', owner_id));
+  ASSERT messages->0->>'body'='New expense: Ramen (JPY 1,500)', 'JPY body mismatch: '||(messages->0->>'body');
+
   ASSERT settleup.build_push_messages('something_else', jsonb_build_object('group_id', v_group_id))='[]'::jsonb, 'Unknown events are ignored';
   ASSERT settleup.build_push_messages('expense_added', jsonb_build_object('group_id', gen_random_uuid(), 'amount_cents', 1))='[]'::jsonb, 'Unknown groups are ignored';
 
