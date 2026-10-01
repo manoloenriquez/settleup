@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { upsertPaymentProfileSchema } from "@template/shared";
+import { MAX_QR_FILE_SIZE_BYTES, QR_ALLOWED_MIME_TYPES, QR_BUCKET, upsertPaymentProfileSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import * as ImagePicker from "expo-image-picker";
 
@@ -58,18 +58,50 @@ export async function uploadQRImage(userId: string, type: "gcash" | "bank"): Pro
   if (result.canceled || !result.assets[0]) return { data: null, error: "Cancelled" };
 
   const asset = result.assets[0];
-  const ext = asset.uri.split(".").pop() ?? "jpg";
-  const path = `${userId}/${type}-qr-${Date.now()}.${ext}`;
-
   const response = await fetch(asset.uri);
   const blob = await response.blob();
+  // Check the actual image before it leaves the phone.
+  const mimeType = asset.mimeType ?? blob.type;
+  if (!QR_ALLOWED_MIME_TYPES.includes(mimeType)) {
+    return { data: null, error: "Choose a JPEG, PNG or WebP image." };
+  }
+  const size = asset.fileSize ?? blob.size;
+  if (size > MAX_QR_FILE_SIZE_BYTES) {
+    return { data: null, error: `Choose an image under ${MAX_QR_FILE_SIZE_BYTES / 1024 / 1024} MB.` };
+  }
 
+  const ext = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+  const path = `${userId}/${type}-qr-${Date.now()}.${ext}`;
   const { error: uploadError } = await supabase.storage
-    .from("payment-qr")
-    .upload(path, blob, { contentType: `image/${ext}`, upsert: true });
+    .from(QR_BUCKET)
+    .upload(path, blob, { contentType: mimeType, upsert: false });
 
   if (uploadError) return { data: null, error: uploadError.message };
 
-  const { data: urlData } = supabase.storage.from("payment-qr").getPublicUrl(path);
+  const { data: urlData } = supabase.storage.from(QR_BUCKET).getPublicUrl(path);
   return { data: urlData.publicUrl, error: null };
+}
+
+/**
+ * Best-effort removal of QR images the saved profile no longer uses (replaced
+ * or never saved). Only paths in this user's folder are ever passed.
+ */
+export async function removeQRImages(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  await supabase.storage
+    .from(QR_BUCKET)
+    .remove(paths)
+    .catch(() => undefined);
+}
+
+/**
+ * Delete every QR image in this user's folder. Called before closing the
+ * account, which removes the profile row directly, so nothing else would ever
+ * clean these public files up. Best effort: closing still goes ahead.
+ */
+export async function removeAllMyQRImages(userId: string): Promise<void> {
+  if (!userId) return;
+  const { data } = await supabase.storage.from(QR_BUCKET).list(userId, { limit: 1000 });
+  const paths = (data ?? []).map((file) => `${userId}/${file.name}`);
+  await removeQRImages(paths);
 }

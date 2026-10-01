@@ -947,7 +947,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },
-  renameSaveBtn: { height: 36, paddingHorizontal: spacing.sm },
+  renameSaveBtn: { minHeight: 36, paddingHorizontal: spacing.sm },
   renameCancelBtn: { fontSize: fontSize.sm, color: colors.gray500 },
   categoryDot: { width: 14, height: 14, borderRadius: 7 },
   colorSwatch: {

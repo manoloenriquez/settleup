@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
 import { usePreferences } from "@/context/PreferencesContext";
 import { useAddMenu } from "@/hooks/useAddMenu";
+import { useStackedLayout } from "@/hooks/useStackedLayout";
 import { SHARE_REASON, useAccountPrompt } from "@/hooks/useAccountPrompt";
 import { largeTitleOptions } from "@/lib/navigation";
 import { localTodayISO } from "@/lib/dates";
@@ -20,6 +21,7 @@ import { ROUTES } from "@/lib/routes";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function HomeScreen() {
+  const stacked = useStackedLayout();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { session } = useAuth();
@@ -64,7 +66,7 @@ export default function HomeScreen() {
 
         <MonthSummaryCard summary={summary} />
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, stacked && styles.stacked]}>
           <AppButton title="Add Expense" onPress={addExpense} style={styles.action} />
           <AppButton title="Scan Receipt" variant="secondary" onPress={scanReceipt} style={styles.action} />
         </View>
@@ -130,6 +132,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.base, paddingBottom: spacing["3xl"], gap: spacing.base },
   actions: { flexDirection: "row", gap: spacing.sm },
+  stacked: { flexDirection: "column" },
   action: { flex: 1, paddingHorizontal: spacing.sm },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
   sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900 },

@@ -78,24 +78,46 @@ export async function createRecurringExpense(params: CreateRecurringParams): Pro
   return { data: null, error: null };
 }
 
+const RECURRING_FORBIDDEN = "Only the person who set this up or a group admin can change it.";
+
+/**
+ * Why an update or delete touched no row: RLS hides rows you may not change,
+ * and the row may simply be gone. Deleting something already gone is fine.
+ */
+async function zeroRowsReason(id: string, action: "update" | "delete"): Promise<string | null> {
+  const { data } = await supabase.schema("settleup").from("recurring_expenses").select("id").eq("id", id).maybeSingle();
+  if (data) return RECURRING_FORBIDDEN;
+  return action === "delete" ? null : "This recurring expense no longer exists.";
+}
+
 export async function setRecurringExpenseActive(id: string, active: boolean): Promise<ApiResponse<null>> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .schema("settleup")
     .from("recurring_expenses")
     .update({ active })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
   if (error) return { data: null, error: error.message };
+  if (!data || data.length === 0) {
+    return { data: null, error: (await zeroRowsReason(id, "update")) ?? "This recurring expense no longer exists." };
+  }
   return { data: null, error: null };
 }
 
 export async function deleteRecurringExpense(id: string): Promise<ApiResponse<null>> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .schema("settleup")
     .from("recurring_expenses")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
   if (error) return { data: null, error: error.message };
+  if (!data || data.length === 0) {
+    // Already gone counts as deleted.
+    const reason = await zeroRowsReason(id, "delete");
+    if (reason) return { data: null, error: reason };
+  }
   return { data: null, error: null };
 }

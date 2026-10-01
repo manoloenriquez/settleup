@@ -273,7 +273,8 @@ Run against the live project inside BEGIN…ROLLBACK (Supabase MCP
 `execute_sql`); CI also runs them on a fresh local stack. Suites:
 `currency_ledger`, `currency_lookup_helpers`, `public_payloads`,
 `sharing_and_payment_privacy`, `friends`, `personal_expenses`,
-`account_closure`, `launch_security`, `push_delivery`, `product_events`.
+`account_closure`, `launch_security`, `push_delivery`, `product_events`,
+`group_journey`, `payment_qr_storage`, `recurring_permissions`.
 
 
 `supabase/tests/*.sql` are transactional (`BEGIN … ROLLBACK`) and assert with `ASSERT`/`RAISE`. CI runs them against a local Supabase with every migration applied (`db-tests` job in `.github/workflows/ci.yml`). Locally:
@@ -284,6 +285,25 @@ for f in supabase/tests/*.sql; do psql "postgresql://postgres:postgres@127.0.0.1
 ```
 
 Files: `launch_security.sql` (invitations, guest reports, resolution authorization), `public_payloads.sql` (public payload allowlists, rotation, anonymous access to private RPCs), `account_closure.sql`, `currency_ledger.sql`, `push_delivery.sql`, `product_events.sql`.
+
+## Payment QR storage and recurring templates (2026-10-01)
+
+- **QR images** (`20261001140000`): bucket `payment-qr` is public (QR codes are
+  meant to be shown), one folder per user. Owners may read, insert and delete
+  only in their own folder; nobody can list anyone else's. Storage API deletes
+  need SELECT as well as DELETE, which is why the owner-folder SELECT policy
+  exists: without it every delete silently did nothing. The bucket enforces
+  5 MB and JPEG/PNG/WebP (plus the non-standard `image/jpg` older builds send).
+  Apps validate type and size before uploading, delete QR files a saved profile
+  stops using, and delete the whole folder before closing an account. SQL can't
+  delete storage objects (`storage.protect_delete`); `tools/ui-driver/check-qr-delete.sh`
+  exercises deletes through the Storage API on a local stack.
+- **Recurring templates** (`20261001150000`): members see every template and
+  create their own (`created_by_user_id` must be themselves); only the creator
+  or a group owner/admin may pause, edit or delete one. Because RLS makes a
+  blocked update/delete return zero rows instead of an error, the apps check
+  for zero rows and re-read: still visible means "no permission", gone means
+  already deleted.
 
 ## Currencies, sharing and friends (applied live 2026-10-01)
 

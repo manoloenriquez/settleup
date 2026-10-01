@@ -9,6 +9,7 @@ import {
   type CurrencyAmount,
 } from "@template/shared";
 import { useDashboardSummaries } from "@/hooks/useDashboard";
+import { useStackedLayout } from "@/hooks/useStackedLayout";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { SkeletonCard, ErrorBanner } from "@/components/ui";
 import { ROUTES } from "@/lib/routes";
@@ -24,6 +25,7 @@ function signed(amount: CurrencyAmount): string {
 export function SharedBalances() {
   const router = useRouter();
   const { data: summaries, isLoading, refetch, error } = useDashboardSummaries();
+  const stacked = useStackedLayout();
   const list = summaries ?? [];
   const nets = nonZeroNets(list);
   const owed = owedTotalsByCurrency(list);
@@ -89,28 +91,43 @@ export function SharedBalances() {
         </Text>
       </View>
 
-      {owed.map((row) => (
-        <View key={row.currency} style={styles.splitRow}>
-          <View style={[styles.splitCard, styles.splitCardOwed]}>
-            <Text style={[styles.splitLabel, { color: colors.successDark }]}>You are owed</Text>
-            <Text style={[styles.splitAmount, { color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>
-              {formatAmount(row.owedToMe, row.currency)}
-            </Text>
-            <Text style={[styles.splitMeta, { color: colors.successDark }]}>
-              from {row.owedFrom} {row.owedFrom === 1 ? "person" : "people"}
-            </Text>
+      {owed.map((row) => {
+        // Red and green mean money is actually owed; an empty side stays neutral.
+        const owedNone = row.owedToMe === 0;
+        const oweNone = row.iOwe === 0;
+        return (
+          <View key={row.currency} style={[styles.splitRow, stacked && styles.stacked]}>
+            <View style={[styles.splitCard, owedNone ? styles.splitCardNone : styles.splitCardOwed]}>
+              <Text style={[styles.splitLabel, { color: owedNone ? colors.gray600 : colors.successDark }]}>
+                You are owed
+              </Text>
+              <Text
+                style={[styles.splitAmount, { color: owedNone ? colors.gray600 : colors.successDark }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {owedNone ? "Nothing" : formatAmount(row.owedToMe, row.currency)}
+              </Text>
+              <Text style={[styles.splitMeta, { color: owedNone ? colors.gray500 : colors.successDark }]}>
+                {owedNone ? "Nobody owes you" : `from ${row.owedFrom} ${row.owedFrom === 1 ? "person" : "people"}`}
+              </Text>
+            </View>
+            <View style={[styles.splitCard, oweNone ? styles.splitCardNone : styles.splitCardOwe]}>
+              <Text style={[styles.splitLabel, { color: oweNone ? colors.gray600 : colors.danger }]}>You owe</Text>
+              <Text
+                style={[styles.splitAmount, { color: oweNone ? colors.gray600 : colors.danger }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {oweNone ? "Nothing" : formatAmount(row.iOwe, row.currency)}
+              </Text>
+              <Text style={[styles.splitMeta, { color: oweNone ? colors.gray500 : colors.danger }]}>
+                {oweNone ? "You’re all paid up" : `to ${row.oweTo} ${row.oweTo === 1 ? "person" : "people"}`}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.splitCard, styles.splitCardOwe]}>
-            <Text style={[styles.splitLabel, { color: colors.danger }]}>You owe</Text>
-            <Text style={[styles.splitAmount, { color: colors.danger }]} numberOfLines={1} adjustsFontSizeToFit>
-              {formatAmount(row.iOwe, row.currency)}
-            </Text>
-            <Text style={[styles.splitMeta, { color: colors.danger }]}>
-              to {row.oweTo} {row.oweTo === 1 ? "person" : "people"}
-            </Text>
-          </View>
-        </View>
-      ))}
+        );
+      })}
 
       {isLoading ? (
         <View style={styles.skeletonWrapper}>
@@ -189,9 +206,11 @@ const styles = StyleSheet.create({
   heroAmount: { fontSize: 30, fontWeight: fontWeight.bold, letterSpacing: -0.5, marginTop: 4, fontVariant: ["tabular-nums"] },
   heroSub: { fontSize: fontSize.base, color: colors.gray500, marginTop: 4 },
   splitRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  stacked: { flexDirection: "column" },
   splitCard: { flex: 1, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: 1 },
   splitCardOwed: { backgroundColor: colors.successLight + "b0", borderColor: colors.success + "30" },
   splitCardOwe: { backgroundColor: colors.dangerLight + "b0", borderColor: colors.danger + "30" },
+  splitCardNone: { backgroundColor: colors.gray100, borderColor: colors.gray200 },
   splitLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium },
   splitAmount: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: 2, fontVariant: ["tabular-nums"] },
   splitMeta: { fontSize: fontSize.xs, marginTop: 2 },

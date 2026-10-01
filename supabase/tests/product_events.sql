@@ -13,7 +13,11 @@ BEGIN
     (owner_id,'events-owner-'||owner_id||'@example.invalid','{}'),
     (member_user,'events-member-'||member_user||'@example.invalid','{}'),
     (admin_id,'events-admin-'||admin_id||'@example.invalid','{}');
-  INSERT INTO public.profiles(id,email,role) VALUES (admin_id,'events-admin@example.invalid','admin') ON CONFLICT (id) DO UPDATE SET role='admin';
+  -- Sign-up already created the profile, and promoting it with an UPDATE trips
+  -- the role-escalation trigger (correctly: nobody is an admin yet). The
+  -- trigger guards updates only, so recreate this fixture's profile as admin.
+  DELETE FROM public.profiles WHERE id = admin_id;
+  INSERT INTO public.profiles(id,email,role) VALUES (admin_id,'events-admin@example.invalid','admin');
 
   -- account_created is recorded by the auth trigger for every sign-up path.
   SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='account_created' AND user_id IN (owner_id,member_user,admin_id);
@@ -81,17 +85,17 @@ BEGIN
     'id',expense_id,'group_id',v_group_id,'item_name','Dinner','amount_cents',1000,'split_mode','equal',
     'participant_ids',jsonb_build_array(owner_member,linked_member),
     'payers',jsonb_build_array(jsonb_build_object('member_id',owner_member,'paid_cents',1000))));
-  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled';
+  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND user_id=owner_id;
   ASSERT n=0, 'Nothing is settled before a payment';
   PERFORM settleup.record_payment(v_group_id,linked_member,owner_member,500::bigint,gen_random_uuid());
   PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
-  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND platform='server';
+  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND platform='server' AND user_id=owner_id;
   ASSERT n=1, 'A payment that clears all balances records group_settled, got '||n;
   PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
   PERFORM settleup.record_payment(v_group_id,owner_member,linked_member,100::bigint,gen_random_uuid());
   PERFORM settleup.record_payment(v_group_id,linked_member,owner_member,100::bigint,gen_random_uuid());
   PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
-  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled';
+  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='group_settled' AND user_id=owner_id;
   ASSERT n=1, 'Re-settling the same ledger state must not record again, got '||n;
 
   -- Closing the app account detaches its events.

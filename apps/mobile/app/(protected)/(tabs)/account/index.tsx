@@ -19,6 +19,7 @@ import { usePendingCounts } from "@/hooks/useOutbox";
 import { useOutbox } from "@/context/OutboxContext";
 import { AppButton, Avatar, Badge, Card, ListItem, SkeletonCard, useToast } from "@/components/ui";
 import { deleteAccount } from "@/services/account";
+import { removeAllMyQRImages } from "@/services/payment-profiles";
 import {
   getPushRegistration,
   NOTIFICATIONS_BLOCKED,
@@ -212,6 +213,7 @@ function AccountScreen() {
               return;
             }
             setDeleting(true);
+            await removeAllMyQRImages(session?.user.id ?? "").catch(() => undefined);
             const res = await deleteAccount(accessToken);
             setDeleting(false);
             if (res.error) {

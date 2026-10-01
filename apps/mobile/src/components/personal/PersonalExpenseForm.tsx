@@ -40,6 +40,7 @@ import { parseConversationMobile } from "@/lib/ai/conversation";
 import { chatToPersonalDraft, receiptToPersonalDraft, type PersonalDraft } from "@/lib/personal/drafts";
 import { localTodayISO } from "@/lib/dates";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { useStackedLayout } from "@/hooks/useStackedLayout";
 
 type Assist = "none" | "scan" | "describe";
 
@@ -51,6 +52,7 @@ type Props = {
 };
 
 export function PersonalExpenseForm({ expense, initialAssist = "none" }: Props) {
+  const stacked = useStackedLayout();
   const router = useRouter();
   const navigation = useNavigation();
   const toast = useToast();
@@ -282,7 +284,7 @@ export function PersonalExpenseForm({ expense, initialAssist = "none" }: Props) 
         automaticallyAdjustKeyboardInsets
       >
         {!editing && (
-          <View style={styles.assistRow}>
+          <View style={[styles.assistRow, stacked && styles.stacked]}>
             <AssistButton
               icon="scan-outline"
               label="Scan Receipt"
@@ -461,6 +463,7 @@ const styles = StyleSheet.create({
   headerSave: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primary },
   headerSaveDisabled: { color: colors.gray300 },
   assistRow: { flexDirection: "row", gap: spacing.sm },
+  stacked: { flexDirection: "column" },
   assistBtn: {
     flex: 1,
     flexDirection: "row",

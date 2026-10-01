@@ -124,6 +124,24 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
   }
 }
 
+const RECURRING_FORBIDDEN = "Only the person who set this up or a group admin can change it.";
+
+const RECURRING_GONE = "This recurring expense no longer exists.";
+
+/**
+ * Why an update or delete touched no row: RLS hides rows you may not change,
+ * and the row may simply be gone. Deleting something already gone is fine.
+ */
+async function zeroRowsReason(
+  supabase: Awaited<ReturnType<typeof createSettleUpDb>>,
+  id: string,
+  action: "update" | "delete",
+): Promise<string | null> {
+  const { data } = await supabase.schema("settleup").from("recurring_expenses").select("id").eq("id", id).maybeSingle();
+  if (data) return RECURRING_FORBIDDEN;
+  return action === "delete" ? null : RECURRING_GONE;
+}
+
 export async function setRecurringExpenseActive(id: string, active: boolean): Promise<ApiResponse<void>> {
   try {
     const parsed = idSchema.safeParse(id);
@@ -131,13 +149,17 @@ export async function setRecurringExpenseActive(id: string, active: boolean): Pr
 
     await assertAuth();
     const supabase = await createSettleUpDb();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
       .update({ active })
-      .eq("id", parsed.data);
+      .eq("id", parsed.data)
+      .select("id");
 
     if (error) return { data: null, error: "Failed to update recurring expense." };
+    if (!data || data.length === 0) {
+      return { data: null, error: (await zeroRowsReason(supabase, parsed.data, "update")) ?? RECURRING_GONE };
+    }
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
@@ -152,13 +174,19 @@ export async function deleteRecurringExpense(id: string): Promise<ApiResponse<vo
 
     await assertAuth();
     const supabase = await createSettleUpDb();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
       .delete()
-      .eq("id", parsed.data);
+      .eq("id", parsed.data)
+      .select("id");
 
     if (error) return { data: null, error: "Failed to delete recurring expense." };
+    if (!data || data.length === 0) {
+      // Already gone counts as deleted.
+      const reason = await zeroRowsReason(supabase, parsed.data, "delete");
+      if (reason) return { data: null, error: reason };
+    }
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

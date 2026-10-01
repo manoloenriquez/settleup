@@ -68,7 +68,9 @@ const styles = StyleSheet.create({
     color: colors.gray700,
   },
   input: {
-    height: 48,
+    // Grows with Dynamic Type instead of clipping large text.
+    minHeight: 48,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: colors.gray300,
     borderRadius: borderRadius.sm + 2,

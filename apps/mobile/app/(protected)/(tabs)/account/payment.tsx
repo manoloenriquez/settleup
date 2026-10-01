@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { Stack } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
-import { getPaymentProfile, upsertPaymentProfile, uploadQRImage } from "@/services/payment-profiles";
+import { getPaymentProfile, removeQRImages, upsertPaymentProfile, uploadQRImage } from "@/services/payment-profiles";
+import { staleQrPaths } from "@template/shared";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, SectionHeader, ErrorBanner, useToast } from "@/components/ui";
@@ -28,6 +29,17 @@ export default function PaymentSettingsScreen() {
   const [notes, setNotes] = useState("");
   const [showOnLinks, setShowOnLinks] = useState(false);
   const [fullNumbers, setFullNumbers] = useState(false);
+  // QR images the saved profile points at, and ones uploaded since. Anything
+  // the profile stops using is deleted so old codes don't stay public.
+  const savedQrUrls = useRef<(string | null)[]>([]);
+  const uploadedQrUrls = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      // Leaving without saving: drop uploads the profile never used.
+      void removeQRImages(staleQrPaths(uploadedQrUrls.current, savedQrUrls.current, userId));
+    };
+  }, [userId]);
 
   useEffect(() => {
     async function load() {
@@ -46,6 +58,7 @@ export default function PaymentSettingsScreen() {
         setBankAccountName(res.data.bank_account_name ?? "");
         setBankQrUrl(res.data.bank_qr_url ?? null);
         setNotes(res.data.notes ?? "");
+        savedQrUrls.current = [res.data.gcash_qr_url ?? null, res.data.bank_qr_url ?? null];
         setShowOnLinks(res.data.show_on_shared_links);
         setFullNumbers(res.data.share_full_numbers);
       }
@@ -70,6 +83,10 @@ export default function PaymentSettingsScreen() {
     });
     setSaving(false);
     if (res.error) { toast.error(res.error); return; }
+    const kept = [gcashQrUrl, bankQrUrl];
+    void removeQRImages(staleQrPaths([...savedQrUrls.current, ...uploadedQrUrls.current], kept, userId));
+    savedQrUrls.current = kept;
+    uploadedQrUrls.current = [];
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Payment details saved");
   }
@@ -78,6 +95,7 @@ export default function PaymentSettingsScreen() {
     const res = await uploadQRImage(userId, type);
     if (res.error && res.error !== "Cancelled") { toast.error(res.error); return; }
     if (res.data) {
+      uploadedQrUrls.current.push(res.data);
       if (type === "gcash") setGcashQrUrl(res.data);
       else setBankQrUrl(res.data);
     }

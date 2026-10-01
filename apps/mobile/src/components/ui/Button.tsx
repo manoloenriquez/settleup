@@ -57,7 +57,9 @@ export function AppButton({
 
 const styles = StyleSheet.create({
   base: {
-    height: 50,
+    // Grows with Dynamic Type instead of clipping large text.
+    minHeight: 50,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
     alignItems: "center",
     justifyContent: "center",

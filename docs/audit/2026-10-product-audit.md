@@ -416,3 +416,20 @@ Not app bugs, recorded for the next person driving the simulator: iOS's
 "Save Password?" sheet swallows the next tap after sign-in; keychain sessions
 survive `simctl uninstall` (`simctl keychain <udid> reset`); another session
 was sharing the default simulator, so these runs use a dedicated one.
+
+## 10. Remaining known bugs fixed (1 October 2026)
+
+| Bug | Fix |
+|---|---|
+| Header buttons, tab bar, menus and sheets turned dark on phones in Dark Mode while the app stayed light (illegible "Cancel") | App locked to light appearance until a dark theme exists (L3 stays open) |
+| "You owe ₱0.00 to 0 people" in red | Neutral "Nothing / You're all paid up" card when a side is zero |
+| M11: replaced QR images stayed public forever; account closure left them too | Owner-folder SELECT policy so deletes work; apps delete unused QR files after save and the whole folder before closing an account |
+| QR uploads skipped the required MIME/size check (mobile) and the bucket enforced neither | Client checks plus bucket limits (5 MB, images only) |
+| M4: any member could pause or delete anyone's recurring template | Creator or group owner/admin only; apps explain "no permission" instead of silently doing nothing |
+| M6: shared buttons and fields had fixed heights; side-by-side buttons broke words at accessibility text sizes | Minimum heights; side-by-side controls stack at AX sizes |
+| `product_events.sql` failed: fixture tripped the role-escalation trigger and counted other tests' events | Fixture recreates its admin profile; counts scoped to the test user |
+
+Verified on the iOS 27 simulator in Dark Mode and at the largest accessibility
+text size, all journeys passing, all SQL suites passing on the local stack.
+Migrations `20261001140000` and `20261001150000` still need applying to the
+live project.
