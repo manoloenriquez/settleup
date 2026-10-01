@@ -431,5 +431,8 @@ was sharing the default simulator, so these runs use a dedicated one.
 
 Verified on the iOS 27 simulator in Dark Mode and at the largest accessibility
 text size, all journeys passing, all SQL suites passing on the local stack.
-Migrations `20261001140000` and `20261001150000` still need applying to the
-live project.
+Migrations `20261001140000` and `20261001150000` were applied to the live
+project on 1 October 2026 (owner approved); `payment_qr_storage.sql` and
+`recurring_permissions.sql` pass there in rolled-back transactions, and the
+security advisor reports nothing for the changed objects. Shipped as
+TestFlight build 4.
