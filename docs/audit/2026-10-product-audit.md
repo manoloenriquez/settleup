@@ -318,3 +318,64 @@ enforcement (moot once groups may hold several currencies).
 - Phase 6: share-link rotate/disable, opt-in and masked payment details on shared pages, per-group hide, organizer-entered details for members without accounts; fixed a pre-existing bug where saving mobile payment details failed on any empty field and dropped QR codes.
 - Phase 7: friends via single-use invite links (no search), two-person direct ledgers, friend list with balances, web `/f/<token>` and app `talli://friend` acceptance.
 - All SQL suites pass on the live schema (rolled-back runs).
+
+## 8. Final validation (1 October 2026)
+
+How each journey was verified. "Simulator" = automated XCUITest on the iOS 27
+simulator (`tools/ui-driver`, fresh install per journey). "Live SQL" = the
+real RPCs and RLS on the live project inside a rolled-back transaction
+(`supabase/tests/*.sql`). "Unit" = Vitest.
+
+| Journey | Result | Evidence |
+|---|---|---|
+| A Guest: onboarding → PHP → no account → add → edit → history → delete + undo → relaunch persists | Pass | Simulator `GuestJourneyTests` |
+| B Guest upgrade: 50 local expenses → account → import once, interrupted upload resumes, guest copy freed only after every row is acknowledged | Pass | Unit `personal-sync.test.ts` (journey B), Live SQL `personal_expenses.sql` (ownership, replay, tombstones) |
+| C Friend: invite → accept → ₱2,000 split equally → ₱1,000 owed → settle → zero | Pass | Live SQL `friends.sql` |
+| D Group: A creates, B/C join by code, two members without accounts, three payers, custom + equal + odd-centavo split, edit, partial repayment, balances sum to zero and match hand arithmetic | Pass | Live SQL `group_journey.sql` |
+| E Offline: queued writes replay exactly once (incl. entries from older builds), personal expenses are local-first | Pass | Unit `outbox-executor.test.ts`, `offline.test.ts`; local-first by design |
+| F Currencies: PHP default, USD and JPY expenses keep their own currency and decimals, never summed | Pass | Simulator `CurrencyJourneyTests`; Unit `amount.test.ts`, `currency-ledger.test.ts`; Live SQL `currency_ledger.sql` |
+| G Apple Intelligence: on-device receipt pipeline | Pass (earlier) / not re-run on a device | Eval suite on macOS 27 + iOS 27 simulator runtime (docs/brain/05); guest receipt + describe assists reuse it; unavailability shows the reason and keeps manual entry |
+
+External-member scenarios: 1 (external members in balances), 3 (payment
+details for an external member), 6 (removed details disappear), 7 (claim keeps
+history and balances, no duplicate), 8 (multi-currency shared page) — Live SQL
+`group_journey.sql`; 2, 4, 5 (view without login, disable link, regenerate
+link) — Live SQL `sharing_and_payment_privacy.sql` + `public_payloads.sql`.
+
+### Re-audit of the original findings
+
+| Finding | Status |
+|---|---|
+| C1 Unusable without an account | Fixed (phase 2) |
+| C2 Sign-out strands unsynced changes | Fixed (phase 1, extended to personal expenses in phase 3) |
+| H1 Public pages indexable/cacheable | Fixed (phase 1; `/f` added in phase 7) |
+| H2 Share links permanent, 64-bit | Fixed (phase 6) — existing links stay valid until an admin regenerates them |
+| H3 Payment details exposed on links | Fixed (phase 6) — opt-in, masked, per-group hide, creditors only |
+| H4 External members cannot be paid | Fixed (phase 6) |
+| H5 No Sign in with Apple | Built, hidden until the Apple provider is enabled in Supabase |
+| H6 (+) button behaviour | Fixed (phase 2 add menu with group picker) |
+| H7 Denied permissions dead end | Fixed (phase 1) |
+| H8 Currency hard-coded | Fixed (phases 2, 5) |
+| H9 No friends / one-to-one | Fixed (phase 7) |
+| M1 Orphaned scan screen | Removed |
+| M2 Settings link density / targets | Fixed (phase 8) |
+| M3 Cached data of other accounts | Fixed (phase 1) |
+| M4 Recurring RLS | Deferred (needs server-side enforcement; documented) |
+| M5 No amount sanity check | Fixed (large-amount confirmation, caps) |
+| M6 Dynamic Type | Partly: native tab bar, labels and large titles scale; fixed-height custom controls remain |
+| M8 Destructive item among benign | Fixed (phase 8) |
+| M10 "Add" opens full settings | Relabelled "Add people" with a hint |
+| L1 "S" logo | Fixed |
+| L3 Dark mode | Not done (scheduled; ~60 files of static colours) |
+
+### Not verified by me, needs the owner
+
+- Signed-in flows on a physical iPhone (account creation is not something I
+  may do on the live project): guest → account import prompt, friend invite
+  between two phones, share sheet, payment-details screens.
+- Apple Intelligence on a physical Apple Intelligence iPhone, online and in
+  airplane mode.
+- Sign in with Apple: enable the Apple provider in Supabase, then set
+  `EXPO_PUBLIC_APPLE_SIGN_IN=true` for the next build.
+- Web deployment and universal links (`IOS_TEAM_ID`, `IOS_BUNDLE_IDENTIFIER`,
+  `talli://` redirect in the Supabase allowlist).

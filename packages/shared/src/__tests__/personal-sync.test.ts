@@ -148,3 +148,46 @@ describe("guest import", () => {
     expect(guestImportComplete(guest, account)).toBe(true);
   });
 });
+
+describe("journey B: guest with 50 expenses creates an account", () => {
+  it("imports all 50 once, survives an interrupted upload, and only then frees the guest copy", () => {
+    let guest = emptyPersonalLedger();
+    for (let n = 1; n <= 50; n++) {
+      guest = addPersonalExpense(
+        guest,
+        id(n),
+        input({ description: `Expense ${n}`, amountMinor: n * 100, currency: n % 2 ? "PHP" : "USD" }),
+        { now: `2026-09-${String((n % 28) + 1).padStart(2, "0")}T08:00:00.000Z`, tracksSync: false },
+      );
+    }
+    // Import twice (e.g. the app was killed and the prompt answered again): no duplicates.
+    let account = importGuestExpenses(importGuestExpenses(emptyPersonalLedger(), guest), guest);
+    expect(account.expenses).toHaveLength(50);
+    expect(new Set(account.expenses.map((e) => e.id)).size).toBe(50);
+
+    // First upload batch succeeds, the connection drops before the second.
+    const batch1 = pendingPersonalExpenses(account, 30);
+    account = applyPushResults(
+      account,
+      batch1,
+      batch1.map((e) => ({ id: e.id, status: "applied" as const, row: server(Number(e.id.slice(-12)), "2026-10-01T10:00:00.000Z", { id: e.id }) })),
+    );
+    expect(guestImportComplete(guest, account)).toBe(false);
+    expect(pendingPersonalExpenses(account, 100)).toHaveLength(20);
+
+    // Retry uploads only what is left; then the guest copy may go.
+    const batch2 = pendingPersonalExpenses(account, 50);
+    account = applyPushResults(
+      account,
+      batch2,
+      batch2.map((e) => ({ id: e.id, status: "applied" as const, row: server(Number(e.id.slice(-12)), "2026-10-01T10:05:00.000Z", { id: e.id }) })),
+    );
+    expect(pendingPersonalExpenses(account, 100)).toHaveLength(0);
+    expect(guestImportComplete(guest, account)).toBe(true);
+    // Amounts and currencies are exactly what the guest saved.
+    const byId = new Map(account.expenses.map((e) => [e.id, e]));
+    for (const original of guest.expenses) {
+      expect(byId.get(original.id)).toMatchObject({ amountMinor: original.amountMinor, currency: original.currency });
+    }
+  });
+});
