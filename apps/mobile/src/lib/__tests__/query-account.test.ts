@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeQueryClient, persistOptionsForAccount } from "../queryClient";
+import { CACHE_BUSTER, clearPersistedQueryCaches, makeQueryClient, persistOptionsForAccount } from "../queryClient";
 import { dehydrate } from "@tanstack/react-query";
 
 const storage = vi.hoisted(() => new Map<string, string>());
@@ -11,6 +11,10 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
     },
     removeItem: async (key: string) => {
       storage.delete(key);
+    },
+    getAllKeys: async () => [...storage.keys()],
+    multiRemove: async (keys: string[]) => {
+      for (const key of keys) storage.delete(key);
     },
   },
 }));
@@ -41,5 +45,33 @@ describe("account-scoped query persistence", () => {
     expect(await persistOptionsForAccount("alice").persister.restoreClient()).toBeUndefined();
     expect(bob.buster).not.toBe(alice.buster);
     client.clear();
+  });
+});
+
+describe("persisted cache reset", () => {
+  it("drops saved snapshots from an older buster instead of restoring them", async () => {
+    vi.stubEnv("EXPO_PUBLIC_SUPABASE_URL", "https://project-one.invalid");
+    const options = persistOptionsForAccount("alice");
+    // Build 1 saved the dashboard as one object; build 2 reads an array.
+    const client = makeQueryClient();
+    client.setQueryData(["dashboard"], { total_owed_cents: 100 });
+    await options.persister.persistClient({
+      timestamp: Date.now(),
+      buster: "native-v2-account:" + encodeURIComponent("https://project-one.invalid") + ":alice",
+      clientState: dehydrate(client),
+    });
+    const restored = await options.persister.restoreClient();
+    expect(restored?.buster).not.toBe(options.buster);
+    expect(options.buster?.startsWith(CACHE_BUSTER)).toBe(true);
+    client.clear();
+  });
+
+  it("clears every saved snapshot and leaves other storage alone", async () => {
+    storage.set("tabkind:query-cache:a:alice", "{}");
+    storage.set("tabkind:query-cache:a:bob", "{}");
+    storage.set("settleup-query-cache", "{}");
+    storage.set("tabkind:outbox:a:alice", "[1]");
+    await clearPersistedQueryCaches();
+    expect([...storage.keys()]).toEqual(["tabkind:outbox:a:alice"]);
   });
 });

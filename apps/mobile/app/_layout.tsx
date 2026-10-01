@@ -1,8 +1,9 @@
-import { useEffect, useState, Component, type ReactNode } from "react";
+import { useEffect, useState, Component, type ErrorInfo, type ReactNode } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryProvider } from "@/context/QueryContext";
+import { clearPersistedQueryCaches } from "@/lib/queryClient";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import * as Sentry from "@sentry/react-native";
@@ -57,9 +58,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error): void {
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error("Talli render error", error, info.componentStack);
     Sentry.captureException(error);
   }
+
+  /**
+   * Retry with fresh server data: a saved snapshot from an older build (or a
+   * bad response) would otherwise be restored and crash the same screen again.
+   * Children remount after the reset, so the query client is rebuilt empty.
+   */
+  private retry = (): void => {
+    void clearPersistedQueryCaches()
+      .catch(() => undefined)
+      .finally(() => this.setState({ hasError: false, error: null }));
+  };
 
   render() {
     if (this.state.hasError) {
@@ -73,7 +86,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
           <Text
             style={styles.errorRetry}
             accessibilityRole="button"
-            onPress={() => this.setState({ hasError: false, error: null })}
+            onPress={this.retry}
           >
             Try Again
           </Text>

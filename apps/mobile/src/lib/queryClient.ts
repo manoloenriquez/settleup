@@ -8,8 +8,13 @@ import type { PersistQueryClientOptions } from "@tanstack/react-query-persist-cl
 // of the persisted snapshot early.
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-/** Bump when the shape of cached query data changes incompatibly. */
-const CACHE_BUSTER = "native-v2-account";
+/**
+ * Bump when the shape of cached query data changes incompatibly. Restored data
+ * is rendered before any refetch and is never re-validated, so an old shape
+ * under a reused key crashes the screen that reads it.
+ * v3: multi-currency (["dashboard"] became one summary per currency).
+ */
+export const CACHE_BUSTER = "native-v3-currency";
 
 /** Query-key roots that must never be persisted (AI output, transient state). */
 const NON_PERSISTED_KEYS = new Set(["ai", "insights", "ai-availability"]);
@@ -65,6 +70,17 @@ export function persistOptionsForAccount(
         query.state.status === "success" && !NON_PERSISTED_KEYS.has(String(query.queryKey[0])),
     },
   };
+}
+
+/**
+ * Remove every saved server snapshot on this device. They hold only
+ * refetchable server data (never the outbox or personal expenses), so this is
+ * the safe reset when restored data keeps a screen from rendering.
+ */
+export async function clearPersistedQueryCaches(): Promise<void> {
+  const keys = await AsyncStorage.getAllKeys();
+  const doomed = keys.filter((key) => key.startsWith(QUERY_CACHE_PREFIX) || key === "settleup-query-cache");
+  if (doomed.length > 0) await AsyncStorage.multiRemove(doomed);
 }
 
 /** Ignore and remove the unowned, refetchable snapshot from older releases. */

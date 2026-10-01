@@ -30,6 +30,8 @@ export function SharedBalances() {
   const groupNets = groupNetsByCurrency(list);
   // Every per-currency summary lists all of my groups; take names from the first.
   const groups = list[0]?.groups ?? [];
+  // Never claim "All clear" before the balances have actually loaded.
+  const unknown = summaries === undefined;
 
   return (
     <View>
@@ -51,7 +53,11 @@ export function SharedBalances() {
 
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Your balance with others</Text>
-        {nets.length === 0 ? (
+        {unknown ? (
+          <Text style={[styles.heroAmount, { color: colors.gray300 }]} accessibilityLabel="Balance loading">
+            —
+          </Text>
+        ) : nets.length === 0 ? (
           <Text style={[styles.heroAmount, { color: colors.gray900 }]}>All clear</Text>
         ) : (
           nets.map((net) => (
@@ -69,7 +75,11 @@ export function SharedBalances() {
           ))
         )}
         <Text style={styles.heroSub}>
-          {nets.length === 0
+          {unknown
+            ? isLoading
+              ? "Loading your balances…"
+              : "Your balances couldn’t load yet"
+            : nets.length === 0
             ? "Nobody owes anybody"
             : nets.length > 1
               ? "Each currency is kept separate"
