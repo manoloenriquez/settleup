@@ -12,8 +12,10 @@ DECLARE
   result jsonb; bogus jsonb; stale jsonb; denied boolean; n integer;
 BEGIN
   INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
-    (owner_id,'payload-owner-'||owner_id||'@example.invalid','{}'),
-    (outsider_id,'payload-outsider-'||outsider_id||'@example.invalid','{}');
+    -- The UUID goes in the domain: display names default to the email's local
+    -- part, and the payload assertions below must not see the user id there.
+    (owner_id,'payload-owner@'||owner_id||'.example.invalid','{}'),
+    (outsider_id,'payload-outsider@'||outsider_id||'.example.invalid','{}');
   PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
   PERFORM set_config('role','authenticated',true);
   result := settleup.create_group_with_owner('Payload verification',gen_random_uuid());
@@ -28,8 +30,9 @@ BEGIN
     'participant_ids',jsonb_build_array(owner_member,guest_member),
     'payers',jsonb_build_array(jsonb_build_object('member_id',owner_member,'paid_cents',1000))));
   PERFORM set_config('role','postgres',true);
-  INSERT INTO settleup.user_payment_profiles(user_id,payer_display_name,gcash_name,gcash_number,bank_name,bank_account_name,bank_account_number)
-    VALUES (owner_id,'Owner','Owner G','09171234567','BPI','Owner B','001234567890');
+  -- Opted in to shared links (20261001120000); numbers stay masked by default.
+  INSERT INTO settleup.user_payment_profiles(user_id,payer_display_name,gcash_name,gcash_number,bank_name,bank_account_name,bank_account_number,show_on_shared_links)
+    VALUES (owner_id,'Owner','Owner G','09171234567','BPI','Owner B','001234567890',true);
 
   -- Anonymous callers cannot reach private RPCs.
   PERFORM set_config('request.jwt.claim.sub','',true);

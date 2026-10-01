@@ -88,25 +88,53 @@ describe("outboxExecutor kind → Supabase call mapping", () => {
     }
   });
 
-  it("records payments through record_payment with the entity id as p_id", async () => {
+  it("records payments through record_payment_v2 with the entity id and the payment's currency", async () => {
     const result = await outboxExecutor(
       entry({
         kind: "payment.record",
         entityId: "pay-1",
-        payload: { group_id: "g", from_member_id: "a", to_member_id: "b", amount_cents: 500 },
+        payload: { group_id: "g", from_member_id: "a", to_member_id: "b", amount_cents: 500, currency_code: "JPY" },
       }),
     );
     expect(result).toEqual({ ok: true });
     expect(rpcCalls.at(-1)).toEqual({
-      name: "record_payment",
+      name: "record_payment_v2",
       args: {
         p_group_id: "g",
         p_from_member_id: "a",
         p_to_member_id: "b",
         p_amount_cents: 500,
         p_id: "pay-1",
+        p_currency_code: "JPY",
       },
     });
+  });
+
+  it("replays payments queued before currencies existed as pesos", async () => {
+    await outboxExecutor(
+      entry({
+        kind: "payment.record",
+        entityId: "pay-0",
+        payload: { group_id: "g", from_member_id: "a", to_member_id: "b", amount_cents: 500 },
+      }),
+    );
+    expect(rpcCalls.at(-1)?.args).toMatchObject({ p_currency_code: "PHP" });
+  });
+
+  it("creates groups with create_group_v2, and old name-only entries with the legacy RPC", async () => {
+    await outboxExecutor(
+      entry({
+        kind: "group.create",
+        entityId: "grp-1",
+        payload: { name: "Tokyo", currency_code: "JPY", display_name: "Mano" },
+      }),
+    );
+    expect(rpcCalls.at(-1)).toEqual({
+      name: "create_group_v2",
+      args: { p_name: "Tokyo", p_id: "grp-1", p_currency_code: "JPY", p_display_name: "Mano" },
+    });
+    await outboxExecutor(entry({ kind: "group.create", entityId: "grp-0", payload: { name: "Old" } }));
+    expect(rpcCalls.at(-1)).toEqual({ name: "create_group_with_owner", args: { p_name: "Old", p_id: "grp-0" } });
   });
 
   it("deletes expenses directly by entity id (0 rows affected = success)", async () => {

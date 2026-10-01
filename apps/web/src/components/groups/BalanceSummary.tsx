@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useRef, useTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { useOfflineGuard } from "@/hooks/useOfflineGuard";
@@ -9,7 +9,8 @@ import { useWebOutbox } from "@/components/OutboxProvider";
 import { toast } from "sonner";
 import { recordPayment, undoLastPayment, undoMyLastPayment } from "@/app/actions/payments";
 import { deleteMember } from "@/app/actions/members";
-import { formatCents, parsePHPAmount, simplifyDebts } from "@template/shared";
+import { currencySymbol, parseAmountInput, simplifyDebts, type CurrencyCode } from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import { CopyButton } from "./CopyButton";
 import { track } from "@/lib/analytics/client";
 import { Button } from "@/components/ui/Button";
@@ -27,7 +28,9 @@ import type { MemberBalance, SimplifiedDebt, CreditorPaymentProfile } from "@tem
 type Props = {
   readOnly?: boolean;
   members: GroupMember[];
+  /** Balances in this one currency (never mixed). */
   balances: MemberBalance[];
+  currency: CurrencyCode;
   groupId: string;
   groupName: string;
   paymentProfileText?: string;
@@ -43,13 +46,14 @@ function buildMessage(
   link: string,
   debtsFrom: SimplifiedDebt[],
   debtsTo: SimplifiedDebt[],
+  currency: CurrencyCode,
 ): string {
   if (balance.net_cents < 0) {
     const debtLines = debtsFrom.map(
-      (d) => `  → ${formatCents(d.amount_cents)} to ${d.to_display_name}`,
+      (d) => `  → ${formatCurrency(d.amount_cents, currency)} to ${d.to_display_name}`,
     );
     return [
-      `Hi ${member.display_name}! You owe ${formatCents(-balance.net_cents)} for ${groupName}.`,
+      `Hi ${member.display_name}! You owe ${formatCurrency(-balance.net_cents, currency)} for ${groupName}.`,
       ...(debtLines.length > 0 ? debtLines : []),
       paymentText,
       `Link: ${link}`,
@@ -59,10 +63,10 @@ function buildMessage(
   }
   if (balance.net_cents > 0) {
     const owedLines = debtsTo.map(
-      (d) => `  ← ${formatCents(d.amount_cents)} from ${d.from_display_name}`,
+      (d) => `  ← ${formatCurrency(d.amount_cents, currency)} from ${d.from_display_name}`,
     );
     return [
-      `Hi ${member.display_name}! You are owed ${formatCents(balance.net_cents)} for ${groupName}.`,
+      `Hi ${member.display_name}! You are owed ${formatCurrency(balance.net_cents, currency)} for ${groupName}.`,
       ...(owedLines.length > 0 ? owedLines : []),
       `Link: ${link}`,
     ]
@@ -72,15 +76,15 @@ function buildMessage(
   return `Hi ${member.display_name}! You're all settled for ${groupName}.`;
 }
 
-function buildGroupMessage(balances: MemberBalance[], debts: SimplifiedDebt[]): string {
+function buildGroupMessage(debts: SimplifiedDebt[], currency: CurrencyCode): string {
   const total = debts.reduce((sum, d) => sum + d.amount_cents, 0);
   const lines = [
-    "SIMPLIFIED DEBTS",
+    `SIMPLIFIED DEBTS (${currency})`,
     ...debts.map(
-      (d) => `${d.from_display_name} → ${d.to_display_name}: ${formatCents(d.amount_cents)}`,
+      (d) => `${d.from_display_name} → ${d.to_display_name}: ${formatCurrency(d.amount_cents, currency)}`,
     ),
     ...(debts.length === 0 ? ["All settled!"] : []),
-    `TOTAL: ${formatCents(total)}`,
+    `TOTAL: ${formatCurrency(total, currency)}`,
   ];
   return lines.join("\n");
 }
@@ -89,6 +93,7 @@ export function BalanceSummary({
   readOnly = false,
   members,
   balances,
+  currency,
   groupId,
   groupName,
   paymentProfileText = "",
@@ -102,6 +107,7 @@ export function BalanceSummary({
   const [toMemberId, setToMemberId] = useState("");
   const [paymentAmountStr, setPaymentAmountStr] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const paymentIdRef = useRef<string>(crypto.randomUUID());
   const [deleteTarget, setDeleteTarget] = useState<GroupMember | null>(null);
   const [undoTarget, setUndoTarget] = useState<MemberBalance | null>(null);
   const [showUndoMine, setShowUndoMine] = useState(false);
@@ -128,7 +134,7 @@ export function BalanceSummary({
   async function handleRecordPayment(): Promise<void> {
     if (isPending) return; // guard against double-submit creating duplicate payments
     setPaymentError(null);
-    const amount_cents = parsePHPAmount(paymentAmountStr);
+    const amount_cents = parseAmountInput(paymentAmountStr, currency);
     if (!fromMemberId || !toMemberId || !amount_cents || amount_cents <= 0) {
       setPaymentError("Please fill in all fields with valid values.");
       return;
@@ -138,8 +144,10 @@ export function BalanceSummary({
       return;
     }
 
+    // Client-generated UUID = the record_payment_v2 idempotency key, shared
+    // by the online action and the offline outbox replay.
+    const clientId = paymentIdRef.current;
     if (!online) {
-      const clientId = crypto.randomUUID();
       const fromName = memberMap.get(fromMemberId)?.display_name ?? "Someone";
       const toName = memberMap.get(toMemberId)?.display_name ?? "someone";
       try {
@@ -153,6 +161,7 @@ export function BalanceSummary({
             from_member_id: fromMemberId,
             to_member_id: toMemberId,
             amount_cents,
+            currency_code: currency,
           },
           createdAt: new Date().toISOString(),
           summary: { title: `${fromName} → ${toName}`, amountCents: amount_cents },
@@ -164,6 +173,7 @@ export function BalanceSummary({
         return;
       }
       toast.info("Saved offline — will sync when you're back online");
+      paymentIdRef.current = crypto.randomUUID();
       setShowPaymentForm(false);
       setFromMemberId("");
       setToMemberId("");
@@ -173,14 +183,17 @@ export function BalanceSummary({
 
     startTransition(async () => {
       const result = await recordPayment({
+        id: paymentIdRef.current,
         group_id: groupId,
         from_member_id: fromMemberId,
         to_member_id: toMemberId,
         amount_cents,
+        currency_code: currency,
       });
       if (result.error) {
         setPaymentError(result.error);
       } else {
+        paymentIdRef.current = crypto.randomUUID();
         setShowPaymentForm(false);
         setFromMemberId("");
         setToMemberId("");
@@ -196,7 +209,7 @@ export function BalanceSummary({
     // so a deferred replay could delete a different payment recorded meanwhile.
     if (!guardOnline()) return;
     startTransition(async () => {
-      const result = await undoLastPayment(balance.member_id);
+      const result = await undoLastPayment(balance.member_id, currency);
       if (result.error) {
         toast.error(result.error);
       } else {
@@ -209,7 +222,7 @@ export function BalanceSummary({
   function handleUndoMine(): void {
     if (!guardOnline()) return;
     startTransition(async () => {
-      const result = await undoMyLastPayment(groupId);
+      const result = await undoMyLastPayment(groupId, currency);
       if (result.error) {
         toast.error(result.error);
       } else {
@@ -233,7 +246,7 @@ export function BalanceSummary({
     });
   }
 
-  const groupMessage = buildGroupMessage(balances, debts);
+  const groupMessage = buildGroupMessage(debts, currency);
 
   return (
     <div className="flex flex-col gap-4">
@@ -265,7 +278,7 @@ export function BalanceSummary({
       {/* Payment form */}
       {showPaymentForm && (
         <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-3 animate-slide-down">
-          <p className="text-sm font-semibold text-brand-800">Record a payment</p>
+          <p className="text-sm font-semibold text-brand-800">Record a payment in {currency}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="From"
@@ -290,10 +303,11 @@ export function BalanceSummary({
           </div>
           <Input
             label="Amount"
-            leftAddon="₱"
+            leftAddon={currencySymbol(currency, MONEY_LOCALE)}
+            inputMode="decimal"
             value={paymentAmountStr}
             onChange={(e) => setPaymentAmountStr(e.target.value)}
-            placeholder="e.g. 1500.00"
+            placeholder="e.g. 1500"
           />
           {paymentError && <p className="text-sm text-red-600">{paymentError}</p>}
           <Button variant="primary" size="sm" isLoading={isPending} onClick={handleRecordPayment}>
@@ -318,6 +332,7 @@ export function BalanceSummary({
           link,
           memberDebtsFrom,
           memberDebtsTo,
+          currency,
         );
 
         const isSettled = balance.net_cents === 0;
@@ -343,12 +358,12 @@ export function BalanceSummary({
               {isSettled && <p className="text-xs text-emerald-600 font-medium">All settled</p>}
               {owes && (
                 <p className="text-xs text-rose-700 font-medium">
-                  Owes {formatCents(Math.abs(balance.net_cents))}
+                  Owes {formatCurrency(Math.abs(balance.net_cents), currency)}
                 </p>
               )}
               {isOwed && (
                 <p className="text-xs text-emerald-700 font-medium">
-                  Owed {formatCents(balance.net_cents)}
+                  Owed {formatCurrency(balance.net_cents, currency)}
                 </p>
               )}
               {isOwed && !creditorMemberIds.has(balance.member_id) && (
@@ -365,12 +380,12 @@ export function BalanceSummary({
             {/* Amount badge */}
             {owes && (
               <span className="shrink-0 text-xs font-bold text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                {formatCents(Math.abs(balance.net_cents))}
+                {formatCurrency(Math.abs(balance.net_cents), currency)}
               </span>
             )}
             {isOwed && (
               <span className="shrink-0 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                +{formatCents(balance.net_cents)}
+                +{formatCurrency(balance.net_cents, currency)}
               </span>
             )}
             {isSettled && <Badge variant="success">Settled</Badge>}
@@ -440,7 +455,7 @@ export function BalanceSummary({
         open={undoTarget !== null}
         onClose={() => setUndoTarget(null)}
         title="Undo last payment"
-        description={`Undo the most recent payment from ${undoTarget?.display_name ?? ""}? You can undo payments you recorded, or any payment if you're a group admin.`}
+        description={`Undo the most recent ${currency} payment from ${undoTarget?.display_name ?? ""}? You can undo payments you recorded, or any payment if you're a group admin.`}
         confirmLabel="Undo payment"
         confirmVariant="danger"
         onConfirm={() => {
@@ -455,7 +470,7 @@ export function BalanceSummary({
         open={showUndoMine}
         onClose={() => setShowUndoMine(false)}
         title="Undo my last payment"
-        description="Undo the most recent payment you recorded in this group? Payments recorded by others are not affected."
+        description={`Undo the most recent ${currency} payment you recorded in this group? Payments recorded by others are not affected.`}
         confirmLabel="Undo payment"
         confirmVariant="danger"
         onConfirm={() => {

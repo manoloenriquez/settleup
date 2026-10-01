@@ -1,10 +1,12 @@
 import type { InsightsSummary } from "@template/shared/types";
+import type { CurrencyCode } from "@template/shared";
 import { getAvailability, summarizeInsights } from "./apple-intelligence";
 import { buildInsightFacts } from "./interpretation";
 
 type InsightsInput = {
   groupName: string;
   insights: Omit<InsightsSummary, "llm_summary">;
+  currency: CurrencyCode;
 };
 
 /**
@@ -16,6 +18,6 @@ type InsightsInput = {
 export async function generateInsightsSummaryMobile(input: InsightsInput): Promise<string | null> {
   const availability = await getAvailability();
   if (availability.status !== "available") return null;
-  const result = await summarizeInsights(buildInsightFacts(input.groupName, input.insights));
+  const result = await summarizeInsights(buildInsightFacts(input.groupName, input.insights, input.currency));
   return result.error === null ? result.data.trim() || null : null;
 }

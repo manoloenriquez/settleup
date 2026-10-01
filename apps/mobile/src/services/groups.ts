@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import type { ApiResponse, GroupWithStats } from "@template/shared";
+import { groupRowsInDefaultCurrency, type ApiResponse, type CurrencyCode, type GroupWithStats } from "@template/shared";
+import { getMyCurrencies } from "@/services/currency";
 import {
   parseCreateGroupRpcResult,
   parseGroupsWithStatsRpcResult,
@@ -7,13 +8,25 @@ import {
   type Group,
 } from "@template/supabase";
 
-export async function createGroup(name: string): Promise<ApiResponse<Group>> {
-  if (!name.trim()) return { data: null, error: "Group name is required" };
-  if (name.trim().length > 100) return { data: null, error: "Group name must be at most 100 characters" };
+export async function createGroup(input: {
+  id: string;
+  name: string;
+  currency: CurrencyCode;
+  displayName: string;
+}): Promise<ApiResponse<Group>> {
+  const name = input.name.trim();
+  const displayName = input.displayName.trim();
+  if (!name) return { data: null, error: "Enter a group name." };
+  if (name.length > 100) return { data: null, error: "Keep the group name under 100 characters." };
+  if (!displayName) return { data: null, error: "Enter the name the group will see for you." };
+  if (displayName.length > 80) return { data: null, error: "Keep your name under 80 characters." };
 
-  const { data: result, error } = await supabase
-    .schema("settleup")
-    .rpc("create_group_with_owner", { p_name: name.trim() });
+  const { data: result, error } = await supabase.schema("settleup").rpc("create_group_v2", {
+    p_name: name,
+    p_id: input.id,
+    p_currency_code: input.currency,
+    p_display_name: displayName,
+  });
 
   if (error) return { data: null, error: error.message };
 
@@ -32,35 +45,35 @@ export async function listGroups(): Promise<ApiResponse<Group[]>> {
   return { data: data ?? [], error: null };
 }
 
-export async function listGroupsWithStats(_userId?: string): Promise<ApiResponse<GroupWithStats[]>> {
-  const { data, error } = await supabase
-    .schema("settleup")
-    .rpc("get_groups_with_stats");
-
-  if (error) {
-    // Fallback: plain groups list
-    const fallback = await listGroups();
-    if (fallback.error) return { data: null, error: fallback.error };
-    return {
-      data: (fallback.data ?? []).map((g) => ({
-        ...g,
-        member_count: 0,
-        pending_count: 0,
-        total_owed_cents: 0,
-      })),
-      error: null,
-    };
+/**
+ * Active groups with stats in each group's own default currency. The v2 RPC
+ * answers per currency for every group, so it is called once per currency in
+ * use and each group keeps the row for its own currency (never summed).
+ */
+export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[]>> {
+  const currencies = await getMyCurrencies();
+  if (currencies.error !== null) return { data: null, error: currencies.error };
+  const results: { currency: CurrencyCode; rows: GroupWithStats[] }[] = [];
+  for (const currency of currencies.data) {
+    const { data, error } = await supabase
+      .schema("settleup")
+      .rpc("get_groups_with_stats_v2", { p_currency_code: currency });
+    if (error) return { data: null, error: error.message };
+    const parsed = parseGroupsWithStatsRpcResult(data);
+    if (parsed.error !== null) return { data: null, error: parsed.error };
+    results.push({ currency, rows: parsed.data });
   }
-  const parsed = parseGroupsWithStatsRpcResult(data);
-  if (parsed.error) return { data: null, error: parsed.error };
-
-  return parsed;
+  return { data: groupRowsInDefaultCurrency(results), error: null };
 }
 
-export async function setGroupBudget(groupId: string, budgetCents: number | null): Promise<ApiResponse<null>> {
+export async function setGroupBudget(
+  groupId: string,
+  budgetCents: number | null,
+  currency: CurrencyCode,
+): Promise<ApiResponse<null>> {
   const { data, error } = await supabase
     .schema("settleup")
-    .rpc("set_group_budget", { p_group_id: groupId, p_budget_cents: budgetCents });
+    .rpc("set_group_budget_v2", { p_group_id: groupId, p_budget_cents: budgetCents, p_currency_code: currency });
 
   if (error || !data) return { data: null, error: error?.message ?? "Failed to update budget" };
   return { data: null, error: null };

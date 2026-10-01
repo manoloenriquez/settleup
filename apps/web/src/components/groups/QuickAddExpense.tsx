@@ -5,7 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { addExpense } from "@/app/actions/expenses";
-import { parsePHPAmount, equalSplit, formatCents } from "@template/shared";
+import { amountToInput, currencySymbol, equalSplit, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics/client";
 import { buildEqualExpenseRpcInput } from "@template/supabase";
@@ -33,6 +34,8 @@ type Props = {
   categories: ExpenseCategory[];
   currentUserId: string;
   item: ItemState;
+  /** Currency the expense is saved in (chosen in the dialog). */
+  currency: CurrencyCode;
   setItem: (update: (item: ItemState) => ItemState) => void;
   expenseDate: string;
   setExpenseDate: Dispatch<SetStateAction<string>>;
@@ -46,6 +49,7 @@ export function QuickAddExpense({
   categories,
   currentUserId,
   item,
+  currency,
   setItem,
   expenseDate,
   setExpenseDate,
@@ -75,7 +79,7 @@ export function QuickAddExpense({
   const payer = members.find((m) => m.id === payerId);
 
   // Live per-member preview of the equal split, in member-list order.
-  const amountCents = parsePHPAmount(amountStr) ?? 0;
+  const amountCents = parseAmountInput(amountStr, currency) ?? 0;
   const shares = new Map<string, number>();
   if (amountCents > 0 && selectedIds.length > 0) {
     const parts = equalSplit(amountCents, selectedIds.length);
@@ -96,7 +100,7 @@ export function QuickAddExpense({
     e.preventDefault();
     setError(null);
 
-    const cents = parsePHPAmount(amountStr);
+    const cents = parseAmountInput(amountStr, currency);
     if (!cents || cents <= 0) {
       setError("Enter a valid amount");
       return;
@@ -142,6 +146,7 @@ export function QuickAddExpense({
         itemName: itemName.trim(),
         notes: item.notes || undefined,
         amountCents: cents,
+        currencyCode: currency,
         expenseDate: expenseDate || undefined,
         participantIds: selectedIds,
         payers: [{ memberId: payerId, paidCents: cents }],
@@ -180,6 +185,7 @@ export function QuickAddExpense({
         item_name: itemName.trim(),
         notes: item.notes || undefined,
         amount_cents: cents,
+        currency_code: currency,
         expense_date: expenseDate || undefined,
         participant_ids: selectedIds,
         payers: [{ member_id: payerId, paid_cents: cents }],
@@ -209,19 +215,19 @@ export function QuickAddExpense({
         </label>
         <div className="relative mt-1.5">
           <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-lg font-semibold text-slate-400">
-            ₱
+            {currencySymbol(currency, MONEY_LOCALE)}
           </span>
           <input
             id="quick-amount"
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
-            placeholder="0.00"
+            placeholder={amountToInput(0, currency)}
             inputMode="decimal"
             autoComplete="off"
-            className="w-full rounded-2xl border border-slate-300 bg-white py-3.5 pl-9 pr-16 text-xl font-bold tabular-nums text-slate-900 placeholder:font-normal placeholder:text-slate-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            className={`w-full rounded-2xl border border-slate-300 bg-white py-3.5 ${currencySymbol(currency, MONEY_LOCALE).length > 1 ? "pl-14" : "pl-9"} pr-16 text-xl font-bold tabular-nums text-slate-900 placeholder:font-normal placeholder:text-slate-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100`}
           />
           <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-slate-400">
-            PHP
+            {currency}
           </span>
         </div>
       </div>
@@ -325,7 +331,7 @@ export function QuickAddExpense({
                 <span
                   className={`shrink-0 text-sm font-semibold tabular-nums ${selected ? "text-slate-900" : "text-slate-300"}`}
                 >
-                  {formatCents(selected ? (shares.get(member.id) ?? 0) : 0)}
+                  {formatCurrency(selected ? (shares.get(member.id) ?? 0) : 0, currency)}
                 </span>
               </label>
             );

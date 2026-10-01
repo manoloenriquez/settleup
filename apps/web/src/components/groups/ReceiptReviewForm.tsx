@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { currencySymbol, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { formatCurrency, hundredthsToInput, MONEY_LOCALE } from "@/lib/currency";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { X, Plus, Check } from "lucide-react";
 import type { ParsedReceipt } from "@template/shared/types";
 
-/** Reviewed receipt data, with structured line items preserved for split configuration. */
+/**
+ * Reviewed receipt data, with structured line items preserved for split
+ * configuration. Amounts are minor units of `currency`.
+ */
 export type ReceiptReview = {
   itemName: string;
+  currency: CurrencyCode;
   totalCents: number;
   date: string | null;
   items: { name: string; amountCents: number }[];
@@ -18,6 +23,8 @@ export type ReceiptReview = {
 
 type Props = {
   receipt: ParsedReceipt;
+  /** Currency the receipt is entered in; parsed amounts are hundredths of it. */
+  currency: CurrencyCode;
   onContinue: (review: ReceiptReview) => void;
   onDismiss: () => void;
 };
@@ -27,16 +34,17 @@ type EditableLineItem = {
   totalStr: string;
 };
 
-export function ReceiptReviewForm({ receipt, onContinue, onDismiss }: Props): React.ReactElement {
+export function ReceiptReviewForm({ receipt, currency, onContinue, onDismiss }: Props): React.ReactElement {
+  const amountPrefix = currencySymbol(currency, MONEY_LOCALE);
   const [merchant, setMerchant] = useState(receipt.merchant ?? "");
   const [date, setDate] = useState(receipt.date ?? "");
   const [items, setItems] = useState<EditableLineItem[]>(
     receipt.line_items.map((li) => ({
       description: li.description,
-      totalStr: (li.total_cents / 100).toFixed(2),
+      totalStr: hundredthsToInput(li.total_cents, currency),
     })),
   );
-  const [totalStr, setTotalStr] = useState((receipt.total_cents / 100).toFixed(2));
+  const [totalStr, setTotalStr] = useState(hundredthsToInput(receipt.total_cents, currency));
 
   function updateItem(index: number, patch: Partial<EditableLineItem>): void {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
@@ -51,25 +59,26 @@ export function ReceiptReviewForm({ receipt, onContinue, onDismiss }: Props): Re
   }
 
   function handleContinue(): void {
-    const totalCents = parsePHPAmount(totalStr) ?? 0;
+    const totalCents = parseAmountInput(totalStr, currency) ?? 0;
     if (totalCents <= 0) return;
 
     const itemName = merchant || items.map((i) => i.description).filter(Boolean).join(", ") || "Receipt";
 
     const reviewItems = items
-      .map((item) => ({ name: item.description.trim(), amountCents: parsePHPAmount(item.totalStr) ?? 0 }))
+      .map((item) => ({ name: item.description.trim(), amountCents: parseAmountInput(item.totalStr, currency) ?? 0 }))
       .filter((item) => item.name.length > 0 && item.amountCents > 0);
 
     onContinue({
       itemName,
+      currency,
       totalCents,
       date: date || null,
       items: reviewItems,
     });
   }
 
-  const totalCents = parsePHPAmount(totalStr) ?? 0;
-  const itemsTotal = items.reduce((sum, i) => sum + (parsePHPAmount(i.totalStr) ?? 0), 0);
+  const totalCents = parseAmountInput(totalStr, currency) ?? 0;
+  const itemsTotal = items.reduce((sum, i) => sum + (parseAmountInput(i.totalStr, currency) ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-4 animate-slide-down">
@@ -120,7 +129,7 @@ export function ReceiptReviewForm({ receipt, onContinue, onDismiss }: Props): Re
               </div>
               <div className="w-28">
                 <Input
-                  leftAddon="₱"
+                  leftAddon={amountPrefix}
                   value={item.totalStr}
                   onChange={(e) => updateItem(index, { totalStr: e.target.value })}
                   placeholder="0.00"
@@ -144,7 +153,7 @@ export function ReceiptReviewForm({ receipt, onContinue, onDismiss }: Props): Re
           </button>
           {itemsTotal > 0 && (
             <p className="text-xs text-slate-500">
-              Items subtotal: {formatCents(itemsTotal)}
+              Items subtotal: {formatCurrency(itemsTotal, currency)}
             </p>
           )}
         </div>
@@ -152,7 +161,7 @@ export function ReceiptReviewForm({ receipt, onContinue, onDismiss }: Props): Re
 
       <Input
         label="Total"
-        leftAddon="₱"
+        leftAddon={amountPrefix}
         value={totalStr}
         onChange={(e) => setTotalStr(e.target.value)}
       />

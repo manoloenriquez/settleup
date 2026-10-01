@@ -24,7 +24,9 @@ export function createUserScopedClient(token: string): SupabaseClient {
     throw new Error("Missing env vars: SUPABASE_URL and SUPABASE_ANON_KEY");
   }
   return createClient(url, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    // x-ledger-version: 2 so closing an account with non-PHP ledgers passes the
+    // currency guard (see packages/supabase/src/ledger.ts).
+    global: { headers: { "x-ledger-version": "2", Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

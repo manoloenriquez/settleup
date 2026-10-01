@@ -4,10 +4,10 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useState } from "react";
 import { CloudUpload, X } from "lucide-react";
-import { formatCents } from "@template/shared";
-import type { OutboxEntry } from "@template/shared";
+import type { CurrencyCode, OutboxEntry } from "@template/shared";
 import { useWebOutbox } from "@/components/OutboxProvider";
 import { Button } from "@/components/ui/Button";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 
 // Total Record: the compiler forces a label for every outbox kind.
 const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
@@ -25,6 +25,11 @@ const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
   "category.update": "Edit category",
   "category.delete": "Delete category",
 };
+
+/** The queued write's own currency; legacy entries without one are PHP. */
+function entryCurrency(entry: OutboxEntry): CurrencyCode {
+  return currencyOrPhp((entry.payload as { currency_code?: unknown } | null)?.currency_code);
+}
 
 function conflictCopy(entry: OutboxEntry): string {
   if (entry.kind === "payment.confirm" || entry.kind === "payment.reject") {
@@ -71,7 +76,7 @@ export function PendingChangesPopover(): React.ReactElement | null {
                     <p className="truncate text-sm font-medium text-slate-900">
                       {entry.summary.title}
                       {entry.summary.amountCents > 0
-                        ? ` · ${formatCents(entry.summary.amountCents)}`
+                        ? ` · ${formatCurrency(entry.summary.amountCents, entryCurrency(entry))}`
                         : ""}
                     </p>
                   </div>

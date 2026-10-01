@@ -107,7 +107,7 @@ function RouteGuard() {
     const inAuthGroup = segments[0] === "(auth)";
     const inProtectedGroup = segments[0] === "(protected)";
     const path = segments.join("/");
-    const publicLink = path === "claim" || path === "join" || path === "auth/callback";
+    const publicLink = path === "claim" || path === "join" || path === "friend" || path === "auth/callback";
     const inOnboarding = path === "onboarding";
     if (session && accountClosed) {
       if (path !== "account-closed") router.replace("/account-closed");
@@ -227,6 +227,7 @@ function RootStack() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="friend" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(protected)" />
     </Stack>

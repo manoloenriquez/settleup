@@ -1,11 +1,13 @@
 import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { buildNudgeMessage, buildSuggestedSettlements, simplifyDebts, formatCents } from "@template/shared";
-import type { CreditorPaymentProfile, MemberBalance, SimplifiedDebt, SuggestedSettlement } from "@template/shared";
+import { buildNudgeMessage, buildSuggestedSettlements, simplifyDebts, formatAmount } from "@template/shared";
+import type { CreditorPaymentProfile, CurrencyCode, MemberBalance, SimplifiedDebt, SuggestedSettlement } from "@template/shared";
 import { Avatar } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type DebtSummaryProps = {
+  /** Every amount here is in this currency. */
+  currency: CurrencyCode;
   members: MemberBalance[];
   creditorProfiles?: CreditorPaymentProfile[];
   onSettle: (debt: SimplifiedDebt) => void;
@@ -15,6 +17,7 @@ type DebtSummaryProps = {
 };
 
 export function DebtSummary({
+  currency,
   members,
   creditorProfiles,
   onSettle,
@@ -22,6 +25,7 @@ export function DebtSummary({
   webOrigin,
   currentMemberId = null,
 }: DebtSummaryProps) {
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const tokenByMemberId = new Map(members.map((m) => [m.member_id, m.share_token]));
 
   async function handleRemind(debt: SimplifiedDebt) {
@@ -31,6 +35,7 @@ export function DebtSummary({
       creditorName: debt.to_display_name,
       amountCents: debt.amount_cents,
       groupName: groupName ?? "your group",
+      currency,
       link: token && webOrigin ? `${webOrigin}/p/${token}` : null,
     });
     try {

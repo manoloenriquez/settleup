@@ -8,6 +8,7 @@
 import { equalSplit, resolveExactMember } from "@template/shared";
 import type { ExpenseDraft } from "@template/shared/types";
 import { z } from "zod";
+import { currencyCodeSchema } from "@template/shared";
 
 export type DraftMember = { id: string; display_name: string; departed_at?: string | null };
 
@@ -275,6 +276,8 @@ export const persistedDraftSchema = z.object({
   lineItems: z.array(
     z.object({ name: z.string(), amountStr: z.string(), participantIds: z.array(z.string()) }),
   ),
+  /** Absent in drafts saved before currencies existed — those were pesos. */
+  currencyCode: currencyCodeSchema.optional(),
 });
 
 export type PersistedDraft = z.infer<typeof persistedDraftSchema>;

@@ -1,8 +1,11 @@
 import { Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CreateGroupForm } from "@/components/groups/CreateGroupForm";
+import { suggestedDisplayName } from "@/lib/display-name";
 
-export default function NewGroupPage(): React.ReactElement {
+export default async function NewGroupPage(): Promise<React.ReactElement> {
+  const displayName = await suggestedDisplayName();
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in max-w-lg mx-auto w-full">
       <div className="flex items-center gap-3">
@@ -16,7 +19,7 @@ export default function NewGroupPage(): React.ReactElement {
       </div>
       <Card>
         <CardContent>
-          <CreateGroupForm />
+          <CreateGroupForm suggestedDisplayName={displayName} />
         </CardContent>
       </Card>
     </div>

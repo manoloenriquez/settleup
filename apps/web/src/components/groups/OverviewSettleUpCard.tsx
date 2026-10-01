@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { formatCents } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Smartphone, Landmark, ArrowRight, MessageCircle, Hash, ZoomIn, X } from "lucide-react";
-import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
+import type { CurrencyCode, GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
 
 type PaymentDetailAction = "copy" | "qr";
 
@@ -14,6 +14,8 @@ type Props = {
   groupName: string;
   settlements: SuggestedSettlement[];
   ownerProfile: GroupOverviewPayload["payment_profile"];
+  /** The currency every settlement amount on this card is in. */
+  currency: CurrencyCode;
   /** Telemetry hook for copy and QR-enlarge actions on payment details. */
   onAction?: (action: PaymentDetailAction) => void;
 };
@@ -135,6 +137,7 @@ export function OverviewSettleUpCard({
   groupName,
   settlements,
   ownerProfile,
+  currency,
   onAction,
 }: Props): React.ReactElement | null {
   const onQr = (): void => onAction?.("qr");
@@ -165,7 +168,7 @@ export function OverviewSettleUpCard({
                   <Avatar name={s.to_display_name} size="sm" />
                   <span className="font-medium text-slate-700">{s.to_display_name}</span>
                   <span className="ml-auto font-bold text-slate-900">
-                    {formatCents(s.amount_cents)}
+                    {formatCurrency(s.amount_cents, currency)}
                   </span>
                 </div>
 

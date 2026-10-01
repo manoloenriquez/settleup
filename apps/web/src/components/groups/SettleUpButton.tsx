@@ -10,21 +10,24 @@ import { useOnline } from "@/hooks/useOnline";
 import { ContentDialog } from "@/components/ui/ContentDialog";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { amountToInput, currencySymbol, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import { Banknote } from "lucide-react";
 import type { SimplifiedDebt } from "@template/shared/types";
 
 type DialogProps = {
   debt: SimplifiedDebt;
   groupId: string;
+  /** Currency of the balance being settled; the payment is recorded in it. */
+  currency: CurrencyCode;
   open: boolean;
   onClose: () => void;
 };
 
 /** Record-payment dialog, controllable from any trigger (row button or the "Settle balance" CTA). */
-export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): React.ReactElement {
+export function SettleUpDialog({ debt, groupId, currency, open, onClose }: DialogProps): React.ReactElement {
   const clientIdRef = useRef(crypto.randomUUID());
-  const [amountStr, setAmountStr] = useState((debt.amount_cents / 100).toFixed(2));
+  const [amountStr, setAmountStr] = useState(amountToInput(debt.amount_cents, currency));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
@@ -34,7 +37,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
   async function handleSubmit(): Promise<void> {
     if (isPending) return; // guard against double-submit creating duplicate payments
     setError(null);
-    const amountCents = parsePHPAmount(amountStr);
+    const amountCents = parseAmountInput(amountStr, currency);
     if (!amountCents || amountCents <= 0) {
       setError("Enter a valid amount");
       return;
@@ -56,6 +59,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
             from_member_id: debt.from_member_id,
             to_member_id: debt.to_member_id,
             amount_cents: amountCents,
+            currency_code: currency,
           },
           createdAt: new Date().toISOString(),
           summary: {
@@ -82,6 +86,7 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
         from_member_id: debt.from_member_id,
         to_member_id: debt.to_member_id,
         amount_cents: amountCents,
+        currency_code: currency,
       });
       if (result.error) {
         setError(result.error);
@@ -103,11 +108,12 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
         </p>
         <Input
           label="Amount"
-          leftAddon="₱"
+          leftAddon={currencySymbol(currency, MONEY_LOCALE)}
+          inputMode="decimal"
           value={amountStr}
           onChange={(e) => setAmountStr(e.target.value)}
         />
-        <p className="text-xs text-slate-500">Suggested: {formatCents(debt.amount_cents)}</p>
+        <p className="text-xs text-slate-500">Suggested: {formatCurrency(debt.amount_cents, currency)}</p>
         <p className="text-xs text-slate-500">
           Recording a payment does not transfer money. Pay using your agreed payment method first.
         </p>
@@ -123,9 +129,10 @@ export function SettleUpDialog({ debt, groupId, open, onClose }: DialogProps): R
 type Props = {
   debt: SimplifiedDebt;
   groupId: string;
+  currency: CurrencyCode;
 };
 
-export function SettleUpButton({ debt, groupId }: Props): React.ReactElement {
+export function SettleUpButton({ debt, groupId, currency }: Props): React.ReactElement {
   const [open, setOpen] = useState(false);
 
   return (
@@ -133,7 +140,13 @@ export function SettleUpButton({ debt, groupId }: Props): React.ReactElement {
       <Button size="sm" variant="secondary" leftIcon={Banknote} onClick={() => setOpen(true)}>
         Settle
       </Button>
-      <SettleUpDialog debt={debt} groupId={groupId} open={open} onClose={() => setOpen(false)} />
+      <SettleUpDialog
+        debt={debt}
+        groupId={groupId}
+        currency={currency}
+        open={open}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }

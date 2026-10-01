@@ -9,7 +9,7 @@ import { get, set, del } from "idb-keyval";
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /** Bump when the shape of cached query data changes incompatibly. */
-const CACHE_BUSTER = "web-v2-account";
+const CACHE_BUSTER = "web-v3-currency";
 
 /** Query-key roots that must never be persisted (AI output, identity, transient state). */
 const NON_PERSISTED_KEYS = new Set(["ai", "insights", "ai-availability", "auth-user"]);

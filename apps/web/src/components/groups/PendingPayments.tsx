@@ -9,7 +9,7 @@ import { useWebOutbox } from "@/components/OutboxProvider";
 import { usePendingPaymentResolutions } from "@/hooks/useOutboxPending";
 import { confirmPayment, rejectPayment } from "@/app/actions/friend-payments";
 import type { PendingPayment } from "@/app/actions/friend-payments";
-import { formatCents } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Check, X, Clock } from "lucide-react";
@@ -57,7 +57,8 @@ export function PendingPayments({
           kind: action === "confirm" ? "payment.confirm" : "payment.reject",
           entityId: payment.id,
           groupId,
-          payload: {},
+          // Display only: lets Pending Changes show the amount in its currency.
+          payload: { currency_code: payment.currency_code },
           createdAt: new Date().toISOString(),
           summary: {
             title: action === "confirm" ? "Confirm payment" : "Reject payment",
@@ -112,7 +113,7 @@ export function PendingPayments({
                   <span className="font-semibold">{from?.display_name ?? "Unknown"}</span> says they
                   paid <span className="font-semibold">{to?.display_name ?? "Unknown"}</span>{" "}
                   <span className="font-bold text-slate-900">
-                    {formatCents(payment.amount_cents)}
+                    {formatCurrency(payment.amount_cents, payment.currency_code ?? "PHP")}
                   </span>
                 </p>
                 {payment.note && (

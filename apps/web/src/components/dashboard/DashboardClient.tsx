@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ROUTES, formatCents } from "@template/shared";
-import { useDashboardSummary, useRecentActivity } from "@/hooks/queries";
+import {
+  ROUTES,
+  groupNetsByCurrency,
+  nonZeroNets,
+  owedTotalsByCurrency,
+  type CurrencyAmount,
+  type CurrencyCode,
+} from "@template/shared";
+import { useDashboardSummaries, useRecentActivity } from "@/hooks/queries";
+import { SEPARATE_CURRENCIES_NOTE, currencyOrPhp, formatCurrency } from "@/lib/currency";
 import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -55,17 +63,23 @@ type Props = {
   profile: { email: string; full_name: string | null };
 };
 
+/** Net with a "+" when I am owed; formatCurrency already adds "-" when I owe. */
+function signedNet(net: CurrencyAmount): string {
+  const amount = formatCurrency(net.amountMinor, net.currency);
+  return net.amountMinor > 0 ? `+${amount}` : amount;
+}
+
 export function DashboardClient({ profile }: Props): React.ReactElement {
-  const summaryQ = useDashboardSummary();
+  const summariesQ = useDashboardSummaries();
   const activityQ = useRecentActivity(5);
 
-  const summary = summaryQ.data;
-  if (!summary) {
-    if (summaryQ.isError) {
+  const summaries = summariesQ.data;
+  if (!summaries) {
+    if (summariesQ.isError) {
       return (
         <div className="space-y-8 animate-fade-in">
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-red-600">{summaryQ.error.message}</p>
+          <p className="text-sm text-red-600">{summariesQ.error.message}</p>
         </div>
       );
     }
@@ -87,9 +101,29 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
   }
 
   const firstName = profile.full_name?.split(" ")[0];
-  const net = summary.net_balance_cents;
-  const isOwed = net > 0;
-  const owes = net < 0;
+  // One entry per currency; amounts in different currencies are never added.
+  const nets = nonZeroNets(summaries);
+  const groupNets = groupNetsByCurrency(summaries);
+  const owedRows = owedTotalsByCurrency(summaries);
+  // All settled: keep the owed/owe cards, at zero, in the user's first currency.
+  const fallbackCurrency: CurrencyCode = currencyOrPhp(summaries[0]?.currency_code);
+  const owedCards =
+    owedRows.length > 0
+      ? owedRows
+      : [{ currency: fallbackCurrency, owedToMe: 0, iOwe: 0, owedFrom: 0, oweTo: 0 }];
+  // Every per-currency summary lists all of my groups; take names from the first.
+  const groups = summaries[0]?.groups ?? [];
+  const shownCurrencies = new Set<CurrencyCode>([
+    ...nets.map((n) => n.currency),
+    ...owedCards.map((row) => row.currency),
+    ...[...groupNets.values()].flat().map((n) => n.currency),
+  ]);
+  const multiCurrency = shownCurrencies.size > 1;
+  // The 30-day sparkline is in one currency; only draw it when exactly one
+  // currency has spend, so series in different currencies are never mixed.
+  const spendSeries = summaries.filter((s) => s.spend_series.some((p) => p.amount_cents > 0));
+  const sparklinePoints = spendSeries.length === 1 ? (spendSeries[0]?.spend_series ?? []) : [];
+  const owes = nets.some((n) => n.amountMinor < 0);
   const activity = activityQ.data ?? [];
 
   return (
@@ -118,58 +152,72 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
-              Total balance <Info size={13} className="text-slate-300" />
+              {nets.length > 1 ? "Balance by currency" : "Total balance"} <Info size={13} className="text-slate-300" />
             </p>
-            <p
-              className={`mt-1 text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl ${
-                isOwed ? "text-brand-700" : owes ? "text-rose-600" : "text-slate-900"
-              }`}
-            >
-              {isOwed ? "+" : ""}
-              {net === 0 ? "All clear" : formatCents(net)}
-            </p>
+            {nets.length === 0 ? (
+              <p className="mt-1 text-4xl font-extrabold tracking-tight tabular-nums text-slate-900 sm:text-5xl">
+                All clear
+              </p>
+            ) : (
+              nets.map((n) => (
+                <p
+                  key={n.currency}
+                  className={`mt-1 font-extrabold tracking-tight tabular-nums ${
+                    nets.length === 1 ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl"
+                  } ${n.amountMinor > 0 ? "text-brand-700" : "text-rose-600"}`}
+                >
+                  {signedNet(n)}
+                </p>
+              ))
+            )}
             <p className="mt-1.5 text-sm text-slate-500">
               {owes ? "Time to settle up" : "You’re in good shape! 🎉"}
             </p>
           </div>
           <Sparkline
-            points={summary.spend_series}
+            points={sparklinePoints}
             className={`mt-2 h-12 w-28 shrink-0 ${owes ? "text-rose-400" : "text-brand-500"}`}
           />
         </div>
       </div>
 
-      {/* Owed / owe split */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
-            <ArrowDownLeft size={15} />
-          </span>
-          <p className="mt-3 text-xs font-medium text-emerald-800">
-            You are <span className="font-bold">owed</span>
-          </p>
-          <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-emerald-900">
-            {formatCents(summary.owed_to_me_cents)}
-          </p>
-          <p className="mt-0.5 text-xs text-emerald-700/80">
-            from {summary.owed_counterparty_count} {summary.owed_counterparty_count === 1 ? "person" : "people"}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white">
-            <ArrowUpRight size={15} />
-          </span>
-          <p className="mt-3 text-xs font-medium text-rose-800">
-            You <span className="font-bold">owe</span>
-          </p>
-          <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-rose-900">
-            {formatCents(summary.i_owe_cents)}
-          </p>
-          <p className="mt-0.5 text-xs text-rose-700/80">
-            to {summary.owe_counterparty_count} {summary.owe_counterparty_count === 1 ? "person" : "people"}
-          </p>
-        </div>
+      {/* Owed / owe split, one row per currency */}
+      <div className="space-y-3">
+        {owedCards.map((row) => (
+          <div key={row.currency} className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
+                <ArrowDownLeft size={15} />
+              </span>
+              <p className="mt-3 text-xs font-medium text-emerald-800">
+                You are <span className="font-bold">owed</span>
+              </p>
+              <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-emerald-900">
+                {formatCurrency(row.owedToMe, row.currency)}
+              </p>
+              <p className="mt-0.5 text-xs text-emerald-700/80">
+                from {row.owedFrom} {row.owedFrom === 1 ? "person" : "people"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white">
+                <ArrowUpRight size={15} />
+              </span>
+              <p className="mt-3 text-xs font-medium text-rose-800">
+                You <span className="font-bold">owe</span>
+              </p>
+              <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-rose-900">
+                {formatCurrency(row.iOwe, row.currency)}
+              </p>
+              <p className="mt-0.5 text-xs text-rose-700/80">
+                to {row.oweTo} {row.oweTo === 1 ? "person" : "people"}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {multiCurrency && <p className="px-0.5 text-xs text-slate-500">{SEPARATE_CURRENCIES_NOTE}</p>}
 
       {/* Recent activity */}
       <div>
@@ -188,7 +236,7 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
       </div>
 
       {/* Your groups */}
-      {summary.groups.length === 0 ? (
+      {groups.length === 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-8">
           <EmptyState
             icon={Users}
@@ -213,8 +261,8 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
             </Link>
           </div>
           <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
-            {summary.groups.slice(0, 9).map((group) => {
-              const myNet = group.my_net_cents;
+            {groups.slice(0, 9).map((group) => {
+              const balances = groupNets.get(group.id) ?? [];
               return (
                 <Link
                   key={group.id}
@@ -229,22 +277,26 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
                       <h3 className="truncate text-sm font-semibold leading-tight text-slate-900">
                         {group.name}
                       </h3>
-                      {myNet > 0 ? (
-                        <p className="mt-1 text-xs text-slate-500">
-                          You’re owed{" "}
-                          <span className="font-bold text-emerald-600 tabular-nums">
-                            {formatCents(myNet)}
-                          </span>
-                        </p>
-                      ) : myNet < 0 ? (
-                        <p className="mt-1 text-xs text-slate-500">
-                          You owe{" "}
-                          <span className="font-bold text-rose-600 tabular-nums">
-                            {formatCents(-myNet)}
-                          </span>
-                        </p>
-                      ) : (
+                      {balances.length === 0 ? (
                         <p className="mt-1 text-xs font-semibold text-slate-400">Settled up</p>
+                      ) : (
+                        balances.map((balance) =>
+                          balance.amountMinor > 0 ? (
+                            <p key={balance.currency} className="mt-1 text-xs text-slate-500">
+                              You’re owed{" "}
+                              <span className="font-bold text-emerald-600 tabular-nums">
+                                {formatCurrency(balance.amountMinor, balance.currency)}
+                              </span>
+                            </p>
+                          ) : (
+                            <p key={balance.currency} className="mt-1 text-xs text-slate-500">
+                              You owe{" "}
+                              <span className="font-bold text-rose-600 tabular-nums">
+                                {formatCurrency(-balance.amountMinor, balance.currency)}
+                              </span>
+                            </p>
+                          ),
+                        )
                       )}
                     </div>
                   </div>

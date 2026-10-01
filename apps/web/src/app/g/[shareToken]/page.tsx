@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { createAnonClient } from "@template/supabase";
-import { GroupOverview } from "@/components/groups/GroupOverview";
+import { GroupOverview, type CurrencyOverview } from "@/components/groups/GroupOverview";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
 import { trackPublic } from "@/lib/analytics/server";
+import { parseCurrencyCodes } from "@/lib/currency";
 import type { GroupOverviewPayload } from "@template/shared";
 
 type Props = {
@@ -38,11 +39,9 @@ export default async function GroupOverviewPage({ params }: Props): Promise<Reac
   if (!allowed) notFound();
 
   const supabase = createAnonClient();
-  const { data, error } = await supabase.schema("settleup").rpc("get_group_overview", {
-    p_share_token: shareToken,
-  });
+  const overviews = await loadOverviews(supabase, shareToken);
 
-  if (error || !data || (data as GroupOverviewPayload).error) {
+  if (!overviews) {
     trackPublic(null, {
       name: "public_link_opened",
       properties: { link_type: "group", status: "invalid" },
@@ -50,11 +49,41 @@ export default async function GroupOverviewPage({ params }: Props): Promise<Reac
     notFound();
   }
 
-  const payload = data as GroupOverviewPayload;
   trackPublic(shareToken, {
     name: "public_link_opened",
     properties: { link_type: "group", status: "valid" },
   });
 
-  return <GroupOverview payload={payload} shareToken={shareToken} />;
+  return <GroupOverview overviews={overviews} shareToken={shareToken} />;
+}
+
+/**
+ * The overview for every currency behind the link, default first. Null when
+ * the link is unknown or revoked, or any currency fails to load.
+ */
+async function loadOverviews(
+  supabase: ReturnType<typeof createAnonClient>,
+  shareToken: string,
+): Promise<CurrencyOverview[] | null> {
+  const db = supabase.schema("settleup");
+  const { data: codesData, error: codesError } = await db.rpc("get_share_currencies", {
+    p_share_token: shareToken,
+  });
+  if (codesError) return null;
+  // [] means the token is unknown or revoked.
+  const currencies = parseCurrencyCodes(codesData, []);
+  if (currencies.length === 0) return null;
+
+  const results = await Promise.all(
+    currencies.map(async (currency): Promise<CurrencyOverview | null> => {
+      const { data, error } = await db.rpc("get_group_overview_v2", {
+        p_share_token: shareToken,
+        p_currency_code: currency,
+      });
+      if (error || !data || (data as GroupOverviewPayload).error) return null;
+      return { currency, payload: { ...(data as GroupOverviewPayload), currency_code: currency } };
+    }),
+  );
+  if (results.some((result) => result === null)) return null;
+  return results.filter((result): result is CurrencyOverview => result !== null);
 }

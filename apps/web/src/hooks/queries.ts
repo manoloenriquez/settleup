@@ -1,9 +1,10 @@
 "use client";
 
-import { useInfiniteQuery, useQuery, type UseQueryResult, type UseInfiniteQueryResult, type InfiniteData } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, type UseQueryResult, type UseInfiniteQueryResult, type InfiniteData } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { getGroupRow, listGroupsWithStats, listArchivedGroups, type GroupRow } from "@/lib/queries/groups";
-import { getDashboardSummary } from "@/lib/queries/dashboard";
+import { getDashboardSummaries } from "@/lib/queries/dashboard";
+import { getGroupCurrencies } from "@/lib/queries/currency";
 import { getMembersWithBalances, getCreditorProfiles } from "@/lib/queries/balances";
 import { listExpenses, listExpenseSummaries } from "@/lib/queries/expenses";
 import { getGroupActivity, getRecentActivity } from "@/lib/queries/activity";
@@ -15,7 +16,7 @@ import type { ActivityItem, RecentActivityItem } from "@/app/actions/activity";
 import type { ExpenseSummary, ExpenseWithParticipants } from "@/app/actions/expenses";
 import type { PendingPayment } from "@/app/actions/friend-payments";
 import type { ExpenseComment } from "@/app/actions/comments";
-import type { ApiResponse, PaginatedResponse, DashboardSummary, GroupWithStats, MemberBalance, CreditorPaymentProfile } from "@template/shared";
+import type { ApiResponse, CurrencyCode, PaginatedResponse, DashboardSummary, GroupWithStats, MemberBalance, CreditorPaymentProfile } from "@template/shared";
 import type { ExpenseCategory, Group, UserPaymentProfile } from "@template/supabase";
 
 /**
@@ -39,10 +40,26 @@ export function useGroupRow(groupId: string): UseQueryResult<GroupRow | null> {
   });
 }
 
-export function useDashboardSummary(): UseQueryResult<DashboardSummary> {
+/** One summary per currency in use (never combined across currencies). */
+export function useDashboardSummaries(): UseQueryResult<DashboardSummary[]> {
   return useQuery({
     queryKey: queryKeys.dashboard,
-    queryFn: () => unwrap(getDashboardSummary()),
+    queryFn: () => unwrap(getDashboardSummaries()),
+  });
+}
+
+/**
+ * Currencies the group holds, default first. Disabled until the group row
+ * (and so its default currency) is known.
+ */
+export function useGroupCurrencies(
+  groupId: string,
+  defaultCurrency: CurrencyCode | undefined,
+): UseQueryResult<CurrencyCode[]> {
+  return useQuery({
+    queryKey: queryKeys.groupCurrencies(groupId),
+    queryFn: () => unwrap(getGroupCurrencies(groupId, defaultCurrency ?? "PHP")),
+    enabled: defaultCurrency !== undefined,
   });
 }
 
@@ -67,17 +84,29 @@ export function useArchivedGroups(): UseQueryResult<Group[]> {
   });
 }
 
-export function useMembersWithBalances(groupId: string): UseQueryResult<MemberBalance[]> {
+/** Balances in one currency; disabled until the currency is known. */
+export function useMembersWithBalances(
+  groupId: string,
+  currency: CurrencyCode | undefined,
+): UseQueryResult<MemberBalance[]> {
   return useQuery({
-    queryKey: queryKeys.balances(groupId),
-    queryFn: () => unwrap(getMembersWithBalances(groupId)),
+    queryKey: queryKeys.balances(groupId, currency ?? "PHP"),
+    queryFn: () => unwrap(getMembersWithBalances(groupId, currency ?? "PHP")),
+    enabled: currency !== undefined,
+    // Keeps the member list on screen while another currency loads; rows are
+    // tagged with currency_code so callers never show them as the new one.
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useCreditorProfiles(groupId: string): UseQueryResult<CreditorPaymentProfile[]> {
+export function useCreditorProfiles(
+  groupId: string,
+  currency: CurrencyCode | undefined,
+): UseQueryResult<CreditorPaymentProfile[]> {
   return useQuery({
-    queryKey: queryKeys.creditorProfiles(groupId),
-    queryFn: () => unwrap(getCreditorProfiles(groupId)),
+    queryKey: queryKeys.creditorProfiles(groupId, currency ?? "PHP"),
+    queryFn: () => unwrap(getCreditorProfiles(groupId, currency ?? "PHP")),
+    enabled: currency !== undefined,
   });
 }
 

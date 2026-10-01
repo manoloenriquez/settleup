@@ -36,7 +36,7 @@ type AddExpenseParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   memberIds: string[];
   payerMemberId: string;
@@ -49,7 +49,7 @@ type AddExpenseCustomSplitParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -61,7 +61,7 @@ type AddItemizedExpenseParams = {
   groupId: string;
   expenseName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -131,7 +131,7 @@ function makeLocalExpense(params: {
   categoryId?: string | null;
   itemName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   expenseDate?: string;
   createdByUserId?: string;
   notes?: string;
@@ -315,7 +315,7 @@ type UpdateExpenseParams = {
   expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
@@ -328,7 +328,7 @@ type UpdateExpenseCustomSplitParams = {
   expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -341,7 +341,7 @@ type UpdateItemizedExpenseParams = {
   expectedUpdatedAt?: string;
   expenseName: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+import { LEDGER_HEADERS } from "./ledger";
 
 type StorageAdapter = {
   getItem: (key: string) => Promise<string | null>;
@@ -28,6 +29,7 @@ export function createMobileClient(options: MobileClientOptions): SupabaseClient
   }
 
   return createClient<Database>(url, key, {
+    global: { headers: { ...LEDGER_HEADERS } },
     auth: {
       autoRefreshToken: true,
       persistSession: true,

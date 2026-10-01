@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GroupMember } from "@template/supabase";
 import type { ExpenseDraft } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { AddExpenseDialog } from "../AddExpenseDialog";
 
 vi.mock("@/app/actions/expenses", () => ({
@@ -47,6 +48,7 @@ const members: GroupMember[] = ["Ana", "Sam"].map((name, index) => ({
   slug: name,
   share_token: "view-token",
   role: index === 0 ? "owner" : "member",
+  hide_payment_details: false,
   created_at: "",
 }));
 
@@ -70,6 +72,7 @@ function mount(): void {
         members={members}
         categories={[]}
         currentUserId="owner"
+        defaultCurrency="PHP"
       />
     </QueryClientProvider>,
   );
@@ -104,7 +107,9 @@ describe("one expense draft across entry modes", () => {
       target: { value: members[1]!.id },
     });
     expect(reviewButton.hasAttribute("disabled")).toBe(false);
-    expect(screen.getByText("Share: PHP 5.01", { exact: false })).toBeTruthy();
+    expect(
+      screen.getByText(`Share: ${formatCurrency(501, "PHP")}`, { exact: false }),
+    ).toBeTruthy();
     fireEvent.click(reviewButton);
     const detail = within(screen.getByRole("tabpanel", { name: "Detailed" }));
     expect(detail.getByDisplayValue("Dinner")).toBeTruthy();

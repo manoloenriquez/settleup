@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useRecentActivity } from "@/hooks/useActivity";
-import { formatCents } from "@template/shared";
+import { formatAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { SkeletonCard, ErrorBanner } from "@/components/ui";
 import type { RecentActivityItem } from "@/services/activity";
@@ -27,7 +27,7 @@ function amountColor(direction: RecentActivityItem["direction"]): string {
 }
 
 function amountText(item: RecentActivityItem): string {
-  const amount = formatCents(item.amount_cents);
+  const amount = formatAmount(item.amount_cents, item.currency_code);
   if (item.direction === "in") return `+${amount}`;
   if (item.direction === "out") return `-${amount}`;
   return amount;

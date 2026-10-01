@@ -313,3 +313,8 @@ enforcement (moot once groups may hold several currencies).
 - Phase 1 (`3b53e9c`): sign-out guard, device cleanup, public-link headers, permission recovery.
 - Phase 2 (`7517db6`): guest mode, onboarding, native tabs, personal expenses. XCUITest journey A passes on the iOS 27 simulator.
 - Phase 3 (`18e6560`): `personal_expenses` applied live; sync; guest → account import; Sign in with Apple (flagged off until the provider is configured).
+- Phases 4 + 8 polish (`15784f4`): Record a Payment live-balance check, row action menus, Reduce Motion, device-locale dates.
+- Phase 5: currency ledger + lookup helpers applied live (owner approved); mobile and web on per-currency `_v2` RPCs; default currency per group, any currency per expense; CSV export per row currency.
+- Phase 6: share-link rotate/disable, opt-in and masked payment details on shared pages, per-group hide, organizer-entered details for members without accounts; fixed a pre-existing bug where saving mobile payment details failed on any empty field and dropped QR codes.
+- Phase 7: friends via single-use invite links (no search), two-person direct ledgers, friend list with balances, web `/f/<token>` and app `talli://friend` acceptance.
+- All SQL suites pass on the live schema (rolled-back runs).

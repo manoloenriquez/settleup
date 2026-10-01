@@ -5,7 +5,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { updateExpense, updateItemizedExpense } from "@/app/actions/expenses";
 import { invalidateGroupData } from "@/lib/query-keys";
-import { formatCents, parsePHPAmount, equalSplit, isEqualShareSplit } from "@template/shared";
+import {
+  amountToInput,
+  currencySymbol,
+  equalSplit,
+  isEqualShareSplit,
+  parseAmountInput,
+} from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import type { OutboxJson } from "@template/shared";
 import {
   buildUpdateCustomExpenseRpcInput,
@@ -108,9 +115,9 @@ function EditExpenseDialogInner({
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
 
   const [name, setName] = useState(expense.item_name);
-  const [amount, setAmount] = useState(
-    formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""),
-  );
+  // Edits keep the expense's own currency; the server rejects a change (PT409).
+  const currency = expense.currency_code;
+  const [amount, setAmount] = useState(amountToInput(Math.abs(expense.amount_cents), currency));
   const [date, setDate] = useState(expense.expense_date ?? "");
   const [categoryId, setCategoryId] = useState<string | null>(expense.category_id);
   const [participantIds, setParticipantIds] = useState<string[]>(
@@ -132,7 +139,7 @@ function EditExpenseDialogInner({
     expense.participants.map((participant) => participant.member_id),
     participantIds,
   );
-  const amountCents = parsePHPAmount(amount);
+  const amountCents = parseAmountInput(amount, currency);
 
   function toggleParticipant(memberId: string): void {
     setParticipantIds((prev) =>
@@ -153,7 +160,7 @@ function EditExpenseDialogInner({
   }
 
   async function handleEdit(): Promise<void> {
-    const parsedAmount = parsePHPAmount(amount);
+    const parsedAmount = parseAmountInput(amount, currency);
     if (!parsedAmount || parsedAmount <= 0) {
       toast.error("Invalid amount");
       return;
@@ -215,6 +222,7 @@ function EditExpenseDialogInner({
       categoryId,
       itemName: name.trim(),
       amountCents: parsedAmount,
+      currencyCode: currency,
       notes: expense.notes ?? undefined,
       expenseDate: date || undefined,
       payers,
@@ -271,6 +279,7 @@ function EditExpenseDialogInner({
             category_id: categoryId,
             item_name: name.trim(),
             amount_cents: parsedAmount,
+            currency_code: currency,
             notes: expense.notes ?? undefined,
             expense_date: date || undefined,
             payers: expense.payers.map((payer, index) => ({
@@ -289,6 +298,7 @@ function EditExpenseDialogInner({
             category_id: categoryId,
             item_name: name.trim(),
             amount_cents: parsedAmount,
+            currency_code: currency,
             notes: expense.notes ?? undefined,
             expense_date: date || undefined,
             split_mode: useEqual ? "equal" : "custom",
@@ -320,7 +330,7 @@ function EditExpenseDialogInner({
     amountCents &&
     amountCents > 0 &&
     participantIds.length > 0
-      ? `Split ${participantIds.length} ways: ~${formatCents(equalSplit(amountCents, participantIds.length)[0] ?? 0)} each`
+      ? `Split ${participantIds.length} ways: ~${formatCurrency(equalSplit(amountCents, participantIds.length)[0] ?? 0, currency)} each`
       : null;
 
   const rollupNames = [...new Set(itemParticipantIds.flat())]
@@ -351,13 +361,14 @@ function EditExpenseDialogInner({
         </div>
         <div>
           <label className="text-sm font-medium text-slate-700" htmlFor="edit-amount">
-            Amount
+            Amount ({currency})
           </label>
           <Input
             id="edit-amount"
+            leftAddon={currencySymbol(currency, MONEY_LOCALE)}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
+            placeholder={amountToInput(0, currency)}
             inputMode="decimal"
             className="mt-1"
           />
@@ -406,7 +417,7 @@ function EditExpenseDialogInner({
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium text-slate-700 truncate">{item.name}</span>
                     <span className="text-slate-500 whitespace-nowrap shrink-0">
-                      {formatCents(item.amount_cents)}
+                      {formatCurrency(item.amount_cents, currency)}
                     </span>
                   </div>
                   <MemberChips
@@ -418,7 +429,7 @@ function EditExpenseDialogInner({
                   {selected.length > 0 ? (
                     <p className="text-xs text-slate-500">
                       {selected.length} {selected.length === 1 ? "person" : "people"} · ~
-                      {formatCents(equalSplit(item.amount_cents, selected.length)[0] ?? 0)} each
+                      {formatCurrency(equalSplit(item.amount_cents, selected.length)[0] ?? 0, currency)} each
                     </p>
                   ) : (
                     <p className="text-xs text-red-600">Needs at least one person</p>

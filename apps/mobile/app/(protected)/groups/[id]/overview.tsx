@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { track } from "@/lib/analytics";
 import {
   ActivityIndicator,
@@ -13,11 +14,11 @@ import {
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useGroupOverview } from "@/hooks/useOverview";
+import { useGroupOverviews } from "@/hooks/useOverview";
 import { useGroups } from "@/hooks/useGroups";
-import { Card, Avatar, Badge, EmptyState, useToast } from "@/components/ui";
+import { Card, Avatar, Badge, EmptyState, SegmentedControl, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { formatCents, buildSuggestedSettlements } from "@template/shared";
+import { formatAmount, buildSuggestedSettlements, type CurrencyCode } from "@template/shared";
 import type {
   GroupOverviewPayload,
   SuggestedSettlement,
@@ -57,7 +58,9 @@ function computeSettlements(payload: GroupOverviewPayload): SuggestedSettlement[
 }
 
 function buildSummaryText(payload: GroupOverviewPayload): string {
-  const lines: string[] = [`GROUP SUMMARY — ${payload.group.name}`, "", "WHO OWES:"];
+  const currency: CurrencyCode = payload.currency_code ?? "PHP";
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
+  const lines: string[] = [`GROUP SUMMARY — ${payload.group.name} (${currency})`, "", "WHO OWES:"];
 
   for (const m of payload.members) {
     const net = m.net_cents ?? 0;
@@ -114,6 +117,9 @@ function PaymentDetails({
 
   return (
     <View style={styles.paymentDetails}>
+      {profile.source === "organizer" ? (
+        <Text style={styles.paymentNotes}>Added by the organizer — not confirmed by {profile.display_name}.</Text>
+      ) : null}
       {hasGcash ? (
         <View style={styles.paymentMethod}>
           <View style={styles.paymentMethodHeader}>
@@ -162,8 +168,12 @@ export default function GroupOverviewScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
-  const overviewQ = useGroupOverview(group?.share_token);
-  const payload = overviewQ.data;
+  const overviewQ = useGroupOverviews(group?.share_token);
+  const overviews = overviewQ.data ?? [];
+  const [currencyIndex, setCurrencyIndex] = useState(0);
+  const payload = overviews[Math.min(currencyIndex, Math.max(0, overviews.length - 1))];
+  const currency: CurrencyCode = payload?.currency_code ?? "PHP";
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
 
   async function handleCopySummary(): Promise<void> {
     if (!payload) return;
@@ -250,6 +260,15 @@ export default function GroupOverviewScreen(): React.ReactElement {
           <Text style={styles.heroGroupName}>{payload.group.name}</Text>
           {!isSettled && (
             <Text style={styles.heroSubtext}>{formatCents(totalOwed)} outstanding</Text>
+          )}
+          {overviews.length > 1 && (
+            <View style={styles.currencySwitch}>
+              <SegmentedControl
+                segments={overviews.map((o, index) => ({ value: String(index), label: o.currency_code ?? "PHP" }))}
+                value={String(Math.min(currencyIndex, overviews.length - 1))}
+                onChange={(value) => setCurrencyIndex(Number(value))}
+              />
+            </View>
           )}
           <View style={styles.heroActions}>
             <TouchableOpacity
@@ -429,6 +448,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
+  currencySwitch: { marginTop: spacing.md },
   loader: {
     flex: 1,
     alignItems: "center",

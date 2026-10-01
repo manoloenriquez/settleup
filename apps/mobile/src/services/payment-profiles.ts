@@ -13,6 +13,8 @@ type PaymentProfile = {
   bank_account_name: string | null;
   bank_qr_url: string | null;
   notes: string | null;
+  show_on_shared_links: boolean;
+  share_full_numbers: boolean;
 };
 
 export async function getPaymentProfile(userId: string): Promise<ApiResponse<PaymentProfile | null>> {

@@ -1,6 +1,6 @@
 import type { Database, SupabaseClient } from "@template/supabase";
 import type { Json } from "@template/supabase";
-import type { OutboxEntry, OutboxExecutionResult, OutboxExecutor } from "@template/shared";
+import type { CurrencyCode, OutboxEntry, OutboxExecutionResult, OutboxExecutor } from "@template/shared";
 
 // Drains replay through the browser Supabase client calling the same RPCs the
 // Server Actions use — identical RLS and in-RPC authorization, but immune to
@@ -68,15 +68,18 @@ export function createOutboxExecutor(supabase: SupabaseClient<Database>): Outbox
             from_member_id: string;
             to_member_id: string;
             amount_cents: number;
+            currency_code?: CurrencyCode;
           };
           const { error } = await supabase
             .schema("settleup")
-            .rpc("record_payment", {
+            .rpc("record_payment_v2", {
               p_group_id: payload.group_id,
               p_from_member_id: payload.from_member_id,
               p_to_member_id: payload.to_member_id,
               p_amount_cents: payload.amount_cents,
               p_id: entry.entityId,
+              // Entries queued before currencies existed were pesos.
+              p_currency_code: payload.currency_code ?? "PHP",
             })
             .abortSignal(signal);
           return toExecutionResult(error);
@@ -119,11 +122,24 @@ export function createOutboxExecutor(supabase: SupabaseClient<Database>): Outbox
           return toExecutionResult(error);
         }
         case "group.create": {
-          const payload = entry.payload as { name: string };
-          const { error } = await supabase
-            .schema("settleup")
-            .rpc("create_group_with_owner", { p_name: payload.name, p_id: entry.entityId })
-            .abortSignal(signal);
+          const payload = entry.payload as { name: string; currency_code?: CurrencyCode; display_name?: string };
+          // Entries queued by older builds carry only a name: keep the old RPC
+          // (PHP group, profile name) so they replay exactly as intended.
+          const { error } =
+            payload.currency_code && payload.display_name
+              ? await supabase
+                  .schema("settleup")
+                  .rpc("create_group_v2", {
+                    p_name: payload.name,
+                    p_id: entry.entityId,
+                    p_currency_code: payload.currency_code,
+                    p_display_name: payload.display_name,
+                  })
+                  .abortSignal(signal)
+              : await supabase
+                  .schema("settleup")
+                  .rpc("create_group_with_owner", { p_name: payload.name, p_id: entry.entityId })
+                  .abortSignal(signal);
           return toExecutionResult(error);
         }
         case "category.create": {

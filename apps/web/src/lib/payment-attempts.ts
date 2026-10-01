@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const attemptSchema = z.object({
   id: z.string().uuid(),
-  amountCents: z.number().int().positive().max(100_000_000),
+  amountCents: z.number().int().positive().max(100_000_000_000),
   note: z.string().max(280),
   submitted: z.boolean(),
 });

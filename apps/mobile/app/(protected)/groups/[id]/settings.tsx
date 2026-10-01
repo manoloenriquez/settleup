@@ -37,8 +37,9 @@ import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
 import { RowMenuButton } from "@/components/RowMenuButton";
+import { SharedLinkSection } from "@/components/groups/SharedLinkSection";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
-import { DEFAULT_CATEGORY_COLOR, formatCents, parsePHPAmount } from "@template/shared";
+import { amountToInput, DEFAULT_CATEGORY_COLOR, formatAmount, parseAmountInput, type CurrencyCode } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -94,15 +95,18 @@ export default function GroupSettingsScreen() {
   const isAdmin = currentMember?.role === "admin";
   const isAdminOrOwner = isOwner || isAdmin;
 
+  // The budget is in the group's main currency (spending in others isn't counted).
+  const budgetCurrency: CurrencyCode = group?.budget_currency_code ?? group?.default_currency_code ?? "PHP";
+
   function handleSaveBudget() {
     const raw = budgetInput ?? "";
-    const cents = parsePHPAmount(raw);
+    const cents = parseAmountInput(raw, budgetCurrency);
     if (!cents || cents <= 0) {
-      toast.error("Enter a valid budget amount");
+      toast.error(`Enter a budget in ${budgetCurrency}.`);
       return;
     }
     setBudget.mutate(
-      { groupId, budgetCents: cents },
+      { groupId, budgetCents: cents, currency: budgetCurrency },
       {
         onSuccess: (res) => {
           if (res.error) {
@@ -118,7 +122,7 @@ export default function GroupSettingsScreen() {
 
   function handleRemoveBudget() {
     setBudget.mutate(
-      { groupId, budgetCents: null },
+      { groupId, budgetCents: null, currency: budgetCurrency },
       {
         onSuccess: (res) => {
           if (res.error) {
@@ -506,6 +510,18 @@ export default function GroupSettingsScreen() {
           )}
         </Card>
 
+        {/* Shared read-only page */}
+        <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+          <Ionicons name="globe-outline" size={12} color={colors.gray400} />
+          <Text style={styles.sectionLabel}>SHARED LINK</Text>
+        </View>
+        <SharedLinkSection
+          groupId={groupId}
+          isAdmin={isAdminOrOwner}
+          myMemberId={currentMember?.id ?? null}
+          myHidden={currentMember?.hide_payment_details ?? false}
+        />
+
         {/* Member list */}
         <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
           <Ionicons name="people-outline" size={12} color={colors.gray400} />
@@ -567,6 +583,18 @@ export default function GroupSettingsScreen() {
                         choices={[
                           ...(isAdminOrOwner || m.user_id === user?.id
                             ? [{ label: "Rename", run: () => startRenameMember(m.id, m.display_name) }]
+                            : []),
+                          ...(isAdminOrOwner && !m.user_id && !m.departed_at
+                            ? [
+                                {
+                                  label: "How to Pay Them",
+                                  run: () =>
+                                    router.push({
+                                      pathname: "/(protected)/groups/[id]/member-payment",
+                                      params: { id: groupId, memberId: m.id },
+                                    }),
+                                },
+                              ]
                             : []),
                           ...(isOwner && m.role !== "owner" && m.user_id && m.user_id !== user?.id
                             ? [
@@ -740,17 +768,18 @@ export default function GroupSettingsScreen() {
           <>
             <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
               <Ionicons name="wallet-outline" size={12} color={colors.gray400} />
-              <Text style={styles.sectionLabel}>BUDGET</Text>
+              <Text style={styles.sectionLabel}>BUDGET ({budgetCurrency})</Text>
             </View>
             <View style={styles.addRow}>
               <View style={{ flex: 1 }}>
                 <AppTextInput
                   value={
-                    budgetInput ?? (group?.budget_cents ? String(group.budget_cents / 100) : "")
+                    budgetInput ?? (group?.budget_cents ? amountToInput(group.budget_cents, budgetCurrency) : "")
                   }
                   onChangeText={setBudgetInput}
                   placeholder="e.g. 30000"
                   keyboardType="decimal-pad"
+                  accessibilityLabel={`Group budget in ${budgetCurrency}`}
                   returnKeyType="done"
                   onSubmitEditing={handleSaveBudget}
                 />
@@ -783,7 +812,7 @@ export default function GroupSettingsScreen() {
             {(recurringQ.data ?? []).map((item, i) => (
               <View key={item.id}>
                 <ListItem
-                  title={`${item.item_name} · ${formatCents(item.amount_cents)}`}
+                  title={`${item.item_name} · ${formatAmount(item.amount_cents, item.currency_code)}`}
                   subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"}${item.payers && item.payers.length > 1 ? ` · ${item.payers.length} payers` : ""} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
                   right={
                     <RowMenuButton

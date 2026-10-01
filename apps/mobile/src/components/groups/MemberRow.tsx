@@ -2,17 +2,19 @@ import { track } from "@/lib/analytics";
 import { Alert, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Avatar, Badge, useToast } from "@/components/ui";
-import { formatCents } from "@template/shared";
+import { formatAmount, type CurrencyCode } from "@template/shared";
 import type { MemberBalance } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 type MemberRowProps = {
+  currency: CurrencyCode;
   member: MemberBalance;
   webOrigin?: string;
   onUndoLastPayment?: (member: MemberBalance) => void;
 };
 
-export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowProps) {
+export function MemberRow({ currency, member, webOrigin, onUndoLastPayment }: MemberRowProps) {
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const toast = useToast();
   const net = member.net_cents;
   const isSettled = Math.abs(net) < 1;

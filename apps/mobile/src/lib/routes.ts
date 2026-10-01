@@ -11,6 +11,7 @@ export const ROUTES = {
   newGroup: "/(protected)/groups/new",
   joinGroup: "/(protected)/join-group",
   activity: "/(protected)/activity",
+  addFriend: "/(protected)/friends/add",
 } as const;
 
 /**

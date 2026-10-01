@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { CurrencyCode } from "@template/shared";
 
 /**
  * Query keys for the offline-first core views. Shapes are kept identical to
@@ -12,8 +13,12 @@ export const queryKeys = {
   groups: ["groups"] as const,
   archivedGroups: ["archivedGroups"] as const,
   expenses: (groupId: string) => ["expenses", groupId] as const,
-  balances: (groupId: string) => ["balances", groupId] as const,
-  creditorProfiles: (groupId: string) => ["creditor-profiles", groupId] as const,
+  /** Per currency; invalidating ["balances", groupId] covers every currency. */
+  balances: (groupId: string, currency: CurrencyCode) => ["balances", groupId, currency] as const,
+  creditorProfiles: (groupId: string, currency: CurrencyCode) =>
+    ["creditor-profiles", groupId, currency] as const,
+  /** Nested under ["group", groupId] so group invalidation refreshes it too. */
+  groupCurrencies: (groupId: string) => ["group", groupId, "currencies"] as const,
   activity: (groupId: string) => ["activity", groupId] as const,
   pendingPayments: (groupId: string) => ["pending-payments", groupId] as const,
   comments: (expenseId: string) => ["comments", expenseId] as const,

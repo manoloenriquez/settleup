@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ReceiptLineItem } from "@template/shared/types";
 import type { FieldState, ReceiptReview } from "@template/shared";
 import type { ReceiptProvider } from "@/lib/ai/receipt";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { currencyPrecision, formatAmount, parseAmountInput, type CurrencyCode } from "@template/shared";
 import { RECEIPT_CHARGES_LABEL as CHARGES_LABEL } from "@/lib/expense-draft";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { AppButton } from "@/components/ui";
@@ -12,6 +12,8 @@ import { AppButton } from "@/components/ui";
 export type EditableLineItem = ReceiptLineItem & { included: boolean };
 
 type ReceiptItemEditorProps = {
+  /** Currency the expense will be saved in (receipt amounts are read as two-decimal cents). */
+  currency: CurrencyCode;
   merchant: string | null;
   date: string | null;
   items: EditableLineItem[];
@@ -37,6 +39,7 @@ const OVERALL_LABEL: Record<ReceiptReview["overall"], string> = {
  * checks (OCR agreement, arithmetic, missing fields).
  */
 export function ReceiptItemEditor({
+  currency,
   merchant,
   date,
   items,
@@ -46,6 +49,9 @@ export function ReceiptItemEditor({
   onContinue,
   onBack,
 }: ReceiptItemEditorProps): React.ReactElement {
+  // Receipt lines are two-decimal cents; show them in the expense currency.
+  const formatCents = (cents: number): string =>
+    formatAmount(Math.round((cents * 10 ** currencyPrecision(currency)) / 100), currency);
   const [expenseName, setExpenseName] = useState(merchant ?? "Receipt Expense");
 
   const includedItems = items.filter((i) => i.included);
@@ -173,7 +179,7 @@ export function ReceiptItemEditor({
                     style={[styles.itemAmount, !item.included && styles.itemTextExcluded, flagged && styles.itemAmountWarn]}
                     value={item.total_cents > 0 ? (item.total_cents / 100).toFixed(2) : ""}
                     onChangeText={(v) => {
-                      const cents = parsePHPAmount(v) ?? 0;
+                      const cents = parseAmountInput(v, "USD") ?? 0; // two-decimal cents, like the receipt
                       updateItem(i, { total_cents: cents, unit_price_cents: item.quantity > 0 ? Math.round(cents / item.quantity) : cents });
                     }}
                     placeholder="0.00"
@@ -208,7 +214,7 @@ export function ReceiptItemEditor({
         <Text style={[styles.totalAmount, totalDiffers && styles.totalAmountWarn]}>{formatCents(totalCents)}</Text>
       </View>
 
-      <AppButton title="Choose group" onPress={handleContinue} disabled={totalCents <= 0 || !expenseName.trim()} />
+      <AppButton title="Use These Items" onPress={handleContinue} disabled={totalCents <= 0 || !expenseName.trim()} />
     </View>
   );
 }

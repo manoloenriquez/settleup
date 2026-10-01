@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { formatCents } from "@template/shared";
+import { formatAmount } from "@template/shared";
 import { CategoryPill } from "@/components/groups/CategoryPicker";
 import type { ActivityItem } from "@/services/activity";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
@@ -40,7 +40,7 @@ export function ActivityTimeline({ items }: ActivityTimelineProps) {
             </View>
           </View>
           <Text style={[styles.amount, item.type === "payment" && { color: colors.success }]}>
-            {formatCents(item.amount_cents)}
+            {formatAmount(item.amount_cents, item.currency_code)}
           </Text>
         </View>
       ))}

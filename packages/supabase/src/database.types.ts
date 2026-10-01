@@ -192,10 +192,14 @@ export type Database = {
           invite_code: string;
           is_archived: boolean;
           share_token: string;
+          share_enabled: boolean;
+          kind: "shared" | "direct";
           created_at: string;
           budget_cents: number | null;
         };
         Insert: {
+          share_enabled?: boolean;
+          kind?: "shared" | "direct";
           default_currency_code?: CurrencyCode;
           budget_currency_code?: CurrencyCode;
 
@@ -241,9 +245,11 @@ export type Database = {
           user_id: string | null;
           departed_at: string | null;
           role: "owner" | "admin" | "member";
+          hide_payment_details: boolean;
           created_at: string;
         };
         Insert: {
+          hide_payment_details?: boolean;
           id?: string;
           group_id: string;
           display_name: string;
@@ -668,6 +674,57 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      member_payment_details: {
+        Row: {
+          member_id: string;
+          payer_display_name: string | null;
+          gcash_name: string | null;
+          gcash_number: string | null;
+          gcash_qr_url: string | null;
+          bank_name: string | null;
+          bank_account_name: string | null;
+          bank_account_number: string | null;
+          bank_qr_url: string | null;
+          notes: string | null;
+          show_on_shared_links: boolean;
+          share_full_numbers: boolean;
+          added_by_user_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          member_id?: string;
+          payer_display_name?: string | null;
+          gcash_name?: string | null;
+          gcash_number?: string | null;
+          gcash_qr_url?: string | null;
+          bank_name?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          bank_qr_url?: string | null;
+          notes?: string | null;
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
+          added_by_user_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          member_id?: string;
+          payer_display_name?: string | null;
+          gcash_name?: string | null;
+          gcash_number?: string | null;
+          gcash_qr_url?: string | null;
+          bank_name?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          bank_qr_url?: string | null;
+          notes?: string | null;
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
+          added_by_user_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       personal_expenses: {
         Row: {
           id: string;
@@ -755,9 +812,13 @@ export type Database = {
           bank_account_number: string | null;
           bank_qr_url: string | null;
           notes: string | null;
+          show_on_shared_links: boolean;
+          share_full_numbers: boolean;
           updated_at: string;
         };
         Insert: {
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
           user_id: string;
           payer_display_name?: string | null;
           gcash_name?: string | null;
@@ -781,6 +842,8 @@ export type Database = {
           bank_account_number?: string | null;
           bank_qr_url?: string | null;
           notes?: string | null;
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
           updated_at?: string;
         };
         Relationships: [
@@ -829,6 +892,19 @@ export type Database = {
         Returns: number;
       };
       get_group_currencies: { Args: { p_group_id: string }; Returns: Json };
+      get_my_currencies: { Args: Record<string, never>; Returns: Json };
+      create_friend_invite: { Args: { p_display_name: string; p_currency_code: CurrencyCode }; Returns: Json };
+      revoke_friend_invite: { Args: { p_id: string }; Returns: Json };
+      get_friend_invite_preview: { Args: { p_token: string }; Returns: Json };
+      accept_friend_invite: { Args: { p_token: string; p_display_name: string }; Returns: Json };
+      list_friends: { Args: Record<string, never>; Returns: Json };
+      remove_friend: { Args: { p_friend_user_id: string }; Returns: Json };
+      rotate_group_share_token: { Args: { p_group_id: string }; Returns: Json };
+      set_group_share_enabled: { Args: { p_group_id: string; p_enabled: boolean }; Returns: Json };
+      set_hide_payment_details: { Args: { p_group_id: string; p_hidden: boolean }; Returns: Json };
+      upsert_member_payment_details: { Args: { p_member_id: string; p_details: Json }; Returns: Json };
+      delete_member_payment_details: { Args: { p_member_id: string }; Returns: Json };
+      get_share_currencies: { Args: { p_share_token: string }; Returns: Json };
       get_friend_payment_reports_v2: {
         Args: { p_share_token: string; p_currency_code: CurrencyCode };
         Returns: Json;

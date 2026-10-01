@@ -1,12 +1,29 @@
-import { formatCents } from "@template/shared";
+import type { CurrencyCode } from "@template/shared";
 import { PiggyBank } from "lucide-react";
+import { formatCurrency } from "@/lib/currency";
 
 type Props = {
   budgetCents: number;
-  spentCents: number;
+  /** The budget's currency; only spending in this currency counts toward it. */
+  currency: CurrencyCode;
+  /** Every expense in the group; ones in other currencies are left out, never converted. */
+  expenses: { amount_cents: number; currency_code: CurrencyCode }[];
 };
 
-export function BudgetProgress({ budgetCents, spentCents }: Props): React.ReactElement {
+/** Spending in the budget's currency (credits ignored). Never adds currencies together. */
+export function spentInCurrency(
+  expenses: { amount_cents: number; currency_code: CurrencyCode }[],
+  currency: CurrencyCode,
+): number {
+  return expenses.reduce(
+    (sum, e) => (e.currency_code === currency ? sum + Math.max(0, e.amount_cents) : sum),
+    0,
+  );
+}
+
+export function BudgetProgress({ budgetCents, currency, expenses }: Props): React.ReactElement {
+  const spentCents = spentInCurrency(expenses, currency);
+  const hasOtherCurrencies = expenses.some((e) => e.currency_code !== currency);
   const pct = Math.min(100, Math.round((spentCents / budgetCents) * 100));
   const over = spentCents > budgetCents;
   const warn = !over && pct >= 80;
@@ -19,10 +36,10 @@ export function BudgetProgress({ budgetCents, spentCents }: Props): React.ReactE
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
           <PiggyBank size={13} className="text-brand-500" />
-          Budget
+          Budget ({currency})
         </p>
         <p className={`text-xs font-semibold ${labelColor}`}>
-          {formatCents(spentCents)} of {formatCents(budgetCents)}
+          {formatCurrency(spentCents, currency)} of {formatCurrency(budgetCents, currency)}
           {over ? " — over budget" : ` · ${pct}%`}
         </p>
       </div>
@@ -32,10 +49,15 @@ export function BudgetProgress({ budgetCents, spentCents }: Props): React.ReactE
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Budget used"
+        aria-label={`Budget used, ${currency}`}
       >
         <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
       </div>
+      {hasOtherCurrencies && (
+        <p className="mt-2 text-xs text-slate-400">
+          Only spending in {currency} counts toward this budget. Other currencies are not converted.
+        </p>
+      )}
     </div>
   );
 }

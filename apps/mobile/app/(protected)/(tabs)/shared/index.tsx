@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
-import { formatCents } from "@template/shared";
+import { formatAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { AppButton, Badge, EmptyState, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
@@ -20,6 +20,9 @@ import { HeaderAddButton } from "@/components/HeaderAddButton";
 import { largeTitleOptions } from "@/lib/navigation";
 import { ROUTES } from "@/lib/routes";
 import { presentChoices } from "@/hooks/useAddMenu";
+import { useFriends } from "@/hooks/useFriends";
+import { FriendsList } from "@/components/friends/FriendsList";
+import { SegmentedControl } from "@/components/ui";
 
 export default function SharedScreen() {
   const { session } = useAuth();
@@ -74,12 +77,20 @@ function GroupsScreen() {
   const restoreGroup = useRestoreGroup();
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"groups" | "friends">("groups");
+  const friendsQ = useFriends();
+  // Friend ledgers are two-person groups; they are listed under Friends.
+  const friendGroupIds = useMemo(
+    () => new Set((friendsQ.data ?? []).map((f) => f.direct_group_id)),
+    [friendsQ.data],
+  );
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return groups ?? [];
-    return (groups ?? []).filter((g) => g.name.toLowerCase().includes(q));
-  }, [groups, search]);
+    const plain = (groups ?? []).filter((g) => !friendGroupIds.has(g.id));
+    if (!q) return plain;
+    return plain.filter((g) => g.name.toLowerCase().includes(q));
+  }, [groups, search, friendGroupIds]);
 
   function handleRestore(groupId: string, name: string) {
     Alert.alert("Restore Group?", `Restore "${name}" to your active groups?`, [
@@ -115,6 +126,7 @@ function GroupsScreen() {
               label="Create or join a group"
               onPress={() =>
                 presentChoices("Shared expenses", [
+                  { label: "Add a Friend", run: () => router.push(ROUTES.addFriend) },
                   { label: "Create Group", run: () => router.push(ROUTES.newGroup) },
                   { label: "Join with an Invite Code", run: () => router.push(ROUTES.joinGroup) },
                 ])
@@ -130,11 +142,27 @@ function GroupsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !isLoading}
-            onRefresh={refetch}
+            onRefresh={() => {
+              void refetch();
+              void friendsQ.refetch();
+            }}
             tintColor={colors.primary}
           />
         }
       >
+        <SegmentedControl
+          segments={[
+            { value: "groups", label: "Groups" },
+            { value: "friends", label: "Friends" },
+          ]}
+          value={view}
+          onChange={setView}
+        />
+        <View style={{ height: spacing.md }} />
+        {view === "friends" ? (
+          <FriendsList />
+        ) : (
+          <>
         {/* Search */}
         <TextInput
           value={search}
@@ -196,7 +224,7 @@ function GroupsScreen() {
                   <View style={styles.cardRight}>
                     {(group.total_owed_cents ?? 0) > 0 ? (
                       <Text style={[styles.cardAmount, { color: colors.gray700 }]}>
-                        {formatCents(group.total_owed_cents ?? 0)} open
+                        {formatAmount(group.total_owed_cents ?? 0, group.default_currency_code ?? "PHP")} open
                       </Text>
                     ) : (
                       <Badge label="Settled" variant="success" />
@@ -247,6 +275,8 @@ function GroupsScreen() {
               </View>
             )}
           </View>
+        )}
+          </>
         )}
       </ScrollView>
     </>

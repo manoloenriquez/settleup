@@ -1,5 +1,5 @@
 import type { ExpenseDraft, ExpenseDraftSplit, InsightsSummary, SmartSplitResult } from "@template/shared/types";
-import { equalSplit, percentSplit, sharesSplit, inferCategorySlug, isCategorySlug, resolveDateMention } from "@template/shared";
+import { equalSplit, percentSplit, sharesSplit, inferCategorySlug, isCategorySlug, resolveDateMention, formatAmount, type CurrencyCode } from "@template/shared";
 import type { ExpenseInterpretation, SplitInterpretation, SplitShare } from "./apple-intelligence";
 
 // ---------------------------------------------------------------------------
@@ -201,13 +201,18 @@ export function splitInterpretationToResult(
 
 // -- Insights -------------------------------------------------------------------
 
-const peso = (cents: number): string => `₱${(cents / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 
 /**
  * Renders the deterministic statistics as plain sentences. The model only
  * paraphrases these; it never sees raw expenses and never computes numbers.
  */
-export function buildInsightFacts(groupName: string, insights: Omit<InsightsSummary, "llm_summary">): string {
+export function buildInsightFacts(
+  groupName: string,
+  insights: Omit<InsightsSummary, "llm_summary">,
+  currency: CurrencyCode = "PHP",
+): string {
+  const peso = (minor: number): string => formatAmount(minor, currency, "en-US");
   const lines: string[] = [];
   lines.push(`Group: ${groupName}. ${insights.total_expenses} expense${insights.total_expenses === 1 ? "" : "s"} totalling ${peso(insights.total_amount_cents)}; the average expense is ${peso(insights.average_expense_cents)}.`);
   if (insights.period) lines.push(`Period: ${insights.period.first_expense.slice(0, 10)} to ${insights.period.last_expense.slice(0, 10)}.`);

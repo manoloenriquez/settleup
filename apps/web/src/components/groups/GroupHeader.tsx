@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { AddExpenseDialog } from "./AddExpenseDialog";
 import { ChevronRight, Plus, BarChart3, CreditCard, Settings, Users } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
+import type { CurrencyCode } from "@template/shared";
 
 type Props = {
   readOnly?: boolean;
@@ -16,6 +17,8 @@ type Props = {
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
+  /** Group default currency; the add-expense dialog starts in it. */
+  defaultCurrency: CurrencyCode;
   /** Dialog state lives in GroupDetailClient so the FAB opens it directly. */
   showExpenseDialog: boolean;
   onShowExpenseDialogChange: (open: boolean) => void;
@@ -27,6 +30,7 @@ export function GroupHeader({
   groupName,
   memberCount,
   members,
+  defaultCurrency,
   categories,
   currentUserId,
   showExpenseDialog,
@@ -117,6 +121,7 @@ export function GroupHeader({
           members={members}
           categories={categories}
           currentUserId={currentUserId}
+          defaultCurrency={defaultCurrency}
         />
       )}
     </>

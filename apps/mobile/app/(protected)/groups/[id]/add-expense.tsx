@@ -14,6 +14,8 @@ import * as Haptics from "expo-haptics";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
 import { useCreateRecurringExpense } from "@/hooks/useRecurring";
+import { useGroups } from "@/hooks/useGroups";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
@@ -43,7 +45,7 @@ import {
 } from "@/lib/expense-draft";
 import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit, inferReceiptCategory } from "@template/shared";
+import { equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, parseAmountInput, type CurrencyCode } from "@template/shared";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -129,6 +131,20 @@ export default function AddExpenseScreen() {
   const [showSmartSplit, setShowSmartSplit] = useState(false);
 
   const [mode, setMode] = useState<Mode>("quick");
+
+  // Expenses start in the group's main currency; any one can use another.
+  // Splits and balances stay in the expense's own currency (never converted).
+  const groupsQ = useGroups();
+  const groupCurrency: CurrencyCode =
+    (groupsQ.data ?? []).find((g) => g.id === groupId)?.default_currency_code ?? "PHP";
+  const [chosenCurrency, setChosenCurrency] = useState<CurrencyCode | null>(null);
+  const expenseCurrency: CurrencyCode = chosenCurrency ?? groupCurrency;
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const parseMoney = (text: string): number | null => parseAmountInput(text, expenseCurrency);
+  const money = (minor: number): string => formatAmount(minor, expenseCurrency);
+  /** Receipts and chat drafts report two-decimal cents; convert to this currency's minor units. */
+  const centsToInput = (cents: number): string =>
+    amountToInput(Math.round((cents * 10 ** currencyPrecision(expenseCurrency)) / 100), expenseCurrency);
 
   // Shared form state
   const [itemName, setItemName] = useState("");
@@ -228,6 +244,7 @@ export default function AddExpenseScreen() {
           setMultiPayer(saved.multiPayer);
           setPayerAmounts(saved.payerAmounts);
           setLineItems(saved.lineItems);
+          setChosenCurrency(saved.currencyCode ?? "PHP");
           toast.info("Restored your unsaved draft");
         }
       })
@@ -262,6 +279,7 @@ export default function AddExpenseScreen() {
       multiPayer,
       payerAmounts,
       lineItems,
+      currencyCode: expenseCurrency,
     };
     latestDraft.current = snapshot;
     draftCleared.current = false;
@@ -290,6 +308,7 @@ export default function AddExpenseScreen() {
     multiPayer,
     payerAmounts,
     lineItems,
+    expenseCurrency,
   ]);
 
   // Leaving inside the debounce window must not drop the newest edits.
@@ -322,7 +341,7 @@ export default function AddExpenseScreen() {
     const seeded = seedReceiptItems(receipt);
     setReceiptItems(seeded.items);
     if (seeded.discountCents > 0) {
-      toast.info(`A discount of ${formatCents(seeded.discountCents)} was spread across the items so the total matches the receipt.`);
+      toast.info(`A discount of ${money(seeded.discountCents)} was spread across the items so the total matches the receipt.`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable; seed once per scan
   }, [receiptScan.receipt]);
@@ -340,12 +359,12 @@ export default function AddExpenseScreen() {
   }
 
   function getPayersArray(): { memberId: string; paidCents: number }[] {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     if (!multiPayer) {
       return [{ memberId: effectivePayerId, paidCents: amountCents }];
     }
     return Object.entries(payerAmounts)
-      .map(([id, val]) => ({ memberId: id, paidCents: parsePHPAmount(val) ?? 0 }))
+      .map(([id, val]) => ({ memberId: id, paidCents: parseMoney(val) ?? 0 }))
       .filter((p) => p.paidCents > 0);
   }
 
@@ -353,7 +372,7 @@ export default function AddExpenseScreen() {
     if (!multiPayer) return true;
     const sum = getPayersArray().reduce((s, p) => s + p.paidCents, 0);
     if (sum !== amountCents) {
-      toast.error(`Payer total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Payer total ${money(sum)} must equal expense amount ${money(amountCents)}`);
       return false;
     }
     return true;
@@ -388,15 +407,15 @@ export default function AddExpenseScreen() {
       return null;
     }
     if (splitMode === "custom") {
-      return ids.map((id) => ({ memberId: id, shareCents: parsePHPAmount(customShares[id] ?? "0") ?? 0 }));
+      return ids.map((id) => ({ memberId: id, shareCents: parseMoney(customShares[id] ?? "0") ?? 0 }));
     }
     return null;
   }
 
   function validateCustomSplitSum(amountCents: number): boolean {
-    const sum = [...selectedMembers].reduce((s, id) => s + (parsePHPAmount(customShares[id] ?? "0") ?? 0), 0);
+    const sum = [...selectedMembers].reduce((s, id) => s + (parseMoney(customShares[id] ?? "0") ?? 0), 0);
     if (sum !== amountCents) {
-      toast.error(`Custom split total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Custom split total ${money(sum)} must equal expense amount ${money(amountCents)}`);
       return false;
     }
     return true;
@@ -407,7 +426,7 @@ export default function AddExpenseScreen() {
       toast.error("Please enter what this expense was for.");
       return;
     }
-    const amountCents = parsePHPAmount(amount);
+    const amountCents = parseMoney(amount);
     if (amountCents === null) {
       toast.error("Please enter the expense amount.");
       return;
@@ -450,11 +469,12 @@ export default function AddExpenseScreen() {
   }, [mode]);
 
   async function handleQuickSave() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     const result = await addExpense.mutateAsync({
       groupId,
       itemName: itemName.trim(),
       amountCents,
+      currencyCode: expenseCurrency,
       categoryId,
       memberIds: [...selectedMembers],
       payerMemberId: effectivePayerId,
@@ -475,7 +495,7 @@ export default function AddExpenseScreen() {
       toast.error("Please enter what this expense was for.");
       return;
     }
-    const amountCents = parsePHPAmount(amount);
+    const amountCents = parseMoney(amount);
     if (amountCents === null) {
       toast.error("Please enter the expense amount.");
       return;
@@ -510,13 +530,13 @@ export default function AddExpenseScreen() {
   }
 
   async function handleDetailedSave() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     const payers = getPayersArray();
     if (splitMode !== "equal") {
       // percent/shares resolve to exact cents and reuse the custom-split path
       const customSplits = resolveCustomSplits(amountCents);
       if (!customSplits) { toast.error("Could not resolve the split. Check the values and try again."); return; }
-      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate, notes });
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, customSplits, payers, expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", customSplits.length);
     } else if (multiPayer) {
@@ -525,11 +545,11 @@ export default function AddExpenseScreen() {
       const ids = [...selectedMembers];
       const shares = equalSplit(amountCents, ids.length);
       const customSplits = ids.map((memberId, index) => ({ memberId, shareCents: shares[index] ?? 0 }));
-      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate, notes });
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, customSplits, payers, expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", ids.length);
     } else {
-      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate, notes });
+      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", selectedMembers.size);
     }
@@ -538,6 +558,7 @@ export default function AddExpenseScreen() {
         groupId,
         itemName: itemName.trim(),
         amountCents,
+        currencyCode: expenseCurrency,
         categoryId,
         payers,
         participantMemberIds: [...selectedMembers],
@@ -581,7 +602,7 @@ export default function AddExpenseScreen() {
     });
     const { draft, resolution } = aiReview;
     setItemName(draft.item_name);
-    setAmount(draft.amount_cents > 0 ? (draft.amount_cents / 100).toFixed(2) : "");
+    setAmount(draft.amount_cents > 0 ? centsToInput(draft.amount_cents) : "");
     setNotes(draft.notes ?? "");
     const participantIds = resolution.participants.map((participant) => participant.memberId);
     setSelectedMembers(new Set(participantIds));
@@ -657,19 +678,19 @@ export default function AddExpenseScreen() {
   }
 
   function handleItemizedReview() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     if (!itemName.trim() || amountCents <= 0) {
       toast.error("Please fill in expense name and total amount.");
       return;
     }
-    const filled = lineItems.filter((li) => li.name.trim() && (parsePHPAmount(li.amountStr) ?? 0) > 0);
+    const filled = lineItems.filter((li) => li.name.trim() && (parseMoney(li.amountStr) ?? 0) > 0);
     if (filled.length === 0) {
       toast.error("Add at least one line item with a name and amount.");
       return;
     }
-    const liTotal = filled.reduce((s, li) => s + (parsePHPAmount(li.amountStr) ?? 0), 0);
+    const liTotal = filled.reduce((s, li) => s + (parseMoney(li.amountStr) ?? 0), 0);
     if (liTotal !== amountCents) {
-      toast.error(`Line items total ₱${(liTotal / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Line items total ${money(liTotal)} must equal expense amount ${money(amountCents)}`);
       return;
     }
     if (!validatePayerSum(amountCents)) return;
@@ -681,20 +702,21 @@ export default function AddExpenseScreen() {
   }
 
   async function handleItemizedSave() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     const payers = getPayersArray();
-    const filledItems = lineItems.filter((li) => li.name.trim() && (parsePHPAmount(li.amountStr) ?? 0) > 0);
+    const filledItems = lineItems.filter((li) => li.name.trim() && (parseMoney(li.amountStr) ?? 0) > 0);
     const result = await addItemized.mutateAsync({
       groupId,
       expenseName: itemName.trim(),
       amountCents,
+      currencyCode: expenseCurrency,
       categoryId,
       payers,
       expenseDate,
       notes,
       lineItems: filledItems.map((li) => ({
         name: li.name.trim(),
-        amountCents: parsePHPAmount(li.amountStr) ?? 0,
+        amountCents: parseMoney(li.amountStr) ?? 0,
         participantIds: li.participantIds.length > 0 ? li.participantIds : members.map((m) => m.id),
       })),
     });
@@ -714,17 +736,17 @@ export default function AddExpenseScreen() {
   }
 
   const memberChips = members.map((m) => ({ id: m.id, label: m.display_name }));
-  const amountCents = parsePHPAmount(amount) ?? 0;
+  const amountCents = parseMoney(amount) ?? 0;
 
   // Custom split running total
   const customSplitSum = splitMode === "custom"
-    ? [...selectedMembers].reduce((s, id) => s + (parsePHPAmount(customShares[id] ?? "0") ?? 0), 0)
+    ? [...selectedMembers].reduce((s, id) => s + (parseMoney(customShares[id] ?? "0") ?? 0), 0)
     : 0;
   const splitRemaining = amountCents - customSplitSum;
 
   // Multi-payer running total
   const payerSum = multiPayer
-    ? Object.entries(payerAmounts).reduce((s, [, v]) => s + (parsePHPAmount(v) ?? 0), 0)
+    ? Object.entries(payerAmounts).reduce((s, [, v]) => s + (parseMoney(v) ?? 0), 0)
     : 0;
   const payerRemaining = amountCents - payerSum;
 
@@ -732,7 +754,7 @@ export default function AddExpenseScreen() {
 
   if (confirming) {
     const payerLabel = multiPayer
-      ? Object.entries(payerAmounts).filter(([, v]) => (parsePHPAmount(v) ?? 0) > 0).map(([id, v]) => `${members.find((m) => m.id === id)?.display_name ?? id} (${formatCents(parsePHPAmount(v) ?? 0)})`).join(", ")
+      ? Object.entries(payerAmounts).filter(([, v]) => (parseMoney(v) ?? 0) > 0).map(([id, v]) => `${members.find((m) => m.id === id)?.display_name ?? id} (${money(parseMoney(v) ?? 0)})`).join(", ")
       : (members.find((m) => m.id === effectivePayerId)?.display_name ?? "—");
 
     const onConfirm = mode === "quick" ? handleQuickSave : mode === "detailed" ? handleDetailedSave : handleItemizedSave;
@@ -744,7 +766,7 @@ export default function AddExpenseScreen() {
           <View style={styles.confirmCard}>
             <Text style={styles.confirmTitle}>REVIEW</Text>
             <Text style={styles.confirmName}>{itemName}</Text>
-            <Text style={styles.confirmAmount}>{formatCents(amountCents)}</Text>
+            <Text style={styles.confirmAmount}>{money(amountCents)}</Text>
             <CategoryPill category={selectedCategory} />
             <View style={styles.confirmRow}>
               <Text style={styles.confirmLabel}>Date</Text>
@@ -777,7 +799,7 @@ export default function AddExpenseScreen() {
             {mode === "itemized" && lineItems.filter((li) => li.name.trim()).map((li, i) => (
               <View key={i} style={styles.confirmRow}>
                 <Text style={styles.confirmLabel} numberOfLines={1}>{li.name}</Text>
-                <Text style={styles.confirmValue}>{formatCents(parsePHPAmount(li.amountStr) ?? 0)}</Text>
+                <Text style={styles.confirmValue}>{money(parseMoney(li.amountStr) ?? 0)}</Text>
               </View>
             ))}
           </View>
@@ -834,7 +856,7 @@ export default function AddExpenseScreen() {
 
           {/* ---- QUICK MODE ---- */}
           {mode === "quick" && (() => {
-            const quickAmountCents = parsePHPAmount(amount) ?? 0;
+            const quickAmountCents = parseMoney(amount) ?? 0;
             const quickSelected = members.filter((m) => selectedMembers.has(m.id));
             const quickShares = new Map<string, number>();
             if (quickAmountCents > 0 && quickSelected.length > 0) {
@@ -843,7 +865,7 @@ export default function AddExpenseScreen() {
             }
             return (
               <View style={styles.form}>
-                <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+                <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
                 <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" />
                 <DateField value={expenseDate} onChange={setExpenseDate} />
                 <View>
@@ -883,7 +905,7 @@ export default function AddExpenseScreen() {
                             {m.user_id === session?.user.id ? " (you)" : ""}
                           </Text>
                           <Text style={[styles.splitAmount, !selected && styles.splitAmountOff]}>
-                            {formatCents(selected ? quickShares.get(m.id) ?? 0 : 0)}
+                            {money(selected ? quickShares.get(m.id) ?? 0 : 0)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -928,7 +950,7 @@ export default function AddExpenseScreen() {
                 <View style={styles.draftCard} accessibilityLabel="Review AI suggestion">
                   <Text style={styles.draftTitle}>REVIEW SUGGESTION</Text>
                   <Text style={styles.draftItem}>{aiReview.draft.item_name}</Text>
-                  <Text style={styles.draftAmount}>{formatCents(aiReview.draft.amount_cents)}</Text>
+                  <Text style={styles.draftAmount}>{money(aiReview.draft.amount_cents)}</Text>
                   <Text style={styles.chatHint}>
                     Check who paid and who shared this. Anything the assistant could not match to a member must be chosen before you continue.
                   </Text>
@@ -969,7 +991,7 @@ export default function AddExpenseScreen() {
                   ))}
                   {aiResolved && aiReview.draft.amount_cents > 0 && (
                     <Text style={styles.sublabel}>
-                      Share: {formatCents(equalSplit(aiReview.draft.amount_cents, aiReview.resolution.participants.length)[0] ?? 0)} each
+                      Share: {money(equalSplit(aiReview.draft.amount_cents, aiReview.resolution.participants.length)[0] ?? 0)} each
                     </Text>
                   )}
                   <CategoryPicker categories={categories} selectedId={aiReview.categoryId} onSelect={(id) => setAiReview((current) => (current ? { ...current, categoryId: id } : current))} />
@@ -1009,6 +1031,7 @@ export default function AddExpenseScreen() {
               />
               {receiptScan.receipt && (
                 <ReceiptItemEditor
+                  currency={expenseCurrency}
                   merchant={receiptScan.receipt.merchant}
                   date={receiptScan.receipt.date}
                   items={receiptItems}
@@ -1028,7 +1051,7 @@ export default function AddExpenseScreen() {
                     draftOrigin.current = "receipt";
                     const everyone = activeGroupMembers.map((m) => m.id);
                     setItemName(name);
-                    setAmount((cents / 100).toFixed(2));
+                    setAmount(centsToInput(cents));
                     if (original.date) setExpenseDate(original.date);
                     const suggested = categories.find((category) => category.is_default && category.slug === inferReceiptCategory(original.merchant, included.map((item) => item.description)));
                     if (suggested) setCategoryId(suggested.id);
@@ -1049,7 +1072,7 @@ export default function AddExpenseScreen() {
           {mode === "itemized" && (
             <View style={styles.form}>
               <AppTextInput label="Expense Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
-              <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} />
+              <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
               <DateField value={expenseDate} onChange={setExpenseDate} />
               <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything worth remembering" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
@@ -1073,7 +1096,7 @@ export default function AddExpenseScreen() {
                           <AppTextInput value={li.name} onChangeText={(v) => updateLineItem(i, { name: v })} placeholder="Item name" />
                         </View>
                         <View style={{ width: 110 }}>
-                          <AmountInput value={li.amountStr} onChangeText={(v) => updateLineItem(i, { amountStr: v })} />
+                          <AmountInput currency={expenseCurrency} value={li.amountStr} onChangeText={(v) => updateLineItem(i, { amountStr: v })} />
                         </View>
                       </View>
                       <Text style={styles.sublabel}>Who had this?</Text>
@@ -1102,9 +1125,9 @@ export default function AddExpenseScreen() {
                 </View>
 
                 {/* Line items total vs expense total */}
-                {(parsePHPAmount(amount) ?? 0) > 0 && (() => {
-                  const total = parsePHPAmount(amount) ?? 0;
-                  const liTotal = lineItems.reduce((s, li) => s + (parsePHPAmount(li.amountStr) ?? 0), 0);
+                {(parseMoney(amount) ?? 0) > 0 && (() => {
+                  const total = parseMoney(amount) ?? 0;
+                  const liTotal = lineItems.reduce((s, li) => s + (parseMoney(li.amountStr) ?? 0), 0);
                   const remaining = total - liTotal;
                   return (
                     <View style={[styles.splitSumRow, remaining !== 0 && styles.splitSumError]}>
@@ -1115,7 +1138,7 @@ export default function AddExpenseScreen() {
                         </View>
                       ) : (
                         <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                          {remaining > 0 ? `₱${(remaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(remaining) / 100).toFixed(2)} over`}
+                          {remaining > 0 ? `${money(remaining)} remaining` : `${money(Math.abs(remaining))} over`}
                         </Text>
                       )}
                     </View>
@@ -1145,7 +1168,7 @@ export default function AddExpenseScreen() {
                       <View key={m.id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
+                          <AmountInput currency={expenseCurrency} value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
                         </View>
                       </View>
                     ))}
@@ -1157,7 +1180,7 @@ export default function AddExpenseScreen() {
                         </View>
                       ) : (
                         <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                          {payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
+                          {payerRemaining > 0 ? `${money(payerRemaining)} remaining` : `${money(Math.abs(payerRemaining))} over`}
                         </Text>
                       )}
                     </View>
@@ -1173,7 +1196,7 @@ export default function AddExpenseScreen() {
           {mode === "detailed" && (
             <View style={styles.form}>
               <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
-              <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
               <DateField value={expenseDate} onChange={setExpenseDate} />
               <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="e.g. Ana's birthday dinner" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
@@ -1270,7 +1293,7 @@ export default function AddExpenseScreen() {
                   {amountCents > 0 && !getShareWeightsArray().some((w) => !Number.isFinite(w) || w <= 0) && (
                     <Text style={styles.sublabel}>
                       {(resolveCustomSplits(amountCents) ?? [])
-                        .map((split) => `${members.find((mem) => mem.id === split.memberId)?.display_name ?? "?"}: ${formatCents(split.shareCents)}`)
+                        .map((split) => `${members.find((mem) => mem.id === split.memberId)?.display_name ?? "?"}: ${money(split.shareCents)}`)
                         .join(" · ")}
                     </Text>
                   )}
@@ -1302,7 +1325,7 @@ export default function AddExpenseScreen() {
                       <View key={id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={customShares[id] ?? ""} onChangeText={(v) => setCustomShares((prev) => ({ ...prev, [id]: v }))} accessibilityLabel={`Share for ${m.display_name}`} />
+                          <AmountInput currency={expenseCurrency} value={customShares[id] ?? ""} onChangeText={(v) => setCustomShares((prev) => ({ ...prev, [id]: v }))} accessibilityLabel={`Share for ${m.display_name}`} />
                         </View>
                       </View>
                     );
@@ -1315,7 +1338,7 @@ export default function AddExpenseScreen() {
                       </View>
                     ) : (
                       <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                        {splitRemaining > 0 ? `₱${(splitRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(splitRemaining) / 100).toFixed(2)} over`}
+                        {splitRemaining > 0 ? `${money(splitRemaining)} remaining` : `${money(Math.abs(splitRemaining))} over`}
                       </Text>
                     )}
                   </View>
@@ -1345,7 +1368,7 @@ export default function AddExpenseScreen() {
                       <View key={m.id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
+                          <AmountInput currency={expenseCurrency} value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
                         </View>
                       </View>
                     ))}
@@ -1357,7 +1380,7 @@ export default function AddExpenseScreen() {
                         </View>
                       ) : (
                         <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                          {payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
+                          {payerRemaining > 0 ? `${money(payerRemaining)} remaining` : `${money(Math.abs(payerRemaining))} over`}
                         </Text>
                       )}
                     </View>
@@ -1371,8 +1394,17 @@ export default function AddExpenseScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <CurrencyPicker
+        visible={currencyPickerOpen}
+        selected={expenseCurrency}
+        suggested={[groupCurrency]}
+        onSelect={(code) => setChosenCurrency(code)}
+        onClose={() => setCurrencyPickerOpen(false)}
+      />
+
       {showSmartSplit && (
         <SmartSplitSheet
+          currency={expenseCurrency}
           itemName={itemName}
           amountCents={amountCents}
           memberNames={[...selectedMembers].map((id) => members.find((m) => m.id === id)?.display_name ?? id)}

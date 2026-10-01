@@ -50,7 +50,7 @@ const runtimeCaching: RuntimeCaching[] = [
   // this browser must not be able to reopen someone else's balance offline.
   {
     matcher: ({ url, sameOrigin }) =>
-      sameOrigin && /^\/(g|p)\/|^\/(claim|join)(\/|$)/.test(url.pathname),
+      sameOrigin && /^\/(g|p|f)\/|^\/(claim|join)(\/|$)/.test(url.pathname),
     handler: new NetworkOnly(),
   },
   // Never cache mutations (Server Actions / form POSTs).

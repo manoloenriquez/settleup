@@ -12,7 +12,7 @@ export function safeReturnPath(value: unknown, fallback = "/dashboard"): string 
     const url = new URL(value, "https://app.invalid");
     if (url.origin !== "https://app.invalid") return fallback;
     const allowed =
-      /^(?:\/dashboard|\/groups(?:\/[^/]+(?:\/settings|\/insights)?)?|\/join|\/claim|\/account(?:\/payment)?|\/activity|\/update-password)$/;
+      /^(?:\/dashboard|\/groups(?:\/[^/]+(?:\/settings|\/insights)?)?|\/join|\/claim|\/friend|\/f\/[0-9a-f]{64}|\/account(?:\/payment)?|\/activity|\/update-password)$/;
     if (!allowed.test(url.pathname)) return fallback;
     return `${url.pathname}${url.search}`;
   } catch {

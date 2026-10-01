@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { setRecurringExpenseActive, deleteRecurringExpense } from "@/app/actions/recurring";
 import type { RecurringExpense } from "@/app/actions/recurring";
-import { formatCents } from "@template/shared";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 import { Button } from "@/components/ui/Button";
 import { Repeat, Trash2, Pause, Play } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
@@ -64,7 +64,7 @@ export function RecurringExpensesSection({ recurring, members }: Props): React.R
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 truncate">
                   {item.item_name}{" "}
-                  <span className="font-normal text-slate-500">· {formatCents(item.amount_cents)}</span>
+                  <span className="font-normal text-slate-500">· {formatCurrency(item.amount_cents, currencyOrPhp(item.currency_code))}</span>
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {item.cadence === "weekly" ? "Weekly" : "Monthly"} · paid by{" "}

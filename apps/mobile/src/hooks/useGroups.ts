@@ -2,7 +2,7 @@ import { track } from "@/lib/analytics";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { archiveGroup, createGroup, deleteGroup, listArchivedGroups, listGroupsWithStats, renameGroup, restoreGroup, setGroupBudget, transferOwnership } from "@/services/groups";
-import type { GroupWithStats } from "@template/shared";
+import type { CurrencyCode, GroupWithStats } from "@template/shared";
 
 export function useGroupsWithStats() {
   const { session } = useAuth();
@@ -23,7 +23,7 @@ export const useGroups = useGroupsWithStats;
 export function useCreateGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => createGroup(name),
+    mutationFn: (input: Parameters<typeof createGroup>[0]) => createGroup(input),
     onSuccess: (result) => {
       if (result.data) {
         track({ name: "group_created" });
@@ -123,8 +123,8 @@ export function useRenameGroup() {
 export function useSetGroupBudget() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (params: { groupId: string; budgetCents: number | null }) =>
-      setGroupBudget(params.groupId, params.budgetCents),
+    mutationFn: (params: { groupId: string; budgetCents: number | null; currency: CurrencyCode }) =>
+      setGroupBudget(params.groupId, params.budgetCents, params.currency),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["groups"] });
     },

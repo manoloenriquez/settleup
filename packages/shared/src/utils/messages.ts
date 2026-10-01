@@ -1,4 +1,6 @@
 import { formatCents } from "./money";
+import { formatAmount } from "./amount";
+import type { CurrencyCode } from "./currency";
 
 export type NudgeMessageInput = {
   debtorName: string;
@@ -6,6 +8,8 @@ export type NudgeMessageInput = {
   amountCents: number;
   groupName: string;
   link?: string | null;
+  /** Currency of the amount; pesos when omitted (older callers). */
+  currency?: CurrencyCode;
 };
 
 /**
@@ -14,7 +18,7 @@ export type NudgeMessageInput = {
  */
 export function buildNudgeMessage(input: NudgeMessageInput): string {
   const lines = [
-    `Hi ${input.debtorName}! Friendly reminder from ${input.groupName}: you owe ${input.creditorName} ${formatCents(input.amountCents)}.`,
+    `Hi ${input.debtorName}! Friendly reminder from ${input.groupName}: you owe ${input.creditorName} ${input.currency ? formatAmount(input.amountCents, input.currency) : formatCents(input.amountCents)}.`,
   ];
   if (input.link) {
     lines.push(`View details & pay here: ${input.link}`);

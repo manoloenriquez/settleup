@@ -5,6 +5,10 @@ describe("authentication destinations", () => {
   it("preserves invitation query strings", () => {
     expect(safeReturnPath("/join?code=abc")).toBe("/join?code=abc");
     expect(safeReturnPath("/claim?token=abc")).toBe("/claim?token=abc");
+    expect(safeReturnPath("/friend?token=abc")).toBe("/friend?token=abc");
+    const token = "a".repeat(64);
+    expect(safeReturnPath(`/f/${token}`)).toBe(`/f/${token}`);
+    expect(safeReturnPath("/f/not-a-token")).toBe("/dashboard");
   });
   it.each([
     "//evil.test",

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { Stack } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
@@ -26,6 +26,8 @@ export default function PaymentSettingsScreen() {
   const [bankAccountName, setBankAccountName] = useState("");
   const [bankQrUrl, setBankQrUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [showOnLinks, setShowOnLinks] = useState(false);
+  const [fullNumbers, setFullNumbers] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -44,6 +46,8 @@ export default function PaymentSettingsScreen() {
         setBankAccountName(res.data.bank_account_name ?? "");
         setBankQrUrl(res.data.bank_qr_url ?? null);
         setNotes(res.data.notes ?? "");
+        setShowOnLinks(res.data.show_on_shared_links);
+        setFullNumbers(res.data.share_full_numbers);
       }
       setLoading(false);
     }
@@ -61,11 +65,13 @@ export default function PaymentSettingsScreen() {
       bank_account_name: bankAccountName || null,
       bank_qr_url: bankQrUrl,
       notes: notes || null,
+      show_on_shared_links: showOnLinks,
+      share_full_numbers: showOnLinks && fullNumbers,
     });
     setSaving(false);
     if (res.error) { toast.error(res.error); return; }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Payment settings updated");
+    toast.success("Payment details saved");
   }
 
   async function handleUploadQR(type: "gcash" | "bank") {
@@ -80,7 +86,7 @@ export default function PaymentSettingsScreen() {
   if (loading) {
     return (
       <>
-        <Stack.Screen options={{ title: "Payment Settings", headerShown: true }} />
+        <Stack.Screen options={{ title: "Payment Details", headerShown: true }} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
@@ -90,7 +96,7 @@ export default function PaymentSettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Payment Settings", headerShown: true }} />
+      <Stack.Screen options={{ title: "Payment Details", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
           {loadError && (
@@ -133,8 +139,44 @@ export default function PaymentSettingsScreen() {
             />
           </Card>
 
+          <SectionHeader title="Shared links" style={{ marginTop: spacing.base }} />
+          <Card>
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleText}>
+                <Text style={styles.toggleTitle}>Show on shared group links</Text>
+                <Text style={styles.toggleBody}>
+                  People who owe you money see these details on a group’s shared page, so they can pay
+                  you without asking. Only shown while they owe you. You can hide them in any group.
+                </Text>
+              </View>
+              <Switch
+                value={showOnLinks}
+                onValueChange={setShowOnLinks}
+                trackColor={{ true: colors.primary }}
+                accessibilityLabel="Show payment details on shared group links"
+              />
+            </View>
+            {showOnLinks && (
+              <View style={[styles.toggleRow, styles.toggleDivider]}>
+                <View style={styles.toggleText}>
+                  <Text style={styles.toggleTitle}>Show full account numbers</Text>
+                  <Text style={styles.toggleBody}>
+                    Off: only the last 4 digits show (your QR code, if uploaded, still lets people pay).
+                    On: people can copy the full number.
+                  </Text>
+                </View>
+                <Switch
+                  value={fullNumbers}
+                  onValueChange={setFullNumbers}
+                  trackColor={{ true: colors.primary }}
+                  accessibilityLabel="Show full account numbers on shared links"
+                />
+              </View>
+            )}
+          </Card>
+
           <AppButton
-            title={saving ? "Saving\u2026" : "Save Payment Settings"}
+            title={saving ? "Saving\u2026" : "Save Payment Details"}
             onPress={handleSave}
             isLoading={saving}
             style={{ marginTop: spacing.xl }}
@@ -146,6 +188,11 @@ export default function PaymentSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  toggleDivider: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  toggleText: { flex: 1, gap: 2 },
+  toggleTitle: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
+  toggleBody: { fontSize: fontSize.sm, lineHeight: 18, color: colors.gray500 },
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: spacing["2xl"] },
   fieldGroup: { gap: spacing.md },

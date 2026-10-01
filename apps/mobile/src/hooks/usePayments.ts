@@ -18,7 +18,7 @@ type RecordPaymentParams = {
   fromMemberId: string;
   toMemberId: string;
   amountCents: number;
-  currencyCode?: CurrencyCode;
+  currencyCode: CurrencyCode;
 };
 
 export function useRecordPayment(groupId: string) {
@@ -43,7 +43,7 @@ export function useRecordPayment(groupId: string) {
             group_id: params.groupId,
             from_member_id: params.fromMemberId,
             to_member_id: params.toMemberId,
-            currency_code: params.currencyCode ?? "PHP",
+            currency_code: params.currencyCode,
             amount_cents: params.amountCents,
           },
           createdAt: new Date().toISOString(),
@@ -54,7 +54,7 @@ export function useRecordPayment(groupId: string) {
           data: {
             id: clientId,
             group_id: params.groupId,
-            currency_code: params.currencyCode ?? "PHP",
+            currency_code: params.currencyCode,
             amount_cents: params.amountCents,
             status: "PAID",
             from_member_id: params.fromMemberId,
@@ -84,11 +84,11 @@ export function useUndoLastPayment(groupId: string) {
   return useMutation({
     // Online-only: the server undoes "the latest payment" at execution time,
     // so a deferred replay could delete a different payment recorded meanwhile.
-    mutationFn: async () => {
+    mutationFn: async (currency: CurrencyCode) => {
       if (!onlineManager.isOnline()) {
         return { data: null, error: "Undoing a payment needs a connection." };
       }
-      return undoLastPayment(groupId);
+      return undoLastPayment(groupId, currency);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
@@ -149,11 +149,11 @@ export function useResolvePendingPayment(groupId: string) {
 export function useUndoLastPaymentForMember(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (memberId: string) => {
+    mutationFn: async ({ memberId, currency }: { memberId: string; currency: CurrencyCode }) => {
       if (!onlineManager.isOnline()) {
         return { data: null, error: "Undoing a payment needs a connection." };
       }
-      return undoLastPaymentForMember(memberId);
+      return undoLastPaymentForMember(memberId, currency);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });

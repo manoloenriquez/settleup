@@ -79,7 +79,7 @@ const nextConfig: NextConfig = {
       // Capability links (share tokens, claim/join codes) are bearer secrets:
       // keep them out of search indexes and never leak them in a Referer.
       // Listed after the global rule so these values win.
-      ...["/g/:path*", "/p/:path*", "/claim", "/join"].map((source) => ({
+      ...["/g/:path*", "/p/:path*", "/f/:path*", "/claim", "/join"].map((source) => ({
         source,
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },

@@ -8,12 +8,15 @@ import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
 import { createRecurringExpense } from "@/app/actions/recurring";
 import {
-  parsePHPAmount,
-  formatCents,
+  amountToInput,
+  currencySymbol,
   equalSplit,
+  parseAmountInput,
   percentSplit,
   sharesSplit,
+  type CurrencyCode,
 } from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import type { OutboxJson } from "@template/shared";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics/client";
@@ -122,10 +125,13 @@ type Props = {
   setItems: Dispatch<SetStateAction<ItemState[]>>;
   expenseDate: string;
   setExpenseDate: Dispatch<SetStateAction<string>>;
+  /** Currency every expense in this draft is saved in (chosen in the dialog). */
+  currency: CurrencyCode;
   onSaved: () => void;
 };
 
 export function AddExpenseForm({
+  currency,
   groupId,
   members,
   categories,
@@ -136,6 +142,7 @@ export function AddExpenseForm({
   onSaved,
 }: Props): React.ReactElement {
   const allMemberIds = members.map((m) => m.id);
+  const amountPrefix = currencySymbol(currency, MONEY_LOCALE);
   const firstMemberId = members[0]?.id ?? "";
   const defaultCategoryId = categories.find((category) => category.slug === "other")?.id ?? null;
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +237,7 @@ export function AddExpenseForm({
 
   function getCustomSum(item: ItemState): number {
     return item.selectedIds.reduce((sum, id) => {
-      const v = parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0;
+      const v = parseAmountInput(item.customAmounts[id] ?? "0", currency) ?? 0;
       return sum + v;
     }, 0);
   }
@@ -274,7 +281,7 @@ export function AddExpenseForm({
     if (item.splitMode === "custom") {
       return item.selectedIds.map((id) => ({
         member_id: id,
-        share_cents: parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0,
+        share_cents: parseAmountInput(item.customAmounts[id] ?? "0", currency) ?? 0,
       }));
     }
     return null;
@@ -282,13 +289,13 @@ export function AddExpenseForm({
 
   function getPayerSum(item: ItemState): number {
     return item.payers.reduce((sum, p) => {
-      const v = parsePHPAmount(p.amountStr) ?? 0;
+      const v = parseAmountInput(p.amountStr, currency) ?? 0;
       return sum + v;
     }, 0);
   }
 
   function getLineItemsTotal(item: ItemState): number {
-    return item.lineItems.reduce((sum, li) => sum + (parsePHPAmount(li.amountStr) ?? 0), 0);
+    return item.lineItems.reduce((sum, li) => sum + (parseAmountInput(li.amountStr, currency) ?? 0), 0);
   }
 
   function isItemValid(item: ItemState): boolean {
@@ -300,7 +307,7 @@ export function AddExpenseForm({
       item.payers.some((payer) => !activeIds.has(payer.memberId))
     )
       return false;
-    const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+    const amountCents = parseAmountInput(item.amountStr, currency) ?? 0;
     if (!item.itemName.trim() || amountCents <= 0) return false;
     if (item.payers.length === 0) return false;
     if (item.payers.some((p) => !p.memberId)) return false;
@@ -310,7 +317,7 @@ export function AddExpenseForm({
       if (item.splitPayer && getPayerSum(item) !== amountCents) return false;
       // all line items must have name, amount > 0, at least one participant
       for (const li of item.lineItems) {
-        const liCents = parsePHPAmount(li.amountStr) ?? 0;
+        const liCents = parseAmountInput(li.amountStr, currency) ?? 0;
         if (!li.name.trim() || liCents <= 0 || li.participantIds.length === 0) return false;
       }
       // line items total must equal expense amount
@@ -359,12 +366,12 @@ export function AddExpenseForm({
           item.splitPayer
             ? item.payers
                 .filter((p) => p.memberId)
-                .map((p) => ({ memberId: p.memberId, paidCents: parsePHPAmount(p.amountStr) ?? 0 }))
+                .map((p) => ({ memberId: p.memberId, paidCents: parseAmountInput(p.amountStr, currency) ?? 0 }))
             : [{ memberId: item.payers[0]!.memberId, paidCents: amountCents }];
 
         const queued: NewOutboxEntry[] = [];
         for (const item of wholeItems) {
-          const amountCents = parsePHPAmount(item.amountStr)!;
+          const amountCents = parseAmountInput(item.amountStr, currency)!;
           const clientId = item.id;
           const payload =
             item.splitMode === "equal"
@@ -375,6 +382,7 @@ export function AddExpenseForm({
                   itemName: item.itemName.trim(),
                   notes: item.notes || undefined,
                   amountCents,
+                  currencyCode: currency,
                   expenseDate: expenseDate || undefined,
                   participantIds: item.selectedIds,
                   payers: itemPayers(item, amountCents),
@@ -386,6 +394,7 @@ export function AddExpenseForm({
                   itemName: item.itemName.trim(),
                   notes: item.notes || undefined,
                   amountCents,
+                  currencyCode: currency,
                   expenseDate: expenseDate || undefined,
                   customSplits: (resolveCustomSplits(item, amountCents) ?? []).map((s) => ({
                     memberId: s.member_id,
@@ -405,7 +414,7 @@ export function AddExpenseForm({
         }
 
         for (const item of itemizedItems) {
-          const amountCents = parsePHPAmount(item.amountStr)!;
+          const amountCents = parseAmountInput(item.amountStr, currency)!;
           const clientId = item.id;
           const payload = buildItemizedExpenseRpcInput({
             clientId,
@@ -414,11 +423,12 @@ export function AddExpenseForm({
             itemName: item.itemName.trim(),
             notes: item.notes || undefined,
             amountCents,
+            currencyCode: currency,
             expenseDate: expenseDate || undefined,
             payers: itemPayers(item, amountCents),
             lineItems: item.lineItems.map((li) => ({
               name: li.name.trim(),
-              amountCents: parsePHPAmount(li.amountStr)!,
+              amountCents: parseAmountInput(li.amountStr, currency)!,
               participantIds: li.participantIds,
             })),
           });
@@ -459,13 +469,13 @@ export function AddExpenseForm({
       // Submit whole-expense items as batch
       if (wholeItems.length > 0) {
         const batchItems = wholeItems.map((item) => {
-          const amount_cents = parsePHPAmount(item.amountStr)!;
+          const amount_cents = parseAmountInput(item.amountStr, currency)!;
           const payers = item.splitPayer
             ? item.payers
                 .filter((p) => p.memberId)
                 .map((p) => ({
                   member_id: p.memberId,
-                  paid_cents: parsePHPAmount(p.amountStr) ?? 0,
+                  paid_cents: parseAmountInput(p.amountStr, currency) ?? 0,
                 }))
             : [{ member_id: item.payers[0]!.memberId, paid_cents: amount_cents }];
 
@@ -475,6 +485,7 @@ export function AddExpenseForm({
               item_name: item.itemName.trim(),
               notes: item.notes || undefined,
               amount_cents,
+              currency_code: currency,
               category_id: item.categoryId,
               expense_date: expenseDate || undefined,
               split_mode: "equal" as const,
@@ -489,6 +500,7 @@ export function AddExpenseForm({
             item_name: item.itemName.trim(),
             notes: item.notes || undefined,
             amount_cents,
+            currency_code: currency,
             category_id: item.categoryId,
             expense_date: expenseDate || undefined,
             split_mode: "custom" as const,
@@ -510,19 +522,19 @@ export function AddExpenseForm({
 
       // Submit each itemized expense individually
       for (const item of itemizedItems) {
-        const amount_cents = parsePHPAmount(item.amountStr)!;
+        const amount_cents = parseAmountInput(item.amountStr, currency)!;
         const payers = item.splitPayer
           ? item.payers
               .filter((p) => p.memberId)
               .map((p) => ({
                 member_id: p.memberId,
-                paid_cents: parsePHPAmount(p.amountStr) ?? 0,
+                paid_cents: parseAmountInput(p.amountStr, currency) ?? 0,
               }))
           : [{ member_id: item.payers[0]!.memberId, paid_cents: amount_cents }];
 
         const line_items = item.lineItems.map((li) => ({
           name: li.name.trim(),
-          amount_cents: parsePHPAmount(li.amountStr)!,
+          amount_cents: parseAmountInput(li.amountStr, currency)!,
           participant_ids: li.participantIds,
         }));
 
@@ -532,6 +544,7 @@ export function AddExpenseForm({
           item_name: item.itemName.trim(),
           notes: item.notes || undefined,
           amount_cents,
+          currency_code: currency,
           category_id: item.categoryId,
           expense_date: expenseDate || undefined,
           payers,
@@ -548,11 +561,11 @@ export function AddExpenseForm({
       // Save recurring templates for items marked weekly/monthly
       for (const item of wholeItems) {
         if (item.repeats === "none") continue;
-        const amountCents = parsePHPAmount(item.amountStr)!;
+        const amountCents = parseAmountInput(item.amountStr, currency)!;
         const recurringPayers = item.splitPayer
           ? item.payers
               .filter((p) => p.memberId)
-              .map((p) => ({ member_id: p.memberId, paid_cents: parsePHPAmount(p.amountStr) ?? 0 }))
+              .map((p) => ({ member_id: p.memberId, paid_cents: parseAmountInput(p.amountStr, currency) ?? 0 }))
               .filter((p) => p.paid_cents > 0)
           : [{ member_id: item.payers[0]!.memberId, paid_cents: amountCents }];
         if (recurringPayers.length === 0) {
@@ -565,6 +578,7 @@ export function AddExpenseForm({
           group_id: groupId,
           item_name: item.itemName.trim(),
           amount_cents: amountCents,
+          currency_code: currency,
           category_id: item.categoryId,
           payer_member_id: recurringPayers[0]!.member_id,
           participant_member_ids: item.selectedIds,
@@ -595,7 +609,7 @@ export function AddExpenseForm({
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
           <p className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Review</p>
           {items.map((item, i) => {
-            const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+            const amountCents = parseAmountInput(item.amountStr, currency) ?? 0;
             const payerName = item.splitPayer
               ? item.payers
                   .filter((p) => p.memberId)
@@ -609,7 +623,7 @@ export function AddExpenseForm({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-900">{item.itemName}</span>
-                  <span className="font-semibold text-brand-700">{formatCents(amountCents)}</span>
+                  <span className="font-semibold text-brand-700">{formatCurrency(amountCents, currency)}</span>
                 </div>
                 <p className="text-xs text-slate-500">
                   <CategoryBadge
@@ -644,7 +658,7 @@ export function AddExpenseForm({
                     {item.lineItems.map((li, j) => (
                       <li key={j} className="text-xs text-slate-600 flex justify-between">
                         <span>{li.name || `Item ${j + 1}`}</span>
-                        <span>{formatCents(parsePHPAmount(li.amountStr) ?? 0)}</span>
+                        <span>{formatCurrency(parseAmountInput(li.amountStr, currency) ?? 0, currency)}</span>
                       </li>
                     ))}
                   </ul>
@@ -689,7 +703,7 @@ export function AddExpenseForm({
         />
       </div>
       {items.map((item, index) => {
-        const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+        const amountCents = parseAmountInput(item.amountStr, currency) ?? 0;
         const customSum = getCustomSum(item);
         const customMismatch =
           item.splitMode === "custom" && amountCents > 0 && customSum !== amountCents;
@@ -704,7 +718,7 @@ export function AddExpenseForm({
           item.splitMode === "equal" &&
           amountCents > 0 &&
           item.selectedIds.length > 0
-            ? `Split ${item.selectedIds.length} ways: ~${formatCents(equalSplit(amountCents, item.selectedIds.length)[0] ?? 0)} each`
+            ? `Split ${item.selectedIds.length} ways: ~${formatCurrency(equalSplit(amountCents, item.selectedIds.length)[0] ?? 0, currency)} each`
             : null;
 
         return (
@@ -768,10 +782,10 @@ export function AddExpenseForm({
               />
               <Input
                 label="Total amount"
-                leftAddon="₱"
+                leftAddon={amountPrefix}
                 value={item.amountStr}
                 onChange={(e) => updateItem(index, { amountStr: e.target.value })}
-                placeholder="e.g. 8703.39"
+                placeholder="e.g. 1500"
               />
             </div>
 
@@ -828,10 +842,10 @@ export function AddExpenseForm({
               <div className="flex flex-col gap-3">
                 <p className="text-sm font-medium text-slate-700">Line items</p>
                 {item.lineItems.map((li, liIndex) => {
-                  const liCents = parsePHPAmount(li.amountStr) ?? 0;
+                  const liCents = parseAmountInput(li.amountStr, currency) ?? 0;
                   const liPreview =
                     liCents > 0 && li.participantIds.length > 0
-                      ? `~${formatCents(equalSplit(liCents, li.participantIds.length)[0] ?? 0)} each`
+                      ? `~${formatCurrency(equalSplit(liCents, li.participantIds.length)[0] ?? 0, currency)} each`
                       : null;
                   return (
                     <div
@@ -850,12 +864,12 @@ export function AddExpenseForm({
                           />
                           <Input
                             label="Amount"
-                            leftAddon="₱"
+                            leftAddon={amountPrefix}
                             value={li.amountStr}
                             onChange={(e) =>
                               updateLineItem(index, liIndex, { amountStr: e.target.value })
                             }
-                            placeholder="0.00"
+                            placeholder={amountToInput(0, currency)}
                           />
                         </div>
                         {item.lineItems.length > 1 && (
@@ -906,7 +920,7 @@ export function AddExpenseForm({
                   <p
                     className={`text-xs font-medium ${lineItemsMismatch ? "text-red-600" : "text-slate-500"}`}
                   >
-                    {formatCents(lineItemsTotal)} of {formatCents(amountCents)} allocated
+                    {formatCurrency(lineItemsTotal, currency)} of {formatCurrency(amountCents, currency)} allocated
                     {lineItemsMismatch ? " — line items must sum to total" : ""}
                   </p>
                 )}
@@ -973,6 +987,7 @@ export function AddExpenseForm({
                       members={members}
                       firstMemberId={firstMemberId}
                       amountCents={amountCents}
+                      currency={currency}
                       updateItem={updateItem}
                       getPayerSum={getPayerSum}
                     />
@@ -1056,7 +1071,7 @@ export function AddExpenseForm({
                                   const member = members.find((m) => m.id === id);
                                   const cents =
                                     resolveCustomSplits(item, amountCents)?.[i]?.share_cents ?? 0;
-                                  return `${member?.display_name ?? "?"}: ${formatCents(cents)}`;
+                                  return `${member?.display_name ?? "?"}: ${formatCurrency(cents, currency)}`;
                                 })
                                 .join(" · ")}
                             </p>
@@ -1081,7 +1096,7 @@ export function AddExpenseForm({
                               <div key={id}>
                                 <Input
                                   label={member.display_name}
-                                  leftAddon="₱"
+                                  leftAddon={amountPrefix}
                                   value={item.customAmounts[id] ?? ""}
                                   onChange={(e) =>
                                     updateItem(index, {
@@ -1091,7 +1106,7 @@ export function AddExpenseForm({
                                       },
                                     })
                                   }
-                                  placeholder="0.00"
+                                  placeholder={amountToInput(0, currency)}
                                 />
                               </div>
                             );
@@ -1100,7 +1115,7 @@ export function AddExpenseForm({
                         <p
                           className={`text-xs font-medium ${customMismatch ? "text-red-600" : "text-slate-500"}`}
                         >
-                          {formatCents(customSum)} of {formatCents(amountCents)} assigned
+                          {formatCurrency(customSum, currency)} of {formatCurrency(amountCents, currency)} assigned
                           {customMismatch ? " — amounts must match total" : ""}
                         </p>
                       </div>
@@ -1116,6 +1131,7 @@ export function AddExpenseForm({
                 members={members}
                 firstMemberId={firstMemberId}
                 amountCents={amountCents}
+                currency={currency}
                 updateItem={updateItem}
                 getPayerSum={getPayerSum}
               />
@@ -1154,6 +1170,7 @@ type PayerSectionProps = {
   members: GroupMember[];
   firstMemberId: string;
   amountCents: number;
+  currency: CurrencyCode;
   updateItem: (index: number, patch: Partial<ItemState>) => void;
   getPayerSum: (item: ItemState) => number;
 };
@@ -1164,9 +1181,11 @@ function PayerSection({
   members,
   firstMemberId,
   amountCents,
+  currency,
   updateItem,
   getPayerSum,
 }: PayerSectionProps): React.ReactElement {
+  const amountPrefix = currencySymbol(currency, MONEY_LOCALE);
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -1213,14 +1232,14 @@ function PayerSection({
               <div className="w-28">
                 <Input
                   label="Amount"
-                  leftAddon="₱"
+                  leftAddon={amountPrefix}
                   value={payer.amountStr}
                   onChange={(e) => {
                     const newPayers = [...item.payers];
                     newPayers[pi] = { ...payer, amountStr: e.target.value };
                     updateItem(index, { payers: newPayers });
                   }}
-                  placeholder="0.00"
+                  placeholder={amountToInput(0, currency)}
                 />
               </div>
               {item.payers.length > 1 && (
@@ -1254,7 +1273,7 @@ function PayerSection({
                 getPayerSum(item) !== amountCents ? "text-red-600" : "text-slate-500"
               }`}
             >
-              {formatCents(getPayerSum(item))} of {formatCents(amountCents)} assigned
+              {formatCurrency(getPayerSum(item), currency)} of {formatCurrency(amountCents, currency)} assigned
               {getPayerSum(item) !== amountCents ? " — amounts must match total" : ""}
             </p>
           )}

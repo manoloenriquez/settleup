@@ -3,14 +3,17 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { logServerError } from "@/lib/log";
-import type { ApiResponse } from "@template/shared";
+import { currencyCodeSchema } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import { z } from "zod";
 
 const createSchema = z
   .object({
     group_id: z.string().uuid(),
     item_name: z.string().trim().min(1).max(120),
-    amount_cents: z.number().int().positive().max(100_000_000),
+    amount_cents: z.number().int().positive().max(100_000_000_000),
+    /** The currency of the expense being repeated. */
+    currency_code: currencyCodeSchema,
     category_id: z.string().uuid().nullable().optional(),
     payer_member_id: z.string().uuid(),
     participant_member_ids: z.array(z.string().uuid()).min(1),
@@ -39,6 +42,7 @@ export type RecurringExpense = {
   group_id: string;
   item_name: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   category_id: string | null;
   payer_member_id: string;
   participant_member_ids: string[];
@@ -58,7 +62,7 @@ export async function listRecurringExpenses(groupId: string): Promise<ApiRespons
     const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
-      .select("id, group_id, item_name, amount_cents, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
+      .select("id, group_id, item_name, amount_cents, currency_code, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
@@ -98,6 +102,7 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
         group_id: parsed.data.group_id,
         item_name: parsed.data.item_name,
         amount_cents: parsed.data.amount_cents,
+        currency_code: parsed.data.currency_code,
         category_id: parsed.data.category_id ?? null,
         payer_member_id: parsed.data.payers?.[0]?.member_id ?? parsed.data.payer_member_id,
         participant_member_ids: parsed.data.participant_member_ids,

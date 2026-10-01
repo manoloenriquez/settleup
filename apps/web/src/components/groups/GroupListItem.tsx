@@ -5,11 +5,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
 import { archiveGroup } from "@/app/actions/groups";
-import { formatCents } from "@template/shared";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog } from "@/components/ui/Dialog";
 import { Users, Archive } from "lucide-react";
 import type { GroupWithStats } from "@template/shared";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 
 type Props = {
   group: GroupWithStats;
@@ -22,7 +22,7 @@ function StatusBadge({ group }: { group: GroupWithStats }): React.ReactElement {
   if (group.pending_count > 0) {
     return (
       <Badge variant="warning">
-        {group.pending_count} pending &middot; {formatCents(group.total_owed_cents)}
+        {group.pending_count} pending &middot; {formatCurrency(group.total_owed_cents, currencyOrPhp(group.default_currency_code))}
       </Badge>
     );
   }

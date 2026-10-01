@@ -102,6 +102,9 @@ const groupSchema = z.object({
   invite_code: z.string(),
   is_archived: z.boolean(),
   share_token: z.string(),
+  share_enabled: z.boolean().default(true),
+  /** "direct" = a two-person friend ledger. */
+  kind: z.enum(["shared", "direct"]).default("shared"),
   budget_cents: z.number().int().nullable().default(null),
   created_at: z.string(),
 });
@@ -115,6 +118,7 @@ const groupMemberSchema = z.object({
   user_id: z.string().uuid().nullable(),
   departed_at: z.string().nullable().default(null),
   role: z.enum(["owner", "admin", "member"]),
+  hide_payment_details: z.boolean().default(false),
   created_at: z.string(),
 });
 

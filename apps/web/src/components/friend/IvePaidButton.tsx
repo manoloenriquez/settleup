@@ -11,7 +11,9 @@ import {
 import { submitFriendPayment } from "@/app/actions/friend-payments";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { formatCents, parsePHPAmount } from "@template/shared";
+import { amountToInput, currencySymbol, parseAmountInput } from "@template/shared";
+import type { CurrencyCode } from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import { CheckCircle2, HandCoins } from "lucide-react";
 
 type Props = {
@@ -19,6 +21,8 @@ type Props = {
   toMemberId: string;
   creditorName: string;
   suggestedAmountCents: number;
+  /** The currency of the balance being paid; the report is recorded in it. */
+  currency: CurrencyCode;
 };
 
 export function IvePaidButton({
@@ -26,13 +30,18 @@ export function IvePaidButton({
   toMemberId,
   creditorName,
   suggestedAmountCents,
+  currency,
 }: Props): React.ReactElement {
-  const storageKey = `tabkind:payment-report:${shareToken}:${toMemberId}`;
+  // PHP keeps the pre-currency key so a report saved before currencies existed
+  // is still found and retried with its original request ID.
+  const legacyKey = `tabkind:payment-report:${shareToken}:${toMemberId}`;
+  const storageKey = currency === "PHP" ? legacyKey : `${legacyKey}:${currency}`;
+  const symbol = currencySymbol(currency, MONEY_LOCALE);
   const router = useRouter();
   const [locked, setLocked] = useState(false);
   const [restored, setRestored] = useState(false);
   const [open, setOpen] = useState(false);
-  const [amountStr, setAmountStr] = useState((suggestedAmountCents / 100).toFixed(2));
+  const [amountStr, setAmountStr] = useState(amountToInput(suggestedAmountCents, currency));
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -42,7 +51,7 @@ export function IvePaidButton({
     try {
       const saved = readPaymentAttempt(localStorage, storageKey);
       if (saved) {
-        setAmountStr((saved.amountCents / 100).toFixed(2));
+        setAmountStr(amountToInput(saved.amountCents, currency));
         setNote(saved.note);
         setSubmitted(saved.submitted);
         setLocked(true);
@@ -53,14 +62,14 @@ export function IvePaidButton({
         "Saved payment information could not be read. Check your report history before trying again.",
       );
     }
-  }, [storageKey]);
+  }, [storageKey, currency]);
 
   function handleSubmit(): void {
     if (!restored || isPending) return;
     setError(null);
-    const amountCents = parsePHPAmount(amountStr);
+    const amountCents = parseAmountInput(amountStr, currency);
     if (!amountCents || amountCents <= 0) {
-      setError("Enter a valid amount.");
+      setError(`Enter a valid amount in ${currency}.`);
       return;
     }
 
@@ -87,6 +96,7 @@ export function IvePaidButton({
         request_id: attempt.id,
         to_member_id: toMemberId,
         amount_cents: amountCents,
+        currency_code: currency,
         note: note.trim() || undefined,
       });
       if (result.error) {
@@ -146,14 +156,16 @@ export function IvePaidButton({
     <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 flex flex-col gap-3">
       <p className="text-sm font-semibold text-slate-700">Tell {creditorName} you&apos;ve paid</p>
       <Input
-        label="Amount"
-        leftAddon="₱"
+        label={`Amount (${currency})`}
+        // The input pads for a one-character prefix; longer symbols ("CHF")
+        // rely on the label instead.
+        leftAddon={symbol.length === 1 ? symbol : undefined}
         value={amountStr}
         onChange={(e) => setAmountStr(e.target.value)}
         disabled={locked || !restored}
         inputMode="decimal"
       />
-      <p className="text-xs text-slate-500">Suggested: {formatCents(suggestedAmountCents)}</p>
+      <p className="text-xs text-slate-500">Suggested: {formatCurrency(suggestedAmountCents, currency)}</p>
       <Input
         label="Note (optional)"
         value={note}

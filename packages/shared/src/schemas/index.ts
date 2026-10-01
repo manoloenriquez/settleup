@@ -344,14 +344,24 @@ export const claimMemberSchema = z.object({
   token: z.string().regex(/^[a-f0-9]{64}$/, "Invalid claim invitation"),
 });
 
+// Every field may be cleared (null) — the screens send null for empty inputs.
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+const optionalQrUrl = z.string().trim().url("Upload the QR image again.").max(500).nullable().optional();
+
 export const upsertPaymentProfileSchema = z.object({
-  payer_display_name: z.string().optional(),
-  gcash_name: z.string().optional(),
-  gcash_number: z.string().optional(),
-  bank_name: z.string().optional(),
-  bank_account_name: z.string().optional(),
-  bank_account_number: z.string().optional(),
-  notes: z.string().optional(),
+  payer_display_name: optionalText(80),
+  gcash_name: optionalText(80),
+  gcash_number: optionalText(40),
+  gcash_qr_url: optionalQrUrl,
+  bank_name: optionalText(80),
+  bank_account_name: optionalText(80),
+  bank_account_number: optionalText(40),
+  bank_qr_url: optionalQrUrl,
+  notes: optionalText(280),
+  /** Show these details on shared group links (people owed money only). */
+  show_on_shared_links: z.boolean().optional(),
+  /** Show full account numbers on shared links instead of the last four digits. */
+  share_full_numbers: z.boolean().optional(),
 });
 
 export const dashboardGroupSummarySchema = z.object({

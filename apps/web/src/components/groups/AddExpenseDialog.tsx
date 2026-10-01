@@ -13,7 +13,15 @@ import { Button } from "@/components/ui/Button";
 import { Zap, MessageSquare, Camera, SlidersHorizontal } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseDraft, ParsedReceipt } from "@template/shared/types";
-import { resolveExactMember, minorToDecimal, formatMoney, equalSplit } from "@template/shared";
+import {
+  amountToInput,
+  equalSplit,
+  parseAmountInput,
+  resolveExactMember,
+  type CurrencyCode,
+} from "@template/shared";
+import { CurrencySelect } from "@/components/ui/CurrencySelect";
+import { formatCurrency, hundredthsToInput } from "@/lib/currency";
 
 type Props = {
   open: boolean;
@@ -22,6 +30,8 @@ type Props = {
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
+  /** The group's default currency; new expenses start in it. */
+  defaultCurrency: CurrencyCode;
 };
 type Mode = "quick" | "chat" | "receipt" | "detailed";
 const modes = [
@@ -43,6 +53,7 @@ export function AddExpenseDialog({
   members,
   categories,
   currentUserId,
+  defaultCurrency,
 }: Props): React.ReactElement {
   const activeMembers = members.filter((member) => !member.departed_at);
   const myMemberId = activeMembers.find((member) => member.user_id === currentUserId)?.id ?? "";
@@ -54,6 +65,7 @@ export function AddExpenseDialog({
       defaultCategory,
     );
   const [mode, setMode] = useState<Mode>("quick");
+  const [currency, setCurrency] = useState<CurrencyCode>(defaultCurrency);
   const [items, setItems] = useState<ItemState[]>(() => [emptyItem()]);
   const [expenseDate, setExpenseDate] = useState(today);
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
@@ -75,7 +87,11 @@ export function AddExpenseDialog({
     participantIds.length > 0 &&
     participantIds.every((id) => validMembers.has(id)) &&
     new Set(participantIds).size === participantIds.length;
-  const shares = draft && resolved ? equalSplit(draft.amount_cents, participantIds.length) : [];
+  // AI drafts report hundredths; read them as an amount in the chosen currency.
+  const draftAmountInput = draft ? hundredthsToInput(draft.amount_cents, currency) : "";
+  const draftMinor = draft ? parseAmountInput(draftAmountInput, currency) : null;
+  const shares =
+    draftMinor !== null && resolved ? equalSplit(draftMinor, participantIds.length) : [];
   const autoResolved = useRef<string>("");
 
   useEffect(() => {
@@ -111,11 +127,11 @@ export function AddExpenseDialog({
         ...emptyItem(),
         origin: "chat",
         itemName: draft.item_name,
-        amountStr: minorToDecimal(draft.amount_cents, "PHP"),
+        amountStr: draftAmountInput,
         notes: draft.notes ?? "",
         categoryId: draftCategoryId,
         selectedIds: participantIds,
-        payers: [{ memberId: payerId, amountStr: minorToDecimal(draft.amount_cents, "PHP") }],
+        payers: [{ memberId: payerId, amountStr: draftAmountInput }],
       },
     ]);
     setExpenseDate(draft.date ?? today());
@@ -133,15 +149,16 @@ export function AddExpenseDialog({
         ...emptyItem(),
         origin: "receipt",
         itemName: value.itemName,
-        amountStr: minorToDecimal(value.totalCents, "PHP"),
+        amountStr: amountToInput(value.totalCents, value.currency),
         expenseMode: "itemized",
         lineItems: value.items.map((item) => ({
           name: item.name,
-          amountStr: minorToDecimal(item.amountCents, "PHP"),
+          amountStr: amountToInput(item.amountCents, value.currency),
           participantIds: activeMembers.map((member) => member.id),
         })),
       },
     ]);
+    setCurrency(value.currency);
     setExpenseDate(value.date ?? today());
     setReceipt(null);
     setMode("detailed");
@@ -153,6 +170,7 @@ export function AddExpenseDialog({
     setDraft(null);
     setReceipt(null);
     setMode("quick");
+    setCurrency(defaultCurrency);
     onClose();
   }
 
@@ -162,6 +180,19 @@ export function AddExpenseDialog({
         <p className="text-xs text-slate-500">
           Your draft stays here when you switch entry modes or close this dialog.
         </p>
+        <div className="max-w-xs">
+          <CurrencySelect
+            id="expense-currency"
+            label="Currency"
+            value={currency}
+            onChange={setCurrency}
+          />
+          {currency !== defaultCurrency && (
+            <p className="mt-1 text-xs text-slate-500">
+              This group usually uses {defaultCurrency}. Balances in each currency are kept separate.
+            </p>
+          )}
+        </div>
         <div
           className="flex gap-1 rounded-lg bg-slate-100 p-1"
           role="tablist"
@@ -206,7 +237,10 @@ export function AddExpenseDialog({
           <div className="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
             <h3 className="font-semibold">Review suggested expense</h3>
             <p>
-              {draft.item_name} · {formatMoney(draft.amount_cents, "PHP")}
+              {draft.item_name} ·{" "}
+              {draftMinor !== null
+                ? formatCurrency(draftMinor, currency)
+                : `${draftAmountInput} ${currency}`}
             </p>
             <p className="text-xs text-slate-600">
               Check every person below. Unknown or duplicate names need your correction before
@@ -255,7 +289,8 @@ export function AddExpenseDialog({
                 </select>
                 {resolved && (
                   <span className="text-xs">
-                    Share: {formatMoney(shares[[...participantIds].sort().indexOf(id)] ?? 0, "PHP")}
+                    Share:{" "}
+                    {formatCurrency(shares[[...participantIds].sort().indexOf(id)] ?? 0, currency)}
                   </span>
                 )}
               </label>
@@ -294,6 +329,7 @@ export function AddExpenseDialog({
               categories={categories}
               currentUserId={currentUserId}
               item={firstItem}
+              currency={currency}
               setItem={(update) =>
                 setItems((previous) =>
                   previous.map((item, index) => (index === 0 ? update(item) : item)),
@@ -327,6 +363,7 @@ export function AddExpenseDialog({
             setItems={setItems}
             expenseDate={expenseDate}
             setExpenseDate={setExpenseDate}
+            currency={currency}
             onSaved={handleSaved}
           />
         </div>
@@ -347,6 +384,7 @@ export function AddExpenseDialog({
           {receipt ? (
             <ReceiptReviewForm
               receipt={receipt}
+              currency={currency}
               onContinue={reviewReceipt}
               onDismiss={() => {
                 track({ name: "ai_draft_resolved", properties: { status: "discarded" } });

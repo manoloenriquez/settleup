@@ -1,11 +1,12 @@
 import { supabase } from "@/lib/supabase";
-import type { ApiResponse } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 
 export type RecurringExpense = {
   id: string;
   group_id: string;
   item_name: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   category_id: string | null;
   payer_member_id: string;
   participant_member_ids: string[];
@@ -19,6 +20,8 @@ export type CreateRecurringParams = {
   groupId: string;
   itemName: string;
   amountCents: number;
+  /** Future expenses are created in this currency. */
+  currencyCode: CurrencyCode;
   categoryId: string | null;
   payers: { memberId: string; paidCents: number }[];
   participantMemberIds: string[];
@@ -30,7 +33,7 @@ export async function listRecurringExpenses(groupId: string): Promise<ApiRespons
   const { data, error } = await supabase
     .schema("settleup")
     .from("recurring_expenses")
-    .select("id, group_id, item_name, amount_cents, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
+    .select("id, group_id, item_name, amount_cents, currency_code, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
     .eq("group_id", groupId)
     .order("created_at", { ascending: true });
 
@@ -58,6 +61,7 @@ export async function createRecurringExpense(params: CreateRecurringParams): Pro
       group_id: params.groupId,
       item_name: params.itemName,
       amount_cents: params.amountCents,
+      currency_code: params.currencyCode,
       category_id: params.categoryId,
       payer_member_id: firstPayer.memberId,
       participant_member_ids: params.participantMemberIds,

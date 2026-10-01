@@ -28,6 +28,8 @@ export async function pendingAuthDestination(): Promise<Href> {
     return { pathname: "/claim", params: { token: url.searchParams.get("token") ?? "" } };
   if (url.pathname === "/join")
     return { pathname: "/join", params: { code: url.searchParams.get("code") ?? "" } };
+  if (url.pathname === "/friend")
+    return { pathname: "/friend", params: { token: url.searchParams.get("token") ?? "" } };
   const groupId = /^\/groups\/([0-9a-f-]{36})$/.exec(url.pathname)?.[1];
   if (groupId) return { pathname: "/(protected)/groups/[id]", params: { id: groupId } };
   return "/(protected)/(tabs)/home";

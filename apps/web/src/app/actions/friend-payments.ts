@@ -8,14 +8,17 @@ import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
-import type { ApiResponse } from "@template/shared";
+import { currencyCodeSchema } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import { z } from "zod";
 
 const submitSchema = z.object({
   share_token: z.string().min(8).max(128),
   request_id: z.string().uuid(),
   to_member_id: z.string().uuid(),
-  amount_cents: z.number().int().positive().max(100_000_000),
+  amount_cents: z.number().int().positive().max(100_000_000_000),
+  /** The currency of the balance being paid. */
+  currency_code: currencyCodeSchema,
   note: z.string().trim().max(280).optional(),
 });
 
@@ -28,6 +31,7 @@ export type PendingPayment = {
   from_member_id: string;
   to_member_id: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   note: string | null;
   created_at: string;
 };
@@ -56,12 +60,13 @@ export async function submitFriendPayment(
       return { data: null, error: "Too many attempts. Please try again in a few minutes." };
 
     const supabase = createAnonClient();
-    const { data, error } = await supabase.schema("settleup").rpc("submit_friend_payment", {
+    const { data, error } = await supabase.schema("settleup").rpc("submit_friend_payment_v2", {
       p_share_token: parsed.data.share_token,
       p_to_member_id: parsed.data.to_member_id,
       p_request_id: parsed.data.request_id,
       p_amount_cents: parsed.data.amount_cents,
       p_note: parsed.data.note ?? undefined,
+      p_currency_code: parsed.data.currency_code,
     });
 
     if (error || !data) return { data: null, error: "Could not submit payment. Please try again." };
@@ -85,7 +90,7 @@ export async function listPendingPayments(groupId: string): Promise<ApiResponse<
     const { data, error } = await supabase
       .schema("settleup")
       .from("payments")
-      .select("id, group_id, from_member_id, to_member_id, amount_cents, note, created_at")
+      .select("id, group_id, from_member_id, to_member_id, amount_cents, currency_code, note, created_at")
       .eq("group_id", parsed.data)
       .eq("status", "PENDING")
       .order("created_at", { ascending: false });

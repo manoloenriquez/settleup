@@ -13,7 +13,7 @@ The user authorized testing in the existing Supabase project `melogtpslinfzphvpt
 | `20260908053417_secure_claims_and_payment_reports.sql`          | `20260908162625`       | `6569b8617afca6a49740307de097dfc3b33c401175ce455000af0244e8e848f0` |
 | `20260908160541_preserve_shared_ledgers_on_account_closure.sql` | `20260908162634`       | `998f522ce79b1d1e2ac768c3d47c2ae17cd9acdd62475f8b7f4ee330bbccdd3d` |
 
-`20260908163441_currency_ledger.sql` is **unapplied**. Its migration and SQL fixtures have been executed together in rollback-only transactions, including immediate execution of deferred constraints. Finish client integration and validation before activation.
+`20260908163441_currency_ledger.sql` was **applied on 2026-10-01** (owner-approved, audit phase 5) together with `20261001100000`–`20261001130000`; see docs/audit/2026-10-product-audit.md. The paragraph below describes the earlier unapplied state. Its migration and SQL fixtures have been executed together in rollback-only transactions, including immediate execution of deferred constraints. Finish client integration and validation before activation.
 
 ## Implemented
 
@@ -40,7 +40,7 @@ The new shared money representation is `{ currency_code, amount_minor }`. The su
 
 The unapplied migration retains historical `*_cents` column names as integer minor units adjacent to an explicit currency code. Existing expenses, payments, recurring templates and budgets are backfilled as PHP with no numeric conversion. Groups have a default entry currency. Versioned RPCs calculate each currency separately and carry its code; legacy money RPCs reject mixed/foreign ledgers with `PT426`. Direct legacy reads cannot interpret foreign amounts as PHP. Expense edits compare currency and lock the row before checking the stale-edit timestamp.
 
-**Launch decision D1:** the public beta is PHP-only, as the PRD assumes (sections 2.3, 13.3 and 18). The migration stays unapplied and no currency selectors are threaded through the clients. This is safe because no client calls a versioned RPC or sends `x-ledger-version`; the builders' extra `currency_code` key is ignored by the live functions, and every result parser defaults absent codes to PHP. Should the migration be applied later while clients are unchanged, PHP-only data keeps working; the first non-PHP row would make the legacy dashboard, groups and activity RPCs raise `PT426` for that whole account.
+**Launch decision D1 (superseded 2026-10-01 — multi-currency groups shipped):** the public beta is PHP-only, as the PRD assumes (sections 2.3, 13.3 and 18). The migration stays unapplied and no currency selectors are threaded through the clients. This is safe because no client calls a versioned RPC or sends `x-ledger-version`; the builders' extra `currency_code` key is ignored by the live functions, and every result parser defaults absent codes to PHP. Should the migration be applied later while clients are unchanged, PHP-only data keeps working; the first non-PHP row would make the legacy dashboard, groups and activity RPCs raise `PT426` for that whole account.
 
 Still required before enabling currency entry (post-validation, PRD P2):
 

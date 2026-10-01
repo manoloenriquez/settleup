@@ -15,7 +15,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances";
+import { useMembersWithBalances, useCreditorProfiles, useGroupCurrencies } from "@/hooks/useBalances";
 import {
   useExpenses,
   useDeleteExpense,
@@ -55,8 +55,8 @@ import {
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { presentChoices } from "@/hooks/useAddMenu";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
-import type { MemberBalance, SimplifiedDebt } from "@template/shared";
+import { amountToInput, currencyName, formatAmount, parseAmountInput, simplifyDebts } from "@template/shared";
+import type { CurrencyCode, MemberBalance, SimplifiedDebt } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -122,8 +122,18 @@ export default function GroupDetailScreen() {
   const { user } = useAuth();
   const toast = useToast();
 
-  const balancesQ = useMembersWithBalances(id);
-  const creditorProfilesQ = useCreditorProfiles(id);
+  const groupsQ = useGroups();
+  const group = (groupsQ.data ?? []).find((g) => g.id === id);
+  // Balances are per currency; the group's default currency comes first.
+  const defaultCurrency: CurrencyCode = group?.default_currency_code ?? "PHP";
+  const currenciesQ = useGroupCurrencies(id, defaultCurrency);
+  const currencies = currenciesQ.data ?? [defaultCurrency];
+  const [chosenCurrency, setChosenCurrency] = useState<CurrencyCode | null>(null);
+  const activeCurrency: CurrencyCode =
+    chosenCurrency && currencies.includes(chosenCurrency) ? chosenCurrency : defaultCurrency;
+  const money = (minor: number): string => formatAmount(minor, activeCurrency);
+  const balancesQ = useMembersWithBalances(id, activeCurrency);
+  const creditorProfilesQ = useCreditorProfiles(id, activeCurrency);
   const expensesQ = useExpenses(id);
   const totalsQ = useExpenseTotals(id);
   const expenses = expensesQ.data?.pages.flatMap((p) => p.data) ?? [];
@@ -148,8 +158,6 @@ export default function GroupDetailScreen() {
   const [editParticipantIds, setEditParticipantIds] = useState<Set<string>>(new Set());
   const [editItemAssignments, setEditItemAssignments] = useState<string[][]>([]);
   const [commentsExpense, setCommentsExpense] = useState<ExpenseWithDetails | null>(null);
-  const groupsQ = useGroups();
-  const group = (groupsQ.data ?? []).find((g) => g.id === id);
   const membersQ = useMembers(id);
   const categoriesQ = useCategories(id);
 
@@ -196,9 +204,10 @@ export default function GroupDetailScreen() {
       return;
     }
     const lines = debts.map(
-      (d) => `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`,
+      (d) => `${d.from_display_name} owes ${d.to_display_name} ${money(d.amount_cents)}`,
     );
-    const text = `${group?.name ?? "Group"} Balances:\n${lines.join("\n")}`;
+    const heading = currencies.length > 1 ? `${group?.name ?? "Group"} balances in ${activeCurrency}` : `${group?.name ?? "Group"} balances`;
+    const text = `${heading}:\n${lines.join("\n")}`;
     await Clipboard.setStringAsync(text);
     toast.success("Group summary copied to clipboard");
   }
@@ -213,7 +222,7 @@ export default function GroupDetailScreen() {
           text: "Undo",
           style: "destructive",
           onPress: () => {
-            undoPayment.mutate(undefined, {
+            undoPayment.mutate(activeCurrency, {
               onSuccess: (res) => {
                 if (res.error) toast.error(res.error);
               },
@@ -236,7 +245,7 @@ export default function GroupDetailScreen() {
           text: "Undo",
           style: "destructive",
           onPress: () => {
-            undoMemberPayment.mutate(member.member_id, {
+            undoMemberPayment.mutate({ memberId: member.member_id, currency: activeCurrency }, {
               onSuccess: (res) => {
                 if (res.error) toast.error(res.error);
               },
@@ -255,7 +264,11 @@ export default function GroupDetailScreen() {
       { label: "Preview Shared Page", run: () => router.push(`/(protected)/groups/${id}/overview`) },
       { label: "Copy Summary as Text", run: () => void handleCopyGroupSummary() },
       { label: "Group Settings", run: () => router.push(`/(protected)/groups/${id}/settings`) },
-      { label: "Undo My Last Payment", destructive: true, run: handleUndoPayment },
+      {
+        label: currencies.length > 1 ? `Undo My Last ${activeCurrency} Payment` : "Undo My Last Payment",
+        destructive: true,
+        run: handleUndoPayment,
+      },
     ]);
   }
 
@@ -278,6 +291,7 @@ export default function GroupDetailScreen() {
         fromId: debt.from_member_id,
         toId: debt.to_member_id,
         amount: String(debt.amount_cents),
+        currency: activeCurrency,
       },
     });
   }
@@ -291,7 +305,7 @@ export default function GroupDetailScreen() {
     setEditingExpense(expense);
     setEditName(expense.item_name);
     setEditNotes(expense.notes ?? "");
-    setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+    setEditAmount(amountToInput(Math.abs(expense.amount_cents), expense.currency_code));
     setEditCategoryId(expense.category_id);
     setEditParticipantIds(
       new Set(expense.participants.map((participant) => participant.member_id)),
@@ -326,9 +340,11 @@ export default function GroupDetailScreen() {
 
   function handleSaveEdit(): void {
     if (!editingExpense) return;
-    const amountCents = parsePHPAmount(editAmount);
+    // An expense keeps its own currency; editing never converts it.
+    const currencyCode = editingExpense.currency_code;
+    const amountCents = parseAmountInput(editAmount, currencyCode);
     if (!amountCents || amountCents <= 0) {
-      toast.error("Please enter a valid amount");
+      toast.error(`Enter the amount in ${currencyName(currencyCode)}.`);
       return;
     }
 
@@ -378,6 +394,7 @@ export default function GroupDetailScreen() {
           expenseName: editName.trim(),
           notes: editNotes,
           amountCents,
+          currencyCode,
           categoryId: editCategoryId,
           payers: editingExpense.payers.map((payer, index) => ({
             memberId: payer.member_id,
@@ -411,6 +428,7 @@ export default function GroupDetailScreen() {
           itemName: editName.trim(),
           notes: editNotes,
           amountCents,
+          currencyCode,
           categoryId: editCategoryId,
           participantIds: [...editParticipantIds],
           payers: editingExpense.payers.map((payer, index) => ({
@@ -439,6 +457,7 @@ export default function GroupDetailScreen() {
         itemName: editName.trim(),
           notes: editNotes,
         amountCents,
+        currencyCode,
         categoryId: editCategoryId,
         customSplits: editingExpense.participants.map((participant, index) => ({
           memberId: participant.member_id,
@@ -565,7 +584,8 @@ export default function GroupDetailScreen() {
           {(() => {
             const members = balancesQ.data ?? [];
             const totalOwed = members.reduce((s, m) => s + m.owed_cents, 0);
-            const totalSpent = totalsQ.data?.positiveTotalCents ?? 0;
+            const totalSpent =
+              totalsQ.data?.totals.find((t) => t.currency === activeCurrency)?.amountMinor ?? 0;
             const settledPct =
               totalSpent > 0
                 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100)))
@@ -577,15 +597,17 @@ export default function GroupDetailScreen() {
               <View style={styles.balanceCard}>
                 <View style={styles.balanceTop}>
                   <View style={styles.balanceBody}>
-                    <Text style={styles.balanceLabel}>Group balance</Text>
+                    <Text style={styles.balanceLabel}>
+                      {currencies.length > 1 ? `Still owed in ${activeCurrency}` : "Still owed in this group"}
+                    </Text>
                     <Text style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
-                      {isSettled ? "All settled" : formatCents(totalOwed)}
+                      {isSettled ? "All settled" : money(totalOwed)}
                     </Text>
                     <Text style={styles.balanceSub}>
                       {myNet > 0
-                        ? `You are owed ${formatCents(myNet)}`
+                        ? `You are owed ${money(myNet)}`
                         : myNet < 0
-                          ? `You owe ${formatCents(-myNet)}`
+                          ? `You owe ${money(-myNet)}`
                           : "You’re settled up"}
                     </Text>
                   </View>
@@ -603,11 +625,27 @@ export default function GroupDetailScreen() {
             );
           })()}
 
+          {/* Several currencies: balances are kept apart, one at a time */}
+          {currencies.length > 1 && (
+            <View style={styles.currencySwitch}>
+              <SegmentedControl
+                segments={currencies.map((code) => ({ value: code, label: code }))}
+                value={activeCurrency}
+                onChange={(value) => setChosenCurrency(value as CurrencyCode)}
+              />
+              <Text style={styles.currencySwitchNote}>
+                Balances in each currency are separate and never converted.
+              </Text>
+            </View>
+          )}
+
           {/* Budget progress */}
           {group?.budget_cents != null &&
             group.budget_cents > 0 &&
             (() => {
-              const spent = totalsQ.data?.positiveTotalCents ?? 0;
+              const budgetCurrency: CurrencyCode = group.budget_currency_code ?? defaultCurrency;
+              const spent =
+                totalsQ.data?.totals.find((t) => t.currency === budgetCurrency)?.amountMinor ?? 0;
               const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
               const over = spent > group.budget_cents;
               const warn = !over && pct >= 80;
@@ -617,7 +655,7 @@ export default function GroupDetailScreen() {
                   <View style={styles.budgetHeader}>
                     <Text style={styles.budgetLabel}>BUDGET</Text>
                     <Text style={[styles.budgetValue, over && { color: colors.danger }]}>
-                      {formatCents(spent)} of {formatCents(group.budget_cents)}
+                      {formatAmount(spent, budgetCurrency)} of {formatAmount(group.budget_cents, budgetCurrency)}
                       {over ? " · over" : ` · ${pct}%`}
                     </Text>
                   </View>
@@ -695,6 +733,7 @@ export default function GroupDetailScreen() {
                 </Text>
               )}
               <DebtSummary
+                currency={activeCurrency}
                 members={balancesQ.data ?? []}
                 creditorProfiles={creditorProfilesQ.data}
                 onSettle={handleSettle}
@@ -707,6 +746,7 @@ export default function GroupDetailScreen() {
                   {(balancesQ.data ?? []).map((m, i) => (
                     <View key={m.member_id}>
                       <MemberRow
+                        currency={activeCurrency}
                         member={m}
                         webOrigin={WEB_ORIGIN || undefined}
                         onUndoLastPayment={handleUndoMemberPayment}
@@ -835,7 +875,7 @@ export default function GroupDetailScreen() {
                             {item.name}
                           </Text>
                           <Text style={styles.itemAssignAmount}>
-                            {formatCents(item.amount_cents)}
+                            {formatAmount(item.amount_cents, editingExpense?.currency_code ?? defaultCurrency)}
                           </Text>
                         </View>
                         <View style={styles.participantRow}>
@@ -1030,6 +1070,8 @@ const styles = StyleSheet.create({
   budgetFill: { height: "100%", borderRadius: borderRadius.full },
   segmentWrapper: { marginVertical: spacing.base },
 
+  currencySwitch: { gap: spacing.xs, marginBottom: spacing.md },
+  currencySwitchNote: { fontSize: fontSize.xs, color: colors.gray500, textAlign: "center" },
   divider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.base },
 
   fab: {

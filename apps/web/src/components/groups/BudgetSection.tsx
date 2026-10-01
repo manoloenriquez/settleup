@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { setGroupBudget } from "@/app/actions/groups";
-import { parsePHPAmount, formatCents } from "@template/shared";
+import { amountToInput, currencyName, currencySymbol, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PiggyBank } from "lucide-react";
@@ -14,21 +15,25 @@ import { PiggyBank } from "lucide-react";
 type Props = {
   groupId: string;
   budgetCents: number | null;
+  /** The budget's currency: group.budget_currency_code ?? group.default_currency_code ?? "PHP". */
+  currency: CurrencyCode;
   canEdit: boolean;
 };
 
-export function BudgetSection({ groupId, budgetCents, canEdit }: Props): React.ReactElement {
+export function BudgetSection({ groupId, budgetCents, currency, canEdit }: Props): React.ReactElement {
   const queryClient = useQueryClient();
-  const [amountStr, setAmountStr] = useState(budgetCents ? (budgetCents / 100).toFixed(2) : "");
+  const [amountStr, setAmountStr] = useState(budgetCents ? amountToInput(budgetCents, currency) : "");
+  // The input prefix fits a single-glyph symbol; wider ones ("SGD", "CHF") rely on the label.
+  const symbol = currencySymbol(currency, MONEY_LOCALE);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   function save(nextCents: number | null): void {
     startTransition(async () => {
-      const result = await setGroupBudget(groupId, nextCents);
+      const result = await setGroupBudget(groupId, nextCents, currency);
       if (result.error) toast.error(result.error);
       else {
-        toast.success(nextCents ? `Budget set to ${formatCents(nextCents)}` : "Budget removed");
+        toast.success(nextCents ? `Budget set to ${formatCurrency(nextCents, currency)}` : "Budget removed");
         router.refresh();
         invalidateGroupData(queryClient, groupId);
       }
@@ -36,9 +41,9 @@ export function BudgetSection({ groupId, budgetCents, canEdit }: Props): React.R
   }
 
   function handleSave(): void {
-    const cents = parsePHPAmount(amountStr);
-    if (!cents || cents <= 0) {
-      toast.error("Enter a valid budget amount.");
+    const cents = parseAmountInput(amountStr, currency);
+    if (cents === null) {
+      toast.error(`Enter a valid budget amount in ${currency}.`);
       return;
     }
     save(cents);
@@ -51,13 +56,14 @@ export function BudgetSection({ groupId, budgetCents, canEdit }: Props): React.R
         Group Budget
       </h2>
       <p className="text-sm text-slate-500 mb-4">
-        Optional spending cap shown as a progress bar on the group page.
+        Optional spending cap in {currency} ({currencyName(currency)}), shown as a progress bar on the
+        group page. Only spending in {currency} counts toward it.
       </p>
       {canEdit ? (
         <div className="flex items-end gap-2 max-w-sm">
           <Input
-            label="Budget"
-            leftAddon="₱"
+            label={`Budget (${currency})`}
+            leftAddon={symbol.length === 1 ? symbol : undefined}
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
             inputMode="decimal"
@@ -74,7 +80,7 @@ export function BudgetSection({ groupId, budgetCents, canEdit }: Props): React.R
         </div>
       ) : (
         <p className="text-sm text-slate-600">
-          {budgetCents ? `Budget: ${formatCents(budgetCents)}` : "No budget set."}
+          {budgetCents ? `Budget: ${formatCurrency(budgetCents, currency)}` : "No budget set."}
         </p>
       )}
     </section>

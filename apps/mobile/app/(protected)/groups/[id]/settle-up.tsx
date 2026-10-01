@@ -7,25 +7,36 @@ import { useRecordPayment } from "@/hooks/usePayments";
 import { useMembers } from "@/hooks/useMembers";
 import { useMembersWithBalances } from "@/hooks/useBalances";
 import { AmountInput, AppButton, useToast } from "@/components/ui";
-import { amountToInput, formatCents, isUnusuallyLarge, parsePHPAmount } from "@template/shared";
+import {
+  amountToInput,
+  formatAmount,
+  isCurrencyCode,
+  isUnusuallyLarge,
+  parseAmountInput,
+  type CurrencyCode,
+} from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function SettleUpScreen() {
   const toast = useToast();
-  const { id: groupId, fromId, toId, amount: initialAmount } = useLocalSearchParams<{
+  const { id: groupId, fromId, toId, amount: initialAmount, currency: currencyParam } = useLocalSearchParams<{
     id: string;
     fromId?: string;
     toId?: string;
     amount?: string;
+    currency?: string;
   }>();
+  // A payment settles a balance in one currency, the one the debt is in.
+  const currency: CurrencyCode = isCurrencyCode(currencyParam) ? currencyParam : "PHP";
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const router = useRouter();
   const membersQ = useMembers(groupId);
   const members = membersQ.data ?? [];
   const recordPayment = useRecordPayment(groupId);
-  const balancesQ = useMembersWithBalances(groupId);
+  const balancesQ = useMembersWithBalances(groupId, currency);
 
   const initCents = parseInt(initialAmount ?? "0", 10);
-  const [amount, setAmount] = useState(initCents > 0 ? amountToInput(initCents, "PHP") : "");
+  const [amount, setAmount] = useState(initCents > 0 ? amountToInput(initCents, currency) : "");
 
   const fromMember = members.find((m) => m.id === fromId);
   const toMember = members.find((m) => m.id === toId);
@@ -34,14 +45,14 @@ export default function SettleUpScreen() {
   // What the payer owes the group right now (balances refresh while this is open).
   const fromNet = balancesQ.data?.find((b) => b.member_id === fromId)?.net_cents;
   const fromOwes = fromNet !== undefined ? Math.max(0, -fromNet) : null;
-  const typedCents = parsePHPAmount(amount);
+  const typedCents = parseAmountInput(amount, currency);
   const remaining = fromOwes !== null && typedCents !== null && typedCents > 0 ? fromOwes - typedCents : null;
 
   async function handleConfirm() {
     if (recordPayment.isPending) return; // guard against double-submit
-    const amountCents = parsePHPAmount(amount);
+    const amountCents = parseAmountInput(amount, currency);
     if (!fromId || !toId || amountCents === null || amountCents <= 0) {
-      toast.error("Enter the amount that was paid, like 1250 or 1,250.50.");
+      toast.error(`Enter the amount that was paid in ${currency}.`);
       return;
     }
     // Someone else may have recorded a payment since this screen opened.
@@ -62,7 +73,7 @@ export default function SettleUpScreen() {
       );
       return;
     }
-    if (isUnusuallyLarge(amountCents, "PHP")) {
+    if (isUnusuallyLarge(amountCents, currency)) {
       Alert.alert(`Record ${formatCents(amountCents)}?`, "That’s a large amount. Check the decimal point.", [
         { text: "Edit Amount", style: "cancel" },
         { text: "Record", onPress: () => void record(amountCents) },
@@ -79,6 +90,7 @@ export default function SettleUpScreen() {
       fromMemberId: fromId,
       toMemberId: toId,
       amountCents,
+      currencyCode: currency,
     });
 
     if (result.error) { toast.error(result.error); return; }
@@ -108,6 +120,7 @@ export default function SettleUpScreen() {
             label="Amount"
             value={amount}
             onChangeText={setAmount}
+            currency={currency}
             style={{ marginTop: spacing.xl }}
           />
           {remaining !== null ? (

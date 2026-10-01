@@ -59,7 +59,7 @@ export async function listExpenseSummaries(groupId: string): Promise<ApiResponse
   const { data: rows, error } = await supabase
     .schema("settleup")
     .from("expenses")
-    .select("id, item_name, amount_cents, expense_date, created_at, category:expense_categories(*), payers:expense_payers(member_id, paid_cents), participants:expense_participants(member_id, share_cents)")
+    .select("id, item_name, amount_cents, currency_code, expense_date, created_at, category:expense_categories(*), payers:expense_payers(member_id, paid_cents), participants:expense_participants(member_id, share_cents)")
     .eq("group_id", groupId)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });

@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Avatar, useToast } from "@/components/ui";
 import { useResolvePendingPayment } from "@/hooks/usePayments";
 import type { PendingPayment } from "@/services/payments";
-import { formatCents } from "@template/shared";
+import { formatAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type MemberInfo = {
@@ -70,7 +70,7 @@ export function PendingPaymentsCard({ groupId, pending, members, currentUserId }
               <Text style={styles.rowText}>
                 <Text style={styles.bold}>{from?.display_name ?? "Unknown"}</Text> says they paid{" "}
                 <Text style={styles.bold}>{to?.display_name ?? "Unknown"}</Text>{" "}
-                <Text style={styles.amount}>{formatCents(payment.amount_cents)}</Text>
+                <Text style={styles.amount}>{formatAmount(payment.amount_cents, payment.currency_code)}</Text>
               </Text>
               {payment.note ? (
                 <Text style={styles.note} numberOfLines={1}>

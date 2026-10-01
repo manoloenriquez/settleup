@@ -9,7 +9,8 @@ import { useExpensesInfinite } from "@/hooks/queries";
 import { usePendingExpenses } from "@/hooks/useOutboxPending";
 import { useOnline } from "@/hooks/useOnline";
 import { useWebOutbox } from "@/components/OutboxProvider";
-import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { formatCurrency, formatTotalsByCurrency } from "@/lib/currency";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
@@ -269,7 +270,7 @@ export function ExpenseList({
                 </p>
               </div>
               <p className="shrink-0 text-base font-extrabold tracking-tight text-slate-900">
-                {formatCents(Math.abs(pending.amount_cents))}
+                {formatCurrency(Math.abs(pending.amount_cents), pending.currency_code)}
               </p>
             </div>
           ))}
@@ -307,7 +308,7 @@ export function ExpenseList({
             </span>
             <div className="flex-1 h-px bg-slate-100" />
             <span className="text-xs text-slate-400">
-              {formatCents(group.expenses.reduce((s, e) => s + e.amount_cents, 0))}
+              {formatTotalsByCurrency(group.expenses)}
             </span>
           </div>
 
@@ -317,7 +318,7 @@ export function ExpenseList({
                 .map((p) => {
                   const name = memberMap.get(p.member_id) ?? "Unknown";
                   return expense.payers.length > 1
-                    ? `${name} (${formatCents(p.paid_cents)})`
+                    ? `${name} (${formatCurrency(p.paid_cents, expense.currency_code)})`
                     : name;
                 })
                 .join(", ");
@@ -379,7 +380,7 @@ export function ExpenseList({
                       <p
                         className={`text-base font-extrabold tracking-tight ${isCredit ? "text-emerald-600" : "text-slate-900"}`}
                       >
-                        {formatCents(Math.abs(expense.amount_cents))}
+                        {formatCurrency(Math.abs(expense.amount_cents), expense.currency_code)}
                       </p>
                       {expense.items && expense.items.length > 0 && (
                         <button
@@ -436,7 +437,7 @@ export function ExpenseList({
                         const participants = item.item_participants
                           .map((ip) => {
                             const name = memberMap.get(ip.member_id) ?? "Unknown";
-                            return `${name} (${formatCents(ip.share_cents)})`;
+                            return `${name} (${formatCurrency(ip.share_cents, expense.currency_code)})`;
                           })
                           .join(", ");
                         return (
@@ -448,7 +449,7 @@ export function ExpenseList({
                               )}
                             </div>
                             <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">
-                              {formatCents(item.amount_cents)}
+                              {formatCurrency(item.amount_cents, expense.currency_code)}
                             </span>
                           </div>
                         );

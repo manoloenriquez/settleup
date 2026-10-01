@@ -269,6 +269,13 @@ owed_cents = GREATEST(0, -net_cents)
 
 ## SQL Tests
 
+Run against the live project inside BEGIN…ROLLBACK (Supabase MCP
+`execute_sql`); CI also runs them on a fresh local stack. Suites:
+`currency_ledger`, `currency_lookup_helpers`, `public_payloads`,
+`sharing_and_payment_privacy`, `friends`, `personal_expenses`,
+`account_closure`, `launch_security`, `push_delivery`, `product_events`.
+
+
 `supabase/tests/*.sql` are transactional (`BEGIN … ROLLBACK`) and assert with `ASSERT`/`RAISE`. CI runs them against a local Supabase with every migration applied (`db-tests` job in `.github/workflows/ci.yml`). Locally:
 
 ```bash
@@ -278,9 +285,31 @@ for f in supabase/tests/*.sql; do psql "postgresql://postgres:postgres@127.0.0.1
 
 Files: `launch_security.sql` (invitations, guest reports, resolution authorization), `public_payloads.sql` (public payload allowlists, rotation, anonymous access to private RPCs), `account_closure.sql`, `currency_ledger.sql`, `push_delivery.sql`, `product_events.sql`.
 
-## Currency Migration Status
+## Currencies, sharing and friends (applied live 2026-10-01)
 
-`20260908163441_currency_ledger.sql` adds `currency_code` columns, versioned `_v2` RPCs, the `x-ledger-version: 2` header gate and `PT426` rejection for legacy RPCs on non-PHP ledgers. It is **applied locally and in CI but intentionally not applied to the shared remote project** (launch decision D1: PHP-only beta). Clients call only legacy RPCs and default absent codes to PHP, so they work either way as long as all data stays PHP.
+- **Currency ledger** (`20260908163441`, `20261001110000`): every amount column
+  is integer minor units of the adjacent `currency_code`. Groups have a
+  `default_currency_code` (new expenses start in it) but may hold several
+  currencies. Balances are always per currency: clients call `*_v2` RPCs with
+  `p_currency_code` once per currency (`get_my_currencies`,
+  `get_group_currencies`, `get_share_currencies` say which). Nothing is ever
+  converted or summed across currencies. Every client sends
+  `x-ledger-version: 2` (`packages/supabase/src/ledger.ts`); clients without it
+  only see PHP rows and get `PT426` for groups holding other currencies.
+- **Sharing and payment privacy** (`20261001120000`): `groups.share_enabled`,
+  `rotate_group_share_token`, `set_group_share_enabled` (both rotate; 256-bit
+  tokens). Payment details reach shared pages only through
+  `member_payment_profile(member, public)`: opt-in
+  (`user_payment_profiles.show_on_shared_links`), never when the member set
+  `group_members.hide_payment_details`, masked unless `share_full_numbers`,
+  and only for people owed money in that currency. Organizers can enter
+  details for members without accounts (`member_payment_details`, labelled
+  `source: organizer`); a claim replaces them with the person's own profile.
+- **Friends** (`20261001130000`): `groups.kind = 'direct'` two-person ledgers
+  (trigger blocks a third member), `friend_invites` (hashed single-use 14-day
+  tokens; no user search), `friendships` (one ledger per pair). Removing a
+  friend, leaving the ledger or closing an account ends the friendship but
+  keeps the ledger as a normal group.
 
 ## Regenerating Types After Schema Changes
 

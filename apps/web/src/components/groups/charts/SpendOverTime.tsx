@@ -1,8 +1,14 @@
-import { formatCents } from "@template/shared";
+import type { CurrencyCode } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 
 type Props = {
-  /** date is YYYY-MM-DD (expense_date, falling back to created_at's day). */
-  points: { date: string; amount_cents: number }[];
+  /**
+   * date is YYYY-MM-DD (expense_date, falling back to created_at's day).
+   * Points tagged with a different currency_code are skipped, so amounts in
+   * different currencies are never added into one bucket.
+   */
+  points: { date: string; amount_cents: number; currency_code?: CurrencyCode }[];
+  currency: CurrencyCode;
 };
 
 const CHART_W = 600;
@@ -35,7 +41,8 @@ function isoWeekStart(day: string): string {
  * or less, weekly beyond that. Single series in the brand hue; credits net
  * against each bucket, floored at zero.
  */
-export function SpendOverTime({ points }: Props): React.ReactElement {
+export function SpendOverTime({ points: allPoints, currency }: Props): React.ReactElement {
+  const points = allPoints.filter((p) => p.currency_code === undefined || p.currency_code === currency);
   if (points.length === 0) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -60,7 +67,8 @@ export function SpendOverTime({ points }: Props): React.ReactElement {
     .map(([date, cents]) => ({ date, cents: Math.max(0, cents) }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const max = Math.max(...series.map((b) => b.cents), 1);
+  const peak = Math.max(0, ...series.map((b) => b.cents));
+  const max = Math.max(peak, 1);
   const barW = Math.max(2, CHART_W / series.length - BAR_GAP);
   const firstBucket = series[0]!;
   const lastBucket = series[series.length - 1]!;
@@ -69,7 +77,7 @@ export function SpendOverTime({ points }: Props): React.ReactElement {
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-900">Spend over time</h3>
-        <span className="text-xs text-slate-400">{weekly ? "per week" : "per day"} · peak {formatCents(max)}</span>
+        <span className="text-xs text-slate-400">{weekly ? "per week" : "per day"} · peak {formatCurrency(peak, currency)}</span>
       </div>
       <svg
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
@@ -94,7 +102,7 @@ export function SpendOverTime({ points }: Props): React.ReactElement {
               />
               {/* full-height hit target so hover/tooltip works on short bars */}
               <rect x={x} y={0} width={barW} height={CHART_H} fill="transparent">
-                <title>{`${shortLabel(b.date)}${weekly ? " (week)" : ""}: ${formatCents(b.cents)}`}</title>
+                <title>{`${shortLabel(b.date)}${weekly ? " (week)" : ""}: ${formatCurrency(b.cents, currency)}`}</title>
               </rect>
             </g>
           );

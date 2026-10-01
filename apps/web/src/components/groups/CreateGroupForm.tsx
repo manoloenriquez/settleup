@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useRef, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ROUTES } from "@template/shared";
+import { ROUTES, currencyName, type CurrencyCode } from "@template/shared";
 import { createGroup } from "@/app/actions/groups";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { CurrencySelect } from "@/components/ui/CurrencySelect";
 import { useOnline } from "@/hooks/useOnline";
 import { useWebOutbox } from "@/components/OutboxProvider";
 import type { ApiResponse } from "@template/shared";
@@ -14,8 +15,15 @@ import type { Group } from "@template/supabase";
 
 const initialState: ApiResponse<Group> | null = null;
 
-export function CreateGroupForm(): React.ReactElement {
+type Props = {
+  /** Profile name or email local part; editable as "Your name in this group". */
+  suggestedDisplayName: string;
+};
+
+export function CreateGroupForm({ suggestedDisplayName }: Props): React.ReactElement {
   const [state, formAction] = useActionState(createGroup, initialState);
+  const [currency, setCurrency] = useState<CurrencyCode>("PHP");
+  const [displayName, setDisplayName] = useState(suggestedDisplayName);
   const [isPending, startTransition] = useTransition();
   const online = useOnline();
   const { enqueue } = useWebOutbox();
@@ -26,7 +34,12 @@ export function CreateGroupForm(): React.ReactElement {
 
   async function handleSubmit(formData: FormData): Promise<void> {
     const name = String(formData.get("name") ?? "").trim();
+    const myName = displayName.trim();
     if (!name) return;
+    if (!myName) {
+      toast.error("Enter the name the group will see for you.");
+      return;
+    }
 
     if (!online) {
       // Queue for replay; the group appears as a pending card in the list.
@@ -37,7 +50,7 @@ export function CreateGroupForm(): React.ReactElement {
           kind: "group.create",
           entityId: clientIdRef.current,
           groupId: clientIdRef.current,
-          payload: { name },
+          payload: { name, currency_code: currency, display_name: myName },
           createdAt: new Date().toISOString(),
           summary: { title: name, amountCents: 0 },
         });
@@ -53,6 +66,8 @@ export function CreateGroupForm(): React.ReactElement {
     }
 
     formData.set("id", clientIdRef.current);
+    formData.set("currency_code", currency);
+    formData.set("display_name", myName);
     startTransition(() => {
       formAction(formData);
     });
@@ -69,6 +84,22 @@ export function CreateGroupForm(): React.ReactElement {
         autoFocus
         maxLength={100}
       />
+      <Input
+        name="display_name"
+        label="Your name in this group"
+        value={displayName}
+        onChange={(event) => setDisplayName(event.target.value)}
+        required
+        maxLength={80}
+        autoComplete="name"
+      />
+      <div className="flex flex-col gap-1">
+        <CurrencySelect value={currency} onChange={setCurrency} label="Currency" id="group-currency" />
+        <p className="text-xs text-slate-500">
+          New expenses start in {currencyName(currency)}. You can still add expenses in other currencies;
+          balances in each currency are kept separate.
+        </p>
+      </div>
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       <Button type="submit" isLoading={isPending}>
         Create Group
