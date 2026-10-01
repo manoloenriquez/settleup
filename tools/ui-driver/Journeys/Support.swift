@@ -83,7 +83,7 @@ extension XCUIApplication {
     let what = textFields["What was it for?"]
     what.tap()
     what.slowType(description)
-    buttons["Save Expense"].waitAndTap()
+    navigationBars.buttons["Save"].waitAndTap()
     XCTAssertTrue(element(containing: description).waitForExistence(timeout: 5))
   }
 

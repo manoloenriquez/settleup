@@ -22,7 +22,7 @@ for cls in "${CLASSES[@]}"; do
   xcrun simctl install "$UDID" "$APP"
   rc=0
   TEST_RUNNER_SCREENSHOT_DIR="$PWD/out" TEST_RUNNER_LOCAL_TEST_PASSWORD="$LOCAL_TEST_PASSWORD" \
-    TEST_RUNNER_FRIEND_TOKEN="${FRIEND_TOKEN:-}" xcodebuild test \
+    TEST_RUNNER_FRIEND_TOKEN="${FRIEND_TOKEN:-}" TEST_RUNNER_SCREEN_PREFIX="${SCREEN_PREFIX:-tour}" xcodebuild test \
     -project TalliUIDriver.xcodeproj -scheme TalliJourneys \
     -destination "platform=iOS Simulator,id=$UDID" \
     -derivedDataPath .build "-only-testing:TalliJourneys/$cls" > "out/$cls.log" 2>&1 || rc=$?

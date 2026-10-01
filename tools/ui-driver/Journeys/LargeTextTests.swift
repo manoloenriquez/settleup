@@ -7,6 +7,10 @@ final class LargeTextTests: XCTestCase {
   func testLargeTextScreens() throws {
     let app = XCUIApplication(bundleIdentifier: talliBundleID)
     app.launch()
+    if app.buttons["Get Started"].waitForExistence(timeout: 10) {
+      app.signInFromFreshInstall(email: LocalAccount.ben)
+      app.tabBars.buttons["Home"].waitAndTap()
+    }
     sleep(4)
     snap("L01-home-large-text")
     app.tabBars.buttons["Account"].tap()

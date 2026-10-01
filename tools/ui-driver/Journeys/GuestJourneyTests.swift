@@ -34,7 +34,7 @@ final class GuestJourneyTests: XCTestCase {
     description.tap()
     description.slowType("Lunch at Jollibee")
     snap("A05-new-expense")
-    app.buttons["Save Expense"].waitAndTap()
+    app.navigationBars.buttons["Save"].waitAndTap()
     XCTAssertTrue(app.element(containing: "Lunch at Jollibee").waitForExistence(timeout: 5))
     snap("A06-home-one-expense")
 
@@ -48,7 +48,7 @@ final class GuestJourneyTests: XCTestCase {
     editAmount.typeText(XCUIKeyboardKey.delete.rawValue)
     editAmount.slowType("275.50")
     snap("A07-edit-expense")
-    app.buttons["Save Changes"].waitAndTap()
+    app.navigationBars.buttons["Save"].waitAndTap()
     XCTAssertTrue(app.element(containing: "₱275.50").waitForExistence(timeout: 5))
 
     // Spending tab

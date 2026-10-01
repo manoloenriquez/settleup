@@ -30,7 +30,7 @@ final class CurrencyJourneyTests: XCTestCase {
     let descriptionField = app.textFields["What was it for?"]
     descriptionField.tap()
     descriptionField.slowType(description)
-    app.buttons["Save Expense"].waitAndTap()
+    app.navigationBars.buttons["Save"].waitAndTap()
     XCTAssertTrue(app.element(containing: description).waitForExistence(timeout: 5))
   }
 
