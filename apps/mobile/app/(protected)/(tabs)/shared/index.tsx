@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   RefreshControl,
@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
 import { formatAmount } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -69,9 +69,19 @@ function SharedGuestScreen() {
   );
 }
 
+const GROUP_ID = /^[0-9a-f-]{36}$/i;
+
 function GroupsScreen() {
   const toast = useToast();
   const router = useRouter();
+  // Invite and friend links land here with ?open=<group id>: push the group
+  // from this mounted tab so back returns to Shared (see openGroupFromLink).
+  const { open } = useLocalSearchParams<{ open?: string }>();
+  useEffect(() => {
+    if (typeof open !== "string" || !GROUP_ID.test(open)) return;
+    router.setParams({ open: undefined });
+    router.push({ pathname: "/(protected)/groups/[id]", params: { id: open } });
+  }, [open, router]);
   const { data: groups, isLoading, isFetching, isError, refetch } = useGroupsWithStats();
   const { data: archivedGroups } = useArchivedGroups();
   const restoreGroup = useRestoreGroup();
@@ -221,7 +231,9 @@ function GroupsScreen() {
                     <Text style={styles.cardName} numberOfLines={1}>
                       {group.name}
                     </Text>
-                    <Text style={styles.cardMeta}>{group.member_count ?? 0} members</Text>
+                    <Text style={styles.cardMeta}>
+                      {group.member_count ?? 0} {(group.member_count ?? 0) === 1 ? "member" : "members"}
+                    </Text>
                   </View>
                   <View style={styles.cardRight}>
                     {(group.total_owed_cents ?? 0) > 0 ? (

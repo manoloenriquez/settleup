@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   actionText: {
     fontSize: fontSize.sm,

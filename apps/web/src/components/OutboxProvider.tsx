@@ -30,6 +30,9 @@ import { track } from "@/lib/analytics/client";
 import { offlineFailureStatus } from "@template/shared/analytics";
 import { invalidationKeysFor, stampLocalInvalidate } from "@/lib/query-keys";
 
+/** Accounts already reported as created in this tab. */
+const recordedAccounts = new Set<string>();
+
 // ---------------------------------------------------------------------------
 // Web offline outbox provider.
 //
@@ -73,6 +76,12 @@ export function OutboxProvider({ children }: { children: React.ReactNode }): Rea
       identityRef.current = session
         ? { userId: session.user.id, accessToken: session.access_token }
         : null;
+      // Counted here, not by a trigger on the shared auth.users table; the
+      // database keeps one per user and repeats are ignored.
+      if (session && !recordedAccounts.has(session.user.id)) {
+        recordedAccounts.add(session.user.id);
+        track({ name: "account_created" });
+      }
       setOwnerId(session?.user.id ?? null);
     });
     return () => {

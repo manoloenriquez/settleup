@@ -131,6 +131,16 @@ export default function PaymentSettingsScreen() {
               <TouchableOpacity accessibilityRole="button" style={styles.qrBtn} onPress={() => handleUploadQR("gcash")}>
                 <Text style={styles.qrBtnText}>{gcashQrUrl ? "QR Uploaded \u2014 Tap to change" : "Upload GCash QR Code"}</Text>
               </TouchableOpacity>
+              {gcashQrUrl && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  style={styles.qrRemove}
+                  onPress={() => setGcashQrUrl(null)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.qrRemoveText}>Remove GCash QR Code</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </Card>
 
@@ -143,6 +153,16 @@ export default function PaymentSettingsScreen() {
               <TouchableOpacity accessibilityRole="button" style={styles.qrBtn} onPress={() => handleUploadQR("bank")}>
                 <Text style={styles.qrBtnText}>{bankQrUrl ? "QR Uploaded \u2014 Tap to change" : "Upload Bank QR Code"}</Text>
               </TouchableOpacity>
+              {bankQrUrl && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  style={styles.qrRemove}
+                  onPress={() => setBankQrUrl(null)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.qrRemoveText}>Remove Bank QR Code</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </Card>
 
@@ -216,4 +236,6 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: spacing.md },
   qrBtn: { backgroundColor: colors.gray100, borderRadius: borderRadius.md, padding: spacing.md, alignItems: "center" },
   qrBtnText: { fontSize: fontSize.sm, color: colors.gray600, fontWeight: fontWeight.medium },
+  qrRemove: { alignSelf: "center", paddingVertical: spacing.xs },
+  qrRemoveText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
 });

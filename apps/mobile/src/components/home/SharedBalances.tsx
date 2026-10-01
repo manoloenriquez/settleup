@@ -56,15 +56,16 @@ export function SharedBalances() {
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Your balance with others</Text>
         {unknown ? (
-          <Text style={[styles.heroAmount, { color: colors.gray300 }]} accessibilityLabel="Balance loading">
+          <Text maxFontSizeMultiplier={1.4} style={[styles.heroAmount, { color: colors.gray300 }]} accessibilityLabel="Balance loading">
             —
           </Text>
         ) : nets.length === 0 ? (
-          <Text style={[styles.heroAmount, { color: colors.gray900 }]}>All clear</Text>
+          <Text maxFontSizeMultiplier={1.4} style={[styles.heroAmount, { color: colors.gray900 }]}>All clear</Text>
         ) : (
           nets.map((net) => (
             <Text
               key={net.currency}
+              maxFontSizeMultiplier={1.4}
               style={[styles.heroAmount, { color: net.amountMinor > 0 ? colors.primaryDark : colors.danger }]}
               accessibilityLabel={
                 net.amountMinor > 0
@@ -208,8 +209,8 @@ const styles = StyleSheet.create({
   splitRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   stacked: { flexDirection: "column" },
   splitCard: { flex: 1, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: 1 },
-  splitCardOwed: { backgroundColor: colors.successLight + "b0", borderColor: colors.success + "30" },
-  splitCardOwe: { backgroundColor: colors.dangerLight + "b0", borderColor: colors.danger + "30" },
+  splitCardOwed: { backgroundColor: colors.successTint, borderColor: colors.successBorder },
+  splitCardOwe: { backgroundColor: colors.dangerTint, borderColor: colors.dangerBorder },
   splitCardNone: { backgroundColor: colors.gray100, borderColor: colors.gray200 },
   splitLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium },
   splitAmount: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: 2, fontVariant: ["tabular-nums"] },

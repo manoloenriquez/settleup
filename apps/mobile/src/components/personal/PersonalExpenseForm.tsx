@@ -403,8 +403,6 @@ export function PersonalExpenseForm({ expense, initialAssist = "none" }: Props) 
           maxLength={500}
         />
 
-        <AppButton title={editing ? "Save Changes" : "Save Expense"} onPress={handleSave} disabled={!canSave} isLoading={saving} />
-
         {editing && (
           <AppButton title="Delete Expense" variant="destructive" onPress={handleDelete} style={styles.deleteBtn} />
         )}

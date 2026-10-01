@@ -7,6 +7,10 @@ import { supabase } from "@/lib/supabase";
 import { emailSchema, passwordSchema, signInSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Profile } from "@template/supabase";
+import { track } from "@/lib/analytics";
+
+/** Accounts already reported as created during this app run. */
+const recordedAccounts = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,6 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (newSession?.user) {
         hadSessionRef.current = true;
+        // Counted here, not by a trigger on the shared auth.users table; the
+        // database keeps one per user and repeats are ignored.
+        if (!recordedAccounts.has(newSession.user.id)) {
+          recordedAccounts.add(newSession.user.id);
+          track({ name: "account_created" });
+        }
         // Trigger async profile load — callback itself stays synchronous.
         loadProfile(newSession.user.id);
       } else {

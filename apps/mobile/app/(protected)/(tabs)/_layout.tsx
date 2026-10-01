@@ -1,5 +1,5 @@
 import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
-import { colors } from "@/theme";
+import { brand } from "@/theme";
 
 /**
  * The system tab bar (UITabBarController): native material, sizing, Dynamic
@@ -8,7 +8,7 @@ import { colors } from "@/theme";
  */
 export default function TabsLayout() {
   return (
-    <NativeTabs tintColor={colors.primary}>
+    <NativeTabs tintColor={brand.primary}>
       <NativeTabs.Trigger name="home">
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>

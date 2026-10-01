@@ -766,7 +766,7 @@ export default function AddExpenseScreen() {
           <View style={styles.confirmCard}>
             <Text style={styles.confirmTitle}>REVIEW</Text>
             <Text style={styles.confirmName}>{itemName}</Text>
-            <Text style={styles.confirmAmount}>{money(amountCents)}</Text>
+            <Text maxFontSizeMultiplier={1.4} style={styles.confirmAmount}>{money(amountCents)}</Text>
             <CategoryPill category={selectedCategory} />
             <View style={styles.confirmRow}>
               <Text style={styles.confirmLabel}>Date</Text>
@@ -1442,10 +1442,10 @@ const styles = StyleSheet.create({
   form: { gap: spacing.md, marginTop: spacing.base },
 
   smartBanner: {
-    backgroundColor: colors.primaryLight + "80",
+    backgroundColor: colors.primaryTint,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.primary + "30",
+    borderColor: colors.primaryBorderSoft,
     padding: spacing.base,
     marginBottom: spacing.md,
   },
@@ -1474,7 +1474,7 @@ const styles = StyleSheet.create({
     borderColor: colors.gray300,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   splitName: { flex: 1, minWidth: 0, fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.gray900 },

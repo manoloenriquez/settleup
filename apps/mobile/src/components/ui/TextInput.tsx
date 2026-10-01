@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: fontSize.md,
     color: colors.gray900,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   inputError: {
     borderColor: colors.danger,

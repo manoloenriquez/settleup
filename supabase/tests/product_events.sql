@@ -19,9 +19,22 @@ BEGIN
   DELETE FROM public.profiles WHERE id = admin_id;
   INSERT INTO public.profiles(id,email,role) VALUES (admin_id,'events-admin@example.invalid','admin');
 
-  -- account_created is recorded by the auth trigger for every sign-up path.
+  -- account_created: a sign-up alone records nothing (auth is shared with
+  -- other apps); the Talli client records it after signing in, once per user.
   SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='account_created' AND user_id IN (owner_id,member_user,admin_id);
-  ASSERT n=3, 'auth.users inserts must record account_created, got '||n;
+  ASSERT n=0, 'A sign-up alone must not record account_created (shared auth), got '||n;
+  PERFORM set_config('role','authenticated',true);
+  PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',owner_id,'role','authenticated')::text,true);
+  INSERT INTO settleup.product_events(event_name,user_id,platform,properties) VALUES ('account_created',owner_id,'ios','{}');
+  BEGIN
+    INSERT INTO settleup.product_events(event_name,user_id,platform,properties) VALUES ('account_created',owner_id,'web','{}');
+    RAISE EXCEPTION 'a second account_created was stored';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  PERFORM set_config('role','postgres',true);
+  SELECT count(*) INTO n FROM settleup.product_events WHERE event_name='account_created' AND user_id=owner_id;
+  ASSERT n=1, 'account_created is kept once per user, got '||n;
 
   PERFORM set_config('request.jwt.claim.sub',owner_id::text,true);
   PERFORM set_config('role','authenticated',true);

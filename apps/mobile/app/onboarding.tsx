@@ -59,9 +59,9 @@ export default function OnboardingScreen() {
         {step === "welcome" && (
           <>
             <View style={styles.logo}>
-              <Text style={styles.logoText}>T</Text>
+              <Text maxFontSizeMultiplier={1.4} style={styles.logoText}>T</Text>
             </View>
-            <Text style={styles.title} accessibilityRole="header">
+            <Text maxFontSizeMultiplier={1.4} style={styles.title} accessibilityRole="header">
               Know where your money goes
             </Text>
             <Text style={styles.lead}>
@@ -78,7 +78,7 @@ export default function OnboardingScreen() {
 
         {step === "currency" && (
           <>
-            <Text style={styles.title} accessibilityRole="header">
+            <Text maxFontSizeMultiplier={1.4} style={styles.title} accessibilityRole="header">
               Your main currency
             </Text>
             <Text style={styles.lead}>
@@ -123,7 +123,7 @@ export default function OnboardingScreen() {
 
         {step === "account" && (
           <>
-            <Text style={styles.title} accessibilityRole="header">
+            <Text maxFontSizeMultiplier={1.4} style={styles.title} accessibilityRole="header">
               An account is optional
             </Text>
             <Text style={styles.lead}>

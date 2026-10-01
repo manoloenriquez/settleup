@@ -1,4 +1,4 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, type ColorValue } from "react-native";
 import { useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,7 +20,7 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function amountColor(direction: RecentActivityItem["direction"]): string {
+function amountColor(direction: RecentActivityItem["direction"]): ColorValue {
   if (direction === "in") return colors.success;
   if (direction === "out") return colors.danger;
   return colors.gray700;
@@ -91,7 +91,7 @@ export default function ActivityScreen() {
                       backgroundColor:
                         item.type === "payment"
                           ? colors.successLight
-                          : (item.category?.color ?? colors.gray500) + "1a",
+                          : `${item.category?.color ?? "#6b7280"}1a`,
                     },
                   ]}
                 >

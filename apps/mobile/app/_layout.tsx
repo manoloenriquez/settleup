@@ -1,5 +1,6 @@
 import { useEffect, useState, Component, type ErrorInfo, type ReactNode } from "react";
-import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme, ThemeProvider, type Theme } from "@react-navigation/native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryProvider } from "@/context/QueryContext";
@@ -44,6 +45,18 @@ if (sentryDsn) {
     tracesSampleRate: 0.1,
   });
 }
+
+// Navigation chrome (header bars, titles) uses these; without them React
+// Navigation paints light headers even in Dark Mode. Plain hex because the
+// navigation theme can't take dynamic colors; values match src/theme.
+const LIGHT_NAV_THEME: Theme = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, primary: "#059669", background: "#f8fafc", card: "#ffffff", text: "#111827", border: "#e5e7eb", notification: "#e11d48" },
+};
+const DARK_NAV_THEME: Theme = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, primary: "#10b981", background: "#000000", card: "#1c1c1e", text: "#f5f5f7", border: "#38383a", notification: "#fb7185" },
+};
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary
@@ -273,8 +286,11 @@ function RootLayout() {
     };
   }, []);
 
+  const scheme = useColorScheme();
+
   return (
     <ErrorBoundary>
+      <ThemeProvider value={scheme === "dark" ? DARK_NAV_THEME : LIGHT_NAV_THEME}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <QueryProvider>
           <AuthProvider>
@@ -296,6 +312,7 @@ function RootLayout() {
           </AuthProvider>
         </QueryProvider>
       </GestureHandlerRootView>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

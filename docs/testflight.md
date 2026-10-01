@@ -39,6 +39,23 @@ xcodebuild -exportArchive -archivePath build/Talli.xcarchive \
 
 `scripts/ExportOptions.plist` uploads straight to App Store Connect with the Xcode account. **Bump `expo.ios.buildNumber` in `app.json` before every upload**; App Store Connect rejects a repeated build number. The two config plugins in `apps/mobile/plugins/` are required for the iOS 27 SDK (see `docs/brain/05-apple-intelligence.md`).
 
+## Before every upload (required)
+
+1. **Update path.** The new build must open cleanly on top of the previous
+   build's saved data. TestFlight build 2 crashed on launch for every upgraded
+   account because a persisted query changed shape without a `CACHE_BUSTER`
+   bump (see `docs/brain/04-offline.md`). With the local Supabase stack running:
+   ```bash
+   tools/ui-driver/check-upgrade.sh <sim-udid> <new Release-iphonesimulator/Talli.app> <previous build's bundled JS dir>
+   ```
+   The script's header explains how to bundle the previous build's JS.
+2. **Journeys.** `tools/ui-driver/run.sh` (guest, currency, account),
+   `run-group.sh`, `run-friend.sh`, `run-payment.sh` against the local stack,
+   in Dark Mode at least once (`xcrun simctl ui <udid> appearance dark`).
+3. **Live config.** The archive's `main.jsbundle` must contain the live
+   Supabase URL and no `127.0.0.1` (local test builds pass overrides on the
+   command line only; never commit a `.env.local`).
+
 ## What to Test (build 1)
 
 - Sign in, create a group, add expenses with Quick, Detailed and Itemized entry.
@@ -51,6 +68,9 @@ xcodebuild -exportArchive -archivePath build/Talli.xcarchive \
 | Build | Version | Uploaded | Contents |
 |---|---|---|---|
 | 1 | 1.0.0 | 2026-10-01 | First Talli build: on-device Apple Intelligence, Talli rebrand. Symbol upload warned about missing dSYMs for the prebuilt React, ReactNativeDependencies and hermes frameworks (crash logs in those frameworks stay unsymbolicated). |
+| 2 | 1.0.0 | 2026-10-01 | Product audit (guest mode, currencies, sharing privacy, friends). **Crashed on launch for accounts upgraded from build 1** (persisted cache shape). |
+| 3 | 1.0.0 | 2026-10-01 | Fix for the build 2 launch crash. |
+| 4 | 1.0.0 | 2026-10-01 | Signed-in journey fixes, QR cleanup, recurring permissions, light-only appearance, Dynamic Type. Archived; uploaded by the owner. |
 
 ## Follow-ups that don't block TestFlight
 

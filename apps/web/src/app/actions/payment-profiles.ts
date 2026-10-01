@@ -115,3 +115,36 @@ export async function uploadQRImageAction(
     return { data: null, error: "Failed to upload QR image." };
   }
 }
+
+/** Remove a QR image: clear it from the profile, then delete the public file. */
+export async function removeQRImageAction(type: "gcash" | "bank"): Promise<ApiResponse<null>> {
+  try {
+    const parsedType = uploadTypeSchema.safeParse(type);
+    if (!parsedType.success) return { data: null, error: "Invalid QR type." };
+
+    const user = await assertAuth();
+    const field = parsedType.data === "gcash" ? "gcash_qr_url" : "bank_qr_url";
+    const settleUpSupabase = await createSettleUpDb();
+    const db = settleUpSupabase.schema("settleup");
+    const { data: previous } = await db
+      .from("user_payment_profiles")
+      .select("gcash_qr_url, bank_qr_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const { error } = await db
+      .from("user_payment_profiles")
+      .update({ [field]: null, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+    if (error) return { data: null, error: "Failed to remove QR image." };
+
+    const path = qrStoragePath(previous?.[field], user.id);
+    if (path) {
+      const supabase = await createClient();
+      await supabase.storage.from(QR_BUCKET).remove([path]);
+    }
+    return { data: null, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Failed to remove QR image." };
+  }
+}

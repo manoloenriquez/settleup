@@ -26,6 +26,7 @@ import { supabase } from "@/lib/supabase";
 import { track } from "@/lib/analytics";
 import { offlineFailureStatus } from "@template/shared/analytics";
 import { useToast } from "@/components/ui/Toast";
+import { colors } from "@/theme";
 
 // ---------------------------------------------------------------------------
 // Offline outbox provider
@@ -307,8 +308,8 @@ function AccountOutboxProvider({
   return (
     <OutboxContext.Provider value={value}>
       {ownerId && (storageError || legacyPending) && (
-        <View accessibilityRole="alert" style={{ padding: 12, backgroundColor: "#fffbeb" }}>
-          <Text style={{ color: "#78350f" }}>
+        <View accessibilityRole="alert" style={{ padding: 12, backgroundColor: colors.warningLight }}>
+          <Text style={{ color: colors.warningDark }}>
             {storageError ??
               "Changes from an older app version are still saved on this device. Their account could not be identified. Contact support before clearing app data."}
           </Text>

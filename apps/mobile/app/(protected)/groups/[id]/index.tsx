@@ -593,7 +593,9 @@ export default function GroupDetailScreen() {
               totalSpent > 0
                 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100)))
                 : 100;
-            const isSettled = totalOwed === 0;
+            // Without loaded balances (e.g. the fetch failed) don't claim "All settled".
+            const known = balancesQ.data !== undefined;
+            const isSettled = known && totalOwed === 0;
             const myNet = members.find((m) => m.member_id === currentMemberId)?.net_cents ?? 0;
             const expenseCount = totalsQ.data?.count ?? expenses.length;
             return (
@@ -603,11 +605,13 @@ export default function GroupDetailScreen() {
                     <Text style={styles.balanceLabel}>
                       {currencies.length > 1 ? `Still owed in ${activeCurrency}` : "Still owed in this group"}
                     </Text>
-                    <Text style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
-                      {isSettled ? "All settled" : money(totalOwed)}
+                    <Text maxFontSizeMultiplier={1.4} style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
+                      {!known ? "—" : isSettled ? "All settled" : money(totalOwed)}
                     </Text>
                     <Text style={styles.balanceSub}>
-                      {myNet > 0
+                      {!known
+                        ? "Balances couldn’t load"
+                        : myNet > 0
                         ? `You are owed ${money(myNet)}`
                         : myNet < 0
                           ? `You owe ${money(-myNet)}`
@@ -1106,7 +1110,7 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     marginBottom: spacing.base,
     borderWidth: 1,
-    borderColor: colors.primary + "40",
+    borderColor: colors.primaryBorder,
   },
   claimBannerTitle: {
     fontSize: fontSize.sm,
@@ -1120,7 +1124,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -1134,7 +1138,7 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: colors.overlay,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.base,

@@ -13,9 +13,11 @@ import type { GroupMember } from "@template/supabase";
 type Props = {
   recurring: RecurringExpense[];
   members: GroupMember[];
+  currentUserId: string;
+  isAdminOrOwner: boolean;
 };
 
-export function RecurringExpensesSection({ recurring, members }: Props): React.ReactElement {
+export function RecurringExpensesSection({ recurring, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
@@ -74,25 +76,30 @@ export function RecurringExpensesSection({ recurring, members }: Props): React.R
                   {!item.active && " · paused"}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                leftIcon={item.active ? Pause : Play}
-                disabled={isPending}
-                onClick={() => handleToggle(item)}
-              >
-                {item.active ? "Pause" : "Resume"}
-              </Button>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleDelete(item)}
-                className="rounded-xl p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                title="Delete recurring expense"
-                aria-label={`Delete recurring expense ${item.item_name}`}
-              >
-                <Trash2 size={15} />
-              </button>
+              {/* Only the creator or a group owner/admin may change it (enforced by RLS too). */}
+              {(item.created_by_user_id === currentUserId || isAdminOrOwner) && (
+                <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leftIcon={item.active ? Pause : Play}
+                  disabled={isPending}
+                  onClick={() => handleToggle(item)}
+                >
+                  {item.active ? "Pause" : "Resume"}
+                </Button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => handleDelete(item)}
+                  className="rounded-xl p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="Delete recurring expense"
+                  aria-label={`Delete recurring expense ${item.item_name}`}
+                >
+                  <Trash2 size={15} />
+                </button>
+                </>
+              )}
             </div>
           ))}
         </div>

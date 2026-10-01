@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { colors } from "@/theme";
 
 /**
  * Initial route — only visible for a brief moment while RouteGuard
@@ -7,7 +8,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 export default function IndexScreen() {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#059669" />
+      <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 }
@@ -17,6 +18,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
 });

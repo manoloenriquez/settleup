@@ -54,6 +54,8 @@ interface Props {
   isAdmin: boolean;
   isAdminOrOwner: boolean;
   currentUserId: string;
+  /** Page sections that belong above the danger zone (budget, recurring, export). */
+  children?: React.ReactNode;
 }
 
 export function GroupSettingsClient({
@@ -64,6 +66,7 @@ export function GroupSettingsClient({
   isAdmin: _isAdmin,
   isAdminOrOwner,
   currentUserId,
+  children,
 }: Props): React.ReactElement {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -916,7 +919,9 @@ export function GroupSettingsClient({
         </section>
       )}
 
-      {/* Danger zone (owner only) */}
+      {children}
+
+      {/* Danger zone (owner only), always last */}
       {isOwner && (
         <section className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-red-700 mb-4">Danger Zone</h2>

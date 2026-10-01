@@ -59,7 +59,7 @@ export function SmartSplitSheet({
         </View>
 
         <Text style={styles.subtitle}>
-          Splitting "{itemName}" ({formatCents(amountCents)}) among {memberNames.length} members
+          Splitting "{itemName}" ({formatCents(amountCents)}) among {memberNames.length} {memberNames.length === 1 ? "member" : "members"}
         </Text>
 
         <Text style={styles.label}>Context (optional)</Text>

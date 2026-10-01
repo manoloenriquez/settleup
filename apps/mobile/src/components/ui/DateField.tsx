@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { dateToISO, friendlyDate, isoToLocalDate } from "@/lib/dates";
-import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
+import { brand, colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type Props = { label?: string; value: string; onChange: (iso: string) => void; maximumDate?: Date };
 
@@ -31,7 +31,7 @@ export function DateField({ label = "Date", value, onChange, maximumDate }: Prop
           mode="date"
           display={Platform.OS === "ios" ? "inline" : "default"}
           maximumDate={maximumDate}
-          accentColor={colors.primary}
+          accentColor={brand.primary}
           onChange={(_event, selected) => {
             if (Platform.OS !== "ios") setOpen(false);
             if (selected) onChange(dateToISO(selected));

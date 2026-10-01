@@ -18,7 +18,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import {
   Users,
   Plus,
-  Bell,
+  History,
   ArrowDownLeft,
   ArrowUpRight,
   ChevronRight,
@@ -143,7 +143,7 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
           aria-label="Activity"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-slate-900 hover:border-slate-300"
         >
-          <Bell size={16} />
+          <History size={16} />
         </Link>
       </div>
 
@@ -183,38 +183,63 @@ export function DashboardClient({ profile }: Props): React.ReactElement {
 
       {/* Owed / owe split, one row per currency */}
       <div className="space-y-3">
-        {owedCards.map((row) => (
-          <div key={row.currency} className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
-                <ArrowDownLeft size={15} />
-              </span>
-              <p className="mt-3 text-xs font-medium text-emerald-800">
-                You are <span className="font-bold">owed</span>
-              </p>
-              <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-emerald-900">
-                {formatCurrency(row.owedToMe, row.currency)}
-              </p>
-              <p className="mt-0.5 text-xs text-emerald-700/80">
-                from {row.owedFrom} {row.owedFrom === 1 ? "person" : "people"}
-              </p>
+        {owedCards.map((row) => {
+          // Green and red mean money is actually owed; an empty side stays neutral.
+          const owedNone = row.owedToMe === 0;
+          const oweNone = row.iOwe === 0;
+          return (
+            <div key={row.currency} className="grid grid-cols-2 gap-3">
+              <div
+                className={
+                  owedNone
+                    ? "rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    : "rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4"
+                }
+              >
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-white ${owedNone ? "bg-slate-400" : "bg-emerald-600"}`}
+                >
+                  <ArrowDownLeft size={15} />
+                </span>
+                <p className={`mt-3 text-xs font-medium ${owedNone ? "text-slate-600" : "text-emerald-800"}`}>
+                  You are <span className="font-bold">owed</span>
+                </p>
+                <p
+                  className={`mt-0.5 truncate text-xl font-extrabold tabular-nums ${owedNone ? "text-slate-600" : "text-emerald-900"}`}
+                >
+                  {owedNone ? "Nothing" : formatCurrency(row.owedToMe, row.currency)}
+                </p>
+                <p className={`mt-0.5 text-xs ${owedNone ? "text-slate-500" : "text-emerald-700/80"}`}>
+                  {owedNone ? "Nobody owes you" : `from ${row.owedFrom} ${row.owedFrom === 1 ? "person" : "people"}`}
+                </p>
+              </div>
+              <div
+                className={
+                  oweNone
+                    ? "rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    : "rounded-2xl border border-rose-100 bg-rose-50/70 p-4"
+                }
+              >
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-white ${oweNone ? "bg-slate-400" : "bg-rose-500"}`}
+                >
+                  <ArrowUpRight size={15} />
+                </span>
+                <p className={`mt-3 text-xs font-medium ${oweNone ? "text-slate-600" : "text-rose-800"}`}>
+                  You <span className="font-bold">owe</span>
+                </p>
+                <p
+                  className={`mt-0.5 truncate text-xl font-extrabold tabular-nums ${oweNone ? "text-slate-600" : "text-rose-900"}`}
+                >
+                  {oweNone ? "Nothing" : formatCurrency(row.iOwe, row.currency)}
+                </p>
+                <p className={`mt-0.5 text-xs ${oweNone ? "text-slate-500" : "text-rose-700/80"}`}>
+                  {oweNone ? "You’re all paid up" : `to ${row.oweTo} ${row.oweTo === 1 ? "person" : "people"}`}
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white">
-                <ArrowUpRight size={15} />
-              </span>
-              <p className="mt-3 text-xs font-medium text-rose-800">
-                You <span className="font-bold">owe</span>
-              </p>
-              <p className="mt-0.5 truncate text-xl font-extrabold tabular-nums text-rose-900">
-                {formatCurrency(row.iOwe, row.currency)}
-              </p>
-              <p className="mt-0.5 text-xs text-rose-700/80">
-                to {row.oweTo} {row.oweTo === 1 ? "person" : "people"}
-              </p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {multiCurrency && <p className="px-0.5 text-xs text-slate-500">{SEPARATE_CURRENCIES_NOTE}</p>}

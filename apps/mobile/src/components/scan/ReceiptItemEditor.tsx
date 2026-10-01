@@ -108,7 +108,7 @@ export function ReceiptItemEditor({
 
       {provider === "apple-intelligence" && (
         <View style={styles.aiBadge}>
-          <Ionicons name="phone-portrait-outline" size={12} color="#555" />
+          <Ionicons name="phone-portrait-outline" size={12} color={colors.gray600} />
           <Text style={styles.aiBadgeText}>Read on this iPhone with Apple Intelligence · nothing was uploaded</Text>
         </View>
       )}
@@ -266,12 +266,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: colors.gray100,
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   },
-  aiBadgeText: { fontSize: fontSize.xs, color: "#555", fontWeight: fontWeight.medium },
+  aiBadgeText: { fontSize: fontSize.xs, color: colors.gray600, fontWeight: fontWeight.medium },
   notesBox: { backgroundColor: colors.gray100, borderRadius: borderRadius.md, padding: spacing.sm, gap: 2 },
   notesBoxWarn: { backgroundColor: colors.warningLight },
   noteText: { fontSize: fontSize.xs, color: colors.gray700, lineHeight: 16 },

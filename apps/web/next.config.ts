@@ -6,6 +6,21 @@ import withSerwistInit from "@serwist/next";
 const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN;
 const sentryConnectSrc = sentryDsn ? " https://*.sentry.io" : "";
 
+// The configured Supabase project when it isn't a hosted *.supabase.co one
+// (a local stack during development), so its API, realtime and storage
+// images aren't blocked by the CSP.
+function customSupabaseSources(): string {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    if (url.hostname.endsWith(".supabase.co")) return "";
+    const ws = url.protocol === "https:" ? "wss:" : "ws:";
+    return ` ${url.origin} ${ws}//${url.host}`;
+  } catch {
+    return "";
+  }
+}
+const supabaseExtraSrc = customSupabaseSources();
+
 // PWA service worker. Disabled in dev (Turbopack) — test via `next build && next start`.
 // Bump OFFLINE_REVISION whenever the /~offline page changes to refresh its precache.
 const OFFLINE_REVISION = "offline-1";
@@ -68,9 +83,9 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-eval needed for Next.js dev
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' blob: data: https://*.supabase.co",
+              `img-src 'self' blob: data: https://*.supabase.co${supabaseExtraSrc}`,
               "font-src 'self'",
-              `connect-src 'self' https://*.supabase.co wss://*.supabase.co${sentryConnectSrc}`,
+              `connect-src 'self' https://*.supabase.co wss://*.supabase.co${supabaseExtraSrc}${sentryConnectSrc}`,
               "frame-ancestors 'none'",
             ].join("; "),
           },

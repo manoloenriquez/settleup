@@ -529,9 +529,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderLeftWidth: 4,
   },
-  memberRowOwes: { borderLeftColor: colors.warning, backgroundColor: colors.warningLight + "60" },
-  memberRowOwed: { borderLeftColor: colors.success, backgroundColor: colors.successLight + "60" },
-  memberRowSettled: { borderLeftColor: colors.gray200, backgroundColor: colors.gray50 + "80" },
+  memberRowOwes: { borderLeftColor: colors.warning, backgroundColor: colors.warningTintSoft },
+  memberRowOwed: { borderLeftColor: colors.success, backgroundColor: colors.successTintSoft },
+  memberRowSettled: { borderLeftColor: colors.gray200, backgroundColor: colors.neutralTint },
   memberInfo: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   memberName: { fontSize: fontSize.sm, color: colors.gray700 },
 

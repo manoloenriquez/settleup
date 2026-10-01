@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { AccessibilityInfo, Animated, StyleSheet, Text, TouchableOpacity, type ColorValue } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -33,7 +33,7 @@ const TOAST_ICON: Record<ToastType, keyof typeof Ionicons.glyphMap> = {
   info: "information-circle",
 };
 
-const TOAST_COLOR: Record<ToastType, string> = {
+const TOAST_COLOR: Record<ToastType, ColorValue> = {
   success: colors.success,
   error: colors.danger,
   info: colors.gray700,

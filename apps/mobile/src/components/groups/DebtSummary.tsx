@@ -1,4 +1,4 @@
-import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Share, StyleSheet, Text, TouchableOpacity, View, type ColorValue } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { buildNudgeMessage, buildSuggestedSettlements, simplifyDebts, formatAmount } from "@template/shared";
 import type { CreditorPaymentProfile, CurrencyCode, MemberBalance, SimplifiedDebt, SuggestedSettlement } from "@template/shared";
@@ -70,7 +70,7 @@ export function DebtSummary({
     settlements.find((d) => d.to_member_id === currentMemberId) ??
     settlements[0];
 
-  function rowText(debt: SimplifiedDebt): { label: string; color: string; sign: string } {
+  function rowText(debt: SimplifiedDebt): { label: string; color: ColorValue; sign: string } {
     if (debt.to_member_id === currentMemberId) {
       return { label: `${debt.from_display_name} owes you`, color: colors.success, sign: "+" };
     }
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.primary + "30",
+    borderColor: colors.primaryBorderSoft,
     padding: spacing.base,
   },
   bannerIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 2,
     borderStyle: "dashed",
-    borderColor: colors.primary + "50",
+    borderColor: colors.primaryBorder,
     padding: spacing.base,
     gap: spacing.sm,
   },

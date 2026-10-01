@@ -436,3 +436,30 @@ project on 1 October 2026 (owner approved); `payment_qr_storage.sql` and
 `recurring_permissions.sql` pass there in rolled-back transactions, and the
 security advisor reports nothing for the changed objects. Shipped as
 TestFlight build 4.
+
+## 11. All known bugs (build 5, 1 October 2026)
+
+| Bug | Fix |
+|---|---|
+| L3: no dark mode (app was locked to light) | Theme tokens are light/dark pairs (`DynamicColorIOS`); navigation theme and per-appearance header titles; app follows the system appearance again. Every main screen reviewed in both appearances |
+| New Expense sheet had two Save buttons | Single header Save (iOS sheet convention) |
+| Invite/friend link: back went to Home | Opens the Shared tab, which pushes the group; back returns to Shared |
+| Category names and headlines broke at accessibility text sizes | Category rows stack; display-size text capped at 1.4× |
+| Recurring Pause/Delete shown to people who can't use them | Shown only to the creator or a group owner/admin (mobile and web) |
+| A QR code could be replaced but never removed | Remove QR Code on mobile and web; the file is deleted |
+| Web dashboard: red "₱0.00 to 0 people"; bell icon opened Activity (L2) | Neutral "Nothing" cards; History icon |
+| Web group page showed "0 members / All settled" while balances loaded or retried | Placeholder until balances load or fail |
+| Mobile group card said "All settled" when balances failed to load | Shows "—" and "Balances couldn't load" |
+| Web payment form lacked the shared-link privacy switches | Added (with accessible labels) |
+| Web group settings: Danger Zone sat mid-page | Always last |
+| Web CSP blocked a non-hosted Supabase URL (local development impossible) | CSP allows the configured Supabase origin |
+| "1 members" | Pluralised |
+| `product_events` (unapplied) counted every app's sign-ups on the shared auth as Talli accounts | Trigger dropped (`20261001160000`); apps record `account_created` once per user after sign-in |
+| No release check for app updates | `tools/ui-driver/check-upgrade.sh` (previous build's saved data → new build); required in `docs/testflight.md` |
+
+Not code (owner): Sentry DSN, Supabase Apple provider + `EXPO_PUBLIC_APPLE_SIGN_IN`,
+`EXPO_PUBLIC_WEB_URL` / universal-link identifiers / `talli://` redirect, push
+setup (`push_delivery_payload`, `product_events` + `20261001160000` live,
+`send-push` deploy, `PUSH_WEBHOOK_SECRET`, `app_config`), device checks (Apple
+Intelligence, photo picker, push, build 4 → 5 update), pushing the branch, and
+TestFlight uploads (the permission classifier blocks them for Claude).

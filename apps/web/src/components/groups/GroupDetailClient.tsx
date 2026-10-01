@@ -162,7 +162,12 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   const activities = activityQ.data ?? [];
   const categories = categoriesQ.data ?? [];
 
-  if (!group || !defaultCurrency || !viewCurrency) {
+  // Members and balances still loading (or retrying): an empty list here would
+  // read as "0 members" and "All settled", so keep the placeholder until they
+  // arrive or definitively fail (the error state below handles failure).
+  const balancesLoading = balancesQ.data === undefined && !balancesQ.isError;
+
+  if (!group || !defaultCurrency || !viewCurrency || balancesLoading) {
     if (groupQ.isSuccess && !group) {
       // Settled: the row genuinely doesn't exist (or RLS hides it).
       return (

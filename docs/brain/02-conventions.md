@@ -139,6 +139,29 @@ export async function createExpense(formData: FormData): Promise<ApiResponse<voi
 - Checklist for adding a new offline-capable mutation:
   `docs/brain/04-offline.md` → "How to make another mutation offline-capable"
 
+## Mobile UI (iOS)
+
+- **Colors:** use `colors` from `apps/mobile/src/theme` only. Each token is a
+  `DynamicColorIOS` light/dark pair, so styles adapt to Dark Mode without
+  per-screen code. Never build colors with string operations (`colors.x + "30"`
+  breaks on iOS); add a tint token instead. Props typed as plain strings
+  (navigation header/tab tints, date picker accent) use `brand`. Header bars
+  and titles come from the navigation theme in `app/_layout.tsx`. Text needs
+  an explicit color (React Native defaults to black, invisible in Dark Mode).
+- **Keyboard:** every `ScrollView` sets `keyboardShouldPersistTaps="handled"`
+  (otherwise the first tap only closes the keyboard); form screens without a
+  `KeyboardAvoidingView` set `automaticallyAdjustKeyboardInsets`. Screens pushed
+  inside a tab set `contentInsetAdjustmentBehavior="automatic"` so content
+  clears the floating tab bar.
+- **Accessibility:** every `TouchableOpacity`/`Pressable` declares an
+  `accessibilityRole` (and `accessibilityState` for selected/checked controls).
+  Controls laid out side by side stack when `useStackedLayout()` is true
+  (accessibility text sizes). Text controls use `minHeight`, never `height`.
+- **Opening a group from outside the tabs** (invite and friend links): use
+  `openGroupFromLink()` so there is a back button to the Shared tab. The
+  protected stack is anchored on `(tabs)` (`unstable_settings.anchor`, an
+  unstable Expo Router API; recheck on Expo Router upgrades).
+
 ## Git
 
 - Branch: `feat/<name>`, `fix/<name>`, `chore/<name>`

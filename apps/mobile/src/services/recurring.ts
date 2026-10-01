@@ -14,6 +14,8 @@ export type RecurringExpense = {
   next_run_at: string;
   active: boolean;
   payers: { member_id: string; paid_cents: number }[] | null;
+  /** Null once the creator closed their account: only admins manage it then. */
+  created_by_user_id: string | null;
 };
 
 export type CreateRecurringParams = {
@@ -33,7 +35,7 @@ export async function listRecurringExpenses(groupId: string): Promise<ApiRespons
   const { data, error } = await supabase
     .schema("settleup")
     .from("recurring_expenses")
-    .select("id, group_id, item_name, amount_cents, currency_code, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
+    .select("id, group_id, item_name, amount_cents, currency_code, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers, created_by_user_id")
     .eq("group_id", groupId)
     .order("created_at", { ascending: true });
 

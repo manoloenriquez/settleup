@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.gray200,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   loadMoreText: {
     fontSize: fontSize.sm,

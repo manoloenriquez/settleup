@@ -835,20 +835,23 @@ export default function GroupSettingsScreen() {
                   title={`${item.item_name} · ${formatAmount(item.amount_cents, item.currency_code)}`}
                   subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"}${item.payers && item.payers.length > 1 ? ` · ${item.payers.length} payers` : ""} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
                   right={
-                    <RowMenuButton
-                      title={item.item_name}
-                      choices={[
-                        {
-                          label: item.active ? "Pause" : "Resume",
-                          run: () => handleToggleRecurring(item.id, item.active),
-                        },
-                        {
-                          label: "Delete Recurring Expense",
-                          destructive: true,
-                          run: () => confirmDeleteRecurring(item.id, item.item_name),
-                        },
-                      ]}
-                    />
+                    // Only the creator or a group owner/admin may change it (enforced by RLS too).
+                    (item.created_by_user_id === user?.id || isAdminOrOwner) && (
+                      <RowMenuButton
+                        title={item.item_name}
+                        choices={[
+                          {
+                            label: item.active ? "Pause" : "Resume",
+                            run: () => handleToggleRecurring(item.id, item.active),
+                          },
+                          {
+                            label: "Delete Recurring Expense",
+                            destructive: true,
+                            run: () => confirmDeleteRecurring(item.id, item.item_name),
+                          },
+                        ]}
+                      />
+                    )
                   }
                 />
                 {i < (recurringQ.data ?? []).length - 1 && <View style={styles.divider} />}

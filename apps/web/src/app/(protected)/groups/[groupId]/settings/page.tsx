@@ -70,22 +70,24 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         isAdmin={isAdmin}
         isAdminOrOwner={isAdminOrOwner}
         currentUserId={user.id}
-      />
+      >
+        <BudgetSection
+          key={budgetCurrency}
+          groupId={groupId}
+          budgetCents={group.budget_cents}
+          currency={budgetCurrency}
+          canEdit={isAdminOrOwner}
+        />
 
-      <BudgetSection
-        key={budgetCurrency}
-        groupId={groupId}
-        budgetCents={group.budget_cents}
-        currency={budgetCurrency}
-        canEdit={isAdminOrOwner}
-      />
+        <RecurringExpensesSection
+          recurring={recurringResult.data ?? []}
+          members={members ?? []}
+          currentUserId={user.id}
+          isAdminOrOwner={isAdminOrOwner}
+        />
 
-      <RecurringExpensesSection
-        recurring={recurringResult.data ?? []}
-        members={members ?? []}
-      />
-
-      <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
+        <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
+      </GroupSettingsClient>
     </div>
   );
 }
