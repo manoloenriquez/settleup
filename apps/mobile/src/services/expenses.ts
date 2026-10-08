@@ -171,6 +171,8 @@ export async function updateExpense(params: {
   amountCents: number;
   /** Currency of this expense (its own; groups can hold several). */
   currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
@@ -190,6 +192,7 @@ export async function updateExpense(params: {
         itemName: params.itemName,
         amountCents: params.amountCents,
         currencyCode: params.currencyCode,
+        expenseDate: params.expenseDate,
         participantIds: params.participantIds,
         payers: params.payers,
       }),
@@ -209,6 +212,8 @@ export async function updateExpenseCustomSplit(params: {
   amountCents: number;
   /** Currency of this expense (its own; groups can hold several). */
   currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -227,6 +232,7 @@ export async function updateExpenseCustomSplit(params: {
         itemName: params.itemName,
         amountCents: params.amountCents,
         currencyCode: params.currencyCode,
+        expenseDate: params.expenseDate,
         customSplits: params.customSplits,
         payers: params.payers,
       }),
@@ -246,6 +252,8 @@ export async function updateItemizedExpense(params: {
   amountCents: number;
   /** Currency of this expense (its own; groups can hold several). */
   currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -265,6 +273,7 @@ export async function updateItemizedExpense(params: {
         itemName: params.expenseName,
         amountCents: params.amountCents,
         currencyCode: params.currencyCode,
+        expenseDate: params.expenseDate,
         payers: params.payers,
         lineItems: params.lineItems,
       }),

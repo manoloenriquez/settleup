@@ -10,7 +10,8 @@ import type { Expense, Group, GroupMember, Json, Payment } from "./database.type
 import { z } from "zod";
 
 type EqualExpenseRpcInput = {
-  currencyCode?: CurrencyCode;
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -24,7 +25,8 @@ type EqualExpenseRpcInput = {
 };
 
 type CustomExpenseRpcInput = {
-  currencyCode?: CurrencyCode;
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -38,7 +40,8 @@ type CustomExpenseRpcInput = {
 };
 
 type ItemizedExpenseRpcInput = {
-  currencyCode?: CurrencyCode;
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -52,7 +55,8 @@ type ItemizedExpenseRpcInput = {
 };
 
 type UpdateEqualExpenseRpcInput = {
-  currencyCode?: CurrencyCode;
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -66,7 +70,8 @@ type UpdateEqualExpenseRpcInput = {
 };
 
 type UpdateCustomExpenseRpcInput = {
-  currencyCode?: CurrencyCode;
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -80,7 +85,8 @@ type UpdateCustomExpenseRpcInput = {
 };
 
 type UpdateItemizedExpenseRpcInput = {
-  currencyCode?: CurrencyCode;
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;

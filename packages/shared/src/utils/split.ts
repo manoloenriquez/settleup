@@ -13,26 +13,62 @@ export function equalSplit(totalCents: number, n: number): number[] {
 }
 
 /**
+ * Scale decimal weights (up to 6 places) to integers so allocation runs in
+ * exact integer arithmetic. 33.33 → 3333 with scale 100.
+ */
+const ZERO = BigInt(0);
+const ONE = BigInt(1);
+
+function toIntegerWeights(weights: number[]): bigint[] {
+  let places = 0;
+  for (const w of weights) {
+    const text = String(w);
+    const exponent = /e-(\d+)$/.exec(text);
+    if (exponent) {
+      // 1e-7 style: enough places that the smallest weight keeps 6 digits.
+      places = Math.max(places, Math.min(20, Number(exponent[1]) + 6));
+      continue;
+    }
+    const dot = text.indexOf(".");
+    if (dot >= 0) places = Math.max(places, Math.min(6, text.length - dot - 1));
+  }
+  // Scale with decimal string arithmetic so large scales stay exact in BigInt.
+  return weights.map((w) => {
+    const [whole = "0", frac = ""] = w.toFixed(places).split(".");
+    return BigInt(whole + frac.padEnd(places, "0"));
+  });
+}
+
+/**
  * Allocate totalCents proportionally to `weights` using largest-remainder
  * rounding so the result always sums to exactly totalCents.
  * Ties in fractional remainder are broken by lower index.
+ *
+ * Runs in BigInt so large amounts and decimal weights never lose a cent to
+ * floating point: each share is floor(total·w / W) and the leftover cents go
+ * to the largest exact remainders.
  */
 function largestRemainderSplit(totalCents: number, weights: number[]): number[] {
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-  if (totalWeight <= 0) throw new Error("weights must sum to a positive number");
+  const ints = toIntegerWeights(weights);
+  const totalWeight = ints.reduce((sum, w) => sum + w, ZERO);
+  if (totalWeight <= ZERO) throw new Error("weights must sum to a positive number");
 
-  const exact = weights.map((w) => (totalCents * w) / totalWeight);
-  const result = exact.map((v) => Math.floor(v));
-  let leftover = totalCents - result.reduce((sum, v) => sum + v, 0);
+  const total = BigInt(totalCents);
+  const parts = ints.map((w, i) => ({
+    i,
+    base: (total * w) / totalWeight,
+    rem: (total * w) % totalWeight,
+  }));
+  const result = parts.map((p) => p.base);
+  let leftover = total - result.reduce((sum, v) => sum + v, ZERO);
 
-  const byRemainder = exact
-    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-    .sort((a, b) => b.frac - a.frac || a.i - b.i);
-
-  for (let k = 0; leftover > 0 && k < byRemainder.length; k++, leftover--) {
-    result[byRemainder[k]!.i]! += 1;
+  const byRemainder = [...parts].sort((a, b) =>
+    a.rem === b.rem ? a.i - b.i : a.rem > b.rem ? -1 : 1,
+  );
+  for (let k = 0; leftover > ZERO && k < byRemainder.length; k++, leftover--) {
+    result[byRemainder[k]!.i]! += ONE;
   }
-  return result;
+  return result.map((v) => Number(v));
 }
 
 /**

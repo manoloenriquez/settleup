@@ -191,6 +191,7 @@ export function useAddExpense(groupId: string) {
           categoryId: params.categoryId,
           itemName: params.itemName,
           amountCents: params.amountCents,
+          currencyCode: params.currencyCode,
           expenseDate: params.expenseDate,
           participantIds: params.memberIds,
           payers: [{ memberId: params.payerMemberId, paidCents: params.amountCents }],
@@ -243,6 +244,7 @@ export function useAddExpenseCustomSplit(groupId: string) {
           categoryId: params.categoryId,
           itemName: params.itemName,
           amountCents: params.amountCents,
+          currencyCode: params.currencyCode,
           expenseDate: params.expenseDate,
           customSplits: params.customSplits,
           payers: params.payers,
@@ -283,6 +285,7 @@ export function useAddItemizedExpense(groupId: string) {
           categoryId: params.categoryId,
           itemName: params.expenseName,
           amountCents: params.amountCents,
+          currencyCode: params.currencyCode,
           expenseDate: params.expenseDate,
           payers: params.payers,
           lineItems: params.lineItems,
@@ -316,6 +319,8 @@ type UpdateExpenseParams = {
   itemName: string;
   amountCents: number;
   currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
@@ -329,6 +334,8 @@ type UpdateExpenseCustomSplitParams = {
   itemName: string;
   amountCents: number;
   currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -342,6 +349,8 @@ type UpdateItemizedExpenseParams = {
   expenseName: string;
   amountCents: number;
   currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -369,6 +378,8 @@ export function useUpdateExpense(groupId: string) {
           categoryId: params.categoryId,
           itemName: params.itemName,
           amountCents: params.amountCents,
+          currencyCode: params.currencyCode,
+          expenseDate: params.expenseDate,
           participantIds: params.participantIds,
           payers: params.payers,
         });
@@ -409,6 +420,8 @@ export function useUpdateExpenseCustomSplit(groupId: string) {
           categoryId: params.categoryId,
           itemName: params.itemName,
           amountCents: params.amountCents,
+          currencyCode: params.currencyCode,
+          expenseDate: params.expenseDate,
           customSplits: params.customSplits,
           payers: params.payers,
         });
@@ -451,6 +464,8 @@ export function useUpdateItemizedExpense(groupId: string) {
           categoryId: params.categoryId,
           itemName: params.expenseName,
           amountCents: params.amountCents,
+          currencyCode: params.currencyCode,
+          expenseDate: params.expenseDate,
           payers: params.payers,
           lineItems: params.lineItems,
         });

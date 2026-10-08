@@ -16,3 +16,4 @@ export * from "./personal-ledger";
 export * from "./personal-sync";
 export * from "./currency-ledger";
 export * from "./payment-qr";
+export * from "./split-resolve";

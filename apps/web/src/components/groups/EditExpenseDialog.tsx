@@ -9,8 +9,11 @@ import {
   amountToInput,
   currencySymbol,
   equalSplit,
-  isEqualShareSplit,
+  inferSplitMode,
   parseAmountInput,
+  resolveSplit,
+  splitValuesFromShares,
+  type SplitMode,
 } from "@template/shared";
 import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import type { OutboxJson } from "@template/shared";
@@ -119,6 +122,17 @@ function EditExpenseDialogInner({
   const currency = expense.currency_code;
   const [amount, setAmount] = useState(amountToInput(Math.abs(expense.amount_cents), currency));
   const [date, setDate] = useState(expense.expense_date ?? "");
+  const [notes, setNotes] = useState(expense.notes ?? "");
+  const storedShares = expense.participants.map((participant) => ({
+    memberId: participant.member_id,
+    shareCents: participant.share_cents,
+  }));
+  const [splitMode, setSplitMode] = useState<SplitMode>(() => inferSplitMode(storedShares));
+  const [splitValues, setSplitValues] = useState<Record<string, string>>(() =>
+    splitValuesFromShares(inferSplitMode(storedShares), storedShares, currency),
+  );
+  // Untouched exact amounts follow the total proportionally when it changes.
+  const [splitTouched, setSplitTouched] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(expense.category_id);
   const [participantIds, setParticipantIds] = useState<string[]>(
     expense.participants.map((participant) => participant.member_id),
@@ -131,20 +145,25 @@ function EditExpenseDialogInner({
 
   const items = expense.items ?? [];
   const isItemized = items.length > 0;
-  const wasEqual =
-    !isItemized &&
-    expense.participants.length > 0 &&
-    isEqualShareSplit(expense.participants.map((participant) => participant.share_cents));
   const participantsChanged = !sameIdSet(
     expense.participants.map((participant) => participant.member_id),
     participantIds,
   );
+  const orderedParticipantIds = members
+    .map((member) => member.id)
+    .filter((memberId) => participantIds.includes(memberId));
   const amountCents = parseAmountInput(amount, currency);
 
   function toggleParticipant(memberId: string): void {
     setParticipantIds((prev) =>
       prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId],
     );
+  }
+
+  function changeSplitMode(mode: SplitMode): void {
+    setSplitMode(mode);
+    setSplitValues(participantsChanged ? {} : splitValuesFromShares(mode, storedShares, currency));
+    setSplitTouched(false);
   }
 
   function toggleItemParticipant(itemIndex: number, memberId: string): void {
@@ -188,17 +207,42 @@ function EditExpenseDialogInner({
       return;
     }
 
-    const useEqual = wasEqual || participantsChanged;
-    const customSplitAmounts =
-      isItemized || useEqual
-        ? null
-        : scalePositiveAmounts(
-            expense.participants.map((participant) => participant.share_cents),
-            parsedAmount,
-          );
-    if (!isItemized && !useEqual && !customSplitAmounts) {
-      toast.error("Amount is too small to preserve custom splits.");
-      return;
+    const useEqual = splitMode === "equal";
+    let customSplits: { memberId: string; shareCents: number }[] | null = null;
+    if (!isItemized) {
+      const untouchedExact =
+        splitMode === "exact" &&
+        !splitTouched &&
+        !participantsChanged &&
+        parsedAmount !== expense.amount_cents;
+      if (untouchedExact) {
+        const scaled = scalePositiveAmounts(
+          storedShares.map((share) => share.shareCents),
+          parsedAmount,
+        );
+        if (!scaled) {
+          toast.error("Amount is too small to keep everyone's share.");
+          return;
+        }
+        customSplits = storedShares.map((share, index) => ({
+          memberId: share.memberId,
+          shareCents: scaled[index]!,
+        }));
+      } else {
+        const result = resolveSplit({
+          mode: splitMode,
+          totalMinor: parsedAmount,
+          currency,
+          memberIds: orderedParticipantIds,
+          values: splitValues,
+          labels: Object.fromEntries(memberMap),
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        customSplits = useEqual ? null : result.shares;
+      }
     }
 
     const itemAmounts = isItemized
@@ -223,7 +267,7 @@ function EditExpenseDialogInner({
       itemName: name.trim(),
       amountCents: parsedAmount,
       currencyCode: currency,
-      notes: expense.notes ?? undefined,
+      notes: notes.trim() || undefined,
       expenseDate: date || undefined,
       payers,
     };
@@ -237,14 +281,8 @@ function EditExpenseDialogInner({
           })),
         })
       : useEqual
-        ? buildUpdateEqualExpenseRpcInput({ ...common, participantIds })
-        : buildUpdateCustomExpenseRpcInput({
-            ...common,
-            customSplits: expense.participants.map((participant, index) => ({
-              memberId: participant.member_id,
-              shareCents: customSplitAmounts![index]!,
-            })),
-          });
+        ? buildUpdateEqualExpenseRpcInput({ ...common, participantIds: orderedParticipantIds })
+        : buildUpdateCustomExpenseRpcInput({ ...common, customSplits: customSplits ?? [] });
 
     if (!online) {
       // Queue the exact RPC input for replay on reconnect; the entry chains
@@ -280,7 +318,7 @@ function EditExpenseDialogInner({
             item_name: name.trim(),
             amount_cents: parsedAmount,
             currency_code: currency,
-            notes: expense.notes ?? undefined,
+            notes: notes.trim() || undefined,
             expense_date: date || undefined,
             payers: expense.payers.map((payer, index) => ({
               member_id: payer.member_id,
@@ -299,15 +337,15 @@ function EditExpenseDialogInner({
             item_name: name.trim(),
             amount_cents: parsedAmount,
             currency_code: currency,
-            notes: expense.notes ?? undefined,
+            notes: notes.trim() || undefined,
             expense_date: date || undefined,
             split_mode: useEqual ? "equal" : "custom",
-            participant_ids: participantIds,
+            participant_ids: orderedParticipantIds,
             custom_splits: useEqual
               ? undefined
-              : expense.participants.map((participant, index) => ({
-                  member_id: participant.member_id,
-                  share_cents: customSplitAmounts![index]!,
+              : (customSplits ?? []).map((share) => ({
+                  member_id: share.memberId,
+                  share_cents: share.shareCents,
                 })),
             payers: expense.payers.map((payer, index) => ({
               member_id: payer.member_id,
@@ -324,13 +362,16 @@ function EditExpenseDialogInner({
     });
   }
 
-  const equalPreview =
-    !isItemized &&
-    (wasEqual || participantsChanged) &&
-    amountCents &&
-    amountCents > 0 &&
-    participantIds.length > 0
-      ? `Split ${participantIds.length} ways: ~${formatCurrency(equalSplit(amountCents, participantIds.length)[0] ?? 0, currency)} each`
+  const splitPreview =
+    !isItemized && amountCents && amountCents > 0 && orderedParticipantIds.length > 0
+      ? resolveSplit({
+          mode: splitMode,
+          totalMinor: amountCents,
+          currency,
+          memberIds: orderedParticipantIds,
+          values: splitValues,
+          labels: Object.fromEntries(memberMap),
+        })
       : null;
 
   const rollupNames = [...new Set(itemParticipantIds.flat())]
@@ -385,6 +426,18 @@ function EditExpenseDialogInner({
             className="mt-1"
           />
         </div>
+        <div>
+          <label className="text-sm font-medium text-slate-700" htmlFor="edit-notes">
+            Notes
+          </label>
+          <Input
+            id="edit-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Optional"
+            className="mt-1"
+          />
+        </div>
         <CategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
 
         {!isItemized && (
@@ -395,10 +448,78 @@ function EditExpenseDialogInner({
               selectedIds={participantIds}
               onToggle={toggleParticipant}
             />
-            {equalPreview && <p className="mt-1.5 text-xs text-slate-500">{equalPreview}</p>}
-            {!wasEqual && participantsChanged && (
-              <p className="mt-1.5 text-xs text-amber-600">
-                Changing who&apos;s included resets this custom split to an equal split.
+            <p className="mt-3 mb-2 text-sm font-medium text-slate-700" id="edit-split-label">
+              How to split
+            </p>
+            <div role="radiogroup" aria-labelledby="edit-split-label" className="grid grid-cols-4 gap-1 rounded-lg bg-slate-100 p-1">
+              {(
+                [
+                  ["equal", "Equal"],
+                  ["percent", "%"],
+                  ["shares", "Shares"],
+                  ["exact", "Exact"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={splitMode === mode}
+                  onClick={() => changeSplitMode(mode)}
+                  className={`min-h-9 rounded-md text-sm font-medium transition-colors ${
+                    splitMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {splitMode !== "equal" && (
+              <div className="mt-2 flex flex-col gap-2">
+                {orderedParticipantIds.map((memberId) => {
+                  const label = memberMap.get(memberId) ?? "Member";
+                  const part =
+                    splitPreview?.ok && splitMode !== "exact"
+                      ? splitPreview.shares.find((share) => share.memberId === memberId)
+                      : undefined;
+                  return (
+                    <div key={memberId} className="flex items-center gap-2 text-sm">
+                      <span className="flex-1 truncate text-slate-700">{label}</span>
+                      <Input
+                        aria-label={
+                          splitMode === "percent"
+                            ? `Percentage for ${label}`
+                            : splitMode === "shares"
+                              ? `Shares for ${label}`
+                              : `Amount for ${label}`
+                        }
+                        value={splitValues[memberId] ?? ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setSplitValues((prev) => ({ ...prev, [memberId]: value }));
+                          setSplitTouched(true);
+                        }}
+                        placeholder={splitMode === "shares" ? "1" : "0"}
+                        inputMode="decimal"
+                        className="w-28"
+                      />
+                      <span className="w-24 text-right text-xs text-slate-500">
+                        {part ? formatCurrency(part.shareCents, currency) : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {splitPreview && !splitPreview.ok && (
+              <p className="mt-1.5 text-xs text-red-600" aria-live="polite">
+                {splitPreview.error}
+              </p>
+            )}
+            {splitPreview?.ok && splitMode === "equal" && orderedParticipantIds.length > 1 && (
+              <p className="mt-1.5 text-xs text-slate-500">
+                Split {orderedParticipantIds.length} ways: ~
+                {formatCurrency(equalSplit(amountCents ?? 0, orderedParticipantIds.length)[0] ?? 0, currency)} each
               </p>
             )}
           </div>

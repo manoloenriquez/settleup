@@ -43,20 +43,30 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
+import { SplitEditor } from "@/components/groups/SplitEditor";
 import {
   SegmentedControl,
   Card,
-  ChipGroup,
   ErrorBanner,
   SkeletonCard,
   useToast,
   Avatar,
+  DateField,
 } from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import { presentChoices } from "@/hooks/useAddMenu";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { amountToInput, currencyName, formatAmount, parseAmountInput, simplifyDebts } from "@template/shared";
-import type { CurrencyCode, MemberBalance, SimplifiedDebt } from "@template/shared";
+import {
+  amountToInput,
+  currencyName,
+  formatAmount,
+  inferSplitMode,
+  parseAmountInput,
+  resolveSplit,
+  simplifyDebts,
+  splitValuesFromShares,
+} from "@template/shared";
+import type { CurrencyCode, MemberBalance, SimplifiedDebt, SplitMode } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -98,16 +108,11 @@ function scalePositiveAmounts(weights: number[], totalCents: number): number[] |
   return allocations;
 }
 
-function isEqualSplit(expense: ExpenseWithDetails): boolean {
-  if ((expense.items?.length ?? 0) > 0 || expense.participants.length === 0) {
-    return false;
-  }
-
-  const shares = expense.participants
-    .map((participant) => participant.share_cents)
-    .sort((a, b) => a - b);
-
-  return shares[shares.length - 1]! - shares[0]! <= 1;
+function storedSplitShares(expense: ExpenseWithDetails): { memberId: string; shareCents: number }[] {
+  return expense.participants.map((participant) => ({
+    memberId: participant.member_id,
+    shareCents: participant.share_cents,
+  }));
 }
 
 function sameIdSet(a: string[], b: Set<string>): boolean {
@@ -157,6 +162,11 @@ export default function GroupDetailScreen() {
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editParticipantIds, setEditParticipantIds] = useState<Set<string>>(new Set());
   const [editItemAssignments, setEditItemAssignments] = useState<string[][]>([]);
+  const [editDate, setEditDate] = useState("");
+  const [editSplitMode, setEditSplitMode] = useState<SplitMode>("equal");
+  const [editSplitValues, setEditSplitValues] = useState<Record<string, string>>({});
+  // Untouched exact amounts follow the total proportionally when it changes.
+  const [editSplitTouched, setEditSplitTouched] = useState(false);
   const [commentsExpense, setCommentsExpense] = useState<ExpenseWithDetails | null>(null);
   const membersQ = useMembers(id);
   const categoriesQ = useCategories(id);
@@ -307,6 +317,12 @@ export default function GroupDetailScreen() {
     setEditNotes(expense.notes ?? "");
     setEditAmount(amountToInput(Math.abs(expense.amount_cents), expense.currency_code));
     setEditCategoryId(expense.category_id);
+    setEditDate(expense.expense_date);
+    const storedShares = storedSplitShares(expense);
+    const mode = inferSplitMode(storedShares);
+    setEditSplitMode(mode);
+    setEditSplitValues(splitValuesFromShares(mode, storedShares, expense.currency_code));
+    setEditSplitTouched(false);
     setEditParticipantIds(
       new Set(expense.participants.map((participant) => participant.member_id)),
     );
@@ -324,6 +340,26 @@ export default function GroupDetailScreen() {
       else next.add(memberId);
       return next;
     });
+  }
+
+  function changeEditSplitMode(mode: SplitMode): void {
+    if (!editingExpense) return;
+    // Prefill from what is saved when the same people are still selected.
+    const stored = storedSplitShares(editingExpense);
+    const sameMembers = sameIdSet(
+      stored.map((s) => s.memberId),
+      editParticipantIds,
+    );
+    setEditSplitMode(mode);
+    setEditSplitValues(
+      sameMembers ? splitValuesFromShares(mode, stored, editingExpense.currency_code) : {},
+    );
+    setEditSplitTouched(false);
+  }
+
+  function changeEditSplitValue(memberId: string, value: string): void {
+    setEditSplitValues((prev) => ({ ...prev, [memberId]: value }));
+    setEditSplitTouched(true);
   }
 
   function toggleEditItemAssignment(itemIndex: number, memberId: string): void {
@@ -395,6 +431,7 @@ export default function GroupDetailScreen() {
           notes: editNotes,
           amountCents,
           currencyCode,
+          expenseDate: editDate || undefined,
           categoryId: editCategoryId,
           payers: editingExpense.payers.map((payer, index) => ({
             memberId: payer.member_id,
@@ -416,60 +453,81 @@ export default function GroupDetailScreen() {
       return;
     }
 
-    const participantsChanged = !sameIdSet(
-      editingExpense.participants.map((participant) => participant.member_id),
-      editParticipantIds,
-    );
-    if (isEqualSplit(editingExpense) || participantsChanged) {
+    const memberOrder = (membersQ.data ?? []).map((m) => m.id);
+    const selectedIds = memberOrder.filter((memberId) => editParticipantIds.has(memberId));
+    const stored = storedSplitShares(editingExpense);
+    const payers = editingExpense.payers.map((payer, index) => ({
+      memberId: payer.member_id,
+      paidCents: payerAmounts[index]!,
+    }));
+    const common = {
+      expenseId: editingExpense.id,
+      expectedUpdatedAt: editingExpense.updated_at,
+      itemName: editName.trim(),
+      notes: editNotes,
+      amountCents,
+      currencyCode,
+      expenseDate: editDate || undefined,
+      categoryId: editCategoryId,
+      payers,
+    };
+
+    if (editSplitMode === "equal") {
+      const check = resolveSplit({
+        mode: "equal",
+        totalMinor: amountCents,
+        currency: currencyCode,
+        memberIds: selectedIds,
+      });
+      if (!check.ok) {
+        toast.error(check.error);
+        return;
+      }
       updateExpenseMut.mutate(
-        {
-          expenseId: editingExpense.id,
-          expectedUpdatedAt: editingExpense.updated_at,
-          itemName: editName.trim(),
-          notes: editNotes,
-          amountCents,
-          currencyCode,
-          categoryId: editCategoryId,
-          participantIds: [...editParticipantIds],
-          payers: editingExpense.payers.map((payer, index) => ({
-            memberId: payer.member_id,
-            paidCents: payerAmounts[index]!,
-          })),
-        },
+        { ...common, participantIds: selectedIds },
         { onSuccess, onError },
       );
       return;
     }
 
-    const customSplitAmounts = scalePositiveAmounts(
-      editingExpense.participants.map((participant) => participant.share_cents),
-      amountCents,
-    );
-    if (!customSplitAmounts) {
-      toast.error("Amount is too small to preserve custom splits.");
-      return;
+    let customSplits: { memberId: string; shareCents: number }[];
+    const untouchedExact =
+      editSplitMode === "exact" &&
+      !editSplitTouched &&
+      sameIdSet(
+        stored.map((s) => s.memberId),
+        editParticipantIds,
+      );
+    if (untouchedExact && amountCents !== editingExpense.amount_cents) {
+      const scaled = scalePositiveAmounts(
+        stored.map((s) => s.shareCents),
+        amountCents,
+      );
+      if (!scaled) {
+        toast.error("Amount is too small to keep everyone's share.");
+        return;
+      }
+      customSplits = stored.map((s, index) => ({ memberId: s.memberId, shareCents: scaled[index]! }));
+    } else {
+      const labels = Object.fromEntries(
+        (membersQ.data ?? []).map((m) => [m.id, m.display_name]),
+      );
+      const result = resolveSplit({
+        mode: editSplitMode,
+        totalMinor: amountCents,
+        currency: currencyCode,
+        memberIds: selectedIds,
+        values: editSplitValues,
+        labels,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      customSplits = result.shares;
     }
 
-    updateCustomExpenseMut.mutate(
-      {
-        expenseId: editingExpense.id,
-        expectedUpdatedAt: editingExpense.updated_at,
-        itemName: editName.trim(),
-          notes: editNotes,
-        amountCents,
-        currencyCode,
-        categoryId: editCategoryId,
-        customSplits: editingExpense.participants.map((participant, index) => ({
-          memberId: participant.member_id,
-          shareCents: customSplitAmounts[index]!,
-        })),
-        payers: editingExpense.payers.map((payer, index) => ({
-          memberId: payer.member_id,
-          paidCents: payerAmounts[index]!,
-        })),
-      },
-      { onSuccess, onError },
-    );
+    updateCustomExpenseMut.mutate({ ...common, customSplits }, { onSuccess, onError });
   }
 
   const segments: { value: Tab; label: string }[] = [
@@ -481,12 +539,6 @@ export default function GroupDetailScreen() {
   const currentMemberId = (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
 
   const editIsItemized = (editingExpense?.items?.length ?? 0) > 0;
-  const editParticipantsChanged = editingExpense
-    ? !sameIdSet(
-        editingExpense.participants.map((participant) => participant.member_id),
-        editParticipantIds,
-      )
-    : false;
   const editSaving =
     updateExpenseMut.isPending ||
     updateCustomExpenseMut.isPending ||
@@ -853,22 +905,23 @@ export default function GroupDetailScreen() {
                 selectedId={editCategoryId}
                 onSelect={setEditCategoryId}
               />
+              {editDate !== "" && (
+                <DateField value={editDate} onChange={setEditDate} maximumDate={new Date()} />
+              )}
 
-              {!editIsItemized && (
+              {!editIsItemized && editingExpense && (
                 <View style={styles.modalSplitSection}>
-                  <ChipGroup
-                    label="Split between"
-                    chips={(membersQ.data ?? []).map((m) => ({ id: m.id, label: m.display_name }))}
+                  <SplitEditor
+                    members={membersQ.data ?? []}
                     selected={editParticipantIds}
                     onToggle={toggleEditParticipant}
+                    mode={editSplitMode}
+                    onModeChange={changeEditSplitMode}
+                    values={editSplitValues}
+                    onValueChange={changeEditSplitValue}
+                    currency={editingExpense.currency_code}
+                    totalMinor={parseAmountInput(editAmount, editingExpense.currency_code) ?? 0}
                   />
-                  {editingExpense !== null &&
-                    !isEqualSplit(editingExpense) &&
-                    editParticipantsChanged && (
-                      <Text style={styles.modalWarnText}>
-                        Changing members resets to an equal split.
-                      </Text>
-                    )}
                 </View>
               )}
 
