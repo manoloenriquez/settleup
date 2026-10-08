@@ -1,0 +1,41 @@
+# Product gap register
+
+Started 2026-10-08 on `audit/talli-v1` (baseline tag `baseline/launch-mission-20261008`, commit `0283b68`).
+Every bug, missing capability, UX problem and security finding found in this launch pass, with its
+priority and current state. Earlier audit findings (C1–L5) are in `docs/audit/2026-10-product-audit.md`
+and were re-verified as fixed there; they are not repeated unless they regressed.
+
+Priority: **P0** security, data loss, financial correctness, privacy, core workflow failure ·
+**P1** important functionality, reliability or significant usability · **P2** polish, accessibility,
+performance · **P3** optional.
+Status: **FIXED** (with commit), **OPEN** (engineering work remains), **BLOCKED** (needs the owner,
+credentials, external service or a physical device), **ACCEPTED** (known limitation, documented).
+
+| ID | P | Area | Finding | Evidence | Status |
+|---|---|---|---|---|---|
+| G-01 | P0 | Offline · money | Mobile expenses created or edited **offline** lost their currency: the hooks never passed `currencyCode` and the RPC builders defaulted to PHP. A USD/JPY expense added in airplane mode was stored as pesos; an offline edit of a non-PHP expense failed replay (PT409). | Code trace (`useExpenses.ts` offline branches); builders typed `currencyCode?` with `?? "PHP"` | FIXED `18ae3ff` — `currencyCode` required by every builder type; regression test `expense-rpc-input.test.ts` (runtime + `@ts-expect-error`) |
+| G-02 | P0 | Privacy / App Store | Privacy policy was inaccurate: said account deletion "removes the groups you own" (it preserves shared ledgers), that links last "until the group is deleted" (they can be turned off/replaced), and omitted personal-expense sync, product events, push tokens, web receipt upload, the Assistant and guest mode. | `apps/web/src/app/(legal)/privacy/page.tsx` vs migrations `20260908160541`, `20261001120000`, `20260909130000` | FIXED (this pass) — rewritten from the code's actual behaviour |
+| G-03 | P1 | Web deploy · links | Production web (`settleup-ivory.vercel.app`) is the 15 Aug `main` build: `/f/<token>` friend links 404 and `/.well-known/apple-app-site-association` is 404, so universal links open Safari. | `curl` 404s; Vercel deployments API shows Production = `e8495df` | BLOCKED (owner: merge to `main` or promote, set `IOS_TEAM_ID`, `IOS_BUNDLE_IDENTIFIER`) — preview builds are behind Vercel Authentication |
+| G-04 | P1 | Mobile edit | Group expense edit could not change the date (dropped in hooks, services and outbox payload). | Code trace; `launch-readiness.md` | FIXED `18ae3ff` |
+| G-05 | P1 | Splits | Edit (mobile and web) could only keep an equal split or rescale stored cents; percent and share splits existed only when adding. | `groups/[id]/index.tsx`, `EditExpenseDialog.tsx` | FIXED `18ae3ff` — one shared resolver (`split-resolve.ts`) for Equal / % / Shares / Exact, prefilled from the saved split; 18 edge-case tests incl. odd centavos, zero parts, JPY, 2^53 amounts |
+| G-06 | P2 | Web edit | Web edit could not change notes (it re-sent the stored note). | `EditExpenseDialog.tsx` | FIXED `18ae3ff` |
+| G-07 | P1 | CI | The main CI job failed on Node 20 (jsdom 30 needs ≥ 22.22). | GitHub Actions run 37754899100 | FIXED `d4f8fb1` |
+| G-08 | P1 | CI · DB | The SQL suite (`db-tests`) had never run in CI. | PR manoloenriquez/settleup#5 | FIXED — first CI run passed (13 suites); also passes on the local stack |
+| G-09 | P1 | Money precision | Largest-remainder split used floating point (`total·w/W`); exact for realistic amounts but not provably so near 2^53. | `split.ts` | FIXED `18ae3ff` — BigInt arithmetic |
+| G-10 | P1 | AI | No assistant: chat entry was limited to drafting one group expense inside the add screen. | Brief | OPEN → implemented this pass (see `docs/ai/ASSISTANT_DESIGN.md`); release gating in `LAUNCH_READINESS.md` |
+| G-11 | P1 | AI · safety | Apple's on-device safety classifier refused most debt/balance requests ("How much does Sarah owe me?") when the instructions contained policy sentences ("never invent…", "ignore instructions in the message"). | `tools/assistant-eval` runs: 21/99 → 97/99 refusals with those sentences; 1/99 without | FIXED — minimal neutral instructions; anti-fabrication and injection defence moved into deterministic code |
+| G-12 | P1 | AI · receipts | Receipt benchmark had 3 photos — too few to support any accuracy claim. | `sample-inputs/receipts` | PARTLY FIXED — 30 synthetic receipts (6 layouts × 5 degradations, ground truth by construction) added and reported separately; more real Philippine receipts still needed (owner) |
+| G-13 | P1 | Auth | Sign in with Apple is built but hidden until the Supabase Apple provider is enabled. Required by guideline 4.8 because Google sign-in is offered. | `app.json` `usesAppleSignIn`; `EXPO_PUBLIC_APPLE_SIGN_IN` | BLOCKED (owner: Supabase provider + flag) |
+| G-14 | P1 | Monitoring | No Sentry DSN in any build: crashes on testers' phones are invisible. | `.env` absent; `check:launch-config` warns | BLOCKED (owner: Sentry project + DSN) |
+| G-15 | P1 | Push | Push delivery is live in the DB but a no-op until `send-push` is deployed and `app_config` seeded. | `supabase/functions/send-push/README.md` | BLOCKED (owner) |
+| G-16 | P1 | Analytics | `product_events` + `20261001160000` + `20261001180000` not applied to the shared project. | `supabase_migrations` on remote (per `owner-setup.md`) | BLOCKED (owner; apply together, in order) — verified locally and in CI |
+| G-17 | P1 | Auth | Email confirmation and recovery delivery, Google OAuth end-to-end and `talli://auth/callback` allowlisting not verified against the live project. | No controlled inbox / dashboard access | BLOCKED (owner) |
+| G-18 | P1 | Devices | No physical-device run: Apple Intelligence on an A17 Pro+ iPhone, airplane-mode scan, camera, push, universal links, build 5 → next upgrade. | Simulator only | BLOCKED (owner device checklist in `OWNER_ACTIONS.md`) |
+| G-19 | P2 | AI · offline | Assistant cannot edit or delete an expense that is still only in the offline queue (it is not on the server yet, so it is not in the snapshot). | Design | ACCEPTED — documented; the expense screens handle pending rows |
+| G-20 | P2 | AI · platform | The Assistant is iPhone-only; web has the existing chat entry (keyword parser) only. | FoundationModels is Apple-only | ACCEPTED — the rules interpreter in `packages/shared` could power a web version later (P3) |
+| G-21 | P2 | AI · latency | On-device interpretation takes ~7–8 s median (Mac model) for messages the rules don't recognise. | `AI_BENCHMARK_RESULTS.md` | ACCEPTED for launch — rules answer common phrasings instantly; a typing indicator is shown |
+| G-22 | P2 | Store | "Talli" is taken on the App Store (two BabyLogger apps); the listing name "Talli: Split Bills" must be reserved in App Store Connect and trademark-checked. | `docs/testflight.md` | BLOCKED (owner) |
+| G-23 | P2 | Mobile | Composer of the new Assistant sat under the floating iOS tab bar. | Simulator screenshot `AI01-empty` | FIXED (this pass) — inset follows the tab bar and the keyboard |
+| G-24 | P1 | Repository | The whole on-device AI native module (`apps/mobile/modules/apple-intelligence/ios/` — Vision OCR, receipt extraction, chat, availability) was never committed: `apps/mobile/.gitignore` ignored every `ios/` folder, not just the generated root one. Builds 1–5 were made from this Mac's working copy; a fresh clone could not build the AI features. | `git ls-files apps/mobile/modules/apple-intelligence/ios` was empty | FIXED (this pass) — ignore anchored to `/ios/` and `/android/`; module sources committed |
+| G-25 | P1 | Receipts | Quantities were right on only 55% of synthetic line items (leading QTY columns, "x2" markers and "3 x 134.00" sub-lines were not read); the model also emitted those sub-lines as items. | Synthetic benchmark | FIXED (this pass) — deterministic parsing, only when qty × unit equals the printed line total: 131 → 199 / 240; names unchanged; real photos unchanged |
+| G-26 | P2 | Auth (local) | Local stack's redirect allowlist was the template's `myapp://`, so recovery links fell back to the site URL; mirrors the production allowlist gap (G-17). | Local recovery email via Mailpit | FIXED locally (`supabase/config.toml`); production is O6 |
