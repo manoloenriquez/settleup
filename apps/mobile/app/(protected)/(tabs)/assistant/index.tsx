@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryFill,
   },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.4 },

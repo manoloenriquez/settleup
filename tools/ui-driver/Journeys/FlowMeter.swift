@@ -78,10 +78,22 @@ final class FlowMeter {
     scrolls += 1
   }
 
-  /// Scrolls until `element` is hittable, counting each scroll.
+  /// Fully on screen and not behind the tab bar. (`isHittable` is false for
+  /// plain text inside cards even when it is plainly visible.)
+  static func isOnScreen(_ query: XCUIElement, in app: XCUIApplication) -> Bool {
+    let element = query.firstMatch
+    guard element.exists else { return false }
+    let frame = element.frame
+    guard !frame.isEmpty else { return false }
+    let tabBar = app.tabBars.firstMatch
+    let bottom = tabBar.exists ? tabBar.frame.minY : app.windows.firstMatch.frame.maxY
+    return frame.minY >= 0 && frame.maxY <= bottom
+  }
+
+  /// Scrolls until `element` is on screen, counting each scroll.
   func scrollTo(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) {
     var swipes = 0
-    while !(element.exists && element.isHittable) && swipes < maxSwipes {
+    while !FlowMeter.isOnScreen(element, in: app) && swipes < maxSwipes {
       swipeUp(app)
       swipes += 1
     }

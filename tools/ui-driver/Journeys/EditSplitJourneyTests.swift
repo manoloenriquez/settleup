@@ -23,7 +23,8 @@ final class EditSplitJourneyTests: XCTestCase {
 
     app.tabBars.buttons["Shared"].waitAndTap()
     app.element(containing: "Edit Trip").waitAndTap(timeout: 15)
-    app.buttons["Edit Villa"].waitAndTap(timeout: 15)
+    // The whole row opens the expense.
+    app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Villa,'")).firstMatch.waitAndTap(timeout: 15)
     XCTAssertTrue(app.staticTexts["Edit Expense"].waitForExistence(timeout: 5))
     snap("E01-edit-open")
 
@@ -43,7 +44,7 @@ final class EditSplitJourneyTests: XCTestCase {
     app.visibleButton("Save").tap()
     // The new date and the 50/30/20 balance show on the group screen.
     XCTAssertTrue(app.element(containing: "10/1/2026").waitForExistence(timeout: 15))
-    XCTAssertTrue(app.element(containing: "You are owed ₱450.00").waitForExistence(timeout: 15))
+    XCTAssertTrue(app.element(containing: "You’re owed ₱450.00").waitForExistence(timeout: 15))
     snap("E03-saved")
   }
 }

@@ -141,7 +141,7 @@ final class UXBefore4SettleUpTests: XCTestCase {
     sleep(3) // balances load
     meter.screen("home")
     let balance = app.staticTexts["Your balance with others"]
-    let visibleAtLaunch = balance.exists && balance.isHittable
+    let visibleAtLaunch = FlowMeter.isOnScreen(balance, in: app)
     if !visibleAtLaunch {
       meter.scrollTo(balance, in: app)
       meter.shot("home-scrolled-to-balance")

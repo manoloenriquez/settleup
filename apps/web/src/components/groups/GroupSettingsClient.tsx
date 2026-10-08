@@ -582,7 +582,7 @@ export function GroupSettingsClient({
                 ? "Admin"
                 : member.user_id
                   ? "Member"
-                  : "Unlinked";
+                  : "Not on Talli yet";
             return (
               <li
                 key={member.id}

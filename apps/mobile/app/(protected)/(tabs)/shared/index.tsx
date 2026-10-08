@@ -12,7 +12,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useGroupsWithStats, useArchivedGroups, useRestoreGroup } from "@/hooks/useGroups";
-import { formatAmount } from "@template/shared";
+import { formatAmount, groupNetsByCurrency } from "@template/shared";
+import { useDashboardSummaries } from "@/hooks/useDashboard";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { AppButton, Badge, EmptyState, ErrorBanner, SkeletonCard, useToast } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
@@ -89,6 +90,12 @@ function GroupsScreen() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"groups" | "friends">("groups");
   const friendsQ = useFriends();
+  // Your own position per group (the same numbers Home shows).
+  const dashboardQ = useDashboardSummaries();
+  const myNets = useMemo(
+    () => (dashboardQ.data ? groupNetsByCurrency(dashboardQ.data) : null),
+    [dashboardQ.data],
+  );
   // Friend ledgers are two-person groups; they are listed under Friends.
   const friendGroupIds = useMemo(
     () => new Set((friendsQ.data ?? []).map((f) => f.direct_group_id)),
@@ -233,18 +240,33 @@ function GroupsScreen() {
                     </Text>
                     <Text style={styles.cardMeta}>
                       {group.member_count ?? 0} {(group.member_count ?? 0) === 1 ? "member" : "members"}
+                      {(group.pending_count ?? 0) > 0 ? ` · ${group.pending_count} still owe` : ""}
                     </Text>
                   </View>
                   <View style={styles.cardRight}>
-                    {(group.total_owed_cents ?? 0) > 0 ? (
+                    {myNets ? (
+                      (myNets.get(group.id) ?? []).length === 0 ? (
+                        <Badge label="Settled up" variant="success" />
+                      ) : (
+                        <View style={styles.cardNets}>
+                          {(myNets.get(group.id) ?? []).map((net) => (
+                            <Text
+                              key={net.currency}
+                              style={[styles.cardAmount, { color: net.amountMinor > 0 ? colors.successDark : colors.danger }]}
+                            >
+                              {net.amountMinor > 0
+                                ? `You’re owed ${formatAmount(net.amountMinor, net.currency)}`
+                                : `You owe ${formatAmount(-net.amountMinor, net.currency)}`}
+                            </Text>
+                          ))}
+                        </View>
+                      )
+                    ) : (group.total_owed_cents ?? 0) > 0 ? (
                       <Text style={[styles.cardAmount, { color: colors.gray700 }]}>
                         {formatAmount(group.total_owed_cents ?? 0, group.default_currency_code ?? "PHP")} open
                       </Text>
                     ) : (
                       <Badge label="Settled" variant="success" />
-                    )}
-                    {(group.pending_count ?? 0) > 0 && (
-                      <Badge label={`${group.pending_count}`} variant="warning" />
                     )}
                     <Ionicons name="chevron-forward" size={14} color={colors.gray300} />
                   </View>
@@ -370,6 +392,7 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   cardName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
   cardMeta: { fontSize: fontSize.sm, color: colors.gray400, marginTop: 2 },
+  cardNets: { alignItems: "flex-end", flexShrink: 1 },
   cardRight: { alignItems: "flex-end", gap: spacing.xs },
   cardAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 

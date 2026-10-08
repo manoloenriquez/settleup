@@ -68,12 +68,16 @@ extension XCUIApplication {
     return buttons[label]
   }
 
-  /// First launch: onboarding with the suggested currency, no account.
+  /// First launch: the one-screen onboarding with the suggested currency, no account.
   func finishOnboardingAsGuest() {
     XCTAssertTrue(buttons["Get Started"].waitForExistence(timeout: 20))
     buttons["Get Started"].tap()
-    buttons.matching(NSPredicate(format: "label BEGINSWITH 'Use '")).firstMatch.waitAndTap()
-    buttons["Continue Without an Account"].waitAndTap()
+    // Builds before October 2026 asked for the currency and the account on two more screens.
+    let useCurrency = buttons.matching(NSPredicate(format: "label BEGINSWITH 'Use '")).firstMatch
+    if useCurrency.waitForExistence(timeout: 3) {
+      useCurrency.tap()
+      buttons["Continue Without an Account"].waitAndTap()
+    }
     XCTAssertTrue(buttons["Add Expense"].waitForExistence(timeout: 10))
   }
 

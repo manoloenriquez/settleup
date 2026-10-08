@@ -108,7 +108,7 @@ export function invalidateExpenseQueries(qc: QueryClient, groupId: string): void
   void qc.invalidateQueries({ queryKey: ["groups"] });
 }
 
-function useExpenseMutationInvalidations(groupId: string) {
+export function useExpenseMutationInvalidations(groupId: string) {
   const qc = useQueryClient();
   return () => {
     void qc.invalidateQueries({ queryKey: ["expenses", groupId] });

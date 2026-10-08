@@ -30,7 +30,8 @@ final class GroupJourneyTests: XCTestCase {
     }
     me.slowType("Ana")
     snap("D01-new-group")
-    app.visibleButton("Create Group").tap()
+    // The keyboard covers the bottom button; Create is in the header too.
+    app.navigationBars.buttons["Create"].waitAndTap()
     XCTAssertTrue(app.navigationBars["Boracay Trip"].waitForExistence(timeout: 15) || app.staticTexts["Boracay Trip"].waitForExistence(timeout: 5))
     snap("D02-group-created")
 
@@ -55,10 +56,8 @@ final class GroupJourneyTests: XCTestCase {
     description.waitAndTap()
     description.slowType("Seafood dinner")
     description.typeText("\n") // return closes the keyboard
-    app.swipeUp()
     snap("D04-add-expense")
-    app.visibleButton("Save expense").tap()
-    app.visibleButton("Confirm & Save").tap()
+    app.navigationBars.buttons["Save"].waitAndTap()
     XCTAssertTrue(app.element(containing: "Seafood dinner").waitForExistence(timeout: 15))
     XCTAssertTrue(app.element(containing: "600.00").waitForExistence(timeout: 15), "Ana is owed ₱600")
     snap("D05-expense-added")

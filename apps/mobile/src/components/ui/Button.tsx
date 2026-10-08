@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
 
 const variantStyles: Record<ButtonVariant, { container: ViewStyle; label: object }> = {
   primary: {
-    container: { backgroundColor: colors.primary },
+    container: { backgroundColor: colors.primaryFill },
     label: { color: colors.white },
   },
   secondary: {

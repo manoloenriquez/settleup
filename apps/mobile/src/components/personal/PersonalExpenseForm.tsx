@@ -372,6 +372,8 @@ export function PersonalExpenseForm({ expense, initialAssist = "none" }: Props) 
           onCurrencyPress={() => setPickerOpen(true)}
           error={amountError ?? undefined}
           autoFocus={!editing && initialAssist === "none"}
+          // Correcting an amount: typing replaces it.
+          selectTextOnFocus={editing}
         />
 
         <AppTextInput
@@ -474,7 +476,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.surface,
   },
-  assistBtnActive: { backgroundColor: colors.primary },
+  assistBtnActive: { backgroundColor: colors.primaryFill },
   assistText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary },
   assistTextActive: { color: colors.white },
   assistNote: { fontSize: fontSize.sm, color: colors.gray500, lineHeight: 18 },

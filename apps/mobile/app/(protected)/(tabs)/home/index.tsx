@@ -4,7 +4,7 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { APP_NAME, summarizeMonth } from "@template/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { AppButton, ErrorBanner } from "@/components/ui";
+import { AppButton, ErrorBanner, useToast } from "@/components/ui";
 import { HeaderAddButton } from "@/components/HeaderAddButton";
 import { ExpenseRow } from "@/components/personal/ExpenseRow";
 import { MonthSummaryCard } from "@/components/personal/MonthSummaryCard";
@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
 import { usePreferences } from "@/context/PreferencesContext";
 import { useAddMenu } from "@/hooks/useAddMenu";
+import { useGroups } from "@/hooks/useGroups";
 import { useStackedLayout } from "@/hooks/useStackedLayout";
 import { SHARE_REASON, useAccountPrompt } from "@/hooks/useAccountPrompt";
 import { largeTitleOptions } from "@/lib/navigation";
@@ -25,7 +26,13 @@ export default function HomeScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { session } = useAuth();
-  const { expenses, status, error, reload } = usePersonalLedger();
+  const { expenses, status, error, reload, guestExpenseCount, importGuestExpenses } = usePersonalLedger();
+  const toast = useToast();
+  const [importing, setImporting] = useState(false);
+  // People who share expenses come to see where they stand: balances first.
+  // The group list is persisted, so the order is stable from launch.
+  const { data: groups } = useGroups();
+  const sharesFirst = !!session && (groups ?? []).length > 0;
   const { preferences } = usePreferences();
   const { openAddMenu, addExpense, scanReceipt } = useAddMenu();
   const promptAccount = useAccountPrompt();
@@ -64,6 +71,34 @@ export default function HomeScreen() {
       >
         {status === "error" && error && <ErrorBanner message={error} onRetry={reload} />}
 
+        {/* Expenses added before signing in stay on the phone until added; say so here, not only in Account. */}
+        {session && guestExpenseCount > 0 && (
+          <View style={styles.importBanner}>
+            <Ionicons name="phone-portrait-outline" size={20} color={colors.primaryDark} />
+            <Text style={styles.importText}>
+              {guestExpenseCount === 1 ? "1 expense" : `${guestExpenseCount} expenses`} from before you signed in{" "}
+              {guestExpenseCount === 1 ? "is" : "are"} only on this iPhone.
+            </Text>
+            <AppButton
+              title="Add"
+              variant="secondary"
+              isLoading={importing}
+              onPress={() => {
+                setImporting(true);
+                importGuestExpenses()
+                  .then(
+                    () => toast.success("Added to your account"),
+                    () => toast.error("They’re still on this iPhone. Try again in a moment."),
+                  )
+                  .finally(() => setImporting(false));
+              }}
+              style={styles.importBtn}
+            />
+          </View>
+        )}
+
+        {sharesFirst && <SharedBalances />}
+
         <MonthSummaryCard summary={summary} />
 
         <View style={[styles.actions, stacked && styles.stacked]}>
@@ -101,7 +136,7 @@ export default function HomeScreen() {
         </View>
 
         {session ? (
-          <SharedBalances />
+          !sharesFirst && <SharedBalances />
         ) : (
           !hideInvite && (
             <View style={styles.invite}>
@@ -146,6 +181,18 @@ const styles = StyleSheet.create({
   },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   empty: { paddingVertical: spacing.lg, fontSize: fontSize.base, lineHeight: 21, color: colors.gray500 },
+  importBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryBorderSoft,
+  },
+  importText: { flex: 1, fontSize: fontSize.base, lineHeight: 20, color: colors.gray800 },
+  importBtn: { paddingHorizontal: spacing.base },
   invite: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xl,

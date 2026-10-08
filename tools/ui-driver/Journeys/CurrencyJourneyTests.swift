@@ -9,8 +9,6 @@ final class CurrencyJourneyTests: XCTestCase {
   private func completeOnboardingIfShown(_ app: XCUIApplication) {
     guard app.buttons["Get Started"].waitForExistence(timeout: 8) else { return }
     app.buttons["Get Started"].tap()
-    app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Use '")).firstMatch.waitAndTap()
-    app.buttons["Continue Without an Account"].waitAndTap()
   }
 
   private func addExpense(_ app: XCUIApplication, amount: String, description: String, currency: String?) {

@@ -128,6 +128,17 @@ describe("assistant: adding expenses", () => {
 });
 
 describe("assistant: edits, deletes, payments", () => {
+  it("'I paid Sarah back 500' reads the name as Sarah, not 'Sarah back'", () => {
+    expect(interpretWithRules("I paid Sarah back 500")).toMatchObject({
+      action: "record_payment",
+      personName: "Sarah",
+      amount: 500,
+      direction: "i_paid_them",
+    });
+    // A real two-word name is kept.
+    expect(interpretWithRules("I paid Sarah Lim 500")).toMatchObject({ personName: "Sarah Lim" });
+  });
+
   it("'Change yesterday's dinner to ₱4,200' keeps it equal over the same people", () => {
     const p = proposal(run("Change yesterday's dinner to ₱4,200"));
     expect(p.risk).toBe("consequential");

@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   userRow: { alignItems: "flex-end", marginVertical: spacing.xs },
   userBubble: {
     maxWidth: "85%",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryFill,
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: borderRadius.md,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryFill,
   },
   destructiveButton: { backgroundColor: colors.danger },
   primaryText: { color: colors.white, fontSize: fontSize.md, fontWeight: fontWeight.semibold },

@@ -11,14 +11,15 @@ final class GuestJourneyTests: XCTestCase {
     app.launch()
 
     XCTAssertTrue(app.staticTexts["Know where your money goes"].waitForExistence(timeout: 20))
+    // One screen: main currency pre-selected, no account needed.
     snap("A01-welcome")
     app.buttons["Get Started"].waitAndTap()
-    XCTAssertTrue(app.staticTexts["Your main currency"].waitForExistence(timeout: 5))
-    snap("A02-currency")
-    app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Use '")).firstMatch.waitAndTap()
-    XCTAssertTrue(app.staticTexts["An account is optional"].waitForExistence(timeout: 5))
-    snap("A03-account")
-    app.buttons["Continue Without an Account"].waitAndTap()
+    // Builds before October 2026 had two more onboarding screens.
+    let useCurrency = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Use '")).firstMatch
+    if useCurrency.waitForExistence(timeout: 3) {
+      useCurrency.tap()
+      app.buttons["Continue Without an Account"].waitAndTap()
+    }
 
     // Home
     XCTAssertTrue(app.buttons["Add Expense"].waitForExistence(timeout: 10))
@@ -42,10 +43,8 @@ final class GuestJourneyTests: XCTestCase {
     app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Lunch at Jollibee'")).firstMatch.waitAndTap()
     let editAmount = app.textFields["Amount"]
     XCTAssertTrue(editAmount.waitForExistence(timeout: 5))
+    // The amount is selected when the field gets focus: typing replaces it.
     editAmount.tap()
-    editAmount.press(forDuration: 1.0)
-    if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap() }
-    editAmount.typeText(XCUIKeyboardKey.delete.rawValue)
     editAmount.slowType("275.50")
     snap("A07-edit-expense")
     app.navigationBars.buttons["Save"].waitAndTap()

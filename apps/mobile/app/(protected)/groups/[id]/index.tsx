@@ -36,6 +36,8 @@ import {
 import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutbox";
 import { useGroupRealtime } from "@/hooks/useGroupRealtime";
 import { useShareLink } from "@/hooks/useShareLink";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFriends } from "@/hooks/useFriends";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
@@ -154,6 +156,10 @@ export default function GroupDetailScreen() {
   const undoMemberPayment = useUndoLastPaymentForMember(id);
   const pendingPaymentsQ = usePendingPayments(id);
   const shareLinkQ = useShareLink(id);
+  const insets = useSafeAreaInsets();
+  const friendsQ = useFriends();
+  // Friend tabs are two-person ledgers: no "Add people".
+  const isDirect = (friendsQ.data ?? []).some((friend) => friend.direct_group_id === id);
   const pendingExpenses = usePendingExpenses(id);
   const pendingPaymentRecords = usePendingPaymentRecords(id);
   useGroupRealtime(id);
@@ -393,6 +399,31 @@ export default function GroupDetailScreen() {
     );
   }
 
+  /** Delete from the edit sheet (a shared ledger, so it still asks first). */
+  function handleDeleteEditing(): void {
+    const expense = editingExpense;
+    if (!expense) return;
+    Alert.alert(`Delete ${expense.item_name}?`, "It’s removed for everyone in the group and balances update.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          deleteExpense.mutate(expense.id, {
+            onSuccess: (res) => {
+              if (res.error) {
+                toast.error(res.error);
+                return;
+              }
+              setEditingExpense(null);
+              toast.success("Expense deleted");
+            },
+            onError: () => toast.error("Failed to delete expense."),
+          }),
+      },
+    ]);
+  }
+
   function handleSaveEdit(): void {
     if (!editingExpense) return;
     // An expense keeps its own currency; editing never converts it.
@@ -556,6 +587,7 @@ export default function GroupDetailScreen() {
   ];
 
   const currentMemberId = (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
+  const memberNames = new Map((membersQ.data ?? []).map((m) => [m.id, m.display_name]));
 
   const editIsItemized = (editingExpense?.items?.length ?? 0) > 0;
   const editSaving =
@@ -640,6 +672,7 @@ export default function GroupDetailScreen() {
                 </View>
               );
             })}
+            {!isDirect && (
             <TouchableOpacity
               style={styles.avatarItem}
               onPress={() => router.push(`/(protected)/groups/${id}/settings?focus=people`)}
@@ -652,9 +685,11 @@ export default function GroupDetailScreen() {
               </View>
               <Text style={styles.avatarName}>Add</Text>
             </TouchableOpacity>
+            )}
           </ScrollView>
 
-          {/* Group balance card */}
+          {/* Your position first: what you owe or are owed here, and the
+              payments that settle it, with Settle Up one tap away. */}
           {(() => {
             const members = balancesQ.data ?? [];
             const totalOwed = members.reduce((s, m) => s + m.owed_cents, 0);
@@ -664,41 +699,78 @@ export default function GroupDetailScreen() {
               totalSpent > 0
                 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100)))
                 : 100;
-            // Without loaded balances (e.g. the fetch failed) don't claim "All settled".
+            // Without loaded balances (e.g. the fetch failed) don't claim "settled".
             const known = balancesQ.data !== undefined;
-            const isSettled = known && totalOwed === 0;
             const myNet = members.find((m) => m.member_id === currentMemberId)?.net_cents ?? 0;
+            const mine = simplifyDebts(members).filter(
+              (d) => d.from_member_id === currentMemberId || d.to_member_id === currentMemberId,
+            );
             const expenseCount = totalsQ.data?.count ?? expenses.length;
+            const headline = !known
+              ? "—"
+              : myNet < 0
+                ? `You owe ${money(-myNet)}`
+                : myNet > 0
+                  ? `You’re owed ${money(myNet)}`
+                  : "You’re settled up";
             return (
               <View style={styles.balanceCard}>
-                <View style={styles.balanceTop}>
-                  <View style={styles.balanceBody}>
-                    <Text style={styles.balanceLabel}>
-                      {currencies.length > 1 ? `Still owed in ${activeCurrency}` : "Still owed in this group"}
-                    </Text>
-                    <Text maxFontSizeMultiplier={1.4} style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
-                      {!known ? "—" : isSettled ? "All settled" : money(totalOwed)}
-                    </Text>
-                    <Text style={styles.balanceSub}>
-                      {!known
-                        ? "Balances couldn’t load"
-                        : myNet > 0
-                        ? `You are owed ${money(myNet)}`
-                        : myNet < 0
-                          ? `You owe ${money(-myNet)}`
-                          : "You’re settled up"}
-                    </Text>
+                <Text style={styles.balanceLabel}>
+                  {currencies.length > 1 ? `Your balance in ${activeCurrency}` : "Your balance"}
+                </Text>
+                <Text
+                  maxFontSizeMultiplier={1.4}
+                  style={[
+                    styles.balanceAmount,
+                    known && myNet < 0 && { color: colors.danger },
+                    known && myNet > 0 && { color: colors.successDark },
+                  ]}
+                >
+                  {headline}
+                </Text>
+                {mine.map((debt) => {
+                  const iOwe = debt.from_member_id === currentMemberId;
+                  const other = iOwe ? debt.to_display_name : debt.from_display_name;
+                  return (
+                    <View key={`${debt.from_member_id}-${debt.to_member_id}`} style={styles.myDebtRow}>
+                      <Avatar name={other} size={32} />
+                      <Text style={styles.myDebtText} numberOfLines={2}>
+                        {iOwe ? `You owe ${other}` : `${other} owes you`}{" "}
+                        <Text style={[styles.myDebtAmount, { color: iOwe ? colors.danger : colors.successDark }]}>
+                          {money(debt.amount_cents)}
+                        </Text>
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.myDebtBtn, iOwe && styles.myDebtBtnPrimary]}
+                        onPress={() => handleSettle(debt)}
+                        accessibilityRole="button"
+                        accessibilityLabel={iOwe ? `Settle up with ${other}` : `Record payment from ${other}`}
+                      >
+                        <Text style={[styles.myDebtBtnText, iOwe && styles.myDebtBtnTextPrimary]}>
+                          {iOwe ? "Settle Up" : "Record Payment"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                <Text style={styles.balanceSub}>
+                  {!known
+                    ? "Balances couldn’t load"
+                    : totalOwed === 0
+                      ? "Everyone in this group is settled up"
+                      : `${money(totalOwed)} still owed in this group`}
+                  {` · ${expenseCount} expense${expenseCount !== 1 ? "s" : ""}`}
+                </Text>
+                {known && totalOwed > 0 && (
+                  <View
+                    style={styles.balanceTrack}
+                    accessibilityRole="progressbar"
+                    accessibilityLabel="Group settled"
+                    accessibilityValue={{ min: 0, max: 100, now: settledPct }}
+                  >
+                    <View style={[styles.balanceFill, { width: `${settledPct}%` }]} />
                   </View>
-                  <View style={styles.balancePill}>
-                    <Text style={styles.balancePillText}>
-                      {expenseCount} expense{expenseCount !== 1 ? "s" : ""}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.balanceTrack}>
-                  <View style={[styles.balanceFill, { width: `${settledPct}%` }]} />
-                </View>
-                <Text style={styles.balancePct}>{settledPct}% settled</Text>
+                )}
               </View>
             );
           })()}
@@ -778,6 +850,8 @@ export default function GroupDetailScreen() {
           {tab === "expenses" && (
             <ExpenseList
               onComments={setCommentsExpense}
+              currentMemberId={currentMemberId}
+              memberNames={memberNames}
               expenses={expenses}
               pendingExpenses={pendingExpenses}
               hasMore={expensesQ.hasNextPage}
@@ -891,7 +965,10 @@ export default function GroupDetailScreen() {
         onRequestClose={() => setEditingExpense(null)}
       >
         {/* Keeps Save above the keyboard (the decimal pad has no return key). */}
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView
+          style={[styles.modalOverlay, { paddingTop: insets.top + spacing.base }]}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Expense</Text>
             <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.modalScroll} showsVerticalScrollIndicator={false}>
@@ -901,6 +978,7 @@ export default function GroupDetailScreen() {
                 value={editName}
                 onChangeText={setEditName}
                 placeholder="Expense name"
+                accessibilityLabel="Name"
                 placeholderTextColor={colors.gray400}
               />
               <Text style={styles.modalLabel}>Amount</Text>
@@ -909,6 +987,8 @@ export default function GroupDetailScreen() {
                 value={editAmount}
                 onChangeText={setEditAmount}
                 placeholder="0.00"
+                accessibilityLabel="Amount"
+                selectTextOnFocus
                 placeholderTextColor={colors.gray400}
                 keyboardType="decimal-pad"
               />
@@ -996,6 +1076,14 @@ export default function GroupDetailScreen() {
             <View style={styles.modalBtns}>
               <TouchableOpacity
                 accessibilityRole="button"
+                style={[styles.modalCancelBtn, styles.modalDeleteBtn]}
+                onPress={handleDeleteEditing}
+                disabled={editSaving}
+              >
+                <Text style={styles.modalDeleteText}>Delete</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.modalCancelBtn}
                 onPress={() => setEditingExpense(null)}
               >
@@ -1069,8 +1157,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.base,
   },
-  balanceTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  balanceBody: { flex: 1, minWidth: 0 },
   balanceLabel: { fontSize: fontSize.base, color: colors.gray500, fontWeight: fontWeight.medium },
   balanceAmount: {
     fontSize: fontSize["3xl"],
@@ -1078,20 +1164,32 @@ const styles = StyleSheet.create({
     color: colors.gray900,
     letterSpacing: -0.5,
     marginTop: 2,
+    marginBottom: spacing.sm,
     fontVariant: ["tabular-nums"],
   },
-  balanceSub: { fontSize: fontSize.base, color: colors.gray500, marginTop: 2 },
-  balancePill: {
-    backgroundColor: colors.gray100,
+  balanceSub: { fontSize: fontSize.sm, color: colors.gray500, marginTop: spacing.sm },
+  myDebtRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  myDebtText: { flex: 1, fontSize: fontSize.base, color: colors.gray800 },
+  myDebtAmount: { fontWeight: fontWeight.bold, fontVariant: ["tabular-nums"] },
+  myDebtBtn: {
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  balancePillText: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
-    color: colors.gray600,
-  },
+  myDebtBtnPrimary: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  myDebtBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  myDebtBtnTextPrimary: { color: colors.white },
   balanceTrack: {
     height: 8,
     borderRadius: borderRadius.full,
@@ -1100,7 +1198,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   balanceFill: { height: "100%", borderRadius: borderRadius.full, backgroundColor: colors.primary },
-  balancePct: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 4 },
 
   tabSection: { marginTop: spacing.base },
 
@@ -1221,6 +1318,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     width: "100%",
+    // Shrinks with the keyboard instead of sliding under the status bar.
+    maxHeight: "100%",
   },
   modalTitle: {
     fontSize: fontSize.lg,
@@ -1243,7 +1342,7 @@ const styles = StyleSheet.create({
     color: colors.gray900,
     marginBottom: spacing.sm,
   },
-  modalScroll: { maxHeight: 440 },
+  modalScroll: { maxHeight: 440, flexShrink: 1 },
   modalSplitSection: { marginTop: spacing.sm, gap: spacing.sm },
   modalWarnText: { fontSize: fontSize.xs, color: colors.warningDark },
   itemAssignCard: {
@@ -1284,10 +1383,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
-  modalCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.base },
+  modalCancelBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.base },
+  modalDeleteBtn: { marginRight: "auto", paddingHorizontal: 0 },
+  modalDeleteText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.danger },
   modalCancelText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray500 },
   modalSaveBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryFill,
+    minHeight: 44,
+    justifyContent: "center",
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.md,

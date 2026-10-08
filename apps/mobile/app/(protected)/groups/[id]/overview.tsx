@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
 
   // Hero
   hero: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryFill,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     marginBottom: spacing.base,

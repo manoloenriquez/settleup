@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useGroups } from "@/hooks/useGroups";
 import { SHARE_REASON, useAccountPrompt } from "@/hooks/useAccountPrompt";
 import { ROUTES } from "@/lib/routes";
+import { readLastGroup } from "@/lib/last-group";
 
 export type Choice = { label: string; run: () => void; destructive?: boolean };
 
@@ -81,12 +82,31 @@ export function useAddMenu(): { openAddMenu: () => void; addExpense: () => void;
   }, [session, groups, router, promptAccount]);
 
   const openAddMenu = useCallback(() => {
-    presentChoices("Add", [
-      { label: "Add Expense", run: addExpense },
-      { label: "Scan Receipt", run: scanReceipt },
-      { label: "Split with a Group", run: splitWithGroup },
-    ]);
-  }, [addExpense, scanReceipt, splitWithGroup]);
+    const active = groups ?? [];
+    const show = (recentId: string | null) => {
+      // Repeat expenses usually go to the same group: offer it by name.
+      const recent = active.find((group) => group.id === recentId) ?? (active.length === 1 ? active[0] : undefined);
+      presentChoices("Add", [
+        { label: session ? "Personal Expense" : "Add Expense", run: addExpense },
+        ...(session && recent
+          ? [
+              {
+                label: `Split with ${recent.name}`,
+                run: () => router.push({ pathname: "/(protected)/groups/[id]/add-expense", params: { id: recent.id } }),
+              },
+            ]
+          : []),
+        { label: "Scan Receipt", run: scanReceipt },
+        // Always reachable: other groups and "Create a New Group" live here.
+        { label: recent ? "Split with Another Group" : "Split with a Group", run: splitWithGroup },
+      ]);
+    };
+    if (!session) {
+      show(null);
+      return;
+    }
+    void readLastGroup(session.user.id).then(show);
+  }, [groups, session, addExpense, scanReceipt, splitWithGroup, router]);
 
   return { openAddMenu, addExpense, scanReceipt };
 }

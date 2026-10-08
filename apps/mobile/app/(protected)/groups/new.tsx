@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { currencyName, type CurrencyCode } from "@template/shared";
+import { currencyName, parsePeopleNames, type CurrencyCode } from "@template/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { addMembersBatch } from "@/services/members";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { usePreferences } from "@/context/PreferencesContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -31,9 +33,14 @@ export default function NewGroupScreen() {
   const suggestedName = profile?.full_name?.trim() || session?.user.email?.split("@")[0] || "";
   const [myName, setMyName] = useState<string | null>(null);
   const displayName = (myName ?? suggestedName).trim();
+  const [people, setPeople] = useState("");
+  const names = parsePeopleNames(people, [displayName]);
+  const qc = useQueryClient();
+
+  const canCreate = !!name.trim() && !!displayName && !createGroup.isPending;
 
   async function handleCreate() {
-    if (!name.trim() || !displayName) return;
+    if (!name.trim() || !displayName || createGroup.isPending) return;
 
     if (!onlineManager.isOnline()) {
       // Queue for replay (client id doubles as the group id). Never navigate
@@ -49,6 +56,9 @@ export default function NewGroupScreen() {
         summary: { title: name.trim(), amountCents: 0 },
       });
       router.back();
+      if (names.length > 0) {
+        toast.info("The group will be created when you’re back online. Add people from the group then.");
+      }
       return;
     }
 
@@ -69,12 +79,47 @@ export default function NewGroupScreen() {
       return;
     }
 
-    router.replace(`/(protected)/groups/${result.data.id}`);
+    const groupId = result.data.id;
+    if (names.length > 0) {
+      // The group exists either way; if adding people fails, say so and send
+      // the organizer straight to the add-people field instead of losing them.
+      const added = await addMembersBatch(groupId, names);
+      void qc.invalidateQueries({ queryKey: ["members", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      if (added.error) {
+        toast.error(`Group created, but ${names.join(", ")} couldn’t be added. Add them here.`);
+        router.replace(`/(protected)/groups/${groupId}/settings?focus=people`);
+        return;
+      }
+    }
+    router.replace(`/(protected)/groups/${groupId}`);
   }
 
   return (
     <>
-      <Stack.Screen options={{ title: "New Group", headerShown: true }} />
+      <Stack.Screen
+        options={{
+          title: "New Group",
+          headerShown: true,
+          // Reachable while the keyboard covers the bottom button.
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => void handleCreate()}
+              disabled={!canCreate}
+              accessibilityRole="button"
+              accessibilityLabel="Create"
+              accessibilityState={{ disabled: !canCreate }}
+              hitSlop={12}
+            >
+              {createGroup.isPending ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={[styles.headerAction, !canCreate && styles.headerActionDisabled]}>Create</Text>
+              )}
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -105,6 +150,24 @@ export default function NewGroupScreen() {
             />
 
             <View style={styles.currencyRow}>
+              <AppTextInput
+                label="Who’s in? (optional)"
+                value={people}
+                onChangeText={setPeople}
+                placeholder="e.g. Carla, Dina, Eli"
+                autoCapitalize="words"
+                returnKeyType="done"
+                accessibilityLabel="People in this group, separated by commas"
+                onSubmitEditing={() => void handleCreate()}
+              />
+              <Text style={styles.hint}>
+                {names.length > 0
+                  ? `Adds ${names.join(", ")}. They don’t need the app — you can send each a link later.`
+                  : "Separate names with commas. You can add people later too."}
+              </Text>
+            </View>
+
+            <View style={styles.currencyRow}>
               <Text style={styles.label}>Main currency</Text>
               <TouchableOpacity
                 style={styles.currencyBtn}
@@ -124,7 +187,7 @@ export default function NewGroupScreen() {
             </View>
 
             <AppButton
-              title={createGroup.isPending ? "Creating…" : "Create Group"}
+              title={createGroup.isPending ? "Creating…" : names.length > 0 ? `Create Group with ${names.length + 1} People` : "Create Group"}
               onPress={handleCreate}
               isLoading={createGroup.isPending}
               disabled={!name.trim() || !displayName || createGroup.isPending}
@@ -163,5 +226,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   currencyText: { fontSize: fontSize.md, color: colors.gray900 },
+  headerAction: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primary },
+  headerActionDisabled: { color: colors.gray400 },
   hint: { fontSize: fontSize.sm, color: colors.gray500, lineHeight: 18 },
 });

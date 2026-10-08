@@ -24,9 +24,12 @@ export const colors = {
   primary: adaptive("#059669", "#10b981"),
   primaryLight: adaptive("#d1fae5", "#06352a"),
   primaryDark: adaptive("#047857", "#6ee7b7"),
+  /** Filled buttons: white text needs a darker green than the brand tint (5.5:1). */
+  primaryFill: adaptive("#047857", "#047857"),
 
   // Semantic
-  success: adaptive("#10b981", "#34d399"),
+  // Text-safe greens: #047857 is 5.5:1 on white (the old #10b981 was 2.5:1).
+  success: adaptive("#047857", "#34d399"),
   successLight: adaptive("#d1fae5", "#06352a"),
   successDark: adaptive("#065f46", "#6ee7b7"),
   warning: adaptive("#f59e0b", "#fbbf24"),

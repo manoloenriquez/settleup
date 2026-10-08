@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,7 +14,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
+import {
+  deleteExpenseOrQueue,
+  useAddExpense,
+  useAddExpenseCustomSplit,
+  useAddItemizedExpense,
+  useExpenseMutationInvalidations,
+} from "@/hooks/useExpenses";
+import { useOutbox } from "@/context/OutboxContext";
+import { rememberLastGroup } from "@/lib/last-group";
 import { useCreateRecurringExpense } from "@/hooks/useRecurring";
 import { useGroups } from "@/hooks/useGroups";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
@@ -43,9 +53,9 @@ import {
   type DraftResolution,
   type PersistedDraft,
 } from "@/lib/expense-draft";
-import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
+import { CategoryPicker } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, isUnusuallyLarge, parseAmountInput, type CurrencyCode } from "@template/shared";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -109,6 +119,23 @@ function DateField({ value, onChange }: { value: string; onChange: (iso: string)
   );
 }
 
+function AssistButton({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}): React.ReactElement {
+  return (
+    <TouchableOpacity style={styles.assistBtn} onPress={onPress} accessibilityRole="button" activeOpacity={0.7}>
+      <Ionicons name={icon} size={18} color={colors.primaryDark} />
+      <Text style={styles.assistText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function AddExpenseScreen() {
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -121,6 +148,8 @@ export default function AddExpenseScreen() {
   const categoriesQ = useCategories(groupId);
   const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
   const addExpense = useAddExpense(groupId);
+  const { enqueue } = useOutbox();
+  const invalidateGroup = useExpenseMutationInvalidations(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
   const createRecurring = useCreateRecurringExpense(groupId);
@@ -172,8 +201,8 @@ export default function AddExpenseScreen() {
   // Itemized mode state
   const [lineItems, setLineItems] = useState<LineItem[]>([{ name: "", amountStr: "", participantIds: [] }]);
 
-  // Confirmation step state (quick / detailed / itemized)
-  const [confirming, setConfirming] = useState(false);
+  // One save at a time (the header button can be tapped twice quickly).
+  const savingRef = useRef(false);
 
   // Chat mode state: the suggestion under review lives here until the user
   // resolves every name and moves it into the shared form.
@@ -190,7 +219,6 @@ export default function AddExpenseScreen() {
   // Initialize payer to first member that matches user
   const myMember = members.find((m) => m.user_id === session?.user.id) ?? members[0];
   const effectivePayerId = payerMemberId || myMember?.id || "";
-  const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
 
   useEffect(() => {
     hasInitializedMembersRef.current = false;
@@ -447,7 +475,54 @@ export default function AddExpenseScreen() {
       toast.error("Please select who paid for this.");
       return;
     }
-    setConfirming(true);
+    confirmThenSave(amountCents, handleQuickSave);
+  }
+
+  /**
+   * Saving is the confirmation: the form already shows every value, and the
+   * toast offers Undo. Only an unusually large amount (a likely decimal slip)
+   * asks first, as the personal form does.
+   */
+  function confirmThenSave(amountCents: number, save: () => Promise<void>): void {
+    const run = () => {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      void save().finally(() => {
+        savingRef.current = false;
+      });
+    };
+    if (isUnusuallyLarge(amountCents, expenseCurrency)) {
+      Alert.alert(`Save ${money(amountCents)}?`, "That’s a large amount. Check the decimal point before saving.", [
+        { text: "Edit Amount", style: "cancel" },
+        { text: "Save", onPress: run },
+      ]);
+      return;
+    }
+    run();
+  }
+
+  /** After any save: forget the draft, remember the group, offer Undo, go back. */
+  function afterSaved(expenseId: string | null): void {
+    clearPersistedDraft();
+    void rememberLastGroup(session?.user.id ?? "", groupId);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (expenseId) {
+      toast.withAction("Expense added", {
+        label: "Undo",
+        onPress: () => {
+          // Same path as deleting from the list: online it deletes the row,
+          // offline it cancels the queued create (or queues the delete).
+          void deleteExpenseOrQueue(groupId, expenseId, enqueue).then((res) => {
+            invalidateGroup();
+            if (res.error) toast.error(`Couldn’t undo: ${res.error}`);
+            else toast.info("Expense removed");
+          });
+        },
+      });
+    } else {
+      toast.success("Expense added");
+    }
+    router.back();
   }
 
   function trackSaveFailed(error: string): void {
@@ -484,10 +559,7 @@ export default function AddExpenseScreen() {
     });
     if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
     trackSaved("quick", selectedMembers.size);
-    clearPersistedDraft();
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    afterSaved(result.data?.id ?? null);
   }
 
   function handleDetailedReview() {
@@ -526,12 +598,13 @@ export default function AddExpenseScreen() {
       toast.error("Please select who paid.");
       return;
     }
-    setConfirming(true);
+    confirmThenSave(amountCents, handleDetailedSave);
   }
 
   async function handleDetailedSave() {
     const amountCents = parseMoney(amount) ?? 0;
     const payers = getPayersArray();
+    let savedId: string | null = null;
     if (splitMode !== "equal") {
       // percent/shares resolve to exact cents and reuse the custom-split path
       const customSplits = resolveCustomSplits(amountCents);
@@ -539,6 +612,7 @@ export default function AddExpenseScreen() {
       const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, customSplits, payers, expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", customSplits.length);
+      savedId = result.data?.id ?? null;
     } else if (multiPayer) {
       // Equal split with several payers: the equal-split RPC accepts one payer,
       // so send exact equal shares through the custom path with every payer.
@@ -548,10 +622,12 @@ export default function AddExpenseScreen() {
       const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, customSplits, payers, expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", ids.length);
+      savedId = result.data?.id ?? null;
     } else {
       const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate, notes });
       if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
       trackSaved("detailed", selectedMembers.size);
+      savedId = result.data?.id ?? null;
     }
     if (repeats !== "none") {
       const recurringResult = await createRecurring.mutateAsync({
@@ -567,12 +643,15 @@ export default function AddExpenseScreen() {
       });
       if (recurringResult.error) {
         toast.error(`Expense added, but the ${repeats} repeat could not be saved`);
+        clearPersistedDraft();
+        router.back();
+        return;
       }
+      // A repeating expense keeps its template; undoing only the first copy would confuse.
+      afterSaved(null);
+      return;
     }
-    clearPersistedDraft();
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    afterSaved(savedId);
   }
 
   async function handleChatSend() {
@@ -698,7 +777,7 @@ export default function AddExpenseScreen() {
       toast.error("Please select who paid.");
       return;
     }
-    setConfirming(true);
+    confirmThenSave(amountCents, handleItemizedSave);
   }
 
   async function handleItemizedSave() {
@@ -721,7 +800,6 @@ export default function AddExpenseScreen() {
       })),
     });
     if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
-    clearPersistedDraft();
     trackSaved(
       "itemized",
       new Set(
@@ -730,9 +808,7 @@ export default function AddExpenseScreen() {
         ),
       ).size,
     );
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    afterSaved(result.data?.id ?? null);
   }
 
   const memberChips = members.map((m) => ({ id: m.id, label: m.display_name }));
@@ -751,109 +827,82 @@ export default function AddExpenseScreen() {
   const payerRemaining = amountCents - payerSum;
 
   const isSavePending = addExpense.isPending || addCustomSplit.isPending || addItemized.isPending;
-
-  if (confirming) {
-    const payerLabel = multiPayer
-      ? Object.entries(payerAmounts).filter(([, v]) => (parseMoney(v) ?? 0) > 0).map(([id, v]) => `${members.find((m) => m.id === id)?.display_name ?? id} (${money(parseMoney(v) ?? 0)})`).join(", ")
-      : (members.find((m) => m.id === effectivePayerId)?.display_name ?? "—");
-
-    const onConfirm = mode === "quick" ? handleQuickSave : mode === "detailed" ? handleDetailedSave : handleItemizedSave;
-
-    return (
-      <>
-        <Stack.Screen options={{ title: "Confirm Expense", headerShown: true }} />
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={[styles.content, { justifyContent: "flex-start" }]}>
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>REVIEW</Text>
-            <Text style={styles.confirmName}>{itemName}</Text>
-            <Text maxFontSizeMultiplier={1.4} style={styles.confirmAmount}>{money(amountCents)}</Text>
-            <CategoryPill category={selectedCategory} />
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Date</Text>
-              <Text style={styles.confirmValue}>{isoToLocalDate(expenseDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</Text>
-            </View>
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Paid by</Text>
-              <Text style={styles.confirmValue}>{payerLabel}</Text>
-            </View>
-            {mode === "quick" && (
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Split</Text>
-                <Text style={styles.confirmValue}>Equal · {selectedMembers.size} member{selectedMembers.size !== 1 ? "s" : ""}</Text>
-              </View>
-            )}
-            {mode === "detailed" && (
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Split</Text>
-                <Text style={styles.confirmValue}>
-                  {splitMode === "custom"
-                    ? "Custom"
-                    : splitMode === "percent"
-                      ? "By percentage"
-                      : splitMode === "shares"
-                        ? "By shares"
-                        : `Equal · ${selectedMembers.size} member${selectedMembers.size !== 1 ? "s" : ""}`}
-                </Text>
-              </View>
-            )}
-            {mode === "itemized" && lineItems.filter((li) => li.name.trim()).map((li, i) => (
-              <View key={i} style={styles.confirmRow}>
-                <Text style={styles.confirmLabel} numberOfLines={1}>{li.name}</Text>
-                <Text style={styles.confirmValue}>{money(parseMoney(li.amountStr) ?? 0)}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.confirmActions}>
-            <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={() => setConfirming(false)} activeOpacity={0.7}>
-              <Text style={styles.backBtnText}>Back to Edit</Text>
-            </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <AppButton title={isSavePending ? "Saving…" : "Confirm & Save"} onPress={onConfirm} isLoading={isSavePending} />
-            </View>
-          </View>
-        </ScrollView>
-      </>
-    );
-  }
+  // Chat and receipt modes lead into the form; saving happens from the form.
+  const saveAction =
+    mode === "quick" ? handleQuickReview : mode === "detailed" ? handleDetailedReview : mode === "itemized" ? handleItemizedReview : null;
+  const canSave = saveAction !== null && itemName.trim().length > 0 && amount.trim().length > 0 && !isSavePending;
+  // "You" first, then everyone else in group order.
+  const payerChoices = [
+    ...members.filter((m) => m.user_id === session?.user.id).map((m) => ({ id: m.id, label: "You" })),
+    ...members.filter((m) => m.user_id !== session?.user.id).map((m) => ({ id: m.id, label: m.display_name })),
+  ];
 
   return (
     <>
-      <Stack.Screen options={{ title: "Add Expense", headerShown: true }} />
+      <Stack.Screen
+        options={{
+          title: "Add Expense",
+          headerShown: true,
+          headerRight: () =>
+            saveAction ? (
+              <TouchableOpacity
+                onPress={saveAction}
+                disabled={!canSave}
+                accessibilityRole="button"
+                accessibilityLabel="Save"
+                accessibilityState={{ disabled: !canSave }}
+                hitSlop={12}
+              >
+                {isSavePending ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={[styles.headerSave, !canSave && styles.headerSaveDisabled]}>Save</Text>
+                )}
+              </TouchableOpacity>
+            ) : null,
+        }}
+      />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {/* Smart add hint — jumps into the natural-language chat mode */}
-          {mode !== "chat" && (
+          {/* Typing is the main path; a receipt or a sentence can fill it in. */}
+          {mode === "chat" || mode === "receipt" ? (
             <TouchableOpacity
               accessibilityRole="button"
-              style={styles.smartBanner}
-              onPress={() => setMode("chat")}
-              activeOpacity={0.8}
+              style={styles.backToForm}
+              onPress={() => setMode("quick")}
+              hitSlop={8}
             >
-              <View style={styles.smartBannerHeader}>
-                <Ionicons name="sparkles" size={14} color={colors.primary} />
-                <Text style={styles.smartBannerTitle}>Smart add</Text>
-              </View>
-              <Text style={styles.smartBannerSub}>
-                Try typing something like:{" "}
-                <Text style={styles.smartBannerExample}>
-                  “Dinner 2400 paid by Manolo, split with Aya and Carlo”
-                </Text>
-              </Text>
+              <Ionicons name="create-outline" size={16} color={colors.primaryDark} />
+              <Text style={styles.backToFormText}>Type It In Instead</Text>
             </TouchableOpacity>
+          ) : (
+            <View style={styles.assistRow}>
+              <AssistButton
+                icon="scan-outline"
+                label="Scan Receipt"
+                onPress={() => {
+                  if (aiAvailability.state === "unavailable") {
+                    toast.info(`${aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE} Type the amount instead.`);
+                    return;
+                  }
+                  setMode("receipt");
+                }}
+              />
+              <AssistButton icon="chatbubble-ellipses-outline" label="Describe It" onPress={() => setMode("chat")} />
+            </View>
           )}
 
-          <SegmentedControl
-            segments={[
-              { value: "quick" as Mode, label: "Quick" },
-              { value: "chat" as Mode, label: "Chat" },
-              { value: "receipt" as Mode, label: "Receipt" },
-              { value: "detailed" as Mode, label: "Detailed" },
-              { value: "itemized" as Mode, label: "Itemized" },
-            ]}
-            value={mode}
-            onChange={setMode}
-          />
+          {(mode === "detailed" || mode === "itemized") && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.backToForm}
+              onPress={() => setMode("quick")}
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-back" size={16} color={colors.primaryDark} />
+              <Text style={styles.backToFormText}>Simple Equal Split</Text>
+            </TouchableOpacity>
+          )}
 
           {/* ---- QUICK MODE ---- */}
           {mode === "quick" && (() => {
@@ -866,15 +915,15 @@ export default function AddExpenseScreen() {
             }
             return (
               <View style={styles.form}>
-                <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
-                <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" />
+                <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} autoFocus />
+                <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" returnKeyType="done" />
                 <DateField value={expenseDate} onChange={setExpenseDate} />
                 <View>
                   <Text style={styles.label}>Paid by</Text>
                   <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                    {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                    {payerChoices.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.label}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -914,13 +963,13 @@ export default function AddExpenseScreen() {
                   </View>
                 </View>
                 <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
-                <View style={styles.quickActionsRow}>
-                  <TouchableOpacity accessibilityRole="button" style={styles.moreOptionsBtn} onPress={() => setMode("detailed")} activeOpacity={0.7}>
-                    <Text style={styles.moreOptionsText}>More options</Text>
+                <View style={styles.moreRow}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.moreLink} onPress={() => setMode("detailed")} hitSlop={6}>
+                    <Text style={styles.moreLinkText}>Split Unequally · More Options</Text>
                   </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <AppButton title="Save expense" onPress={handleQuickReview} disabled={!itemName.trim() || !amount} />
-                  </View>
+                  <TouchableOpacity accessibilityRole="button" style={styles.moreLink} onPress={() => setMode("itemized")} hitSlop={6}>
+                    <Text style={styles.moreLinkText}>Split by Item</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -1001,7 +1050,7 @@ export default function AddExpenseScreen() {
                       <Text style={styles.moreOptionsText}>Dismiss</Text>
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
-                      <AppButton title="Edit and review before saving" onPress={applyAiReview} disabled={!aiResolved} />
+                      <AppButton title="Use These Details" onPress={applyAiReview} disabled={!aiResolved} />
                     </View>
                   </View>
                 </View>
@@ -1072,8 +1121,8 @@ export default function AddExpenseScreen() {
           {/* ---- ITEMIZED MODE ---- */}
           {mode === "itemized" && (
             <View style={styles.form}>
-              <AppTextInput label="Expense Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
-              <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
+              <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
+              <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
               <DateField value={expenseDate} onChange={setExpenseDate} />
               <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything worth remembering" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
@@ -1160,9 +1209,9 @@ export default function AddExpenseScreen() {
                 </View>
                 {!multiPayer ? (
                   <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                    {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                    {payerChoices.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.label}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -1192,15 +1241,14 @@ export default function AddExpenseScreen() {
                 )}
               </View>
 
-              <AppButton title="Review" onPress={handleItemizedReview} disabled={!itemName.trim() || !amount} />
             </View>
           )}
 
           {/* ---- DETAILED MODE ---- */}
           {mode === "detailed" && (
             <View style={styles.form}>
-              <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
+              <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <DateField value={expenseDate} onChange={setExpenseDate} />
               <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="e.g. Ana's birthday dinner" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
@@ -1361,9 +1409,9 @@ export default function AddExpenseScreen() {
 
                 {!multiPayer ? (
                   <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                    {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                    {payerChoices.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.label}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -1393,7 +1441,6 @@ export default function AddExpenseScreen() {
                 )}
               </View>
 
-              <AppButton title="Review" onPress={handleDetailedReview} disabled={!itemName.trim() || !amount} />
             </View>
           )}
         </ScrollView>
@@ -1441,18 +1488,27 @@ const styles = StyleSheet.create({
   content: { padding: spacing.base, paddingBottom: spacing["2xl"], gap: spacing.base },
   form: { gap: spacing.md, marginTop: spacing.base },
 
-  smartBanner: {
-    backgroundColor: colors.primaryTint,
+  headerSave: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primary },
+  headerSaveDisabled: { color: colors.gray400 },
+  assistRow: { flexDirection: "row", gap: spacing.sm },
+  assistBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    minHeight: 44,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.primaryBorderSoft,
-    padding: spacing.base,
-    marginBottom: spacing.md,
+    backgroundColor: colors.primaryTint,
   },
-  smartBannerHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  smartBannerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.gray900 },
-  smartBannerSub: { fontSize: fontSize.sm, color: colors.gray600, marginTop: 4, lineHeight: 18 },
-  smartBannerExample: { fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  assistText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  backToForm: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, alignSelf: "flex-start" },
+  backToFormText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  moreRow: { gap: spacing.xs, alignItems: "flex-start" },
+  moreLink: { minHeight: 44, justifyContent: "center" },
+  moreLinkText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primaryDark },
 
   splitHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   splitHeaderHint: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
@@ -1521,16 +1577,6 @@ const styles = StyleSheet.create({
   splitSumText: { fontSize: fontSize.sm, color: colors.success, fontWeight: fontWeight.semibold },
   splitSumTextError: { color: colors.danger },
 
-  confirmCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.sm, marginBottom: spacing.base },
-  confirmTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.8 },
-  confirmName: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900, marginTop: spacing.xs },
-  confirmAmount: { fontSize: 32, fontWeight: fontWeight.bold, color: colors.primary, marginBottom: spacing.sm },
-  confirmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.border },
-  confirmLabel: { fontSize: fontSize.sm, color: colors.gray500, flex: 1 },
-  confirmValue: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray800, flex: 2, textAlign: "right" },
-  confirmActions: { flexDirection: "row", gap: spacing.md },
-  backBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  backBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
 
   lineItemsContainer: { gap: spacing.sm },
   lineItemCard: { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm },
@@ -1550,7 +1596,7 @@ const styles = StyleSheet.create({
   chatHistory: { minHeight: 120, gap: spacing.sm },
   chatHint: { fontSize: fontSize.sm, color: colors.gray400, fontStyle: "italic", textAlign: "center", paddingVertical: spacing.xl },
   chatBubble: { borderRadius: borderRadius.md, padding: spacing.md, maxWidth: "85%" },
-  chatUser: { backgroundColor: colors.primary, alignSelf: "flex-end" },
+  chatUser: { backgroundColor: colors.primaryFill, alignSelf: "flex-end" },
   chatAssistant: { backgroundColor: colors.gray100, alignSelf: "flex-start" },
   chatText: { fontSize: fontSize.sm, color: colors.gray800, lineHeight: 20 },
   chatTextUser: { color: colors.white },
@@ -1562,7 +1608,7 @@ const styles = StyleSheet.create({
 
   chatInputRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-end" },
   chatTextInput: { flex: 1 },
-  sendBtn: { width: 48, height: 48, backgroundColor: colors.primary, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 48, height: 48, backgroundColor: colors.primaryFill, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
   sendBtnText: { color: colors.white, fontSize: fontSize.xl, fontWeight: fontWeight.bold },
   dateBtn: {
     flexDirection: "row",

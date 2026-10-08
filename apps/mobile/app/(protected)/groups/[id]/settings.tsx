@@ -33,6 +33,7 @@ import {
   useUpdateCategory,
 } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
+import { useFriends } from "@/hooks/useFriends";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
@@ -63,6 +64,10 @@ export default function GroupSettingsScreen() {
   const [renamingCategoryName, setRenamingCategoryName] = useState("");
 
   const membersQ = useMembers(groupId);
+  // A friend tab is a two-person ledger: no invite code, extra people,
+  // budget or archive (removing the friend makes it an ordinary group again).
+  const friendsQ = useFriends();
+  const isDirect = (friendsQ.data ?? []).some((friend) => friend.direct_group_id === groupId);
   const addMember = useAddMember(groupId);
   const addMembersBatch = useAddMembersBatch(groupId);
   const deleteMember = useDeleteMember(groupId);
@@ -490,50 +495,54 @@ export default function GroupSettingsScreen() {
           />
         </View>
 
-        {/* Invite code section */}
-        <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
-          <Ionicons name="link-outline" size={12} color={colors.gray400} />
-          <Text style={styles.sectionLabel}>INVITE MEMBERS</Text>
-        </View>
-        <Card padding={spacing.base}>
-          {!group ? (
-            <Skeleton height={48} />
-          ) : (
-            <View style={styles.inviteSection}>
-              <View style={styles.inviteCodeRow}>
-                <View style={styles.inviteCodeBox}>
-                  <Text style={styles.inviteCodeText}>{group.invite_code}</Text>
+        {!isDirect && (
+          <>
+          {/* Invite code section */}
+          <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+            <Ionicons name="link-outline" size={12} color={colors.gray400} />
+            <Text style={styles.sectionLabel}>INVITE MEMBERS</Text>
+          </View>
+          <Card padding={spacing.base}>
+            {!group ? (
+              <Skeleton height={48} />
+            ) : (
+              <View style={styles.inviteSection}>
+                <View style={styles.inviteCodeRow}>
+                  <View style={styles.inviteCodeBox}>
+                    <Text style={styles.inviteCodeText}>{group.invite_code}</Text>
+                  </View>
+                  <AppButton
+                    title="Copy Code"
+                    variant="secondary"
+                    onPress={handleCopyInviteCode}
+                    style={styles.inviteBtn}
+                  />
                 </View>
-                <AppButton
-                  title="Copy Code"
-                  variant="secondary"
-                  onPress={handleCopyInviteCode}
-                  style={styles.inviteBtn}
-                />
+                {inviteLink ? (
+                  <AppButton
+                    title="Copy Invite Link"
+                    variant="secondary"
+                    onPress={handleCopyInviteLink}
+                    style={{ marginTop: spacing.sm }}
+                  />
+                ) : null}
+                {isAdminOrOwner && (
+                  <AppButton
+                    title="Regenerate Code"
+                    variant="secondary"
+                    onPress={handleRegenerateCode}
+                    isLoading={regenerateCode.isPending}
+                    style={{ marginTop: spacing.sm }}
+                  />
+                )}
+                <Text style={styles.inviteHint}>
+                  Share this code or link so others can join the group.
+                </Text>
               </View>
-              {inviteLink ? (
-                <AppButton
-                  title="Copy Invite Link"
-                  variant="secondary"
-                  onPress={handleCopyInviteLink}
-                  style={{ marginTop: spacing.sm }}
-                />
-              ) : null}
-              {isAdminOrOwner && (
-                <AppButton
-                  title="Regenerate Code"
-                  variant="secondary"
-                  onPress={handleRegenerateCode}
-                  isLoading={regenerateCode.isPending}
-                  style={{ marginTop: spacing.sm }}
-                />
-              )}
-              <Text style={styles.inviteHint}>
-                Share this code or link so others can join the group.
-              </Text>
-            </View>
-          )}
-        </Card>
+            )}
+          </Card>
+          </>
+        )}
 
         {/* Shared read-only page */}
         <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
@@ -600,7 +609,7 @@ export default function GroupSettingsScreen() {
                             ? "Admin"
                             : m.user_id
                               ? "Member"
-                              : "Unlinked"
+                              : "Not on Talli yet"
                     }
                     right={
                       <RowMenuButton
@@ -660,50 +669,54 @@ export default function GroupSettingsScreen() {
           </Card>
         )}
 
-        {/* Add member */}
-        <View
-          style={[styles.sectionLabelRow, { marginTop: spacing.base }]}
-          onLayout={(event) => {
-            if (!focusPeople || scrolledToPeople.current) return;
-            scrolledToPeople.current = true;
-            scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - spacing.base), animated: false });
-          }}
-        >
-          <View style={styles.sectionLabelInner}>
-            <Ionicons name="person-add-outline" size={12} color={colors.gray400} />
-            <Text style={styles.sectionLabel}>ADD MEMBER</Text>
-          </View>
-          <TouchableOpacity
-            accessibilityRole="button"
-            onPress={() => {
-              setBatchMode((v) => !v);
-              setNewMemberName("");
+        {!isDirect && (
+          <>
+          {/* Add member */}
+          <View
+            style={[styles.sectionLabelRow, { marginTop: spacing.base }]}
+            onLayout={(event) => {
+              if (!focusPeople || scrolledToPeople.current) return;
+              scrolledToPeople.current = true;
+              scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - spacing.base), animated: false });
             }}
           >
-            <Text style={styles.batchToggle}>{batchMode ? "Single" : "Multiple"}</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.addRow}>
-          <View style={{ flex: 1 }}>
-            <AppTextInput
-              value={newMemberName}
-              onChangeText={setNewMemberName}
-              placeholder={batchMode ? "Alice, Bob, Carol…" : "Member name"}
-              accessibilityLabel={batchMode ? "Member names, separated by commas" : "Member name"}
-              autoFocus={focusPeople}
-              returnKeyType="done"
-              onSubmitEditing={handleAddMember}
-              multiline={batchMode}
+            <View style={styles.sectionLabelInner}>
+              <Ionicons name="person-add-outline" size={12} color={colors.gray400} />
+              <Text style={styles.sectionLabel}>ADD MEMBER</Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => {
+                setBatchMode((v) => !v);
+                setNewMemberName("");
+              }}
+            >
+              <Text style={styles.batchToggle}>{batchMode ? "Single" : "Multiple"}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.addRow}>
+            <View style={{ flex: 1 }}>
+              <AppTextInput
+                value={newMemberName}
+                onChangeText={setNewMemberName}
+                placeholder={batchMode ? "Alice, Bob, Carol…" : "Member name"}
+                accessibilityLabel={batchMode ? "Member names, separated by commas" : "Member name"}
+                autoFocus={focusPeople}
+                returnKeyType="done"
+                onSubmitEditing={handleAddMember}
+                multiline={batchMode}
+              />
+            </View>
+            <AppButton
+              title="Add"
+              onPress={handleAddMember}
+              isLoading={addMember.isPending || addMembersBatch.isPending}
+              disabled={!newMemberName.trim()}
             />
           </View>
-          <AppButton
-            title="Add"
-            onPress={handleAddMember}
-            isLoading={addMember.isPending || addMembersBatch.isPending}
-            disabled={!newMemberName.trim()}
-          />
-        </View>
-        {batchMode && <Text style={styles.batchHint}>Separate names with commas</Text>}
+          {batchMode && <Text style={styles.batchHint}>Separate names with commas</Text>}
+          </>
+        )}
 
         {/* Categories */}
         <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
@@ -799,7 +812,7 @@ export default function GroupSettingsScreen() {
         )}
 
         {/* Budget */}
-        {isAdminOrOwner && (
+        {isAdminOrOwner && !isDirect && (
           <>
             <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
               <Ionicons name="wallet-outline" size={12} color={colors.gray400} />
@@ -888,8 +901,8 @@ export default function GroupSettingsScreen() {
         />
         <Text style={styles.batchHint}>Full expense and payment history as a spreadsheet.</Text>
 
-        {/* Leave group (non-owners only) */}
-        {!isOwner && (
+        {/* Leave group (non-owners only). A friend tab is ended from the friend list instead. */}
+        {!isOwner && !isDirect && (
           <AppButton
             title="Leave Group"
             variant="secondary"
@@ -900,7 +913,7 @@ export default function GroupSettingsScreen() {
         )}
 
         {/* Archive group (owner only) */}
-        {isOwner && (
+        {isOwner && !isDirect && (
           <AppButton
             title="Archive Group"
             variant="danger"
@@ -920,7 +933,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: fontSize.xs,
     fontWeight: fontWeight.bold,
-    color: colors.gray400,
+    color: colors.gray500,
     letterSpacing: 0.8,
   },
   inviteSection: { gap: spacing.xs },
