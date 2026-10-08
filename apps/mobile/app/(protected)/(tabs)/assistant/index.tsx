@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { formatAmount, type AssistantReceipt, type AssistantRoute } from "@template/shared";
@@ -42,6 +43,10 @@ export default function AssistantScreen() {
   const [receipt, setReceipt] = useState<AssistantReceipt | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  // The tab stays mounted in the background: only follow the keyboard and
+  // scroll while it is on screen, or every keyboard change elsewhere in the
+  // app re-lays out this hidden screen.
+  const focused = useIsFocused();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // The screen runs to the bottom edge under the floating tab bar, so the
@@ -49,6 +54,10 @@ export default function AssistantScreen() {
   // the keyboard while typing (KeyboardAvoidingView does not account for the
   // native tab container).
   useEffect(() => {
+    if (!focused) {
+      setKeyboardHeight(0);
+      return;
+    }
     const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) =>
       setKeyboardHeight(e.endCoordinates.height),
     );
@@ -57,7 +66,7 @@ export default function AssistantScreen() {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [focused]);
   const composerBottom = keyboardHeight > 0 ? keyboardHeight + spacing.sm : insets.bottom + TAB_BAR_HEIGHT;
 
   useEffect(() => {
@@ -65,9 +74,10 @@ export default function AssistantScreen() {
   }, [scan.review]);
 
   useEffect(() => {
+    if (!focused) return;
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     return () => clearTimeout(t);
-  }, [assistant.messages.length, assistant.busy]);
+  }, [assistant.messages.length, assistant.busy, focused]);
 
   function open(route: AssistantRoute): void {
     switch (route.screen) {
@@ -146,7 +156,7 @@ export default function AssistantScreen() {
           contentContainerStyle={styles.content}
           contentInsetAdjustmentBehavior="automatic"
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
+          keyboardDismissMode="on-drag"
         >
           {empty ? (
             <View style={styles.intro}>
@@ -189,7 +199,7 @@ export default function AssistantScreen() {
               onOpen={open}
             />
           ))}
-          {assistant.busy ? (
+          {assistant.busy && focused ? (
             <View style={styles.thinking} accessibilityLabel="Working">
               <ActivityIndicator color={colors.primary} />
             </View>
