@@ -72,11 +72,11 @@ supabase/
 
 ### AI Layer
 
-- Provider abstraction in `apps/web/src/lib/ai/`
+- On-device only: local Expo module `apps/mobile/modules/apple-intelligence` (Swift) + `apps/mobile/src/lib/ai/`; web keeps deterministic helpers in `packages/ai`
 - `generateJSON<T>()` — system + prompt + Zod schema → `ApiResponse<T>`
 - AI never writes to DB — produces drafts, user confirms
 - All LLM output validated with Zod before use
-- Graceful degradation when `LLM_ENABLED=false`
+- Graceful degradation when Apple Intelligence is unavailable (manual entry stays; no cloud fallback)
 
 ### Supabase (RLS-First)
 
@@ -93,7 +93,7 @@ supabase/
 - Never ship `SUPABASE_SERVICE_ROLE_KEY` to client or use outside the narrow `apps/api` self-account-deletion boundary
 - Validate file uploads (MIME type + size) before storage
 - Public share endpoints: minimal data, anon-safe RPCs only
-- AI: validate all output with Zod, rate limit per user, no raw LLM text to DB
+- AI: validate every native payload with Zod; deterministic code owns all arithmetic; no raw model text to DB; no third-party AI provider
 - Client bundles: only `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` env vars
 
 ---
@@ -117,7 +117,7 @@ supabase/
 | DB types                          | `packages/supabase/src/database.types.ts`   |
 | Supabase client factories         | `packages/supabase/src/`                    |
 | Web Supabase helpers              | `apps/web/src/lib/supabase/`                |
-| Web AI / LLM provider             | `apps/web/src/lib/ai/`                      |
+| On-device AI (iPhone)             | `apps/mobile/modules/apple-intelligence/`, `apps/mobile/src/lib/ai/` |
 | Web server actions                | `apps/web/src/app/actions/<domain>.ts`      |
 | Web UI components                 | `apps/web/src/components/ui/`               |
 | Web feature components            | `apps/web/src/components/<feature>/`        |

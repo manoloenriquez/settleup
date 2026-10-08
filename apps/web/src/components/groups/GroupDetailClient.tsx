@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { track } from "@/lib/analytics/client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { simplifyDebts, formatCents } from "@template/shared";
+import { simplifyDebts, type CurrencyCode } from "@template/shared";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 import { computeInsights } from "@template/ai/insights";
 import { Share2, Sparkles, ChevronRight } from "lucide-react";
 import {
   useGroupRow,
+  useGroupCurrencies,
   useMembersWithBalances,
   useExpensesInfinite,
   useExpenseSummaries,
@@ -28,6 +32,7 @@ const GroupRealtimeRefresher = dynamic(
   { ssr: false },
 );
 import { BudgetProgress } from "@/components/groups/BudgetProgress";
+import { CurrencySwitcher } from "@/components/groups/CurrencySwitcher";
 import { BalanceSummary } from "@/components/groups/BalanceSummary";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
@@ -38,7 +43,7 @@ import { GroupHeader } from "@/components/groups/GroupHeader";
 import { GroupSetupChecklist, setupChecklistIcons } from "@/components/groups/GroupSetupChecklist";
 import { MemberAvatarRow } from "@/components/groups/MemberAvatarRow";
 import { GroupFab } from "@/components/groups/GroupFab";
-import { InsightsDashboard } from "@/components/groups/InsightsDashboard";
+import { InsightsCurrencyNote, InsightsDashboard } from "@/components/groups/InsightsDashboard";
 import { CategoryDonut } from "@/components/groups/charts/CategoryDonut";
 import { SpendOverTime } from "@/components/groups/charts/SpendOverTime";
 import { MemberPaidVsShare } from "@/components/groups/charts/MemberPaidVsShare";
@@ -47,15 +52,17 @@ import { CopyButton } from "@/components/groups/CopyButton";
 
 const EXPENSES_PAGE_SIZE = 50;
 
-function buildPaymentProfileText(profile: {
-  payer_display_name?: string | null;
-  gcash_name?: string | null;
-  gcash_number?: string | null;
-  bank_name?: string | null;
-  bank_account_name?: string | null;
-  bank_account_number?: string | null;
-  notes?: string | null;
-} | null): string {
+function buildPaymentProfileText(
+  profile: {
+    payer_display_name?: string | null;
+    gcash_name?: string | null;
+    gcash_number?: string | null;
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    notes?: string | null;
+  } | null,
+): string {
   if (!profile) return "";
   const lines: string[] = [];
   if (profile.payer_display_name) lines.push(profile.payer_display_name);
@@ -83,16 +90,46 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   const groupQ = useGroupRow(groupId);
   const currentUserIdOrNull = useCurrentUserId();
   const paymentProfileQ = usePaymentProfile();
-  const balancesQ = useMembersWithBalances(groupId);
+  // Balances are per currency and never converted: the group's default
+  // currency first, switchable when the group holds others.
+  const defaultCurrency: CurrencyCode | undefined = groupQ.data
+    ? currencyOrPhp(groupQ.data.default_currency_code)
+    : undefined;
+  const currenciesQ = useGroupCurrencies(groupId, defaultCurrency);
+  const currencies: CurrencyCode[] =
+    currenciesQ.data ?? (defaultCurrency ? [defaultCurrency] : []);
+  const [chosenCurrency, setChosenCurrency] = useState<CurrencyCode | null>(null);
+  const viewCurrency: CurrencyCode | undefined =
+    chosenCurrency && currencies.includes(chosenCurrency) ? chosenCurrency : defaultCurrency;
+  const balancesQ = useMembersWithBalances(groupId, viewCurrency);
   const expensesQ = useExpensesInfinite(groupId, EXPENSES_PAGE_SIZE);
   const summariesQ = useExpenseSummaries(groupId);
   const activityQ = useGroupActivity(groupId);
-  const creditorProfilesQ = useCreditorProfiles(groupId);
+  const creditorProfilesQ = useCreditorProfiles(groupId, viewCurrency);
   const categoriesQ = useCategoriesQuery(groupId);
   const pendingPaymentsQ = usePendingPaymentsQuery(groupId);
   const pendingLocalExpenses = usePendingExpenses(groupId);
   const pendingLocalPayments = usePendingPaymentRecords(groupId);
   const pendingLocalCount = pendingLocalExpenses.length + pendingLocalPayments.length;
+
+  const [linkCopied, setLinkCopied] = useState(false);
+  const sharedKey = `tabkind:link-copied:${currentUserIdOrNull}:${groupId}`;
+  useEffect(() => {
+    try {
+      setLinkCopied(localStorage.getItem(sharedKey) === "1");
+    } catch {
+      setLinkCopied(false);
+    }
+  }, [sharedKey]);
+  function markLinkCopied(): void {
+    track({ name: "public_link_copied", properties: { link_type: "group" } });
+    setLinkCopied(true);
+    try {
+      localStorage.setItem(sharedKey, "1");
+    } catch {
+      /* Checklist remains complete for this visit. */
+    }
+  }
 
   const group = groupQ.data ?? null;
   // Never let a null user id accidentally match unclaimed members (user_id null).
@@ -100,19 +137,22 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const paymentProfile = paymentProfileQ.data ?? null;
   const paymentProfileText = buildPaymentProfileText(paymentProfile);
-  const hasPaymentDetails = Boolean(
-    paymentProfile?.gcash_number || paymentProfile?.gcash_qr_url || paymentProfile?.bank_account_number || paymentProfile?.bank_qr_url,
-  );
 
-  const balances = balancesQ.data ?? [];
+  const memberRows = balancesQ.data ?? [];
+  // While another currency loads, the previous rows stand in for the member
+  // list only — never as balances in the newly chosen currency.
+  const balances = memberRows.filter((b) => b.currency_code === viewCurrency);
   const creditorProfiles = creditorProfilesQ.data ?? [];
-  const members = balances.map((b) => ({
+  const members = memberRows.map((b) => ({
     id: b.member_id,
     display_name: b.display_name,
     slug: b.slug,
     share_token: b.share_token,
     user_id: b.user_id,
+    departed_at: b.departed_at ?? null,
     role: (b.role ?? "member") as "owner" | "admin" | "member",
+    // Not part of the balance payload; nothing on this page reads it.
+    hide_payment_details: false,
     group_id: groupId,
     created_at: "",
   }));
@@ -122,8 +162,13 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   const activities = activityQ.data ?? [];
   const categories = categoriesQ.data ?? [];
 
-  if (!group) {
-    if (groupQ.isSuccess) {
+  // Members and balances still loading (or retrying): an empty list here would
+  // read as "0 members" and "All settled", so keep the placeholder until they
+  // arrive or definitively fail (the error state below handles failure).
+  const balancesLoading = balancesQ.data === undefined && !balancesQ.isError;
+
+  if (!group || !defaultCurrency || !viewCurrency || balancesLoading) {
+    if (groupQ.isSuccess && !group) {
       // Settled: the row genuinely doesn't exist (or RLS hides it).
       return (
         <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center animate-fade-in">
@@ -150,27 +195,56 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     );
   }
 
+  if (balancesQ.isError || expensesQ.isError || summariesQ.isError) {
+    return (
+      <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <h2 className="font-semibold">The group ledger could not be loaded</h2>
+        <p className="mt-2 text-sm">
+          Check your connection and make sure the app is up to date. Your saved expenses have not
+          changed.
+        </p>
+        <button
+          type="button"
+          className="mt-4 rounded-lg border border-amber-300 px-4 py-2 text-sm font-medium"
+          onClick={() => {
+            void balancesQ.refetch();
+            void expensesQ.refetch();
+            void summariesQ.refetch();
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  const readOnly = group.owner_user_id === null;
   const isOwner = group.owner_user_id === currentUserId;
   const currentMember = members.find((m) => m.user_id === currentUserId);
-  const isAdminOrOwner = isOwner || currentMember?.role === "admin";
+  const isAdminOrOwner = !readOnly && (isOwner || currentMember?.role === "admin");
   const debts = simplifyDebts(balances);
   // Group-wide aggregates come from the lightweight summaries (all rows), not
-  // the paginated expense list.
-  const totalSpentCents = summaries.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
+  // the paginated expense list — only those in the currency being viewed.
+  const viewSummaries = summaries.filter((e) => e.currency_code === viewCurrency);
+  const totalSpentCents = viewSummaries.reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0);
+  const budgetCurrency = currencyOrPhp(group.budget_currency_code ?? group.default_currency_code);
+  // Charts and insights cover the group's default currency only.
+  const insightSummaries = summaries.filter((e) => e.currency_code === defaultCurrency);
+  const otherCurrencies = [
+    ...new Set(summaries.map((e) => e.currency_code).filter((code) => code !== defaultCurrency)),
+  ];
   const totalOutstandingCents = balances.reduce((sum, b) => sum + b.owed_cents, 0);
   const myNetCents = currentMember
-    ? balances.find((b) => b.member_id === currentMember.id)?.net_cents ?? 0
+    ? (balances.find((b) => b.member_id === currentMember.id)?.net_cents ?? 0)
     : 0;
   const settledPct =
-    totalSpentCents > 0
-      ? Math.round((1 - totalOutstandingCents / totalSpentCents) * 100)
-      : 100;
+    totalSpentCents > 0 ? Math.round((1 - totalOutstandingCents / totalSpentCents) * 100) : 100;
 
   // Charts tab data — pure computation from the all-rows summaries; the AI
   // summary stays on the dedicated insights page.
   const memberNameMap = new Map(members.map((m) => [m.id, m.display_name]));
   const insights = computeInsights(
-    summaries.map((e) => ({
+    insightSummaries.map((e) => ({
       item_name: e.item_name,
       amount_cents: e.amount_cents,
       created_at: e.created_at,
@@ -185,7 +259,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
     {
       label: "Add members",
       complete: members.length > 1,
-      href: `/groups/${groupId}`,
+      href: `/groups/${groupId}/settings#members`,
       icon: setupChecklistIcons.members,
     },
     {
@@ -195,42 +269,45 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       icon: setupChecklistIcons.claim,
     },
     {
-      label: "Add payment details",
-      complete: hasPaymentDetails,
-      href: "/account/payment",
-      icon: setupChecklistIcons.payment,
-    },
-    {
-      label: "Share group link",
-      complete: members.length > 1,
+      label: "Copy group balance link",
+      complete: linkCopied,
+      onCopied: markLinkCopied,
       copyText: `${origin}/g/${group.share_token}`,
-      copyLabel: "Share",
+      copyLabel: "Copy balance link",
       icon: setupChecklistIcons.share,
     },
     {
       label: "Add first expense",
       complete: totalExpenseCount > 0,
-      href: `/groups/${groupId}`,
+      onClick: () => setShowExpenseDialog(true),
       icon: setupChecklistIcons.expense,
     },
   ];
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
+      {readOnly && (
+        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+          This group is read-only because its owner closed their account. Your shared expense
+          history is preserved.
+        </p>
+      )}
       <GroupRealtimeRefresher groupId={groupId} />
       {/* Group header with breadcrumb + CTAs */}
       <GroupHeader
+        readOnly={readOnly}
         groupId={groupId}
         groupName={group.name}
         memberCount={members.length}
         members={members}
         categories={categories}
         currentUserId={currentUserId}
+        defaultCurrency={defaultCurrency}
         showExpenseDialog={showExpenseDialog}
         onShowExpenseDialogChange={setShowExpenseDialog}
       />
 
-      <GroupSetupChecklist groupId={groupId} items={setupItems} />
+      {!readOnly && <GroupSetupChecklist groupId={groupId} items={setupItems} />}
 
       {/* Member avatars */}
       <MemberAvatarRow groupId={groupId} members={members} currentUserId={currentUserId} />
@@ -239,15 +316,29 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-500">Group balance</p>
-            <p className={`mt-1 text-3xl font-extrabold tracking-tight tabular-nums ${isFullySettled ? "text-emerald-600" : "text-slate-900"}`}>
-              {isFullySettled ? "All settled" : formatCents(totalOutstandingCents)}
+            <p className="text-sm font-medium text-slate-500">
+              Group balance{currencies.length > 1 ? ` in ${viewCurrency}` : ""}
+            </p>
+            <p
+              className={`mt-1 text-3xl font-extrabold tracking-tight tabular-nums ${isFullySettled ? "text-emerald-600" : "text-slate-900"}`}
+            >
+              {isFullySettled ? "All settled" : formatCurrency(totalOutstandingCents, viewCurrency)}
             </p>
             <p className="mt-1 text-sm text-slate-500">
               {myNetCents > 0 ? (
-                <>You are owed <span className="font-bold text-emerald-600">{formatCents(myNetCents)}</span></>
+                <>
+                  You are owed{" "}
+                  <span className="font-bold text-emerald-600">
+                    {formatCurrency(myNetCents, viewCurrency)}
+                  </span>
+                </>
               ) : myNetCents < 0 ? (
-                <>You owe <span className="font-bold text-rose-600">{formatCents(-myNetCents)}</span></>
+                <>
+                  You owe{" "}
+                  <span className="font-bold text-rose-600">
+                    {formatCurrency(-myNetCents, viewCurrency)}
+                  </span>
+                </>
               ) : (
                 "You’re settled up"
               )}
@@ -263,12 +354,27 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
             style={{ width: `${Math.max(0, Math.min(100, settledPct))}%` }}
           />
         </div>
-        <p className="mt-1.5 text-xs text-slate-400">{Math.max(0, Math.min(100, settledPct))}% settled</p>
+        <p className="mt-1.5 text-xs text-slate-400">
+          {Math.max(0, Math.min(100, settledPct))}% settled
+        </p>
+        {currencies.length > 1 && (
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <CurrencySwitcher
+              currencies={currencies}
+              value={viewCurrency}
+              onChange={setChosenCurrency}
+            />
+          </div>
+        )}
       </div>
 
       {/* Budget progress */}
       {group.budget_cents !== null && group.budget_cents > 0 && (
-        <BudgetProgress budgetCents={group.budget_cents} spentCents={totalSpentCents} />
+        <BudgetProgress
+          budgetCents={group.budget_cents}
+          currency={budgetCurrency}
+          expenses={summaries}
+        />
       )}
 
       {/* Share link — secondary, subtle */}
@@ -281,7 +387,11 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         </div>
         <div className="flex gap-2 shrink-0">
           {isDev && <SeedButton />}
-          <CopyButton text={`${origin}/g/${group.share_token}`} label="Share" />
+          <CopyButton
+            text={`${origin}/g/${group.share_token}`}
+            label="Copy balance link"
+            onCopied={markLinkCopied}
+          />
         </div>
       </div>
 
@@ -289,6 +399,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       <GroupDetailTabs
         expensesContent={
           <ExpenseList
+            readOnly={readOnly}
             members={members}
             categories={categories}
             currentUserId={currentUserId}
@@ -299,20 +410,29 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         }
         balancesContent={
           <div className="flex flex-col gap-6">
+            <CurrencySwitcher
+              currencies={currencies}
+              value={viewCurrency}
+              onChange={setChosenCurrency}
+            />
             {pendingLocalCount > 0 && (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                {pendingLocalCount} pending offline {pendingLocalCount === 1 ? "change" : "changes"} not yet included in balances
+                {pendingLocalCount} pending offline {pendingLocalCount === 1 ? "change" : "changes"}{" "}
+                not yet included in balances
               </p>
             )}
             <PendingPayments
               groupId={groupId}
               pending={pendingPaymentsQ.data ?? []}
               members={members}
-              currentUserId={currentUserId}
+              currentUserId={readOnly ? "" : currentUserId}
               isAdminOrOwner={isAdminOrOwner}
             />
             <DebtSummary
+              key={`debts-${viewCurrency}`}
+              readOnly={readOnly}
               debts={debts}
+              currency={viewCurrency}
               groupId={groupId}
               groupName={group.name}
               balances={balances}
@@ -320,8 +440,11 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
               currentMemberId={currentMember?.id ?? null}
             />
             <BalanceSummary
+              key={`balances-${viewCurrency}`}
+              readOnly={readOnly}
               members={members}
               balances={balances}
+              currency={viewCurrency}
               groupId={groupId}
               groupName={group.name}
               paymentProfileText={paymentProfileText}
@@ -329,7 +452,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
               creditorProfiles={creditorProfiles}
             />
             <div className="border-t border-slate-100 pt-4">
-              <AddMemberForm groupId={groupId} />
+              {!readOnly && <AddMemberForm groupId={groupId} />}
             </div>
             <div className="border-t border-slate-100 pt-4">
               <ActivityTimeline activities={activities} />
@@ -338,20 +461,32 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         }
         chartsContent={
           <div className="flex flex-col gap-4">
+            <InsightsCurrencyNote currency={defaultCurrency} otherCurrencies={otherCurrencies} />
             <div className="grid gap-4 lg:grid-cols-2">
-              <CategoryDonut categories={insights.categories} totalAmountCents={insights.total_amount_cents} />
+              <CategoryDonut
+                categories={insights.categories}
+                totalAmountCents={insights.total_amount_cents}
+                currency={defaultCurrency}
+              />
               <SpendOverTime
-                points={summaries.map((e) => ({
+                currency={defaultCurrency}
+                points={insightSummaries.map((e) => ({
                   date: e.expense_date ?? e.created_at.slice(0, 10),
                   amount_cents: e.amount_cents,
+                  currency_code: e.currency_code,
                 }))}
               />
             </div>
             <MemberPaidVsShare
+              currency={defaultCurrency}
               members={members.map((m) => ({ id: m.id, display_name: m.display_name }))}
-              expenses={summaries.map((e) => ({ payers: e.payers, participants: e.participants }))}
+              expenses={insightSummaries.map((e) => ({
+                currency_code: e.currency_code,
+                payers: e.payers,
+                participants: e.participants,
+              }))}
             />
-            <InsightsDashboard insights={{ ...insights, llm_summary: null }} />
+            <InsightsDashboard insights={{ ...insights, llm_summary: null }} currency={defaultCurrency} />
             <Link
               href={`/groups/${groupId}/insights`}
               className="flex items-center justify-between rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 transition-colors hover:bg-brand-50"
@@ -366,7 +501,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         }
       />
 
-      <GroupFab onClick={() => setShowExpenseDialog(true)} />
+      {!readOnly && <GroupFab onClick={() => setShowExpenseDialog(true)} />}
     </div>
   );
 }

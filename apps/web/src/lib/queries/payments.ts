@@ -6,7 +6,7 @@ export async function listPendingPayments(groupId: string): Promise<ApiResponse<
   const { data, error } = await supabase
     .schema("settleup")
     .from("payments")
-    .select("id, group_id, from_member_id, to_member_id, amount_cents, note, created_at")
+    .select("id, group_id, from_member_id, to_member_id, amount_cents, currency_code, note, created_at")
     .eq("group_id", groupId)
     .eq("status", "PENDING")
     .order("created_at", { ascending: false });

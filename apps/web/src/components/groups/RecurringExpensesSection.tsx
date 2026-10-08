@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { setRecurringExpenseActive, deleteRecurringExpense } from "@/app/actions/recurring";
 import type { RecurringExpense } from "@/app/actions/recurring";
-import { formatCents } from "@template/shared";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 import { Button } from "@/components/ui/Button";
 import { Repeat, Trash2, Pause, Play } from "lucide-react";
 import type { GroupMember } from "@template/supabase";
@@ -13,9 +13,11 @@ import type { GroupMember } from "@template/supabase";
 type Props = {
   recurring: RecurringExpense[];
   members: GroupMember[];
+  currentUserId: string;
+  isAdminOrOwner: boolean;
 };
 
-export function RecurringExpensesSection({ recurring, members }: Props): React.ReactElement {
+export function RecurringExpensesSection({ recurring, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const memberMap = new Map(members.map((m) => [m.id, m.display_name]));
@@ -64,7 +66,7 @@ export function RecurringExpensesSection({ recurring, members }: Props): React.R
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 truncate">
                   {item.item_name}{" "}
-                  <span className="font-normal text-slate-500">· {formatCents(item.amount_cents)}</span>
+                  <span className="font-normal text-slate-500">· {formatCurrency(item.amount_cents, currencyOrPhp(item.currency_code))}</span>
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {item.cadence === "weekly" ? "Weekly" : "Monthly"} · paid by{" "}
@@ -74,25 +76,30 @@ export function RecurringExpensesSection({ recurring, members }: Props): React.R
                   {!item.active && " · paused"}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                leftIcon={item.active ? Pause : Play}
-                disabled={isPending}
-                onClick={() => handleToggle(item)}
-              >
-                {item.active ? "Pause" : "Resume"}
-              </Button>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleDelete(item)}
-                className="rounded-xl p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                title="Delete recurring expense"
-                aria-label={`Delete recurring expense ${item.item_name}`}
-              >
-                <Trash2 size={15} />
-              </button>
+              {/* Only the creator or a group owner/admin may change it (enforced by RLS too). */}
+              {(item.created_by_user_id === currentUserId || isAdminOrOwner) && (
+                <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leftIcon={item.active ? Pause : Play}
+                  disabled={isPending}
+                  onClick={() => handleToggle(item)}
+                >
+                  {item.active ? "Pause" : "Resume"}
+                </Button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => handleDelete(item)}
+                  className="rounded-xl p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="Delete recurring expense"
+                  aria-label={`Delete recurring expense ${item.item_name}`}
+                >
+                  <Trash2 size={15} />
+                </button>
+                </>
+              )}
             </div>
           ))}
         </div>

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Mail } from "lucide-react";
 
-export function ForgotPasswordForm(): React.ReactElement {
+export function ForgotPasswordForm({ expired = false }: { expired?: boolean }): React.ReactElement {
   const [pending, startTransition] = useTransition();
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,15 +41,20 @@ export function ForgotPasswordForm(): React.ReactElement {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-slate-900">Reset your password</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Enter your email and we&apos;ll send you a reset link.
+      {expired && (
+        <p
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          This reset link has expired or was already used. Request a new link below.
         </p>
-      </div>
+      )}
 
       {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {error}
         </div>
       )}

@@ -1,41 +1,77 @@
+import { DynamicColorIOS, Platform, type ColorValue } from "react-native";
+
+/** A color that follows the system appearance (iOS); light elsewhere. */
+function adaptive(light: string, dark: string): ColorValue {
+  return Platform.OS === "ios" ? DynamicColorIOS({ light, dark }) : light;
+}
+
+/**
+ * Fixed brand colors for props typed as plain strings (navigation header and
+ * tab tints). The brand green reads well on both light and dark bars.
+ */
+export const brand = {
+  primary: "#059669",
+  white: "#ffffff",
+} as const;
+
+/**
+ * Semantic colors. Each adapts to light and dark appearance, so styles keep
+ * using them unchanged. Never build colors from these with string operations
+ * (they are opaque on iOS): add a token below instead.
+ */
 export const colors = {
   // Brand
-  primary: "#059669",
-  primaryLight: "#d1fae5",
-  primaryDark: "#047857",
+  primary: adaptive("#059669", "#10b981"),
+  primaryLight: adaptive("#d1fae5", "#06352a"),
+  primaryDark: adaptive("#047857", "#6ee7b7"),
 
   // Semantic
-  success: "#10b981",
-  successLight: "#d1fae5",
-  successDark: "#065f46",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  warningDark: "#92400e",
-  danger: "#e11d48",
-  dangerLight: "#ffe4e6",
+  success: adaptive("#10b981", "#34d399"),
+  successLight: adaptive("#d1fae5", "#06352a"),
+  successDark: adaptive("#065f46", "#6ee7b7"),
+  warning: adaptive("#f59e0b", "#fbbf24"),
+  warningLight: adaptive("#fef3c7", "#3a2604"),
+  warningDark: adaptive("#92400e", "#fcd34d"),
+  danger: adaptive("#e11d48", "#fb7185"),
+  dangerLight: adaptive("#ffe4e6", "#3f0a16"),
+
+  // Translucent tints (replace hex-alpha string building)
+  successTint: adaptive("#d1fae5b0", "#10b98129"),
+  successTintSoft: adaptive("#d1fae560", "#10b9811f"),
+  successBorder: adaptive("#10b98130", "#34d3994d"),
+  dangerTint: adaptive("#ffe4e6b0", "#f43f5e29"),
+  dangerBorder: adaptive("#e11d4830", "#fb71854d"),
+  warningTintSoft: adaptive("#fef3c760", "#f59e0b24"),
+  primaryTint: adaptive("#d1fae580", "#10b9811f"),
+  primaryBorderSoft: adaptive("#05966930", "#10b9814d"),
+  primaryBorder: adaptive("#05966950", "#10b98173"),
+  neutralTint: adaptive("#f8fafc80", "#ffffff0a"),
+  overlay: "rgba(0,0,0,0.4)",
 
   // Accent (quick actions, decorative)
-  violet: "#8b5cf6",
-  violetLight: "#ede9fe",
+  violet: adaptive("#8b5cf6", "#a78bfa"),
+  violetLight: adaptive("#ede9fe", "#241640"),
 
-  // Neutral
+  // Fixed (text on colored fills, shadows)
   black: "#000000",
   white: "#ffffff",
-  gray50: "#f8fafc",
-  gray100: "#f1f5f9",
-  gray200: "#e5e7eb",
-  gray300: "#d1d5db",
-  gray400: "#9ca3af",
-  gray500: "#6b7280",
-  gray600: "#4b5563",
-  gray700: "#374151",
-  gray800: "#1f2937",
-  gray900: "#111827",
+
+  // Neutral
+  gray50: adaptive("#f8fafc", "#121214"),
+  gray100: adaptive("#f1f5f9", "#1f1f23"),
+  gray200: adaptive("#e5e7eb", "#2c2c31"),
+  gray300: adaptive("#d1d5db", "#3d3d44"),
+  gray400: adaptive("#9ca3af", "#6e6e78"),
+  gray500: adaptive("#6b7280", "#9a9aa3"),
+  gray600: adaptive("#4b5563", "#b8b8c0"),
+  gray700: adaptive("#374151", "#d4d4da"),
+  gray800: adaptive("#1f2937", "#e8e8ec"),
+  gray900: adaptive("#111827", "#f5f5f7"),
 
   // Background
-  background: "#f8fafc",
-  surface: "#ffffff",
-  border: "#e5e7eb",
+  background: adaptive("#f8fafc", "#000000"),
+  surface: adaptive("#ffffff", "#1c1c1e"),
+  border: adaptive("#e5e7eb", "#38383a"),
 } as const;
 
 export const spacing = {

@@ -1,11 +1,15 @@
-import { formatCents } from "@template/shared";
+import type { CurrencyCode } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 
 type Props = {
   members: { id: string; display_name: string }[];
+  /** Expenses tagged with a different currency_code are skipped (never summed across currencies). */
   expenses: {
+    currency_code?: CurrencyCode;
     payers: { member_id: string; paid_cents: number }[];
     participants: { member_id: string; share_cents: number }[];
   }[];
+  currency: CurrencyCode;
 };
 
 // Two-series categorical pair, validated (CVD + contrast) against the light surface.
@@ -16,10 +20,11 @@ const SHARE_COLOR = "#6366f1";
  * Per-member "paid vs share" — who fronted money versus who consumed it.
  * Paired horizontal bars per member with amounts as ink-colored text.
  */
-export function MemberPaidVsShare({ members, expenses }: Props): React.ReactElement | null {
+export function MemberPaidVsShare({ members, expenses, currency }: Props): React.ReactElement | null {
   const paid = new Map<string, number>();
   const share = new Map<string, number>();
   for (const e of expenses) {
+    if (e.currency_code !== undefined && e.currency_code !== currency) continue;
     for (const p of e.payers) paid.set(p.member_id, (paid.get(p.member_id) ?? 0) + p.paid_cents);
     for (const s of e.participants) share.set(s.member_id, (share.get(s.member_id) ?? 0) + s.share_cents);
   }
@@ -64,7 +69,7 @@ export function MemberPaidVsShare({ members, expenses }: Props): React.ReactElem
                   <div className="h-full rounded-full" style={{ width: width(r.paid), backgroundColor: PAID_COLOR }} />
                 </div>
                 <span className="w-24 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-900">
-                  {formatCents(r.paid)}
+                  {formatCurrency(r.paid, currency)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -72,7 +77,7 @@ export function MemberPaidVsShare({ members, expenses }: Props): React.ReactElem
                   <div className="h-full rounded-full" style={{ width: width(r.share), backgroundColor: SHARE_COLOR }} />
                 </div>
                 <span className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-500">
-                  {formatCents(r.share)}
+                  {formatCurrency(r.share, currency)}
                 </span>
               </div>
             </div>

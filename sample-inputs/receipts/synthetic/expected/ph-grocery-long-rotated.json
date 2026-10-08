@@ -1,0 +1,196 @@
+{
+  "merchant": "TINDAHAN MART",
+  "date": "2026-10-07",
+  "currency": "PHP",
+  "subtotal": 10758.25,
+  "tax": 1152.67,
+  "taxInclusive": true,
+  "serviceCharge": null,
+  "discount": null,
+  "tip": null,
+  "total": 10758.25,
+  "items": [
+    {
+      "name": "Rice 5kg",
+      "quantity": 1,
+      "unitPrice": 102.25,
+      "totalPrice": 102.25
+    },
+    {
+      "name": "Eggs Dozen",
+      "quantity": 1,
+      "unitPrice": 62.0,
+      "totalPrice": 62.0
+    },
+    {
+      "name": "Bear Brand 320g",
+      "quantity": 1,
+      "unitPrice": 323.0,
+      "totalPrice": 323.0
+    },
+    {
+      "name": "Lucky Me Pancit",
+      "quantity": 3,
+      "unitPrice": 134.0,
+      "totalPrice": 402.0
+    },
+    {
+      "name": "Sardines 155g",
+      "quantity": 1,
+      "unitPrice": 247.25,
+      "totalPrice": 247.25
+    },
+    {
+      "name": "Corned Beef",
+      "quantity": 1,
+      "unitPrice": 148.0,
+      "totalPrice": 148.0
+    },
+    {
+      "name": "Toyo 1L",
+      "quantity": 3,
+      "unitPrice": 242.0,
+      "totalPrice": 726.0
+    },
+    {
+      "name": "Suka 1L",
+      "quantity": 3,
+      "unitPrice": 88.5,
+      "totalPrice": 265.5
+    },
+    {
+      "name": "Garlic 250g",
+      "quantity": 3,
+      "unitPrice": 56.25,
+      "totalPrice": 168.75
+    },
+    {
+      "name": "Onion 500g",
+      "quantity": 1,
+      "unitPrice": 138.0,
+      "totalPrice": 138.0
+    },
+    {
+      "name": "Tomato 1kg",
+      "quantity": 3,
+      "unitPrice": 93.75,
+      "totalPrice": 281.25
+    },
+    {
+      "name": "Bananas",
+      "quantity": 2,
+      "unitPrice": 98.0,
+      "totalPrice": 196.0
+    },
+    {
+      "name": "Bread Loaf",
+      "quantity": 3,
+      "unitPrice": 182.5,
+      "totalPrice": 547.5
+    },
+    {
+      "name": "Peanut Butter",
+      "quantity": 1,
+      "unitPrice": 322.5,
+      "totalPrice": 322.5
+    },
+    {
+      "name": "Coffee 3in1 x30",
+      "quantity": 1,
+      "unitPrice": 74.0,
+      "totalPrice": 74.0
+    },
+    {
+      "name": "Sugar 1kg",
+      "quantity": 3,
+      "unitPrice": 55.5,
+      "totalPrice": 166.5
+    },
+    {
+      "name": "Cooking Oil 1L",
+      "quantity": 2,
+      "unitPrice": 373.25,
+      "totalPrice": 746.5
+    },
+    {
+      "name": "Dish Soap",
+      "quantity": 1,
+      "unitPrice": 263.25,
+      "totalPrice": 263.25
+    },
+    {
+      "name": "Shampoo Sachets",
+      "quantity": 1,
+      "unitPrice": 178.5,
+      "totalPrice": 178.5
+    },
+    {
+      "name": "Toothpaste",
+      "quantity": 1,
+      "unitPrice": 382.5,
+      "totalPrice": 382.5
+    },
+    {
+      "name": "Tissue 4 rolls",
+      "quantity": 1,
+      "unitPrice": 319.75,
+      "totalPrice": 319.75
+    },
+    {
+      "name": "Detergent 1kg",
+      "quantity": 3,
+      "unitPrice": 278.75,
+      "totalPrice": 836.25
+    },
+    {
+      "name": "Hotdog 1kg",
+      "quantity": 2,
+      "unitPrice": 172.0,
+      "totalPrice": 344.0
+    },
+    {
+      "name": "Chicken 1kg",
+      "quantity": 1,
+      "unitPrice": 287.25,
+      "totalPrice": 287.25
+    },
+    {
+      "name": "Pork Belly 500g",
+      "quantity": 1,
+      "unitPrice": 412.75,
+      "totalPrice": 412.75
+    },
+    {
+      "name": "Tilapia",
+      "quantity": 1,
+      "unitPrice": 275.25,
+      "totalPrice": 275.25
+    },
+    {
+      "name": "Kangkong",
+      "quantity": 1,
+      "unitPrice": 367.0,
+      "totalPrice": 367.0
+    },
+    {
+      "name": "Ampalaya",
+      "quantity": 3,
+      "unitPrice": 318.75,
+      "totalPrice": 956.25
+    },
+    {
+      "name": "Calamansi 250g",
+      "quantity": 1,
+      "unitPrice": 380.75,
+      "totalPrice": 380.75
+    },
+    {
+      "name": "Water 6L",
+      "quantity": 3,
+      "unitPrice": 279.25,
+      "totalPrice": 837.75
+    }
+  ],
+  "image": "ph-grocery-long-rotated.jpg",
+  "notes": "SYNTHETIC (rotated). 30-line grocery receipt, quantity sub-lines"
+}

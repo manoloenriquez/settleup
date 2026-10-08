@@ -1,0 +1,40 @@
+{
+  "merchant": "SARAP GRILL EXPRESS",
+  "date": "2026-10-06",
+  "currency": "PHP",
+  "subtotal": 521.0,
+  "tax": 55.82,
+  "taxInclusive": true,
+  "serviceCharge": null,
+  "discount": null,
+  "tip": null,
+  "total": 521.0,
+  "items": [
+    {
+      "name": "1pc Chickenjoy w/ Rice",
+      "quantity": 2,
+      "unitPrice": 99.0,
+      "totalPrice": 198.0
+    },
+    {
+      "name": "Jolly Spaghetti",
+      "quantity": 1,
+      "unitPrice": 70.0,
+      "totalPrice": 70.0
+    },
+    {
+      "name": "Peach Mango Pie",
+      "quantity": 3,
+      "unitPrice": 45.0,
+      "totalPrice": 135.0
+    },
+    {
+      "name": "Coke Float Regular",
+      "quantity": 2,
+      "unitPrice": 59.0,
+      "totalPrice": 118.0
+    }
+  ],
+  "image": "ph-fastfood-blurred.jpg",
+  "notes": "SYNTHETIC (blurred). Quantity-first layout, inclusive VAT, e-wallet payment line"
+}

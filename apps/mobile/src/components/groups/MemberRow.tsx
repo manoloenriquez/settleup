@@ -1,17 +1,20 @@
+import { track } from "@/lib/analytics";
 import { Alert, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Avatar, Badge, useToast } from "@/components/ui";
-import { formatCents } from "@template/shared";
+import { formatAmount, type CurrencyCode } from "@template/shared";
 import type { MemberBalance } from "@template/shared";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 type MemberRowProps = {
+  currency: CurrencyCode;
   member: MemberBalance;
   webOrigin?: string;
   onUndoLastPayment?: (member: MemberBalance) => void;
 };
 
-export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowProps) {
+export function MemberRow({ currency, member, webOrigin, onUndoLastPayment }: MemberRowProps) {
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const toast = useToast();
   const net = member.net_cents;
   const isSettled = Math.abs(net) < 1;
@@ -38,6 +41,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
         text: "Copy Share Link",
         onPress: async () => {
           await Clipboard.setStringAsync(link);
+          track({ name: "public_link_copied", properties: { link_type: "member" } });
           toast.success(`Share link for ${member.display_name} copied`);
         },
       });
@@ -53,6 +57,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
         onPress: async () => {
           const msg = `${balanceText}\n\nView details: ${link}`;
           await Clipboard.setStringAsync(msg);
+          track({ name: "public_link_copied", properties: { link_type: "member" } });
           toast.success("Balance message copied");
         },
       });
@@ -75,6 +80,7 @@ export function MemberRow({ member, webOrigin, onUndoLastPayment }: MemberRowPro
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
       style={styles.row}
       onLongPress={handleLongPress}
       activeOpacity={0.7}

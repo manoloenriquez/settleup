@@ -1,11 +1,13 @@
-import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Share, StyleSheet, Text, TouchableOpacity, View, type ColorValue } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { buildNudgeMessage, buildSuggestedSettlements, simplifyDebts, formatCents } from "@template/shared";
-import type { CreditorPaymentProfile, MemberBalance, SimplifiedDebt, SuggestedSettlement } from "@template/shared";
+import { buildNudgeMessage, buildSuggestedSettlements, simplifyDebts, formatAmount } from "@template/shared";
+import type { CreditorPaymentProfile, CurrencyCode, MemberBalance, SimplifiedDebt, SuggestedSettlement } from "@template/shared";
 import { Avatar } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type DebtSummaryProps = {
+  /** Every amount here is in this currency. */
+  currency: CurrencyCode;
   members: MemberBalance[];
   creditorProfiles?: CreditorPaymentProfile[];
   onSettle: (debt: SimplifiedDebt) => void;
@@ -15,6 +17,7 @@ type DebtSummaryProps = {
 };
 
 export function DebtSummary({
+  currency,
   members,
   creditorProfiles,
   onSettle,
@@ -22,6 +25,7 @@ export function DebtSummary({
   webOrigin,
   currentMemberId = null,
 }: DebtSummaryProps) {
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const tokenByMemberId = new Map(members.map((m) => [m.member_id, m.share_token]));
 
   async function handleRemind(debt: SimplifiedDebt) {
@@ -31,6 +35,7 @@ export function DebtSummary({
       creditorName: debt.to_display_name,
       amountCents: debt.amount_cents,
       groupName: groupName ?? "your group",
+      currency,
       link: token && webOrigin ? `${webOrigin}/p/${token}` : null,
     });
     try {
@@ -65,7 +70,7 @@ export function DebtSummary({
     settlements.find((d) => d.to_member_id === currentMemberId) ??
     settlements[0];
 
-  function rowText(debt: SimplifiedDebt): { label: string; color: string; sign: string } {
+  function rowText(debt: SimplifiedDebt): { label: string; color: ColorValue; sign: string } {
     if (debt.to_member_id === currentMemberId) {
       return { label: `${debt.from_display_name} owes you`, color: colors.success, sign: "+" };
     }
@@ -122,6 +127,7 @@ export function DebtSummary({
                 <Ionicons name="notifications-outline" size={13} color={colors.gray500} />
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.settleBtn}
                 onPress={() => onSettle(debt)}
                 activeOpacity={0.7}
@@ -177,6 +183,7 @@ export function DebtSummary({
           </View>
           {myDebt && (
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.settleAllBtn}
               onPress={() => onSettle(myDebt)}
               activeOpacity={0.85}
@@ -201,7 +208,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.primary + "30",
+    borderColor: colors.primaryBorderSoft,
     padding: spacing.base,
   },
   bannerIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
@@ -230,7 +237,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 2,
     borderStyle: "dashed",
-    borderColor: colors.primary + "50",
+    borderColor: colors.primaryBorder,
     padding: spacing.base,
     gap: spacing.sm,
   },

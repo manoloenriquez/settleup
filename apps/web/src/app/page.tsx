@@ -10,7 +10,7 @@ export default function LandingPage(): React.ReactElement {
         <nav className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
-              <span className="text-white text-sm font-bold">S</span>
+              <span className="text-white text-sm font-bold">{APP_NAME[0]}</span>
             </div>
             <span className="text-lg font-bold text-slate-900">{APP_NAME}</span>
           </div>
@@ -32,9 +32,7 @@ export default function LandingPage(): React.ReactElement {
       </header>
 
       {/* Hero */}
-      <section
-        className="relative min-h-[100dvh] flex items-center justify-center bg-hero-gradient"
-      >
+      <section className="relative min-h-[100dvh] flex items-center justify-center bg-hero-gradient">
         <div className="max-w-2xl px-6 text-center animate-fade-in">
           <p className="text-sm font-medium text-brand-600 tracking-wide uppercase mb-4">
             Group expense splitting
@@ -45,15 +43,22 @@ export default function LandingPage(): React.ReactElement {
             Settle it simple.
           </h1>
           <p className="mt-6 text-lg text-slate-500 max-w-md mx-auto leading-relaxed">
-            Track balances and settle debts with your group. No spreadsheets, no awkward math.
+            Track shared expenses together. Your friends can see balances without creating an
+            account.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href={ROUTES.REGISTER}
               className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-8 py-3.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
             >
-              Get started &mdash; it&apos;s free
+              Create a group — free
               <ArrowRight size={14} />
+            </Link>
+            <Link
+              href="/join"
+              className="rounded-full border border-brand-200 px-8 py-3.5 text-sm font-semibold text-brand-700"
+            >
+              Join a group
             </Link>
           </div>
           <p className="mt-4 text-sm text-slate-400">
@@ -67,6 +72,17 @@ export default function LandingPage(): React.ReactElement {
           </p>
         </div>
 
+        <div className="mx-auto hidden max-w-xs rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm lg:block">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">An example</p>
+          <h2 className="mt-3 text-xl font-bold">Dinner with friends</h2>
+          <p className="mt-2 text-sm text-slate-600">Alex pays PHP 900 for three people.</p>
+          <ul className="mt-4 space-y-2 text-sm">
+            <li>Alex's share: PHP 300</li>
+            <li>Sam owes Alex: PHP 300</li>
+            <li>Jo owes Alex: PHP 300</li>
+          </ul>
+          <p className="mt-4 text-xs text-slate-500">One expense. Everyone can check the math.</p>
+        </div>
         {/* Scroll hint */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-300">
           <span className="text-xs tracking-wider uppercase">Learn more</span>
@@ -203,7 +219,7 @@ export default function LandingPage(): React.ReactElement {
         <div className="mx-auto max-w-5xl px-6 flex flex-col items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded bg-brand-600 flex items-center justify-center">
-              <span className="text-white text-[10px] font-bold">S</span>
+              <span className="text-white text-[10px] font-bold">{APP_NAME[0]}</span>
             </div>
             <span className="text-sm font-semibold text-slate-900">{APP_NAME}</span>
           </div>

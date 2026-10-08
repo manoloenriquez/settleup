@@ -1,8 +1,17 @@
-import { dashboardSummarySchema, type ApiResponse, type DashboardSummary, type GroupWithStats } from "@template/shared";
+import {
+  dashboardSummarySchema,
+  currencyCodeSchema,
+  type CurrencyCode,
+  type ApiResponse,
+  type DashboardSummary,
+  type GroupWithStats,
+} from "@template/shared";
 import type { Expense, Group, GroupMember, Json, Payment } from "./database.types";
 import { z } from "zod";
 
 type EqualExpenseRpcInput = {
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -16,6 +25,8 @@ type EqualExpenseRpcInput = {
 };
 
 type CustomExpenseRpcInput = {
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -29,6 +40,8 @@ type CustomExpenseRpcInput = {
 };
 
 type ItemizedExpenseRpcInput = {
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   /** Client-generated UUID used as the row id — makes replays idempotent. */
   clientId?: string;
   groupId: string;
@@ -42,6 +55,8 @@ type ItemizedExpenseRpcInput = {
 };
 
 type UpdateEqualExpenseRpcInput = {
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -55,6 +70,8 @@ type UpdateEqualExpenseRpcInput = {
 };
 
 type UpdateCustomExpenseRpcInput = {
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -68,6 +85,8 @@ type UpdateCustomExpenseRpcInput = {
 };
 
 type UpdateItemizedExpenseRpcInput = {
+  /** Required: an omitted code would silently store the amount as PHP. */
+  currencyCode: CurrencyCode;
   expenseId: string;
   /** Compare-and-swap guard: server rejects (PT409) if the row changed since this snapshot. */
   expectedUpdatedAt?: string;
@@ -81,12 +100,17 @@ type UpdateItemizedExpenseRpcInput = {
 };
 
 const groupSchema = z.object({
+  default_currency_code: currencyCodeSchema.default("PHP"),
+  budget_currency_code: currencyCodeSchema.default("PHP"),
   id: z.string().uuid(),
   name: z.string(),
   owner_user_id: z.string().uuid().nullable(),
   invite_code: z.string(),
   is_archived: z.boolean(),
   share_token: z.string(),
+  share_enabled: z.boolean().default(true),
+  /** "direct" = a two-person friend ledger. */
+  kind: z.enum(["shared", "direct"]).default("shared"),
   budget_cents: z.number().int().nullable().default(null),
   created_at: z.string(),
 });
@@ -98,11 +122,14 @@ const groupMemberSchema = z.object({
   slug: z.string(),
   share_token: z.string(),
   user_id: z.string().uuid().nullable(),
+  departed_at: z.string().nullable().default(null),
   role: z.enum(["owner", "admin", "member"]),
+  hide_payment_details: z.boolean().default(false),
   created_at: z.string(),
 });
 
 const expenseSchema = z.object({
+  currency_code: currencyCodeSchema.default("PHP"),
   id: z.string().uuid(),
   group_id: z.string().uuid(),
   category_id: z.string().uuid().nullable(),
@@ -116,6 +143,7 @@ const expenseSchema = z.object({
 });
 
 const paymentSchema = z.object({
+  currency_code: currencyCodeSchema.default("PHP"),
   id: z.string().uuid(),
   group_id: z.string().uuid(),
   amount_cents: z.number().int(),
@@ -126,6 +154,7 @@ const paymentSchema = z.object({
   note: z.string().nullable().default(null),
   created_at: z.string(),
   updated_at: z.string().default(""),
+  report_request_id: z.string().nullable().default(null),
 });
 
 const groupWithStatsSchema = groupSchema.extend({
@@ -176,6 +205,7 @@ export function buildEqualExpenseRpcInput(input: EqualExpenseRpcInput): Json {
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -194,6 +224,7 @@ export function buildCustomExpenseRpcInput(input: CustomExpenseRpcInput): Json {
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -215,6 +246,7 @@ export function buildItemizedExpenseRpcInput(input: ItemizedExpenseRpcInput): Js
     group_id: input.groupId,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -236,6 +268,7 @@ export function buildUpdateEqualExpenseRpcInput(input: UpdateEqualExpenseRpcInpu
     expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -254,6 +287,7 @@ export function buildUpdateCustomExpenseRpcInput(input: UpdateCustomExpenseRpcIn
     expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -275,6 +309,7 @@ export function buildUpdateItemizedExpenseRpcInput(input: UpdateItemizedExpenseR
     expected_updated_at: input.expectedUpdatedAt ?? undefined,
     category_id: input.categoryId ?? null,
     item_name: input.itemName.trim(),
+    currency_code: input.currencyCode ?? "PHP",
     amount_cents: input.amountCents,
     notes: input.notes?.trim() || undefined,
     expense_date: input.expenseDate || undefined,
@@ -319,7 +354,11 @@ export function parseCreateExpenseRpcResult(result: Json | null): ApiResponse<Ex
 }
 
 export function parseCreateExpensesBatchRpcResult(result: Json | null): ApiResponse<Expense[]> {
-  const parsed = parseRpcPayload(result, createExpensesBatchResultSchema, "Failed to parse expenses.");
+  const parsed = parseRpcPayload(
+    result,
+    createExpensesBatchResultSchema,
+    "Failed to parse expenses.",
+  );
   if (parsed.error) return parsed;
   if (parsed.data === null) return { data: null, error: "Failed to parse expenses." };
 
@@ -343,7 +382,11 @@ export function parseGroupsWithStatsRpcResult(result: Json | null): ApiResponse<
 }
 
 export function parseDashboardSummaryRpcResult(result: Json | null): ApiResponse<DashboardSummary> {
-  return parseRpcPayload(result, dashboardSummaryResultSchema, "Failed to parse dashboard summary.");
+  return parseRpcPayload(
+    result,
+    dashboardSummaryResultSchema,
+    "Failed to parse dashboard summary.",
+  );
 }
 
 export function parseJoinGroupRpcResult(
@@ -371,11 +414,15 @@ export function parseClaimMemberRpcResult(
   return { data: { member: parsed.data.member }, error: null };
 }
 
-export function parseShareTokenRpcResult(result: Json | null): ApiResponse<{ share_token: string }> {
+export function parseShareTokenRpcResult(
+  result: Json | null,
+): ApiResponse<{ share_token: string }> {
   return parseRpcPayload(result, shareTokenResultSchema, "Failed to rotate share token.");
 }
 
-export function parseInviteCodeRpcResult(result: Json | null): ApiResponse<{ invite_code: string }> {
+export function parseInviteCodeRpcResult(
+  result: Json | null,
+): ApiResponse<{ invite_code: string }> {
   return parseRpcPayload(result, inviteCodeResultSchema, "Failed to regenerate invite code.");
 }
 
@@ -383,7 +430,9 @@ export function parseLeaveGroupRpcResult(result: Json | null): ApiResponse<{ suc
   return parseRpcPayload(result, leaveGroupResultSchema, "Failed to leave group.");
 }
 
-export function parseTransferOwnershipRpcResult(result: Json | null): ApiResponse<{ success: boolean }> {
+export function parseTransferOwnershipRpcResult(
+  result: Json | null,
+): ApiResponse<{ success: boolean }> {
   return parseRpcPayload(result, transferOwnershipResultSchema, "Failed to transfer ownership.");
 }
 
@@ -395,7 +444,11 @@ export function parseRenameMemberRpcResult(result: Json | null): ApiResponse<Gro
 }
 
 export function parsePromoteMemberRpcResult(result: Json | null): ApiResponse<GroupMember> {
-  const parsed = parseRpcPayload(result, promoteMemberResultSchema, "Failed to update member role.");
+  const parsed = parseRpcPayload(
+    result,
+    promoteMemberResultSchema,
+    "Failed to update member role.",
+  );
   if (parsed.error) return parsed;
   if (parsed.data === null) return { data: null, error: "Failed to update member role." };
   return { data: parsed.data.member, error: null };

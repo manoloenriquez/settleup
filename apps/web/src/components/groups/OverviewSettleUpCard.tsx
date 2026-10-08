@@ -1,30 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import { formatCents } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { CopyButton } from "@/components/groups/CopyButton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Smartphone, Landmark, ArrowRight, MessageCircle, Hash, ZoomIn, X } from "lucide-react";
-import type { GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
+import type { CurrencyCode, GroupOverviewPayload, SuggestedSettlement } from "@template/shared";
+
+type PaymentDetailAction = "copy" | "qr";
 
 type Props = {
   groupName: string;
   settlements: SuggestedSettlement[];
   ownerProfile: GroupOverviewPayload["payment_profile"];
+  /** The currency every settlement amount on this card is in. */
+  currency: CurrencyCode;
+  /** Telemetry hook for copy and QR-enlarge actions on payment details. */
+  onAction?: (action: PaymentDetailAction) => void;
 };
 
 function isMasked(value: string): boolean {
   return value.includes("*");
 }
 
-function QrImage({ src, alt }: { src: string; alt: string }): React.ReactElement {
+function QrImage({
+  src,
+  alt,
+  onReveal,
+}: {
+  src: string;
+  alt: string;
+  onReveal?: () => void;
+}): React.ReactElement {
   const [zoomed, setZoomed] = useState(false);
   return (
     <>
       <button
         type="button"
-        onClick={() => setZoomed(true)}
+        onClick={() => {
+          onReveal?.();
+          setZoomed(true);
+        }}
         className="group relative mx-auto block"
         aria-label={`Enlarge ${alt}`}
       >
@@ -48,7 +65,11 @@ function QrImage({ src, alt }: { src: string; alt: string }): React.ReactElement
           <span className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white">
             <X size={18} />
           </span>
-          <img src={src} alt={alt} className="max-h-[85vh] w-full max-w-md object-contain bg-white p-4 rounded-2xl" />
+          <img
+            src={src}
+            alt={alt}
+            className="max-h-[85vh] w-full max-w-md object-contain bg-white p-4 rounded-2xl"
+          />
         </button>
       )}
     </>
@@ -60,11 +81,13 @@ function AccountLine({
   methodLabel,
   accountNumber,
   accountName,
+  onCopied,
 }: {
   icon: React.ReactNode;
   methodLabel: string;
   accountNumber: string;
   accountName: string | null;
+  onCopied?: () => void;
 }): React.ReactElement {
   const masked = isMasked(accountNumber);
   return (
@@ -73,16 +96,31 @@ function AccountLine({
       <div className="min-w-0">
         <p className="text-slate-700">
           <span className="font-semibold">{methodLabel}</span>
-          {masked ? <> · account ending in {accountNumber.replace(/\*/g, "")}</> : <> · <span className="font-mono">{accountNumber}</span></>}
+          {masked ? (
+            <> · account ending in {accountNumber.replace(/\*/g, "")}</>
+          ) : (
+            <>
+              {" "}
+              · <span className="font-mono">{accountNumber}</span>
+            </>
+          )}
           {accountName && <span className="text-slate-400"> — {accountName}</span>}
         </p>
       </div>
-      {!masked && <CopyButton text={accountNumber} label="Copy" className="ml-auto shrink-0" />}
+      {!masked && (
+        <CopyButton text={accountNumber} label="Copy" className="ml-auto shrink-0" onCopied={onCopied} />
+      )}
     </div>
   );
 }
 
-function PaymentReference({ groupName, payerName }: { groupName: string; payerName?: string }): React.ReactElement {
+function PaymentReference({
+  groupName,
+  payerName,
+}: {
+  groupName: string;
+  payerName?: string;
+}): React.ReactElement {
   const reference = payerName ? `${groupName} – ${payerName}` : groupName;
   return (
     <div className="flex items-center gap-2 rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 text-xs">
@@ -95,12 +133,22 @@ function PaymentReference({ groupName, payerName }: { groupName: string; payerNa
   );
 }
 
-export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: Props): React.ReactElement | null {
+export function OverviewSettleUpCard({
+  groupName,
+  settlements,
+  ownerProfile,
+  currency,
+  onAction,
+}: Props): React.ReactElement | null {
+  const onQr = (): void => onAction?.("qr");
+  const onCopied = (): void => onAction?.("copy");
   if (settlements.length > 0) {
     return (
       <Card>
         <CardHeader>
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Settle Up</h2>
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Settle Up
+          </h2>
           <p className="mt-1 text-xs text-slate-400 normal-case">
             The fewest payments that settle everyone. Find yours below and follow the steps.
           </p>
@@ -119,13 +167,16 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
                   <ArrowRight size={14} className="text-slate-400" />
                   <Avatar name={s.to_display_name} size="sm" />
                   <span className="font-medium text-slate-700">{s.to_display_name}</span>
-                  <span className="ml-auto font-bold text-slate-900">{formatCents(s.amount_cents)}</span>
+                  <span className="ml-auto font-bold text-slate-900">
+                    {formatCurrency(s.amount_cents, currency)}
+                  </span>
                 </div>
 
                 {!p && (
                   <p className="text-xs text-slate-400 italic">
-                    {s.to_display_name} hasn&apos;t added payment details yet — ask them how they&apos;d like to be paid.
-                    (They can add details in Account &rarr; Payment Settings.)
+                    {s.to_display_name} hasn&apos;t added payment details yet — ask them how
+                    they&apos;d like to be paid. (They can add details in Account &rarr; Payment
+                    Settings.)
                   </p>
                 )}
 
@@ -133,26 +184,32 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
                   <div className="flex flex-col gap-2.5 pl-2 border-l-2 border-brand-100">
                     {p.gcash_number && (
                       <AccountLine
+                        onCopied={onCopied}
                         icon={<Smartphone size={12} className="text-blue-500" />}
                         methodLabel="GCash"
                         accountNumber={p.gcash_number}
                         accountName={p.gcash_name}
                       />
                     )}
-                    {p.gcash_qr_url && <QrImage src={p.gcash_qr_url} alt={`${s.to_display_name}'s GCash QR`} />}
+                    {p.gcash_qr_url && (
+                      <QrImage src={p.gcash_qr_url} alt={`${s.to_display_name}'s GCash QR`} onReveal={onQr} />
+                    )}
                     {p.bank_name && p.bank_account_number && (
                       <AccountLine
+                        onCopied={onCopied}
                         icon={<Landmark size={12} className="text-brand-500" />}
                         methodLabel={p.bank_name}
                         accountNumber={p.bank_account_number}
                         accountName={p.bank_account_name}
                       />
                     )}
-                    {p.bank_qr_url && <QrImage src={p.bank_qr_url} alt={`${s.to_display_name}'s bank QR`} />}
+                    {p.bank_qr_url && (
+                      <QrImage src={p.bank_qr_url} alt={`${s.to_display_name}'s bank QR`} onReveal={onQr} />
+                    )}
                     {(isMasked(p.gcash_number ?? "") || isMasked(p.bank_account_number ?? "")) && (
                       <p className="text-[11px] text-slate-400">
-                        Account numbers are partially hidden for privacy — scan the QR to pay, or ask{" "}
-                        {s.to_display_name} for the full number.
+                        Account numbers are partially hidden for privacy — scan the QR to pay, or
+                        ask {s.to_display_name} for the full number.
                       </p>
                     )}
                     {p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}
@@ -163,8 +220,9 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
                 <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-400">
                   <MessageCircle size={12} className="mt-0.5 shrink-0" />
                   <span>
-                    After paying, message {s.to_display_name} or the group owner so they can record it. If you were
-                    sent a personal SettleUp link, use its &ldquo;I&apos;ve paid&rdquo; button instead.
+                    After paying, message {s.to_display_name} or the group owner so they can record
+                    it. If you were sent a personal Talli link, use its &ldquo;I&apos;ve
+                    paid&rdquo; button instead.
                   </span>
                 </p>
               </div>
@@ -182,7 +240,9 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">How to pay</h2>
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            How to pay
+          </h2>
           {pp.payer_display_name && (
             <div className="flex items-center gap-2">
               <Avatar name={pp.payer_display_name} size="sm" />
@@ -191,7 +251,8 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
           )}
         </div>
         <p className="mt-1 text-xs text-slate-400 normal-case">
-          Send what you owe {pp.payer_display_name ? `to ${pp.payer_display_name}` : "to the group owner"} using any
+          Send what you owe{" "}
+          {pp.payer_display_name ? `to ${pp.payer_display_name}` : "to the group owner"} using any
           method below.
         </p>
       </CardHeader>
@@ -199,23 +260,25 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
         {pp.gcash_number && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex flex-col gap-2">
             <AccountLine
+                        onCopied={onCopied}
               icon={<Smartphone size={14} className="text-blue-500" />}
               methodLabel="GCash"
               accountNumber={pp.gcash_number}
               accountName={pp.gcash_name}
             />
-            {pp.gcash_qr_url && <QrImage src={pp.gcash_qr_url} alt="GCash QR" />}
+            {pp.gcash_qr_url && <QrImage src={pp.gcash_qr_url} alt="GCash QR" onReveal={onQr} />}
           </div>
         )}
         {pp.bank_name && pp.bank_account_number && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex flex-col gap-2">
             <AccountLine
+                        onCopied={onCopied}
               icon={<Landmark size={14} className="text-brand-500" />}
               methodLabel={pp.bank_name}
               accountNumber={pp.bank_account_number}
               accountName={pp.bank_account_name}
             />
-            {pp.bank_qr_url && <QrImage src={pp.bank_qr_url} alt="Bank QR" />}
+            {pp.bank_qr_url && <QrImage src={pp.bank_qr_url} alt="Bank QR" onReveal={onQr} />}
           </div>
         )}
         {(isMasked(pp.gcash_number ?? "") || isMasked(pp.bank_account_number ?? "")) && (
@@ -229,7 +292,8 @@ export function OverviewSettleUpCard({ groupName, settlements, ownerProfile }: P
         <p className="flex items-start gap-1.5 text-[11px] text-slate-400">
           <MessageCircle size={12} className="mt-0.5 shrink-0" />
           <span>
-            Include your name in the payment reference, then message the group owner so they can record your payment.
+            Include your name in the payment reference, then message the group owner so they can
+            record your payment.
           </span>
         </p>
       </CardContent>

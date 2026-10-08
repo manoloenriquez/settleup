@@ -17,7 +17,7 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
       <Text style={styles.title}>{title}</Text>
       {description && <Text style={styles.description}>{description}</Text>}
       {actionLabel && onAction && (
-        <TouchableOpacity style={styles.action} onPress={onAction}>
+        <TouchableOpacity accessibilityRole="button" style={styles.action} onPress={onAction}>
           <Text style={styles.actionText}>{actionLabel}</Text>
         </TouchableOpacity>
       )}

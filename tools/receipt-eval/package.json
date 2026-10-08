@@ -1,0 +1,21 @@
+{
+  "name": "@template/receipt-eval",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Regression suite for on-device receipt extraction: runs the iOS module's Swift core on macOS against sample-inputs/receipts and scores it with the shared reconciliation.",
+  "scripts": {
+    "build:swift": "swift build -c release",
+    "eval": "swift build -c release && tsx eval.ts",
+    "eval:raw": "tsx eval.ts --raw",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@template/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

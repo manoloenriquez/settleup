@@ -7,24 +7,30 @@ import { Button } from "@/components/ui/Button";
 import { AddExpenseDialog } from "./AddExpenseDialog";
 import { ChevronRight, Plus, BarChart3, CreditCard, Settings, Users } from "lucide-react";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
+import type { CurrencyCode } from "@template/shared";
 
 type Props = {
+  readOnly?: boolean;
   groupId: string;
   groupName: string;
   memberCount: number;
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
+  /** Group default currency; the add-expense dialog starts in it. */
+  defaultCurrency: CurrencyCode;
   /** Dialog state lives in GroupDetailClient so the FAB opens it directly. */
   showExpenseDialog: boolean;
   onShowExpenseDialogChange: (open: boolean) => void;
 };
 
 export function GroupHeader({
+  readOnly = false,
   groupId,
   groupName,
   memberCount,
   members,
+  defaultCurrency,
   categories,
   currentUserId,
   showExpenseDialog,
@@ -38,11 +44,11 @@ export function GroupHeader({
   // pages (on this page the FAB opens the dialog via local state).
   const addParam = searchParams.get("add");
   useEffect(() => {
-    if (addParam === "expense") {
+    if (addParam === "expense" && !readOnly) {
       onShowExpenseDialogChange(true);
       router.replace(pathname, { scroll: false });
     }
-  }, [addParam, pathname, router, onShowExpenseDialogChange]);
+  }, [addParam, pathname, router, onShowExpenseDialogChange, readOnly]);
 
   return (
     <>
@@ -95,21 +101,29 @@ export function GroupHeader({
             </Link>
 
             {/* Primary CTA */}
-            <Button size="sm" leftIcon={Plus} onClick={() => onShowExpenseDialogChange(true)}>
+            <Button
+              disabled={readOnly}
+              size="sm"
+              leftIcon={Plus}
+              onClick={() => onShowExpenseDialogChange(true)}
+            >
               Add Expense
             </Button>
           </div>
         </div>
       </div>
 
-      <AddExpenseDialog
-        open={showExpenseDialog}
-        onClose={() => onShowExpenseDialogChange(false)}
-        groupId={groupId}
-        members={members}
-        categories={categories}
-        currentUserId={currentUserId}
-      />
+      {members.length > 0 && currentUserId && (
+        <AddExpenseDialog
+          open={showExpenseDialog && !readOnly}
+          onClose={() => onShowExpenseDialogChange(false)}
+          groupId={groupId}
+          members={members}
+          categories={categories}
+          currentUserId={currentUserId}
+          defaultCurrency={defaultCurrency}
+        />
+      )}
     </>
   );
 }

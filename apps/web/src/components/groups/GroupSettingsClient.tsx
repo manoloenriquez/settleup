@@ -3,12 +3,33 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Archive, Copy, Crown, LogOut, Pencil, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
+import {
+  Archive,
+  Copy,
+  Crown,
+  LogOut,
+  Pencil,
+  RefreshCw,
+  Shield,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import { MemberInvitationControls } from "./MemberInvitationControls";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { addMember, deleteMember, renameMember } from "@/app/actions/members";
-import { archiveGroup, deleteGroup, leaveGroup, renameGroup, transferOwnership } from "@/app/actions/groups";
-import { createExpenseCategory, deleteExpenseCategory, updateExpenseCategory } from "@/app/actions/categories";
+import {
+  archiveGroup,
+  deleteGroup,
+  leaveGroup,
+  renameGroup,
+  transferOwnership,
+} from "@/app/actions/groups";
+import {
+  createExpenseCategory,
+  deleteExpenseCategory,
+  updateExpenseCategory,
+} from "@/app/actions/categories";
 import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
@@ -33,6 +54,8 @@ interface Props {
   isAdmin: boolean;
   isAdminOrOwner: boolean;
   currentUserId: string;
+  /** Page sections that belong above the danger zone (budget, recurring, export). */
+  children?: React.ReactNode;
 }
 
 export function GroupSettingsClient({
@@ -43,6 +66,7 @@ export function GroupSettingsClient({
   isAdmin: _isAdmin,
   isAdminOrOwner,
   currentUserId,
+  children,
 }: Props): React.ReactElement {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -192,9 +216,7 @@ export function GroupSettingsClient({
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        setMemberList((prev) =>
-          prev.map((m) => (m.id === member.id ? result.data! : m)),
-        );
+        setMemberList((prev) => prev.map((m) => (m.id === member.id ? result.data! : m)));
         setEditingMemberId(null);
         toast.success("Member renamed");
         invalidateGroupData(queryClient, group.id);
@@ -227,16 +249,18 @@ export function GroupSettingsClient({
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        setMemberList((prev) =>
-          prev.map((m) => (m.id === member.id ? result.data! : m)),
+        setMemberList((prev) => prev.map((m) => (m.id === member.id ? result.data! : m)));
+        toast.success(
+          role === "admin"
+            ? `${member.display_name} is now an admin`
+            : `${member.display_name} is now a regular member`,
         );
-        toast.success(role === "admin" ? `${member.display_name} is now an admin` : `${member.display_name} is now a regular member`);
         invalidateGroupData(queryClient, group.id);
       }
     });
   }
 
-  function handleCreateCategory(e: React.FormEvent): void {
+  async function handleCreateCategory(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     const name = newCategoryName.trim();
     if (!name) return;
@@ -244,15 +268,22 @@ export function GroupSettingsClient({
 
     if (!online) {
       // The client id doubles as the category id server-side.
-      void enqueue({
-        id: clientId,
-        kind: "category.create",
-        entityId: clientId,
-        groupId: group.id,
-        payload: { name, icon: "circle-ellipsis", color: newCategoryColor },
-        createdAt: new Date().toISOString(),
-        summary: { title: `Category "${name}"`, amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: clientId,
+          kind: "category.create",
+          entityId: clientId,
+          groupId: group.id,
+          payload: { name, icon: "circle-ellipsis", color: newCategoryColor },
+          createdAt: new Date().toISOString(),
+          summary: { title: `Category "${name}"`, amountCents: 0 },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       setCategoryList((prev) => [
         ...prev,
         {
@@ -286,7 +317,11 @@ export function GroupSettingsClient({
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        setCategoryList((prev) => [...prev, result.data!].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)));
+        setCategoryList((prev) =>
+          [...prev, result.data!].sort(
+            (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
+          ),
+        );
         setNewCategoryName("");
         setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
         toast.success("Category added");
@@ -302,31 +337,43 @@ export function GroupSettingsClient({
     setEditingCategoryColor(category.color);
   }
 
-  function handleUpdateCategory(category: ExpenseCategory, sortOrder = category.sort_order): void {
+  async function handleUpdateCategory(
+    category: ExpenseCategory,
+    sortOrder = category.sort_order,
+  ): Promise<void> {
     const name = editingCategoryId === category.id ? editingCategoryName.trim() : category.name;
     const color = editingCategoryId === category.id ? editingCategoryColor : category.color;
     if (!name) return;
 
     if (!online) {
       // Coalesces with earlier queued edits of the same category.
-      void enqueue({
-        id: crypto.randomUUID(),
-        kind: "category.update",
-        entityId: category.id,
-        groupId: group.id,
-        payload: {
-          name,
-          icon: category.icon,
-          color,
-          sort_order: sortOrder,
-          expected_updated_at: category.updated_at,
-        },
-        createdAt: new Date().toISOString(),
-        summary: { title: `Category "${name}"`, amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: crypto.randomUUID(),
+          kind: "category.update",
+          entityId: category.id,
+          groupId: group.id,
+          payload: {
+            name,
+            icon: category.icon,
+            color,
+            sort_order: sortOrder,
+            expected_updated_at: category.updated_at,
+          },
+          createdAt: new Date().toISOString(),
+          summary: { title: `Category "${name}"`, amountCents: 0 },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       setCategoryList((prev) =>
         prev
-          .map((item) => (item.id === category.id ? { ...item, name, color, sort_order: sortOrder } : item))
+          .map((item) =>
+            item.id === category.id ? { ...item, name, color, sort_order: sortOrder } : item,
+          )
           .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
       );
       setEditingCategoryId(null);
@@ -359,19 +406,26 @@ export function GroupSettingsClient({
     });
   }
 
-  function handleDeleteCategory(category: ExpenseCategory): void {
+  async function handleDeleteCategory(category: ExpenseCategory): Promise<void> {
     if (!online) {
       // If the category itself is a queued offline create, the reducer
       // cancels the whole local chain instead of sending anything.
-      void enqueue({
-        id: crypto.randomUUID(),
-        kind: "category.delete",
-        entityId: category.id,
-        groupId: group.id,
-        payload: {},
-        createdAt: new Date().toISOString(),
-        summary: { title: `Delete category "${category.name}"`, amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: crypto.randomUUID(),
+          kind: "category.delete",
+          entityId: category.id,
+          groupId: group.id,
+          payload: {},
+          createdAt: new Date().toISOString(),
+          summary: { title: `Delete category "${category.name}"`, amountCents: 0 },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       setCategoryList((prev) => prev.filter((item) => item.id !== category.id));
       toast.info("Saved offline — will sync when you're back online");
       return;
@@ -432,87 +486,87 @@ export function GroupSettingsClient({
     <div className="flex flex-col gap-6">
       {/* Group name (any linked member) */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-700 mb-4">Group Name</h2>
-          <form onSubmit={handleRenameGroup} className="flex gap-2">
-            <input
-              type="text"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm
+        <h2 className="text-base font-semibold text-slate-700 mb-4">Group Name</h2>
+        <form onSubmit={handleRenameGroup} className="flex gap-2">
+          <input
+            type="text"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm
                          placeholder:text-slate-400 focus:outline-none focus:ring-2
                          focus:ring-brand-500 focus:border-transparent"
-            />
-            <Button
-              type="submit"
-              size="sm"
-              leftIcon={Pencil}
-              isLoading={isPending}
-              disabled={!groupName.trim() || groupName.trim() === group.name}
-            >
-              Save
-            </Button>
-          </form>
-          {renameError && <p className="text-xs text-red-600 mt-2">{renameError}</p>}
-        </section>
+          />
+          <Button
+            type="submit"
+            size="sm"
+            leftIcon={Pencil}
+            isLoading={isPending}
+            disabled={!groupName.trim() || groupName.trim() === group.name}
+          >
+            Save
+          </Button>
+        </form>
+        {renameError && <p className="text-xs text-red-600 mt-2">{renameError}</p>}
+      </section>
 
       {/* Invite section (all members can see; regenerate restricted to owner/admin) */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-700 mb-4">Invite Members</h2>
+        <h2 className="text-base font-semibold text-slate-700 mb-4">Invite to collaborate</h2>
 
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Invite Code</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800">
-                  {inviteCode}
-                </code>
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Invite Code</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800">
+                {inviteCode}
+              </code>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={Copy}
+                onClick={() => copyToClipboard(inviteCode, "Invite code")}
+              >
+                Copy code
+              </Button>
+              {isAdminOrOwner && (
                 <Button
                   variant="secondary"
                   size="sm"
-                  leftIcon={Copy}
-                  onClick={() => copyToClipboard(inviteCode, "Invite code")}
+                  leftIcon={RefreshCw}
+                  isLoading={isPending}
+                  onClick={handleRegenerateInvite}
+                  title="Regenerate invite code (invalidates the old one)"
                 >
-                  Copy code
+                  Rotate
                 </Button>
-                {isAdminOrOwner && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    leftIcon={RefreshCw}
-                    isLoading={isPending}
-                    onClick={handleRegenerateInvite}
-                    title="Regenerate invite code (invalidates the old one)"
-                  >
-                    Rotate
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Invite Link</p>
-              <div className="flex items-center gap-2">
-                <input
-                  readOnly
-                  value={inviteLink}
-                  className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600 truncate"
-                />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={Copy}
-                  onClick={() => copyToClipboard(inviteLink, "Invite link")}
-                >
-                  Copy link
-                </Button>
-              </div>
+              )}
             </div>
           </div>
-        </section>
+
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Invite Link</p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={inviteLink}
+                className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600 truncate"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={Copy}
+                onClick={() => copyToClipboard(inviteLink, "Invite link")}
+              >
+                Copy link
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Member list */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-700 mb-4">
+        <h2 id="members" className="text-base font-semibold text-slate-700 mb-4">
           Members ({memberList.length})
         </h2>
 
@@ -541,7 +595,10 @@ export function GroupSettingsClient({
                   <div className="min-w-0 flex-1">
                     {editingMemberId === member.id ? (
                       <form
-                        onSubmit={(e) => { e.preventDefault(); handleRenameMember(member); }}
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleRenameMember(member);
+                        }}
                         className="flex gap-1"
                       >
                         <input
@@ -552,8 +609,17 @@ export function GroupSettingsClient({
                           className="flex-1 rounded-md border border-brand-300 px-2 py-1 text-sm
                                      focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
-                        <Button type="submit" size="sm" isLoading={isPending}>Save</Button>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setEditingMemberId(null)}>✕</Button>
+                        <Button type="submit" size="sm" isLoading={isPending}>
+                          Save
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingMemberId(null)}
+                        >
+                          ✕
+                        </Button>
                       </form>
                     ) : (
                       <>
@@ -563,7 +629,12 @@ export function GroupSettingsClient({
                             <span className="ml-1.5 text-xs text-slate-400">(you)</span>
                           )}
                         </p>
-                        <p className="text-xs text-slate-400">{roleLabel}</p>
+                        <p className="text-xs text-slate-400">
+                          {member.departed_at ? "Departed" : roleLabel}
+                        </p>
+                        {isAdminOrOwner && !member.user_id && !member.departed_at && (
+                          <MemberInvitationControls memberId={member.id} />
+                        )}
                       </>
                     )}
                   </div>
@@ -596,7 +667,9 @@ export function GroupSettingsClient({
                             variant="ghost"
                             size="sm"
                             leftIcon={Shield}
-                            onClick={() => handlePromoteMember(member, isAdminMember ? "member" : "admin")}
+                            onClick={() =>
+                              handlePromoteMember(member, isAdminMember ? "member" : "admin")
+                            }
                             isLoading={isPending}
                             className="text-brand-600 hover:text-brand-700 hover:bg-brand-50"
                             title={isAdminMember ? "Remove admin" : "Make admin"}
@@ -642,7 +715,10 @@ export function GroupSettingsClient({
 
         {/* Add member form (owner/admin) */}
         {isAdminOrOwner && (
-          <form onSubmit={handleAddMember} className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
+          <form
+            onSubmit={handleAddMember}
+            className="flex gap-2 mt-4 pt-4 border-t border-slate-100"
+          >
             <input
               type="text"
               value={newMemberName}
@@ -671,8 +747,14 @@ export function GroupSettingsClient({
           {categoryList.map((category) => {
             const isCustom = !category.is_default;
             return (
-              <div key={category.id} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+              <div
+                key={category.id}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"
+              >
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: category.color }}
+                />
                 {editingCategoryId === category.id ? (
                   <>
                     <input
@@ -688,10 +770,20 @@ export function GroupSettingsClient({
                       className="h-8 w-10 shrink-0"
                       aria-label="Category color"
                     />
-                    <Button type="button" size="sm" isLoading={isPending} onClick={() => handleUpdateCategory(category)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      isLoading={isPending}
+                      onClick={() => handleUpdateCategory(category)}
+                    >
                       Save
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditingCategoryId(null)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingCategoryId(null)}
+                    >
                       Cancel
                     </Button>
                   </>
@@ -699,18 +791,45 @@ export function GroupSettingsClient({
                   <>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-slate-800">{category.name}</p>
-                      <p className="text-xs text-slate-400">{category.is_default ? "Default" : "Custom"}</p>
+                      <p className="text-xs text-slate-400">
+                        {category.is_default ? "Default" : "Custom"}
+                      </p>
                     </div>
                     {isAdminOrOwner && isCustom && (
                       <div className="flex shrink-0 items-center gap-1">
-                        <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateCategory(category, category.sort_order - 15)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUpdateCategory(category, category.sort_order - 15)}
+                        >
                           ↑
                         </Button>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateCategory(category, category.sort_order + 15)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUpdateCategory(category, category.sort_order + 15)}
+                        >
                           ↓
                         </Button>
-                        <Button type="button" variant="ghost" size="sm" leftIcon={Pencil} onClick={() => startEditCategory(category)} title="Edit category" />
-                        <Button type="button" variant="ghost" size="sm" leftIcon={Trash2} onClick={() => handleDeleteCategory(category)} title="Delete category" className="text-red-600 hover:bg-red-50 hover:text-red-700" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={Pencil}
+                          onClick={() => startEditCategory(category)}
+                          title="Edit category"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={Trash2}
+                          onClick={() => handleDeleteCategory(category)}
+                          title="Delete category"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        />
                       </div>
                     )}
                   </>
@@ -721,7 +840,10 @@ export function GroupSettingsClient({
         </div>
 
         {isAdminOrOwner && (
-          <form onSubmit={handleCreateCategory} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
+          <form
+            onSubmit={handleCreateCategory}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
             <label className="min-w-0 flex-1 text-sm font-medium text-slate-700">
               New category
               <input
@@ -741,7 +863,13 @@ export function GroupSettingsClient({
                 aria-label="New category color"
               />
             </label>
-            <Button type="submit" size="sm" leftIcon={UserPlus} isLoading={isPending} disabled={!newCategoryName.trim()}>
+            <Button
+              type="submit"
+              size="sm"
+              leftIcon={UserPlus}
+              isLoading={isPending}
+              disabled={!newCategoryName.trim()}
+            >
               Add category
             </Button>
           </form>
@@ -767,7 +895,8 @@ export function GroupSettingsClient({
         <section className="rounded-2xl border border-orange-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-orange-700 mb-2">Leave Group</h2>
           <p className="text-sm text-slate-500 mb-4">
-            Your member record will remain so the group&apos;s expense history stays intact, but you will no longer have access.
+            Your member record will remain so the group&apos;s expense history stays intact, but you
+            will no longer have access.
           </p>
           <Button
             variant="secondary"
@@ -790,7 +919,9 @@ export function GroupSettingsClient({
         </section>
       )}
 
-      {/* Danger zone (owner only) */}
+      {children}
+
+      {/* Danger zone (owner only), always last */}
       {isOwner && (
         <section className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-red-700 mb-4">Danger Zone</h2>

@@ -2,11 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { signInSchema, signUpSchema } from "@template/shared";
+import { signInSchema, signUpSchema, safeReturnPath } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
-import { z } from "zod";
-
-const redirectToSchema = z.string().startsWith("/").max(200).optional();
+import { appOrigin } from "@/lib/app-url";
 
 export async function signIn(_: unknown, formData: FormData): Promise<ApiResponse<void>> {
   const parsed = signInSchema.safeParse(Object.fromEntries(formData));
@@ -22,12 +20,7 @@ export async function signIn(_: unknown, formData: FormData): Promise<ApiRespons
 
   if (error) return { data: null, error: error.message };
 
-  // 2C: Honor redirectTo param if present and safe (must start with /)
-  const rawRedirect = formData.get("redirectTo");
-  const redirectParsed = redirectToSchema.safeParse(
-    typeof rawRedirect === "string" ? rawRedirect : undefined,
-  );
-  const destination = redirectParsed.success && redirectParsed.data ? redirectParsed.data : "/dashboard";
+  const destination = safeReturnPath(formData.get("redirectTo"));
 
   redirect(destination);
 }
@@ -39,15 +32,19 @@ export async function signUp(_: unknown, formData: FormData): Promise<ApiRespons
   }
 
   const supabase = await createClient();
+  const destination = safeReturnPath(formData.get("redirectTo"));
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
+    options: {
+      emailRedirectTo: `${appOrigin()}/auth/callback?next=${encodeURIComponent(destination)}`,
+    },
   });
 
   if (error) return { data: null, error: error.message };
 
   // Email confirmations disabled (local dev) — session is created immediately
-  if (data.session) redirect("/dashboard");
+  if (data.session) redirect(destination);
 
   // Email confirmation required — tell the form to show success state
   return { data: undefined, error: null };

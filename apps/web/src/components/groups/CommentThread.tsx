@@ -16,6 +16,7 @@ import { useOfflineGuard } from "@/hooks/useOfflineGuard";
 import { useWebOutbox } from "@/components/OutboxProvider";
 
 type Props = {
+  readOnly?: boolean;
   expenseId: string;
   groupId: string;
   members: GroupMember[];
@@ -31,7 +32,13 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
-export function CommentThread({ expenseId, groupId, members, currentUserId }: Props): React.ReactElement {
+export function CommentThread({
+  readOnly = false,
+  expenseId,
+  groupId,
+  members,
+  currentUserId,
+}: Props): React.ReactElement {
   const commentsQ = useCommentsQuery(expenseId);
   const queryClient = useQueryClient();
   const [body, setBody] = useState("");
@@ -60,7 +67,7 @@ export function CommentThread({ expenseId, groupId, members, currentUserId }: Pr
     members.filter((m) => m.user_id !== null).map((m) => [m.user_id as string, m.display_name]),
   );
 
-  function handleSend(): void {
+  async function handleSend(): Promise<void> {
     const trimmed = body.trim();
     if (!trimmed) return;
     const clientId = crypto.randomUUID();
@@ -71,22 +78,33 @@ export function CommentThread({ expenseId, groupId, members, currentUserId }: Pr
         author_user_id: currentUserId,
         body: trimmed,
       };
-      void enqueue({
-        id: clientId,
-        kind: "comment.create",
-        entityId: clientId,
-        groupId,
-        payload,
-        createdAt: new Date().toISOString(),
-        summary: { title: trimmed.slice(0, 40), amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: clientId,
+          kind: "comment.create",
+          entityId: clientId,
+          groupId,
+          payload,
+          createdAt: new Date().toISOString(),
+          summary: { title: trimmed.slice(0, 40), amountCents: 0 },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       setBody("");
       return;
     }
 
     startTransition(async () => {
-      const result = await addExpenseComment({ id: clientId, expense_id: expenseId, body: trimmed });
+      const result = await addExpenseComment({
+        id: clientId,
+        expense_id: expenseId,
+        body: trimmed,
+      });
       if (result.error || !result.data) {
         toast.error(result.error ?? "Failed to add comment.");
         return;
@@ -126,7 +144,7 @@ export function CommentThread({ expenseId, groupId, members, currentUserId }: Pr
               </p>
               <p className="text-sm text-slate-700 break-words">{comment.body}</p>
             </div>
-            {comment.author_user_id === currentUserId && (
+            {!readOnly && comment.author_user_id === currentUserId && (
               <button
                 type="button"
                 disabled={isPending}
@@ -142,7 +160,9 @@ export function CommentThread({ expenseId, groupId, members, currentUserId }: Pr
       })}
       {pendingComments.map((entry) => {
         const commentBody =
-          entry.payload !== null && typeof entry.payload === "object" && !Array.isArray(entry.payload)
+          entry.payload !== null &&
+          typeof entry.payload === "object" &&
+          !Array.isArray(entry.payload)
             ? String(entry.payload["body"] ?? "")
             : "";
         const authorName = nameByUserId.get(currentUserId) ?? "You";
@@ -161,26 +181,28 @@ export function CommentThread({ expenseId, groupId, members, currentUserId }: Pr
           </div>
         );
       })}
-      <form
-        className="flex gap-2 mt-1"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSend();
-        }}
-      >
-        <input
-          type="text"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          maxLength={500}
-          placeholder="Add a comment…"
-          aria-label="Add a comment"
-          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <Button type="submit" size="sm" isLoading={isPending} disabled={!body.trim()}>
-          Send
-        </Button>
-      </form>
+      <fieldset disabled={readOnly}>
+        <form
+          className="flex gap-2 mt-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSend();
+          }}
+        >
+          <input
+            type="text"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            maxLength={500}
+            placeholder="Add a comment…"
+            aria-label="Add a comment"
+            className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <Button type="submit" size="sm" isLoading={isPending} disabled={!body.trim()}>
+            Send
+          </Button>
+        </form>
+      </fieldset>
     </div>
   );
 }

@@ -1,12 +1,10 @@
+import "./instrument";
+import * as Sentry from "@sentry/node";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import health from "./routes/health";
-import receipt from "./routes/receipt";
-import conversation from "./routes/conversation";
-import smartSplit from "./routes/smart-split";
-import insightsSummary from "./routes/insights-summary";
 import account from "./routes/account";
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
@@ -45,15 +43,13 @@ app.use(
 );
 
 app.route("/health", health);
-app.route("/ai/receipt", receipt);
-app.route("/ai/conversation", conversation);
-app.route("/ai/smart-split", smartSplit);
-app.route("/ai/insights-summary", insightsSummary);
 app.route("/account", account);
 
 app.notFound((c) => c.json({ data: null, error: "Not found" }, 404));
 
 app.onError((err, c) => {
+  // Report only the error; request bodies may hold ledger data.
+  Sentry.captureException(err, { tags: { route: c.req.path, method: c.req.method } });
   console.error("[api] unhandled error:", err);
   return c.json({ data: null, error: "Something went wrong." }, 500);
 });

@@ -4,11 +4,18 @@ import type { ExpenseDraft } from "@template/shared/types";
 import { parseConversationMobile } from "@/lib/ai/conversation";
 
 type UseConversationAIOptions = {
-  groupId: string;
   members: { id: string; display_name: string }[];
+  /** Display name of the signed-in member; lets "I paid" resolve to a member. */
+  userName: string | null;
 };
 
-export function useConversationAI({ groupId, members }: UseConversationAIOptions) {
+/** Local YYYY-MM-DD (never UTC — toISOString is a day off after 8am PH). */
+function localTodayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+export function useConversationAI({ members, userName }: UseConversationAIOptions) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,10 +34,11 @@ export function useConversationAI({ groupId, members }: UseConversationAIOptions
 
     try {
       const result = await parseConversationMobile({
-        groupId,
         messages: newMessages,
         memberNames,
         members,
+        userName,
+        today: localTodayISO(),
       });
 
       const reply = result.data?.reply ?? (result.error ? `Error: ${result.error}` : "Something went wrong.");
@@ -47,7 +55,7 @@ export function useConversationAI({ groupId, members }: UseConversationAIOptions
     } finally {
       setIsProcessing(false);
     }
-  }, [groupId, memberNames, members]);
+  }, [memberNames, members, userName]);
 
   const clearDraft = useCallback(() => setDraft(null), []);
   const reset = useCallback(() => {

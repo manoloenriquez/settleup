@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type ColorValue } from "react-native";
 import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
 type BadgeVariant = "success" | "warning" | "danger" | "neutral" | "primary";
@@ -8,7 +8,7 @@ type BadgeProps = {
   variant?: BadgeVariant;
 };
 
-const VARIANT_STYLES: Record<BadgeVariant, { bg: string; text: string }> = {
+const VARIANT_STYLES: Record<BadgeVariant, { bg: ColorValue; text: ColorValue }> = {
   success: { bg: colors.successLight, text: colors.success },
   warning: { bg: colors.warningLight, text: colors.warning },
   danger: { bg: colors.dangerLight, text: colors.danger },

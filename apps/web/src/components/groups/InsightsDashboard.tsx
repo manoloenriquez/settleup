@@ -1,14 +1,37 @@
-import { formatCents } from "@template/shared";
+import { currencyName, type CurrencyCode } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { TrendingUp, Receipt, DollarSign, Crown, Repeat, Calendar, Sparkles } from "lucide-react";
 import type { InsightsSummary } from "@template/shared/types";
 
 type Props = {
+  /** Computed from expenses in `currency` only; amounts are never summed across currencies. */
   insights: InsightsSummary;
+  currency: CurrencyCode;
 };
 
-export function InsightsDashboard({ insights }: Props): React.ReactElement {
+/**
+ * States which currency the insights cover and, when the group also has
+ * expenses in other currencies, that those are left out (never converted).
+ */
+export function InsightsCurrencyNote({
+  currency,
+  otherCurrencies,
+}: {
+  currency: CurrencyCode;
+  otherCurrencies: CurrencyCode[];
+}): React.ReactElement {
+  return (
+    <p className="text-sm text-slate-500">
+      Insights cover expenses in {currency} ({currencyName(currency)}) only.
+      {otherCurrencies.length > 0 &&
+        ` Expenses in ${otherCurrencies.join(", ")} are not included, and amounts are never converted between currencies.`}
+    </p>
+  );
+}
+
+export function InsightsDashboard({ insights, currency }: Props): React.ReactElement {
   return (
     <div className="flex flex-col gap-6">
       {/* Stat cards */}
@@ -33,7 +56,7 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
             <div>
               <p className="text-xs text-slate-500">Total Spent</p>
               <p className="text-lg font-bold text-slate-900">
-                {formatCents(insights.total_amount_cents)}
+                {formatCurrency(insights.total_amount_cents, currency)}
               </p>
             </div>
           </CardContent>
@@ -47,7 +70,7 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
             <div>
               <p className="text-xs text-slate-500">Average</p>
               <p className="text-lg font-bold text-slate-900">
-                {formatCents(insights.average_expense_cents)}
+                {formatCurrency(insights.average_expense_cents, currency)}
               </p>
             </div>
           </CardContent>
@@ -63,7 +86,7 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
                 <p className="text-xs text-slate-500">Top Spender</p>
                 <p className="text-sm font-bold text-slate-900">{insights.top_spender.name}</p>
                 <p className="text-xs text-slate-500">
-                  {formatCents(insights.top_spender.amount_cents)}
+                  {formatCurrency(insights.top_spender.amount_cents, currency)}
                 </p>
               </div>
             </CardContent>
@@ -115,7 +138,7 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
                 <p className="text-sm font-bold text-slate-900">Spending by category</p>
                 {insights.top_category && (
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Top: {insights.top_category.name} · {formatCents(insights.top_category.amount_cents)}
+                    Top: {insights.top_category.name} · {formatCurrency(insights.top_category.amount_cents, currency)}
                   </p>
                 )}
               </div>
@@ -132,7 +155,7 @@ export function InsightsDashboard({ insights }: Props): React.ReactElement {
                         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
                         <span className="truncate">{category.name}</span>
                       </span>
-                      <span className="shrink-0 font-semibold text-slate-900">{formatCents(category.amount_cents)}</span>
+                      <span className="shrink-0 font-semibold text-slate-900">{formatCurrency(category.amount_cents, currency)}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: category.color }} />

@@ -1,18 +1,24 @@
 "use server";
 
+import { trackPublic, trackServer } from "@/lib/analytics/server";
+
 import { headers } from "next/headers";
 import { createAnonClient } from "@template/supabase";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
 import { checkPublicRateLimit, getClientIp } from "@/lib/public-rate-limit";
-import type { ApiResponse } from "@template/shared";
+import { currencyCodeSchema } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import { z } from "zod";
 
 const submitSchema = z.object({
-  share_token: z.string().min(8),
+  share_token: z.string().min(8).max(128),
+  request_id: z.string().uuid(),
   to_member_id: z.string().uuid(),
-  amount_cents: z.number().int().positive().max(100_000_000),
+  amount_cents: z.number().int().positive().max(100_000_000_000),
+  /** The currency of the balance being paid. */
+  currency_code: currencyCodeSchema,
   note: z.string().trim().max(280).optional(),
 });
 
@@ -25,6 +31,7 @@ export type PendingPayment = {
   from_member_id: string;
   to_member_id: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   note: string | null;
   created_at: string;
 };
@@ -34,7 +41,9 @@ export type PendingPayment = {
  * Creates a PENDING payment that a group member must confirm before it
  * affects balances. Rate-limited per IP+token like the public pages.
  */
-export async function submitFriendPayment(input: unknown): Promise<ApiResponse<{ payment_id: string }>> {
+export async function submitFriendPayment(
+  input: unknown,
+): Promise<ApiResponse<{ payment_id: string }>> {
   try {
     const parsed = submitSchema.safeParse(input);
     if (!parsed.success) {
@@ -47,19 +56,23 @@ export async function submitFriendPayment(input: unknown): Promise<ApiResponse<{
       maxRequests: 5,
       windowMs: 5 * 60_000,
     });
-    if (!allowed) return { data: null, error: "Too many attempts. Please try again in a few minutes." };
+    if (!allowed)
+      return { data: null, error: "Too many attempts. Please try again in a few minutes." };
 
     const supabase = createAnonClient();
-    const { data, error } = await supabase.schema("settleup").rpc("submit_friend_payment", {
+    const { data, error } = await supabase.schema("settleup").rpc("submit_friend_payment_v2", {
       p_share_token: parsed.data.share_token,
       p_to_member_id: parsed.data.to_member_id,
+      p_request_id: parsed.data.request_id,
       p_amount_cents: parsed.data.amount_cents,
       p_note: parsed.data.note ?? undefined,
+      p_currency_code: parsed.data.currency_code,
     });
 
     if (error || !data) return { data: null, error: "Could not submit payment. Please try again." };
     const paymentId = (data as { payment_id?: string }).payment_id;
     if (!paymentId) return { data: null, error: "Could not submit payment. Please try again." };
+    trackPublic(parsed.data.share_token, { name: "payment_claim_submitted" });
     return { data: { payment_id: paymentId }, error: null };
   } catch {
     return { data: null, error: "Something went wrong." };
@@ -69,14 +82,15 @@ export async function submitFriendPayment(input: unknown): Promise<ApiResponse<{
 export async function listPendingPayments(groupId: string): Promise<ApiResponse<PendingPayment[]>> {
   try {
     const parsed = groupIdSchema.safeParse(groupId);
-    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+    if (!parsed.success)
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
 
     await cachedAuth();
     const supabase = await createSettleUpDb();
     const { data, error } = await supabase
       .schema("settleup")
       .from("payments")
-      .select("id, group_id, from_member_id, to_member_id, amount_cents, note, created_at")
+      .select("id, group_id, from_member_id, to_member_id, amount_cents, currency_code, note, created_at")
       .eq("group_id", parsed.data)
       .eq("status", "PENDING")
       .order("created_at", { ascending: false });
@@ -89,10 +103,14 @@ export async function listPendingPayments(groupId: string): Promise<ApiResponse<
   }
 }
 
-async function resolvePayment(paymentId: string, action: "confirm" | "reject"): Promise<ApiResponse<void>> {
+async function resolvePayment(
+  paymentId: string,
+  action: "confirm" | "reject",
+): Promise<ApiResponse<void>> {
   try {
     const parsed = paymentIdSchema.safeParse(paymentId);
-    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid payment ID." };
+    if (!parsed.success)
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid payment ID." };
 
     await assertAuth();
     const supabase = await createSettleUpDb();
@@ -104,6 +122,10 @@ async function resolvePayment(paymentId: string, action: "confirm" | "reject"): 
         : await db.rpc("reject_payment", { p_payment_id: parsed.data });
 
     if (error) return { data: null, error: `Failed to ${action} payment.` };
+    trackServer({
+      name: "payment_claim_resolved",
+      properties: { status: action === "confirm" ? "confirmed" : "rejected" },
+    });
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

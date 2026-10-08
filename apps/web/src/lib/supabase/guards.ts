@@ -46,11 +46,7 @@ async function fetchProfile(): Promise<Profile | null> {
   if (!user) return null;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
 
   return data ?? null;
 }
@@ -76,6 +72,11 @@ export const getProfile: () => Promise<Profile | null> = cache(fetchProfile);
 export async function requireAuth(): Promise<User> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const client = await createClient();
+  const { data: closed, error } = await client.schema("settleup").rpc("is_account_closed");
+  if (error)
+    throw new AuthError("Account status could not be verified. Please try again.", "FORBIDDEN");
+  if (closed) throw new AuthError("This app account has been closed.", "FORBIDDEN");
   return user;
 }
 
@@ -140,6 +141,11 @@ class AuthError extends Error {
 export async function assertAuth(): Promise<User> {
   const user = await getSessionUser();
   if (!user) throw new AuthError("Authentication required.", "UNAUTHENTICATED");
+  const client = await createClient();
+  const { data: closed, error } = await client.schema("settleup").rpc("is_account_closed");
+  if (error)
+    throw new AuthError("Account status could not be verified. Please try again.", "FORBIDDEN");
+  if (closed) throw new AuthError("This app account has been closed.", "FORBIDDEN");
   return user;
 }
 

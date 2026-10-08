@@ -8,20 +8,33 @@ type Props = {
   text: string;
   label?: string;
   className?: string;
+  onCopied?: () => void;
 };
 
-export function CopyButton({ text, label = "Copy", className }: Props): React.ReactElement {
+export function CopyButton({
+  text,
+  label = "Copy",
+  className,
+  onCopied,
+}: Props): React.ReactElement {
   async function handleCopy(): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
       toast.success("Copied to clipboard");
+      onCopied?.();
     } catch {
       toast.error("Failed to copy");
     }
   }
 
   return (
-    <Button variant="secondary" size="sm" leftIcon={Copy} onClick={handleCopy} className={className}>
+    <Button
+      variant="secondary"
+      size="sm"
+      leftIcon={Copy}
+      onClick={handleCopy}
+      className={className}
+    >
       {label}
     </Button>
   );

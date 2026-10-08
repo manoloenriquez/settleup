@@ -1,15 +1,12 @@
-// Core
-export { generateJSON, generateJSONFromImage } from "./core/generate";
-export { isLLMEnabled } from "./core/flags";
-export { createProvider, resetProviderCache } from "./core/provider";
-export { createOpenAIProvider } from "./core/openai";
-export type { LLMRequest, LLMResponse, LLMProvider } from "./core/types";
+// Deterministic, self-hosted helpers for the web app. No third-party AI
+// provider: the natural-language and receipt intelligence features run on the
+// iPhone with Apple Intelligence (apps/mobile/modules/apple-intelligence).
 
 // Features
 export { parseReceiptImage } from "./features/receipt";
 export { parseConversation } from "./features/conversation";
 export { suggestSplit } from "./features/smart-split";
-export { computeInsights, generateInsightsSummary } from "./features/insights";
+export { computeInsights } from "./features/insights";
 
 // Node helpers (HEIC conversion, OCR)
 export { convertHeicToJpeg } from "./node/heic";

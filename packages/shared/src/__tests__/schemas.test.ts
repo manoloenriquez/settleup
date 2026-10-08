@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  upsertPaymentProfileSchema,
   addExpenseSchema,
   addExpensesBatchSchema,
   addItemizedExpenseSchema,
@@ -679,5 +680,30 @@ describe("expenseDraftSchema", () => {
   it("rejects extra keys (strict)", () => {
     const result = expenseDraftSchema.safeParse({ ...base, mood: "hungry" });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects non-positive amounts like the write schemas", () => {
+    expect(expenseDraftSchema.safeParse({ ...base, amount_cents: 0 }).success).toBe(false);
+    expect(expenseDraftSchema.safeParse({ ...base, amount_cents: -100 }).success).toBe(false);
+  });
+});
+
+describe("upsertPaymentProfileSchema", () => {
+  it("accepts cleared fields and keeps uploaded QR codes", () => {
+    const parsed = upsertPaymentProfileSchema.safeParse({
+      gcash_name: null,
+      gcash_number: "09171234567",
+      gcash_qr_url: "https://example.supabase.co/storage/v1/object/public/payment-qr/u/gcash.png",
+      bank_qr_url: null,
+      notes: "",
+      show_on_shared_links: true,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.gcash_qr_url).toContain("payment-qr");
+  });
+
+  it("rejects a non-URL QR value and over-long text", () => {
+    expect(upsertPaymentProfileSchema.safeParse({ gcash_qr_url: "not a url" }).success).toBe(false);
+    expect(upsertPaymentProfileSchema.safeParse({ notes: "x".repeat(281) }).success).toBe(false);
   });
 });

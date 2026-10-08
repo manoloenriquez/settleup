@@ -20,4 +20,8 @@ const storage = Platform.OS === "web" ? AsyncStorage : SecureStoreAdapter;
  * Singleton Supabase client for the mobile app.
  * Import this directly — do not call createMobileClient() again elsewhere.
  */
-export const supabase = createMobileClient({ storage });
+export const supabase = createMobileClient({
+  storage,
+  url: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
+  anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+});

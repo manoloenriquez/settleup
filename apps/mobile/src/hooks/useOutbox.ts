@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { OutboxEntry, OutboxEntryStatus } from "@template/shared";
+import { isCurrencyCode, type CurrencyCode, type OutboxEntry, type OutboxEntryStatus } from "@template/shared";
 import { useOutbox } from "@/context/OutboxContext";
 
 // ---------------------------------------------------------------------------
@@ -12,6 +12,7 @@ export type PendingExpenseRow = {
   id: string;
   item_name: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   expense_date: string | null;
   status: OutboxEntryStatus;
 };
@@ -23,6 +24,14 @@ export type PendingPaymentRow = {
 };
 
 const EXPENSE_CREATE_KINDS = new Set(["expense.create", "expense.create_itemized"]);
+
+function payloadCurrency(entry: OutboxEntry): CurrencyCode {
+  if (entry.payload !== null && typeof entry.payload === "object" && !Array.isArray(entry.payload)) {
+    const value = entry.payload["currency_code"];
+    if (isCurrencyCode(value)) return value;
+  }
+  return "PHP";
+}
 
 function payloadExpenseDate(entry: OutboxEntry): string | null {
   if (entry.payload !== null && typeof entry.payload === "object" && !Array.isArray(entry.payload)) {
@@ -43,6 +52,7 @@ export function usePendingExpenses(groupId: string): PendingExpenseRow[] {
           id: e.id,
           item_name: e.summary.title,
           amount_cents: e.summary.amountCents,
+          currency_code: payloadCurrency(e),
           expense_date: payloadExpenseDate(e),
           status: e.status,
         })),

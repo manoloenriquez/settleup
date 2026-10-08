@@ -7,21 +7,15 @@
 // ---------------------------------------------------------------------------
 
 import { z } from "zod";
-import type {
-  NewOutboxEntry,
-  OutboxEntry,
-  OutboxError,
-  OutboxJson,
-  OutboxState,
-} from "./types";
+import type { NewOutboxEntry, OutboxEntry, OutboxError, OutboxJson, OutboxState } from "./types";
 
 export function createEmptyOutboxState(): OutboxState {
   return { entries: [] };
 }
 
 // ---------------------------------------------------------------------------
-// Persistence validation — corrupt or outdated stored state must degrade to
-// an empty queue, never crash the app.
+// Persistence validation — unreadable state must remain in storage. Never
+// replace an existing queue with an empty one after a read or schema failure.
 // ---------------------------------------------------------------------------
 
 const outboxJsonSchema: z.ZodType<OutboxJson> = z.lazy(() =>
@@ -62,6 +56,7 @@ const outboxEntrySchema = z.object({
   groupId: z.string().min(1),
   payload: outboxJsonSchema,
   status: z.enum(["queued", "inflight", "failed_retryable", "failed"]),
+  hasBeenSent: z.boolean().default(true),
   attempts: z.number().int().nonnegative(),
   createdAt: z.string().min(1),
   nextAttemptAt: z.string().nullable(),
@@ -71,10 +66,15 @@ const outboxEntrySchema = z.object({
 
 const outboxStateSchema = z.object({ entries: z.array(outboxEntrySchema) });
 
-/** Validates persisted state; anything unparseable becomes an empty queue. */
+/** New installs start empty; unreadable saved work stops sync without data loss. */
 export function parseOutboxState(raw: unknown): OutboxState {
+  if (raw === null || raw === undefined) return createEmptyOutboxState();
   const result = outboxStateSchema.safeParse(raw);
-  return result.success ? result.data : createEmptyOutboxState();
+  if (!result.success)
+    throw new Error(
+      "Saved changes could not be read. Update the app or contact support; your stored queue has been kept.",
+    );
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,8 +83,7 @@ export function parseOutboxState(raw: unknown): OutboxState {
 
 /**
  * Kinds whose payload carries an `expected_updated_at` CAS token. Exported so
- * both platforms' conflict-retry ("reapply on top of latest") uses one
- * definition.
+ * both platforms can identify edits that require stale-write protection.
  */
 export const OUTBOX_UPDATE_KINDS: ReadonlySet<OutboxEntry["kind"]> = new Set<OutboxEntry["kind"]>([
   "expense.update",
@@ -115,11 +114,25 @@ const DELETE_KINDS = new Set<OutboxEntry["kind"]>(["expense.delete", "category.d
  *   (the delete makes them moot).
  */
 export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState {
-  if (state.entries.some((e) => e.id === input.id)) return state;
+  const existing = state.entries.find((entry) => entry.id === input.id);
+  if (existing) {
+    if (
+      existing.kind !== input.kind ||
+      existing.entityId !== input.entityId ||
+      existing.groupId !== input.groupId ||
+      !sameJson(existing.payload, input.payload)
+    ) {
+      throw new Error(
+        "This saved attempt has different details. Keep your draft and review pending changes before trying again.",
+      );
+    }
+    return state;
+  }
 
   const entry: OutboxEntry = {
     ...input,
     status: "queued",
+    hasBeenSent: false,
     attempts: 0,
     nextAttemptAt: null,
     lastError: null,
@@ -138,13 +151,18 @@ export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState 
 
   if (DELETE_KINDS.has(entry.kind)) {
     const hasUnsyncedCreate = state.entries.some(
-      (e) => e.entityId === entry.entityId && CREATE_KINDS.has(e.kind) && e.status !== "inflight",
+      (e) =>
+        e.entityId === entry.entityId &&
+        CREATE_KINDS.has(e.kind) &&
+        e.hasBeenSent === false &&
+        e.status !== "inflight",
     );
     const entries = state.entries.filter(
       (e) => !(e.entityId === entry.entityId && e.status !== "inflight"),
     );
     if (hasUnsyncedCreate) {
-      // The row never reached the server — cancel locally, enqueue nothing.
+      // No transmission ever started. Otherwise send a delete: the server may
+      // have saved the create even if its response was lost.
       return { entries };
     }
     return { entries: [...entries, entry] };
@@ -154,7 +172,7 @@ export function enqueue(state: OutboxState, input: NewOutboxEntry): OutboxState 
 }
 
 export function markInflight(state: OutboxState, id: string): OutboxState {
-  return mapEntry(state, id, (e) => ({ ...e, status: "inflight" }));
+  return mapEntry(state, id, (e) => ({ ...e, status: "inflight", hasBeenSent: true }));
 }
 
 /** The entry synced (or was already applied server-side) — remove it. */
@@ -195,7 +213,11 @@ export function markRetryableFailure(
  * the user, and every later queued entry that targets the same entity is
  * blocked — replaying an edit on top of a failed create/edit makes no sense.
  */
-export function markTerminalFailure(state: OutboxState, id: string, error: OutboxError): OutboxState {
+export function markTerminalFailure(
+  state: OutboxState,
+  id: string,
+  error: OutboxError,
+): OutboxState {
   const target = state.entries.find((e) => e.id === id);
   if (!target) return state;
 
@@ -230,6 +252,10 @@ export function markTerminalFailure(state: OutboxState, id: string, error: Outbo
 
 /** User-initiated retry: back to the queue with a clean slate. */
 export function retryEntry(state: OutboxState, id: string): OutboxState {
+  const entry = state.entries.find((candidate) => candidate.id === id);
+  if (entry?.lastError?.class === "conflict" || entry?.lastError?.class === "duplicate") {
+    throw new Error("Review the latest record and edit it again. Your queued draft has been kept.");
+  }
   return mapEntry(state, id, (e) => ({
     ...e,
     status: "queued",
@@ -318,4 +344,24 @@ function mapEntry(
   update: (entry: OutboxEntry) => OutboxEntry,
 ): OutboxState {
   return { entries: state.entries.map((e) => (e.id === id ? update(e) : e)) };
+}
+
+/** JSON object key order does not change the meaning of a retried payload. */
+function sameJson(left: OutboxJson, right: OutboxJson): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object")
+    return false;
+  if (Array.isArray(left)) {
+    return (
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameJson(value, right[index]!))
+    );
+  }
+  if (Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => Object.hasOwn(right, key) && sameJson(left[key]!, right[key]!))
+  );
 }

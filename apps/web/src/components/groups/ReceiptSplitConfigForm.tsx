@@ -5,7 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { addExpense, addItemizedExpense } from "@/app/actions/expenses";
 import { invalidateGroupData } from "@/lib/query-keys";
-import { formatCents, equalSplit } from "@template/shared";
+import { equalSplit } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { CategorySelect } from "./CategoryControls";
@@ -25,6 +26,7 @@ type Props = {
 };
 
 export function ReceiptSplitConfigForm({ review, groupId, members, categories, currentUserId, onBack, onSaved }: Props): React.ReactElement {
+  const currency = review.currency;
   const myMemberId = members.find((m) => m.user_id === currentUserId)?.id ?? members[0]?.id ?? "";
   const [selectedIds, setSelectedIds] = useState<string[]>(members.map((m) => m.id));
   const [payerId, setPayerId] = useState(myMemberId);
@@ -78,6 +80,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
           group_id: groupId,
           item_name: review.itemName,
           amount_cents: itemsSubtotal,
+          currency_code: currency,
           category_id: categoryId,
           expense_date: review.date ?? undefined,
           payers: [{ member_id: payerId, paid_cents: itemsSubtotal }],
@@ -108,8 +111,9 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
         group_id: groupId,
         item_name: review.itemName,
         amount_cents: review.totalCents,
+        currency_code: currency,
         category_id: categoryId,
-        notes: review.items.map((item) => `${item.name}: ₱${(item.amountCents / 100).toFixed(2)}`).join("; ") || undefined,
+        notes: review.items.map((item) => `${item.name}: ${formatCurrency(item.amountCents, currency)}`).join("; ") || undefined,
         expense_date: review.date ?? undefined,
         participant_ids: selectedIds,
         payers: [{ member_id: payerId, paid_cents: review.totalCents }],
@@ -126,7 +130,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
 
   const equalPreview =
     selectedIds.length > 0
-      ? `Split ${selectedIds.length} ways: ~${formatCents(equalSplit(review.totalCents, selectedIds.length)[0] ?? 0)} each`
+      ? `Split ${selectedIds.length} ways: ~${formatCurrency(equalSplit(review.totalCents, selectedIds.length)[0] ?? 0, currency)} each`
       : null;
 
   return (
@@ -142,7 +146,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
         </button>
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-slate-700 truncate">{review.itemName}</h4>
-          <p className="text-xs text-slate-400">{formatCents(splitMode === "byItem" ? itemsSubtotal : review.totalCents)}</p>
+          <p className="text-xs text-slate-400">{formatCurrency(splitMode === "byItem" ? itemsSubtotal : review.totalCents, currency)}</p>
         </div>
       </div>
 
@@ -194,7 +198,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
               <div key={index} className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="font-medium text-slate-700 truncate">{item.name}</span>
-                  <span className="text-slate-500 whitespace-nowrap shrink-0">{formatCents(item.amountCents)}</span>
+                  <span className="text-slate-500 whitespace-nowrap shrink-0">{formatCurrency(item.amountCents, currency)}</span>
                 </div>
                 <MemberChips
                   size="sm"
@@ -204,7 +208,7 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
                 />
                 {assigned.length > 0 ? (
                   <p className="text-xs text-slate-500">
-                    {assigned.length} {assigned.length === 1 ? "person" : "people"} · ~{formatCents(equalSplit(item.amountCents, assigned.length)[0] ?? 0)} each
+                    {assigned.length} {assigned.length === 1 ? "person" : "people"} · ~{formatCurrency(equalSplit(item.amountCents, assigned.length)[0] ?? 0, currency)} each
                   </p>
                 ) : (
                   <p className="text-xs text-red-600">Needs at least one person</p>
@@ -214,8 +218,8 @@ export function ReceiptSplitConfigForm({ review, groupId, members, categories, c
           })}
           {subtotalMismatch && (
             <p className="text-xs text-amber-600">
-              Saving {formatCents(itemsSubtotal)} — the sum of line items (receipt total was {formatCents(review.totalCents)}).
-              Add an item for tax or service charge, or use &quot;Split equally&quot; to keep {formatCents(review.totalCents)}.
+              Saving {formatCurrency(itemsSubtotal, currency)} — the sum of line items (receipt total was {formatCurrency(review.totalCents, currency)}).
+              Add an item for tax or service charge, or use &quot;Split equally&quot; to keep {formatCurrency(review.totalCents, currency)}.
             </p>
           )}
         </div>

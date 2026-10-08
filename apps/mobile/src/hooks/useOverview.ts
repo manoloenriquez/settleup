@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { getGroupOverview } from "@/services/overview";
+import { getGroupOverviews } from "@/services/overview";
 
-export function useGroupOverview(shareToken: string | undefined) {
+/** The shared-page payload per currency, default currency first. */
+export function useGroupOverviews(shareToken: string | undefined) {
   return useQuery({
     queryKey: ["group-overview", shareToken],
-    queryFn: () => getGroupOverview(shareToken!),
+    queryFn: () => getGroupOverviews(shareToken!),
     enabled: !!shareToken,
     select: (res) => res.data ?? null,
   });

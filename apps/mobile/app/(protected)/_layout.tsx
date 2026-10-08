@@ -1,18 +1,18 @@
 import { Stack } from "expo-router";
-import { colors, fontWeight, fontSize } from "@/theme";
+import { useStackScreenOptions } from "@/lib/navigation";
+
+// Screens opened directly (invite links, notifications) keep the tabs underneath,
+// so they always have a back button.
+export const unstable_settings = { anchor: "(tabs)" };
 
 export default function ProtectedLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.gray900,
-        headerTitleStyle: { fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-        headerShadowVisible: false,
-        headerBackTitle: " ",
-      }}
-    >
+    <Stack screenOptions={useStackScreenOptions()}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "" }} />
+      {/* Personal expense forms are native page sheets: swipe down to cancel. */}
+      <Stack.Screen name="expense/new" options={{ presentation: "modal" }} />
+      <Stack.Screen name="expense/[id]" options={{ presentation: "modal" }} />
+      <Stack.Screen name="activity" options={{ title: "Activity" }} />
     </Stack>
   );
 }

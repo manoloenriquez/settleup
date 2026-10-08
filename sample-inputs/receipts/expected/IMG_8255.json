@@ -1,0 +1,19 @@
+{
+  "image": "IMG_8255.jpg",
+  "notes": "Bar sales invoice, no merchant name printed. Low light. Prices in a right column separated from item names. Total repeated as 'Balance Due'. Inclusive VAT summary line.",
+  "merchant": null,
+  "date": "2026-04-01",
+  "currency": "PHP",
+  "subtotal": 1090.00,
+  "tax": 116.79,
+  "taxInclusive": true,
+  "serviceCharge": 109.00,
+  "discount": null,
+  "tip": null,
+  "total": 1199.00,
+  "items": [
+    { "name": "Hoegarden Large", "quantity": 1, "unitPrice": 420.00, "totalPrice": 420.00 },
+    { "name": "Stella Artois Large", "quantity": 1, "unitPrice": 420.00, "totalPrice": 420.00 },
+    { "name": "Sht Jim Beam", "quantity": 1, "unitPrice": 250.00, "totalPrice": 250.00 }
+  ]
+}

@@ -2,9 +2,10 @@ import { getApiBase } from "@/lib/api-base";
 import type { ApiResponse } from "@template/shared";
 
 /**
- * Permanently delete the authenticated user's account.
- * Calls apps/api DELETE /account, which uses the service role to remove
- * the auth.users row; database FKs handle owned groups and user-owned data.
+ * Close the authenticated user's account in this app.
+ * Calls apps/api DELETE /account with the user JWT; the API responds with
+ * `{ data: { closed: true } }`. Shared ledgers and the Auth login used by
+ * other applications are preserved.
  */
 export async function deleteAccount(accessToken: string): Promise<ApiResponse<null>> {
   const apiBase = getApiBase();
@@ -24,7 +25,10 @@ export async function deleteAccount(accessToken: string): Promise<ApiResponse<nu
       },
     });
 
-    const body = (await res.json().catch(() => null)) as { data: unknown; error: string | null } | null;
+    const body = (await res.json().catch(() => null)) as {
+      data: unknown;
+      error: string | null;
+    } | null;
 
     if (!res.ok) {
       return { data: null, error: body?.error ?? `Delete failed (${res.status}).` };

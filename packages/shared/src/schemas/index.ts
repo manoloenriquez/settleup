@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { currencyCodeSchema } from "../utils/currency";
 
 export * from "./ai";
+export * from "./personal";
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -52,6 +54,8 @@ export const updatePasswordSchema = z
 // ---------------------------------------------------------------------------
 
 export const createGroupSchema = z.object({
+  currency_code: currencyCodeSchema.default("PHP"),
+  display_name: z.string().trim().min(1).max(80).optional(),
   /** Optional client-generated group id — the offline outbox's idempotency key. */
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -85,7 +89,11 @@ export const expenseCategoryInputSchema = z.object({
   group_id: z.string().uuid(),
   name: z.string().trim().min(1, "Category name is required").max(80),
   icon: z.string().trim().min(1).max(40).optional(),
-  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Use a 6-digit hex color").optional(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Use a 6-digit hex color")
+    .optional(),
   sort_order: z.number().int().optional(),
 });
 
@@ -109,7 +117,8 @@ export const addExpenseSchema = z
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
@@ -135,14 +144,18 @@ const expenseItemSchema = z.object({
   id: clientIdSchema,
   category_id: expenseCategoryIdSchema,
   item_name: z.string().trim().min(1, "Item name is required").max(200),
-  amount_cents: z.number().int().positive("Amount must be positive"),
+  currency_code: currencyCodeSchema.default("PHP"),
+  amount_cents: z.number().int().safe().positive("Amount must be positive"),
   notes: z.string().optional(),
   expense_date: expenseDateSchema,
   split_mode: z.enum(["equal", "custom"]),
   participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
   custom_splits: z
     .array(
-      z.object({ member_id: z.string().uuid(), share_cents: z.number().int().nonnegative("Share cannot be negative") }),
+      z.object({
+        member_id: z.string().uuid(),
+        share_cents: z.number().int().nonnegative("Share cannot be negative"),
+      }),
     )
     .optional(),
   payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -187,7 +200,7 @@ export const addExpensesBatchSchema = z
 
 const lineItemSchema = z.object({
   name: z.string().trim().min(1, "Item name is required").max(200),
-  amount_cents: z.number().int().positive("Amount must be positive"),
+  amount_cents: z.number().int().safe().positive("Amount must be positive"),
   participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
 });
 
@@ -197,7 +210,8 @@ export const addItemizedExpenseSchema = z
     group_id: z.string().uuid(),
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -231,13 +245,19 @@ export const updateExpenseSchema = z
     expected_updated_at: expectedUpdatedAtSchema,
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Item name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     split_mode: z.enum(["equal", "custom"]),
     participant_ids: z.array(z.string().uuid()).min(1, "At least one participant required"),
     custom_splits: z
-      .array(z.object({ member_id: z.string().uuid(), share_cents: z.number().int().nonnegative("Share cannot be negative") }))
+      .array(
+        z.object({
+          member_id: z.string().uuid(),
+          share_cents: z.number().int().nonnegative("Share cannot be negative"),
+        }),
+      )
       .optional(),
     payers: z.array(payerSchema).min(1, "At least one payer required"),
   })
@@ -276,7 +296,8 @@ export const updateItemizedExpenseSchema = z
     expected_updated_at: expectedUpdatedAtSchema,
     category_id: expenseCategoryIdSchema,
     item_name: z.string().trim().min(1, "Expense name is required").max(200),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
     notes: z.string().optional(),
     expense_date: expenseDateSchema,
     payers: z.array(payerSchema).min(1, "At least one payer required"),
@@ -307,7 +328,8 @@ export const recordPaymentSchema = z
     group_id: z.string().uuid(),
     from_member_id: z.string().uuid(),
     to_member_id: z.string().uuid(),
-    amount_cents: z.number().int().positive("Amount must be positive"),
+    currency_code: currencyCodeSchema.default("PHP"),
+    amount_cents: z.number().int().safe().positive("Amount must be positive"),
   })
   .refine((val) => val.from_member_id !== val.to_member_id, {
     message: "Cannot pay yourself",
@@ -319,17 +341,27 @@ export const joinGroupSchema = z.object({
 });
 
 export const claimMemberSchema = z.object({
-  member_id: z.string().uuid("Invalid member ID"),
+  token: z.string().regex(/^[a-f0-9]{64}$/, "Invalid claim invitation"),
 });
 
+// Every field may be cleared (null) — the screens send null for empty inputs.
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+const optionalQrUrl = z.string().trim().url("Upload the QR image again.").max(500).nullable().optional();
+
 export const upsertPaymentProfileSchema = z.object({
-  payer_display_name: z.string().optional(),
-  gcash_name: z.string().optional(),
-  gcash_number: z.string().optional(),
-  bank_name: z.string().optional(),
-  bank_account_name: z.string().optional(),
-  bank_account_number: z.string().optional(),
-  notes: z.string().optional(),
+  payer_display_name: optionalText(80),
+  gcash_name: optionalText(80),
+  gcash_number: optionalText(40),
+  gcash_qr_url: optionalQrUrl,
+  bank_name: optionalText(80),
+  bank_account_name: optionalText(80),
+  bank_account_number: optionalText(40),
+  bank_qr_url: optionalQrUrl,
+  notes: optionalText(280),
+  /** Show these details on shared group links (people owed money only). */
+  show_on_shared_links: z.boolean().optional(),
+  /** Show full account numbers on shared links instead of the last four digits. */
+  share_full_numbers: z.boolean().optional(),
 });
 
 export const dashboardGroupSummarySchema = z.object({
@@ -353,9 +385,7 @@ export const dashboardSummarySchema = z.object({
   owed_counterparty_count: z.number().int().default(0),
   owe_counterparty_count: z.number().int().default(0),
   // Defaults keep clients working against a DB that predates the v4 RPC.
-  spend_series: z
-    .array(z.object({ date: z.string(), amount_cents: z.number().int() }))
-    .default([]),
+  spend_series: z.array(z.object({ date: z.string(), amount_cents: z.number().int() })).default([]),
   groups: z.array(dashboardGroupSummarySchema),
 });
 

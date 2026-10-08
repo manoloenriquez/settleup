@@ -1,6 +1,6 @@
 import { Alert, StyleSheet, TouchableOpacity, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { formatCents } from "@template/shared";
+import { formatAmount } from "@template/shared";
 import { CategoryPill } from "@/components/groups/CategoryPicker";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { Badge, EmptyState } from "@/components/ui";
@@ -26,7 +26,7 @@ function expenseDayLabel(exp: ExpenseWithDetails): string {
   const date = match
     ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
     : new Date(day);
-  return date.toLocaleDateString("en-PH");
+  return date.toLocaleDateString(undefined);
 }
 
 export function ExpenseList({ expenses, pendingExpenses = [], onDelete, onEdit, onComments, hasMore, loadingMore, onLoadMore }: ExpenseListProps) {
@@ -61,7 +61,7 @@ export function ExpenseList({ expenses, pendingExpenses = [], onDelete, onEdit, 
             </View>
           </View>
           <View style={styles.rowRight}>
-            <Text style={styles.amount}>{formatCents(pending.amount_cents)}</Text>
+            <Text style={styles.amount}>{formatAmount(pending.amount_cents, pending.currency_code)}</Text>
             <Badge
               label={pending.status === "failed" ? "Failed" : "Pending"}
               variant={pending.status === "failed" ? "danger" : "warning"}
@@ -79,7 +79,7 @@ export function ExpenseList({ expenses, pendingExpenses = [], onDelete, onEdit, 
             </View>
           </View>
           <View style={styles.rowRight}>
-            <Text style={styles.amount}>{formatCents(exp.amount_cents)}</Text>
+            <Text style={styles.amount}>{formatAmount(exp.amount_cents, exp.currency_code)}</Text>
             {onComments && (
               <TouchableOpacity onPress={() => onComments(exp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Comments on ${exp.item_name}`}>
                 <Ionicons name="chatbubble-outline" size={16} color={colors.gray400} />
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.gray200,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   loadMoreText: {
     fontSize: fontSize.sm,

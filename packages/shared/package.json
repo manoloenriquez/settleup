@@ -8,7 +8,8 @@
     "./types": "./src/types/index.ts",
     "./schemas": "./src/schemas/index.ts",
     "./constants": "./src/constants/index.ts",
-    "./utils": "./src/utils/index.ts"
+    "./utils": "./src/utils/index.ts",
+    "./analytics": "./src/analytics/index.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",

@@ -1,7 +1,8 @@
+import { safeReturnPath } from "@template/shared";
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_ROUTES = ["/dashboard", "/admin", "/groups", "/account"];
+const PROTECTED_ROUTES = ["/dashboard", "/admin", "/groups", "/account", "/activity"];
 const AUTH_ROUTES = ["/login", "/register"];
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
@@ -38,22 +39,29 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // otherwise it's a normal "not signed in" redirect.
   const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
   if (!user && isProtected) {
-    const hasAuthCookie = request.cookies.getAll().some((c) =>
-      c.name.startsWith("sb-") && c.name.includes("auth-token"),
-    );
+    const hasAuthCookie = request.cookies
+      .getAll()
+      .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("redirectTo", pathname);
+    url.searchParams.set("redirectTo", pathname + request.nextUrl.search);
     if (hasAuthCookie) url.searchParams.set("expired", "1");
     return NextResponse.redirect(url);
+  }
+
+  if (
+    user &&
+    (isProtected || AUTH_ROUTES.includes(pathname) || pathname === "/join" || pathname === "/claim")
+  ) {
+    const { data: closed } = await supabase.schema("settleup").rpc("is_account_closed");
+    if (closed === true) return NextResponse.redirect(new URL("/account-closed", request.url));
   }
 
   // Authenticated user hitting an auth route → groups
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/groups";
-    return NextResponse.redirect(url);
+    const target = safeReturnPath(request.nextUrl.searchParams.get("redirectTo"));
+    return NextResponse.redirect(new URL(target, request.url));
   }
 
   return supabaseResponse;
@@ -61,6 +69,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.well-known/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

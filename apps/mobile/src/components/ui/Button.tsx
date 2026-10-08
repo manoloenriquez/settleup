@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { colors, borderRadius, spacing, fontSize, fontWeight } from "@/theme";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "destructive";
 
 export interface AppButtonProps extends TouchableOpacityProps {
   title: string;
@@ -31,13 +31,22 @@ export function AppButton({
     <TouchableOpacity
       activeOpacity={0.75}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!isDisabled, busy: isLoading }}
+      accessibilityLabel={title}
       style={[styles.base, variantStyles[variant].container, isDisabled && styles.disabled, style]}
       {...props}
     >
       {isLoading ? (
         <ActivityIndicator
           size="small"
-          color={variant === "primary" || variant === "danger" ? colors.white : colors.primary}
+          color={
+            variant === "primary" || variant === "danger"
+              ? colors.white
+              : variant === "destructive"
+                ? colors.danger
+                : colors.primary
+          }
         />
       ) : (
         <Text style={[styles.label, variantStyles[variant].label]}>{title}</Text>
@@ -48,7 +57,9 @@ export function AppButton({
 
 const styles = StyleSheet.create({
   base: {
-    height: 50,
+    // Grows with Dynamic Type instead of clipping large text.
+    minHeight: 50,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
     alignItems: "center",
     justifyContent: "center",
@@ -79,5 +90,10 @@ const variantStyles: Record<ButtonVariant, { container: ViewStyle; label: object
   danger: {
     container: { backgroundColor: colors.danger },
     label: { color: colors.white },
+  },
+  /** Plain red text, for a destructive row that should not dominate the screen. */
+  destructive: {
+    container: { backgroundColor: "transparent" },
+    label: { color: colors.danger },
   },
 };

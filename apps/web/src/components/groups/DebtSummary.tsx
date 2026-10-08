@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatCents, buildNudgeMessage } from "@template/shared";
+import { buildNudgeMessage, type CurrencyCode } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { SettleUpButton, SettleUpDialog } from "./SettleUpButton";
@@ -10,7 +11,10 @@ import { CheckCircle, BellRing, Zap, Check, Send } from "lucide-react";
 import type { SimplifiedDebt, MemberBalance } from "@template/shared";
 
 type Props = {
+  readOnly?: boolean;
   debts: SimplifiedDebt[];
+  /** Every debt here is in this one currency. */
+  currency: CurrencyCode;
   groupId: string;
   groupName?: string;
   balances?: MemberBalance[];
@@ -19,7 +23,9 @@ type Props = {
 };
 
 export function DebtSummary({
+  readOnly = false,
   debts,
+  currency,
   groupId,
   groupName,
   balances,
@@ -35,6 +41,7 @@ export function DebtSummary({
       debtorName: debt.from_display_name,
       creditorName: debt.to_display_name,
       amountCents: debt.amount_cents,
+      currency,
       groupName: groupName ?? "your group",
       link: token && origin ? `${origin}/p/${token}` : null,
     });
@@ -50,7 +57,7 @@ export function DebtSummary({
         </div>
         <div>
           <p className="text-sm font-semibold text-emerald-800">All settled up!</p>
-          <p className="text-xs text-emerald-600">No outstanding debts in this group.</p>
+          <p className="text-xs text-emerald-600">No outstanding debts in {currency} in this group.</p>
         </div>
       </div>
     );
@@ -69,7 +76,11 @@ export function DebtSummary({
     debts.find((d) => d.to_member_id === currentMemberId) ??
     debts[0];
 
-  function rowLabel(debt: SimplifiedDebt): { text: React.ReactNode; amountClass: string; sign: string } {
+  function rowLabel(debt: SimplifiedDebt): {
+    text: React.ReactNode;
+    amountClass: string;
+    sign: string;
+  } {
     if (debt.to_member_id === currentMemberId) {
       return {
         text: (
@@ -115,9 +126,7 @@ export function DebtSummary({
           <p className="text-sm font-bold text-slate-900">
             You can settle with {debts.length} payment{debts.length !== 1 ? "s" : ""}
           </p>
-          <p className="text-xs text-slate-500">
-            {formatCents(totalCents)} will be settled
-          </p>
+          <p className="text-xs text-slate-500">{formatCurrency(totalCents, currency)} will be settled</p>
         </div>
       </div>
 
@@ -140,7 +149,7 @@ export function DebtSummary({
                 <p className="min-w-0 flex-1 truncate text-sm text-slate-700">{label.text}</p>
                 <span className={`shrink-0 text-sm font-bold tabular-nums ${label.amountClass}`}>
                   {label.sign}
-                  {formatCents(debt.amount_cents)}
+                  {formatCurrency(debt.amount_cents, currency)}
                 </span>
                 {balances && (
                   <button
@@ -153,7 +162,7 @@ export function DebtSummary({
                     <BellRing size={15} />
                   </button>
                 )}
-                <SettleUpButton debt={debt} groupId={groupId} />
+                {!readOnly && <SettleUpButton debt={debt} groupId={groupId} currency={currency} />}
               </div>
             );
           })}
@@ -180,7 +189,7 @@ export function DebtSummary({
                 </span>
               </p>
               <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">
-                {formatCents(debt.amount_cents)}
+                {formatCurrency(debt.amount_cents, currency)}
               </span>
             </div>
           ))}
@@ -200,11 +209,13 @@ export function DebtSummary({
             <span className="text-sm font-medium text-slate-600">
               {toReceiveCents >= toPayCents ? "Total to receive" : "Total to pay"}
             </span>
-            <span className={`text-base font-extrabold tabular-nums ${toReceiveCents >= toPayCents ? "text-emerald-600" : "text-rose-600"}`}>
-              {formatCents(Math.max(toReceiveCents, toPayCents))}
+            <span
+              className={`text-base font-extrabold tabular-nums ${toReceiveCents >= toPayCents ? "text-emerald-600" : "text-rose-600"}`}
+            >
+              {formatCurrency(Math.max(toReceiveCents, toPayCents), currency)}
             </span>
           </div>
-          {myDebt && (
+          {myDebt && !readOnly && (
             <>
               <Button className="w-full" leftIcon={Send} onClick={() => setSettleOpen(true)}>
                 Settle balance
@@ -213,6 +224,7 @@ export function DebtSummary({
                 <SettleUpDialog
                   debt={myDebt}
                   groupId={groupId}
+                  currency={currency}
                   open={settleOpen}
                   onClose={() => setSettleOpen(false)}
                 />

@@ -3,7 +3,8 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import type { ApiResponse, CreditorPaymentProfile, MemberBalance } from "@template/shared";
+import { currencyCodeSchema } from "@template/shared";
+import type { ApiResponse, CreditorPaymentProfile, CurrencyCode, MemberBalance } from "@template/shared";
 import { z } from "zod";
 
 const groupIdSchema = z.string().uuid("Invalid group ID.");
@@ -18,27 +19,33 @@ type RpcMemberRow = {
 };
 
 /**
- * Fetches members + balances via the get_member_balances RPC (4-source formula).
+ * Members + balances in one currency via get_member_balances_v2 (never
+ * converted or mixed with other currencies).
  */
 export async function getMembersWithBalances(
   groupId: string,
+  currency: CurrencyCode,
 ): Promise<ApiResponse<MemberBalance[]>> {
   try {
     const parsed = groupIdSchema.safeParse(groupId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+    const parsedCurrency = currencyCodeSchema.safeParse(currency);
+    if (!parsedCurrency.success) return { data: null, error: "Unsupported currency." };
 
     await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data, error } = await db.rpc("get_member_balances", {
+    const { data, error } = await db.rpc("get_member_balances_v2", {
       p_group_id: parsed.data,
+      p_currency_code: parsedCurrency.data,
     });
 
     if (error) return { data: null, error: "Failed to load balances." };
 
     const rows = (data ?? []) as unknown as RpcMemberRow[];
     const balances: MemberBalance[] = rows.map((r) => ({
+      currency_code: parsedCurrency.data,
       member_id: r.member_id,
       display_name: r.display_name,
       slug: r.slug,
@@ -57,21 +64,26 @@ export async function getMembersWithBalances(
 }
 
 /**
- * Fetches unmasked payment profiles for creditors (members with positive net_cents).
+ * Fetches unmasked payment profiles for creditors (members with positive
+ * net_cents in the given currency).
  */
 export async function getCreditorProfiles(
   groupId: string,
+  currency: CurrencyCode,
 ): Promise<ApiResponse<CreditorPaymentProfile[]>> {
   try {
     const parsed = groupIdSchema.safeParse(groupId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+    const parsedCurrency = currencyCodeSchema.safeParse(currency);
+    if (!parsedCurrency.success) return { data: null, error: "Unsupported currency." };
 
     await cachedAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data, error } = await db.rpc("get_creditor_profiles", {
+    const { data, error } = await db.rpc("get_creditor_profiles_v2", {
       p_group_id: parsed.data,
+      p_currency_code: parsedCurrency.data,
     });
 
     if (error) return { data: null, error: "Failed to load creditor profiles." };

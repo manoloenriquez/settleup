@@ -1,18 +1,42 @@
+import { track } from "@/lib/analytics";
 import { useState } from "react";
-import { Alert, Modal, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useMembersWithBalances, useCreditorProfiles } from "@/hooks/useBalances";
-import { useExpenses, useDeleteExpense, useUpdateExpense, useUpdateExpenseCustomSplit, useUpdateItemizedExpense, useExpenseTotals } from "@/hooks/useExpenses";
+import { useMembersWithBalances, useCreditorProfiles, useGroupCurrencies } from "@/hooks/useBalances";
+import {
+  useExpenses,
+  useDeleteExpense,
+  useUpdateExpense,
+  useUpdateExpenseCustomSplit,
+  useUpdateItemizedExpense,
+  useExpenseTotals,
+} from "@/hooks/useExpenses";
 import { useGroupActivity } from "@/hooks/useActivity";
 import { useGroups } from "@/hooks/useGroups";
-import { usePendingPayments, useUndoLastPayment, useUndoLastPaymentForMember } from "@/hooks/usePayments";
+import {
+  usePendingPayments,
+  useUndoLastPayment,
+  useUndoLastPaymentForMember,
+} from "@/hooks/usePayments";
 import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutbox";
 import { useGroupRealtime } from "@/hooks/useGroupRealtime";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
-import { useClaimMember } from "@/hooks/useCollaboration";
 import { useAuth } from "@/context/AuthContext";
 import { DebtSummary } from "@/components/groups/DebtSummary";
 import { PendingPaymentsCard } from "@/components/groups/PendingPaymentsCard";
@@ -21,11 +45,30 @@ import { MemberRow } from "@/components/groups/MemberRow";
 import { ExpenseList } from "@/components/groups/ExpenseList";
 import { ActivityTimeline } from "@/components/groups/ActivityTimeline";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
-import { SegmentedControl, Card, ChipGroup, ErrorBanner, SkeletonCard, useToast, Avatar } from "@/components/ui";
+import { SplitEditor } from "@/components/groups/SplitEditor";
+import {
+  SegmentedControl,
+  Card,
+  ErrorBanner,
+  SkeletonCard,
+  useToast,
+  Avatar,
+  DateField,
+} from "@/components/ui";
 import type { ExpenseWithDetails } from "@/services/expenses";
+import { presentChoices } from "@/hooks/useAddMenu";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { simplifyDebts, formatCents, parsePHPAmount } from "@template/shared";
-import type { MemberBalance, SimplifiedDebt } from "@template/shared";
+import {
+  amountToInput,
+  currencyName,
+  formatAmount,
+  inferSplitMode,
+  parseAmountInput,
+  resolveSplit,
+  simplifyDebts,
+  splitValuesFromShares,
+} from "@template/shared";
+import type { CurrencyCode, MemberBalance, SimplifiedDebt, SplitMode } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -67,16 +110,11 @@ function scalePositiveAmounts(weights: number[], totalCents: number): number[] |
   return allocations;
 }
 
-function isEqualSplit(expense: ExpenseWithDetails): boolean {
-  if ((expense.items?.length ?? 0) > 0 || expense.participants.length === 0) {
-    return false;
-  }
-
-  const shares = expense.participants
-    .map((participant) => participant.share_cents)
-    .sort((a, b) => a - b);
-
-  return shares[shares.length - 1]! - shares[0]! <= 1;
+function storedSplitShares(expense: ExpenseWithDetails): { memberId: string; shareCents: number }[] {
+  return expense.participants.map((participant) => ({
+    memberId: participant.member_id,
+    shareCents: participant.share_cents,
+  }));
 }
 
 function sameIdSet(a: string[], b: Set<string>): boolean {
@@ -91,8 +129,18 @@ export default function GroupDetailScreen() {
   const { user } = useAuth();
   const toast = useToast();
 
-  const balancesQ = useMembersWithBalances(id);
-  const creditorProfilesQ = useCreditorProfiles(id);
+  const groupsQ = useGroups();
+  const group = (groupsQ.data ?? []).find((g) => g.id === id);
+  // Balances are per currency; the group's default currency comes first.
+  const defaultCurrency: CurrencyCode = group?.default_currency_code ?? "PHP";
+  const currenciesQ = useGroupCurrencies(id, defaultCurrency);
+  const currencies = currenciesQ.data ?? [defaultCurrency];
+  const [chosenCurrency, setChosenCurrency] = useState<CurrencyCode | null>(null);
+  const activeCurrency: CurrencyCode =
+    chosenCurrency && currencies.includes(chosenCurrency) ? chosenCurrency : defaultCurrency;
+  const money = (minor: number): string => formatAmount(minor, activeCurrency);
+  const balancesQ = useMembersWithBalances(id, activeCurrency);
+  const creditorProfilesQ = useCreditorProfiles(id, activeCurrency);
   const expensesQ = useExpenses(id);
   const totalsQ = useExpenseTotals(id);
   const expenses = expensesQ.data?.pages.flatMap((p) => p.data) ?? [];
@@ -112,15 +160,18 @@ export default function GroupDetailScreen() {
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editParticipantIds, setEditParticipantIds] = useState<Set<string>>(new Set());
   const [editItemAssignments, setEditItemAssignments] = useState<string[][]>([]);
+  const [editDate, setEditDate] = useState("");
+  const [editSplitMode, setEditSplitMode] = useState<SplitMode>("equal");
+  const [editSplitValues, setEditSplitValues] = useState<Record<string, string>>({});
+  // Untouched exact amounts follow the total proportionally when it changes.
+  const [editSplitTouched, setEditSplitTouched] = useState(false);
   const [commentsExpense, setCommentsExpense] = useState<ExpenseWithDetails | null>(null);
-  const groupsQ = useGroups();
-  const group = (groupsQ.data ?? []).find((g) => g.id === id);
   const membersQ = useMembers(id);
   const categoriesQ = useCategories(id);
-  const claimMember = useClaimMember(id);
 
   // Unlinked members the current user might want to claim
   const isMemberLinked = (membersQ.data ?? []).some((m) => m.user_id === user?.id);
@@ -143,7 +194,10 @@ export default function GroupDetailScreen() {
     }
     const url = `${WEB_ORIGIN}/g/${group.share_token}`;
     try {
-      await Share.share({ message: url, url });
+      const shared = await Share.share({ message: url, url });
+      if (shared.action !== Share.dismissedAction) {
+        track({ name: "public_link_copied", properties: { link_type: "group" } });
+      }
     } catch {
       // User cancelled — no action needed
     }
@@ -161,8 +215,11 @@ export default function GroupDetailScreen() {
       toast.success("Group summary copied to clipboard");
       return;
     }
-    const lines = debts.map((d) => `${d.from_display_name} owes ${d.to_display_name} ${formatCents(d.amount_cents)}`);
-    const text = `${group?.name ?? "Group"} Balances:\n${lines.join("\n")}`;
+    const lines = debts.map(
+      (d) => `${d.from_display_name} owes ${d.to_display_name} ${money(d.amount_cents)}`,
+    );
+    const heading = currencies.length > 1 ? `${group?.name ?? "Group"} balances in ${activeCurrency}` : `${group?.name ?? "Group"} balances`;
+    const text = `${heading}:\n${lines.join("\n")}`;
     await Clipboard.setStringAsync(text);
     toast.success("Group summary copied to clipboard");
   }
@@ -177,11 +234,12 @@ export default function GroupDetailScreen() {
           text: "Undo",
           style: "destructive",
           onPress: () => {
-            undoPayment.mutate(undefined, {
+            undoPayment.mutate(activeCurrency, {
               onSuccess: (res) => {
                 if (res.error) toast.error(res.error);
               },
-              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
         },
@@ -199,11 +257,12 @@ export default function GroupDetailScreen() {
           text: "Undo",
           style: "destructive",
           onPress: () => {
-            undoMemberPayment.mutate(member.member_id, {
+            undoMemberPayment.mutate({ memberId: member.member_id, currency: activeCurrency }, {
               onSuccess: (res) => {
                 if (res.error) toast.error(res.error);
               },
-              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to undo payment"),
             });
           },
         },
@@ -212,13 +271,16 @@ export default function GroupDetailScreen() {
   }
 
   function handleGroupActions() {
-    Alert.alert("Group actions", undefined, [
-      { text: "Public overview", onPress: () => router.push(`/(protected)/groups/${id}/overview`) },
-      { text: "Copy summary", onPress: () => void handleCopyGroupSummary() },
-      { text: "Undo my last payment", style: "destructive", onPress: handleUndoPayment },
-      { text: "Share group", onPress: () => void handleShareGroup() },
-      { text: "Settings", onPress: () => router.push(`/(protected)/groups/${id}/settings`) },
-      { text: "Cancel", style: "cancel" },
+    presentChoices(group?.name ?? "Group", [
+      { label: "Share Group Summary", run: () => void handleShareGroup() },
+      { label: "Preview Shared Page", run: () => router.push(`/(protected)/groups/${id}/overview`) },
+      { label: "Copy Summary as Text", run: () => void handleCopyGroupSummary() },
+      { label: "Group Settings", run: () => router.push(`/(protected)/groups/${id}/settings`) },
+      {
+        label: currencies.length > 1 ? `Undo My Last ${activeCurrency} Payment` : "Undo My Last Payment",
+        destructive: true,
+        run: handleUndoPayment,
+      },
     ]);
   }
 
@@ -236,7 +298,13 @@ export default function GroupDetailScreen() {
   function handleSettle(debt: SimplifiedDebt) {
     router.push({
       pathname: "/groups/[id]/settle-up",
-      params: { id, fromId: debt.from_member_id, toId: debt.to_member_id, amount: String(debt.amount_cents) },
+      params: {
+        id,
+        fromId: debt.from_member_id,
+        toId: debt.to_member_id,
+        amount: String(debt.amount_cents),
+        currency: activeCurrency,
+      },
     });
   }
 
@@ -248,11 +316,22 @@ export default function GroupDetailScreen() {
 
     setEditingExpense(expense);
     setEditName(expense.item_name);
-    setEditAmount(formatCents(Math.abs(expense.amount_cents)).replace(/[₱,]/g, ""));
+    setEditNotes(expense.notes ?? "");
+    setEditAmount(amountToInput(Math.abs(expense.amount_cents), expense.currency_code));
     setEditCategoryId(expense.category_id);
-    setEditParticipantIds(new Set(expense.participants.map((participant) => participant.member_id)));
+    setEditDate(expense.expense_date);
+    const storedShares = storedSplitShares(expense);
+    const mode = inferSplitMode(storedShares);
+    setEditSplitMode(mode);
+    setEditSplitValues(splitValuesFromShares(mode, storedShares, expense.currency_code));
+    setEditSplitTouched(false);
+    setEditParticipantIds(
+      new Set(expense.participants.map((participant) => participant.member_id)),
+    );
     setEditItemAssignments(
-      (expense.items ?? []).map((item) => item.item_participants.map((participant) => participant.member_id)),
+      (expense.items ?? []).map((item) =>
+        item.item_participants.map((participant) => participant.member_id),
+      ),
     );
   }
 
@@ -263,6 +342,26 @@ export default function GroupDetailScreen() {
       else next.add(memberId);
       return next;
     });
+  }
+
+  function changeEditSplitMode(mode: SplitMode): void {
+    if (!editingExpense) return;
+    // Prefill from what is saved when the same people are still selected.
+    const stored = storedSplitShares(editingExpense);
+    const sameMembers = sameIdSet(
+      stored.map((s) => s.memberId),
+      editParticipantIds,
+    );
+    setEditSplitMode(mode);
+    setEditSplitValues(
+      sameMembers ? splitValuesFromShares(mode, stored, editingExpense.currency_code) : {},
+    );
+    setEditSplitTouched(false);
+  }
+
+  function changeEditSplitValue(memberId: string, value: string): void {
+    setEditSplitValues((prev) => ({ ...prev, [memberId]: value }));
+    setEditSplitTouched(true);
   }
 
   function toggleEditItemAssignment(itemIndex: number, memberId: string): void {
@@ -279,9 +378,11 @@ export default function GroupDetailScreen() {
 
   function handleSaveEdit(): void {
     if (!editingExpense) return;
-    const amountCents = parsePHPAmount(editAmount);
+    // An expense keeps its own currency; editing never converts it.
+    const currencyCode = editingExpense.currency_code;
+    const amountCents = parseAmountInput(editAmount, currencyCode);
     if (!amountCents || amountCents <= 0) {
-      toast.error("Please enter a valid amount");
+      toast.error(`Enter the amount in ${currencyName(currencyCode)}.`);
       return;
     }
 
@@ -293,7 +394,8 @@ export default function GroupDetailScreen() {
       setEditingExpense(null);
       toast.success("Expense updated");
     };
-    const onError = (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update");
+    const onError = (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to update");
 
     const payerAmounts = scalePositiveAmounts(
       editingExpense.payers.map((payer) => payer.paid_cents),
@@ -328,7 +430,10 @@ export default function GroupDetailScreen() {
           expenseId: editingExpense.id,
           expectedUpdatedAt: editingExpense.updated_at,
           expenseName: editName.trim(),
+          notes: editNotes,
           amountCents,
+          currencyCode,
+          expenseDate: editDate || undefined,
           categoryId: editCategoryId,
           payers: editingExpense.payers.map((payer, index) => ({
             memberId: payer.member_id,
@@ -350,56 +455,81 @@ export default function GroupDetailScreen() {
       return;
     }
 
-    const participantsChanged = !sameIdSet(
-      editingExpense.participants.map((participant) => participant.member_id),
-      editParticipantIds,
-    );
-    if (isEqualSplit(editingExpense) || participantsChanged) {
+    const memberOrder = (membersQ.data ?? []).map((m) => m.id);
+    const selectedIds = memberOrder.filter((memberId) => editParticipantIds.has(memberId));
+    const stored = storedSplitShares(editingExpense);
+    const payers = editingExpense.payers.map((payer, index) => ({
+      memberId: payer.member_id,
+      paidCents: payerAmounts[index]!,
+    }));
+    const common = {
+      expenseId: editingExpense.id,
+      expectedUpdatedAt: editingExpense.updated_at,
+      itemName: editName.trim(),
+      notes: editNotes,
+      amountCents,
+      currencyCode,
+      expenseDate: editDate || undefined,
+      categoryId: editCategoryId,
+      payers,
+    };
+
+    if (editSplitMode === "equal") {
+      const check = resolveSplit({
+        mode: "equal",
+        totalMinor: amountCents,
+        currency: currencyCode,
+        memberIds: selectedIds,
+      });
+      if (!check.ok) {
+        toast.error(check.error);
+        return;
+      }
       updateExpenseMut.mutate(
-        {
-          expenseId: editingExpense.id,
-          expectedUpdatedAt: editingExpense.updated_at,
-          itemName: editName.trim(),
-          amountCents,
-          categoryId: editCategoryId,
-          participantIds: [...editParticipantIds],
-          payers: editingExpense.payers.map((payer, index) => ({
-            memberId: payer.member_id,
-            paidCents: payerAmounts[index]!,
-          })),
-        },
+        { ...common, participantIds: selectedIds },
         { onSuccess, onError },
       );
       return;
     }
 
-    const customSplitAmounts = scalePositiveAmounts(
-      editingExpense.participants.map((participant) => participant.share_cents),
-      amountCents,
-    );
-    if (!customSplitAmounts) {
-      toast.error("Amount is too small to preserve custom splits.");
-      return;
+    let customSplits: { memberId: string; shareCents: number }[];
+    const untouchedExact =
+      editSplitMode === "exact" &&
+      !editSplitTouched &&
+      sameIdSet(
+        stored.map((s) => s.memberId),
+        editParticipantIds,
+      );
+    if (untouchedExact && amountCents !== editingExpense.amount_cents) {
+      const scaled = scalePositiveAmounts(
+        stored.map((s) => s.shareCents),
+        amountCents,
+      );
+      if (!scaled) {
+        toast.error("Amount is too small to keep everyone's share.");
+        return;
+      }
+      customSplits = stored.map((s, index) => ({ memberId: s.memberId, shareCents: scaled[index]! }));
+    } else {
+      const labels = Object.fromEntries(
+        (membersQ.data ?? []).map((m) => [m.id, m.display_name]),
+      );
+      const result = resolveSplit({
+        mode: editSplitMode,
+        totalMinor: amountCents,
+        currency: currencyCode,
+        memberIds: selectedIds,
+        values: editSplitValues,
+        labels,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      customSplits = result.shares;
     }
 
-    updateCustomExpenseMut.mutate(
-      {
-        expenseId: editingExpense.id,
-        expectedUpdatedAt: editingExpense.updated_at,
-        itemName: editName.trim(),
-        amountCents,
-        categoryId: editCategoryId,
-        customSplits: editingExpense.participants.map((participant, index) => ({
-          memberId: participant.member_id,
-          shareCents: customSplitAmounts[index]!,
-        })),
-        payers: editingExpense.payers.map((payer, index) => ({
-          memberId: payer.member_id,
-          paidCents: payerAmounts[index]!,
-        })),
-      },
-      { onSuccess, onError },
-    );
+    updateCustomExpenseMut.mutate({ ...common, customSplits }, { onSuccess, onError });
   }
 
   const segments: { value: Tab; label: string }[] = [
@@ -408,18 +538,13 @@ export default function GroupDetailScreen() {
     { value: "charts", label: "Charts" },
   ];
 
-  const currentMemberId =
-    (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
+  const currentMemberId = (membersQ.data ?? []).find((m) => m.user_id === user?.id)?.id ?? null;
 
   const editIsItemized = (editingExpense?.items?.length ?? 0) > 0;
-  const editParticipantsChanged = editingExpense
-    ? !sameIdSet(
-        editingExpense.participants.map((participant) => participant.member_id),
-        editParticipantIds,
-      )
-    : false;
   const editSaving =
-    updateExpenseMut.isPending || updateCustomExpenseMut.isPending || updateItemizedExpenseMut.isPending;
+    updateExpenseMut.isPending ||
+    updateCustomExpenseMut.isPending ||
+    updateItemizedExpenseMut.isPending;
 
   return (
     <>
@@ -429,7 +554,12 @@ export default function GroupDetailScreen() {
           title: group?.name ?? "Group",
           headerRight: () => (
             <View style={styles.headerBtns}>
-              <TouchableOpacity onPress={handleGroupActions} hitSlop={8} accessibilityRole="button" accessibilityLabel="Group actions">
+              <TouchableOpacity
+                onPress={handleGroupActions}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Group actions"
+              >
                 <Ionicons name="ellipsis-horizontal" size={22} color={colors.gray600} />
               </TouchableOpacity>
             </View>
@@ -438,17 +568,23 @@ export default function GroupDetailScreen() {
       />
 
       {isLoading ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </ScrollView>
       ) : (
         <ScrollView
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
           style={styles.scroll}
           contentContainerStyle={styles.content}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing && !isLoading} onRefresh={handleRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={isRefreshing && !isLoading}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
           }
         >
           {(balancesQ.error || expensesQ.error || activityQ.error) && (
@@ -462,13 +598,14 @@ export default function GroupDetailScreen() {
               onRetry={() => {
                 void balancesQ.refetch();
                 void expensesQ.refetch();
-    void totalsQ.refetch();
+                void totalsQ.refetch();
                 void activityQ.refetch();
               }}
             />
           )}
           {/* Member avatar row */}
           <ScrollView
+            keyboardShouldPersistTaps="handled"
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.avatarRow}
@@ -488,11 +625,13 @@ export default function GroupDetailScreen() {
             })}
             <TouchableOpacity
               style={styles.avatarItem}
-              onPress={() => router.push(`/(protected)/groups/${id}/settings`)}
-              accessibilityLabel="Add member"
+              onPress={() => router.push(`/(protected)/groups/${id}/settings?focus=people`)}
+              accessibilityRole="button"
+              accessibilityLabel="Add people"
+              accessibilityHint="Opens group settings with the name field ready"
             >
               <View style={styles.avatarAdd}>
-                <Ionicons name="add" size={20} color={colors.gray400} />
+                <Ionicons name="person-add-outline" size={20} color={colors.gray400} />
               </View>
               <Text style={styles.avatarName}>Add</Text>
             </TouchableOpacity>
@@ -502,24 +641,34 @@ export default function GroupDetailScreen() {
           {(() => {
             const members = balancesQ.data ?? [];
             const totalOwed = members.reduce((s, m) => s + m.owed_cents, 0);
-            const totalSpent = totalsQ.data?.positiveTotalCents ?? 0;
-            const settledPct = totalSpent > 0 ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100))) : 100;
-            const isSettled = totalOwed === 0;
+            const totalSpent =
+              totalsQ.data?.totals.find((t) => t.currency === activeCurrency)?.amountMinor ?? 0;
+            const settledPct =
+              totalSpent > 0
+                ? Math.max(0, Math.min(100, Math.round((1 - totalOwed / totalSpent) * 100)))
+                : 100;
+            // Without loaded balances (e.g. the fetch failed) don't claim "All settled".
+            const known = balancesQ.data !== undefined;
+            const isSettled = known && totalOwed === 0;
             const myNet = members.find((m) => m.member_id === currentMemberId)?.net_cents ?? 0;
             const expenseCount = totalsQ.data?.count ?? expenses.length;
             return (
               <View style={styles.balanceCard}>
                 <View style={styles.balanceTop}>
                   <View style={styles.balanceBody}>
-                    <Text style={styles.balanceLabel}>Group balance</Text>
-                    <Text style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
-                      {isSettled ? "All settled" : formatCents(totalOwed)}
+                    <Text style={styles.balanceLabel}>
+                      {currencies.length > 1 ? `Still owed in ${activeCurrency}` : "Still owed in this group"}
+                    </Text>
+                    <Text maxFontSizeMultiplier={1.4} style={[styles.balanceAmount, isSettled && { color: colors.success }]}>
+                      {!known ? "—" : isSettled ? "All settled" : money(totalOwed)}
                     </Text>
                     <Text style={styles.balanceSub}>
-                      {myNet > 0
-                        ? `You are owed ${formatCents(myNet)}`
+                      {!known
+                        ? "Balances couldn’t load"
+                        : myNet > 0
+                        ? `You are owed ${money(myNet)}`
                         : myNet < 0
-                          ? `You owe ${formatCents(-myNet)}`
+                          ? `You owe ${money(-myNet)}`
                           : "You’re settled up"}
                     </Text>
                   </View>
@@ -537,67 +686,61 @@ export default function GroupDetailScreen() {
             );
           })()}
 
-          {/* Budget progress */}
-          {group?.budget_cents != null && group.budget_cents > 0 && (() => {
-            const spent = totalsQ.data?.positiveTotalCents ?? 0;
-            const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
-            const over = spent > group.budget_cents;
-            const warn = !over && pct >= 80;
-            const barColor = over ? colors.danger : warn ? colors.warning : colors.primary;
-            return (
-              <View style={styles.budgetCard}>
-                <View style={styles.budgetHeader}>
-                  <Text style={styles.budgetLabel}>BUDGET</Text>
-                  <Text style={[styles.budgetValue, over && { color: colors.danger }]}>
-                    {formatCents(spent)} of {formatCents(group.budget_cents)}
-                    {over ? " · over" : ` · ${pct}%`}
-                  </Text>
-                </View>
-                <View
-                  style={styles.budgetTrack}
-                  accessibilityRole="progressbar"
-                  accessibilityValue={{ min: 0, max: 100, now: pct }}
-                  accessibilityLabel="Budget used"
-                >
-                  <View style={[styles.budgetFill, { width: `${pct}%`, backgroundColor: barColor }]} />
-                </View>
-              </View>
-            );
-          })()}
+          {/* Several currencies: balances are kept apart, one at a time */}
+          {currencies.length > 1 && (
+            <View style={styles.currencySwitch}>
+              <SegmentedControl
+                segments={currencies.map((code) => ({ value: code, label: code }))}
+                value={activeCurrency}
+                onChange={(value) => setChosenCurrency(value as CurrencyCode)}
+              />
+              <Text style={styles.currencySwitchNote}>
+                Balances in each currency are separate and never converted.
+              </Text>
+            </View>
+          )}
 
-          {/* Claim member banner */}
+          {/* Budget progress */}
+          {group?.budget_cents != null &&
+            group.budget_cents > 0 &&
+            (() => {
+              const budgetCurrency: CurrencyCode = group.budget_currency_code ?? defaultCurrency;
+              const spent =
+                totalsQ.data?.totals.find((t) => t.currency === budgetCurrency)?.amountMinor ?? 0;
+              const pct = Math.min(100, Math.round((spent / group.budget_cents) * 100));
+              const over = spent > group.budget_cents;
+              const warn = !over && pct >= 80;
+              const barColor = over ? colors.danger : warn ? colors.warning : colors.primary;
+              return (
+                <View style={styles.budgetCard}>
+                  <View style={styles.budgetHeader}>
+                    <Text style={styles.budgetLabel}>BUDGET</Text>
+                    <Text style={[styles.budgetValue, over && { color: colors.danger }]}>
+                      {formatAmount(spent, budgetCurrency)} of {formatAmount(group.budget_cents, budgetCurrency)}
+                      {over ? " · over" : ` · ${pct}%`}
+                    </Text>
+                  </View>
+                  <View
+                    style={styles.budgetTrack}
+                    accessibilityRole="progressbar"
+                    accessibilityValue={{ min: 0, max: 100, now: pct }}
+                    accessibilityLabel="Budget used"
+                  >
+                    <View
+                      style={[styles.budgetFill, { width: `${pct}%`, backgroundColor: barColor }]}
+                    />
+                  </View>
+                </View>
+              );
+            })()}
+
           {unlinkedMembers.length > 0 && (
             <View style={styles.claimBanner}>
-              <Text style={styles.claimBannerTitle}>Are you one of these members?</Text>
+              <Text style={styles.claimBannerTitle}>Already listed in this group?</Text>
               <Text style={styles.claimBannerSub}>
-                Link your account to track your expenses automatically.
+                Ask the organizer for your personal invitation. Balance links cannot link an
+                account.
               </Text>
-              <View style={styles.claimBannerList}>
-                {unlinkedMembers.map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={styles.claimMemberBtn}
-                    onPress={() => {
-                      Alert.alert(
-                        `Claim "${m.display_name}"?`,
-                        "This will link this member to your account.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Claim",
-                            onPress: () => claimMember.mutate(m.id, {
-                              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to claim member"),
-                            }),
-                          },
-                        ],
-                      );
-                    }}
-                  >
-                    <Text style={styles.claimMemberName}>{m.display_name}</Text>
-                    <Text style={styles.claimMemberAction}>Claim →</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           )}
 
@@ -644,11 +787,14 @@ export default function GroupDetailScreen() {
               {pendingExpenses.length + pendingPaymentRecords.length > 0 && (
                 <Text style={styles.pendingBalancesNote}>
                   {pendingExpenses.length + pendingPaymentRecords.length} pending{" "}
-                  {pendingExpenses.length + pendingPaymentRecords.length === 1 ? "change" : "changes"}{" "}
+                  {pendingExpenses.length + pendingPaymentRecords.length === 1
+                    ? "change"
+                    : "changes"}{" "}
                   not yet included in balances
                 </Text>
               )}
               <DebtSummary
+                currency={activeCurrency}
                 members={balancesQ.data ?? []}
                 creditorProfiles={creditorProfilesQ.data}
                 onSettle={handleSettle}
@@ -661,6 +807,7 @@ export default function GroupDetailScreen() {
                   {(balancesQ.data ?? []).map((m, i) => (
                     <View key={m.member_id}>
                       <MemberRow
+                        currency={activeCurrency}
                         member={m}
                         webOrigin={WEB_ORIGIN || undefined}
                         onUndoLastPayment={handleUndoMemberPayment}
@@ -678,6 +825,7 @@ export default function GroupDetailScreen() {
 
           {tab === "charts" && (
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.chartsCard}
               onPress={() => router.push(`/(protected)/groups/${id}/insights`)}
               activeOpacity={0.8}
@@ -699,6 +847,7 @@ export default function GroupDetailScreen() {
 
       {/* FAB */}
       <TouchableOpacity
+        accessibilityRole="button"
         style={styles.fab}
         onPress={() => router.push(`/(protected)/groups/${id}/add-expense`)}
         activeOpacity={0.85}
@@ -724,10 +873,11 @@ export default function GroupDetailScreen() {
         animationType="fade"
         onRequestClose={() => setEditingExpense(null)}
       >
-        <View style={styles.modalOverlay}>
+        {/* Keeps Save above the keyboard (the decimal pad has no return key). */}
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Expense</Text>
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.modalScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalLabel}>Name</Text>
               <TextInput
                 style={styles.modalInput}
@@ -745,19 +895,36 @@ export default function GroupDetailScreen() {
                 placeholderTextColor={colors.gray400}
                 keyboardType="decimal-pad"
               />
-              <CategoryPicker categories={categoriesQ.data ?? []} selectedId={editCategoryId} onSelect={setEditCategoryId} />
+              <Text style={styles.modalLabel}>Notes</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Optional"
+                placeholderTextColor={colors.gray400}
+              />
+              <CategoryPicker
+                categories={categoriesQ.data ?? []}
+                selectedId={editCategoryId}
+                onSelect={setEditCategoryId}
+              />
+              {editDate !== "" && (
+                <DateField value={editDate} onChange={setEditDate} maximumDate={new Date()} />
+              )}
 
-              {!editIsItemized && (
+              {!editIsItemized && editingExpense && (
                 <View style={styles.modalSplitSection}>
-                  <ChipGroup
-                    label="Split between"
-                    chips={(membersQ.data ?? []).map((m) => ({ id: m.id, label: m.display_name }))}
+                  <SplitEditor
+                    members={membersQ.data ?? []}
                     selected={editParticipantIds}
                     onToggle={toggleEditParticipant}
+                    mode={editSplitMode}
+                    onModeChange={changeEditSplitMode}
+                    values={editSplitValues}
+                    onValueChange={changeEditSplitValue}
+                    currency={editingExpense.currency_code}
+                    totalMinor={parseAmountInput(editAmount, editingExpense.currency_code) ?? 0}
                   />
-                  {editingExpense !== null && !isEqualSplit(editingExpense) && editParticipantsChanged && (
-                    <Text style={styles.modalWarnText}>Changing members resets to an equal split.</Text>
-                  )}
                 </View>
               )}
 
@@ -769,18 +936,32 @@ export default function GroupDetailScreen() {
                     return (
                       <View key={item.id} style={styles.itemAssignCard}>
                         <View style={styles.itemAssignHeader}>
-                          <Text style={styles.itemAssignName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.itemAssignAmount}>{formatCents(item.amount_cents)}</Text>
+                          <Text style={styles.itemAssignName} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.itemAssignAmount}>
+                            {formatAmount(item.amount_cents, editingExpense?.currency_code ?? defaultCurrency)}
+                          </Text>
                         </View>
                         <View style={styles.participantRow}>
                           {(membersQ.data ?? []).map((m) => (
                             <TouchableOpacity
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: assigned.includes(m.id) }}
                               key={m.id}
-                              style={[styles.participantChip, assigned.includes(m.id) && styles.participantChipActive]}
+                              style={[
+                                styles.participantChip,
+                                assigned.includes(m.id) && styles.participantChipActive,
+                              ]}
                               onPress={() => toggleEditItemAssignment(index, m.id)}
                               activeOpacity={0.7}
                             >
-                              <Text style={[styles.participantChipText, assigned.includes(m.id) && styles.participantChipTextActive]}>
+                              <Text
+                                style={[
+                                  styles.participantChipText,
+                                  assigned.includes(m.id) && styles.participantChipTextActive,
+                                ]}
+                              >
                                 {m.display_name}
                               </Text>
                             </TouchableOpacity>
@@ -797,30 +978,35 @@ export default function GroupDetailScreen() {
             </ScrollView>
             <View style={styles.modalBtns}>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.modalCancelBtn}
                 onPress={() => setEditingExpense(null)}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={[styles.modalSaveBtn, editSaving && { opacity: 0.6 }]}
                 onPress={handleSaveEdit}
                 disabled={editSaving}
               >
-                <Text style={styles.modalSaveText}>
-                  {editSaving ? "Saving..." : "Save"}
-                </Text>
+                <Text style={styles.modalSaveText}>{editSaving ? "Saving..." : "Save"}</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  loader: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
   pendingBalancesNote: {
     fontSize: fontSize.sm,
     color: colors.warningDark,
@@ -840,7 +1026,12 @@ const styles = StyleSheet.create({
   avatarItem: { alignItems: "center", gap: 4, width: 56 },
   avatarRing: { borderRadius: 28, padding: 2, borderWidth: 2, borderColor: colors.gray200 },
   avatarRingYou: { borderColor: colors.primary },
-  avatarName: { fontSize: fontSize.xs, color: colors.gray600, fontWeight: fontWeight.medium, maxWidth: 56 },
+  avatarName: {
+    fontSize: fontSize.xs,
+    color: colors.gray600,
+    fontWeight: fontWeight.medium,
+    maxWidth: 56,
+  },
   avatarAdd: {
     width: 50,
     height: 50,
@@ -864,11 +1055,33 @@ const styles = StyleSheet.create({
   balanceTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   balanceBody: { flex: 1, minWidth: 0 },
   balanceLabel: { fontSize: fontSize.base, color: colors.gray500, fontWeight: fontWeight.medium },
-  balanceAmount: { fontSize: fontSize["3xl"], fontWeight: fontWeight.bold, color: colors.gray900, letterSpacing: -0.5, marginTop: 2, fontVariant: ["tabular-nums"] },
+  balanceAmount: {
+    fontSize: fontSize["3xl"],
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
+    letterSpacing: -0.5,
+    marginTop: 2,
+    fontVariant: ["tabular-nums"],
+  },
   balanceSub: { fontSize: fontSize.base, color: colors.gray500, marginTop: 2 },
-  balancePill: { backgroundColor: colors.gray100, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4 },
-  balancePillText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.gray600 },
-  balanceTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden", marginTop: spacing.md },
+  balancePill: {
+    backgroundColor: colors.gray100,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  balancePillText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray600,
+  },
+  balanceTrack: {
+    height: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.gray100,
+    overflow: "hidden",
+    marginTop: spacing.md,
+  },
   balanceFill: { height: "100%", borderRadius: borderRadius.full, backgroundColor: colors.primary },
   balancePct: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 4 },
 
@@ -884,19 +1097,50 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.base,
   },
-  chartsIcon: { width: 44, height: 44, borderRadius: borderRadius.lg, backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center" },
+  chartsIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   chartsBody: { flex: 1, minWidth: 0 },
   chartsTitle: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.gray900 },
   chartsSub: { fontSize: fontSize.sm, color: colors.gray500, marginTop: 2 },
 
-  budgetCard:{ backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.base },
-  budgetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
-  budgetLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, letterSpacing: 0.8 },
+  budgetCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.base,
+  },
+  budgetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  budgetLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.gray400,
+    letterSpacing: 0.8,
+  },
   budgetValue: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
-  budgetTrack: { height: 8, borderRadius: borderRadius.full, backgroundColor: colors.gray100, overflow: "hidden" },
+  budgetTrack: {
+    height: 8,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.gray100,
+    overflow: "hidden",
+  },
   budgetFill: { height: "100%", borderRadius: borderRadius.full },
   segmentWrapper: { marginVertical: spacing.base },
 
+  currencySwitch: { gap: spacing.xs, marginBottom: spacing.md },
+  currencySwitchNote: { fontSize: fontSize.xs, color: colors.gray500, textAlign: "center" },
   divider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.base },
 
   fab: {
@@ -922,28 +1166,66 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     marginBottom: spacing.base,
     borderWidth: 1,
-    borderColor: colors.primary + "40",
+    borderColor: colors.primaryBorder,
   },
-  claimBannerTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary, marginBottom: 2 },
+  claimBannerTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.primary,
+    marginBottom: 2,
+  },
   claimBannerSub: { fontSize: fontSize.xs, color: colors.gray600, marginBottom: spacing.sm },
   claimBannerList: { gap: spacing.xs },
   claimMemberBtn: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
   claimMemberName: { fontSize: fontSize.sm, color: colors.gray900, fontWeight: fontWeight.medium },
-  claimMemberAction: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+  claimMemberAction: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: spacing.base },
-  modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, width: "100%" },
-  modalTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.gray900, marginBottom: spacing.base },
-  modalLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray600, marginBottom: 4 },
-  modalInput: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: fontSize.md, color: colors.gray900, marginBottom: spacing.sm },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.base,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    width: "100%",
+  },
+  modalTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
+    marginBottom: spacing.base,
+  },
+  modalLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray600,
+    marginBottom: 4,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    fontSize: fontSize.md,
+    color: colors.gray900,
+    marginBottom: spacing.sm,
+  },
   modalScroll: { maxHeight: 440 },
   modalSplitSection: { marginTop: spacing.sm, gap: spacing.sm },
   modalWarnText: { fontSize: fontSize.xs, color: colors.warningDark },
@@ -956,8 +1238,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   itemAssignHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  itemAssignName: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray900 },
-  itemAssignAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
+  itemAssignName: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray900,
+  },
+  itemAssignAmount: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray700,
+  },
   participantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   participantChip: {
     paddingHorizontal: spacing.sm,
@@ -970,9 +1261,19 @@ const styles = StyleSheet.create({
   participantChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   participantChipText: { fontSize: fontSize.xs, color: colors.gray600 },
   participantChipTextActive: { color: colors.primary, fontWeight: fontWeight.semibold },
-  modalBtns: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.sm },
+  modalBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   modalCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.base },
   modalCancelText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray500 },
-  modalSaveBtn: { backgroundColor: colors.primary, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: borderRadius.md },
+  modalSaveBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+  },
   modalSaveText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.white },
 });

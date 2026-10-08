@@ -253,6 +253,84 @@ owed_cents = GREATEST(0, -net_cents)
 | `public.handle_new_user()`     | `SECURITY DEFINER` trig | Auto-inserts `profiles` row on signup         |
 | `public.prevent_role_escalation()` | `SECURITY DEFINER` trig | Blocks non-admin role changes at DB level |
 
+## Push Delivery (migrations `20260612020000`, `20260909120000`)
+
+- Triggers on `expenses` (insert), `payments` (pending insert, pending→paid update) call `settleup.notify_push_event()`, a `SECURITY DEFINER` trigger function. It is a no-op until `settleup.app_config` holds `push_webhook_url` and `push_webhook_secret` (table has RLS and no policies: owner SQL only).
+- `settleup.build_push_messages(event, row)` resolves recipients (linked, non-departed members; the creator is excluded for expenses; the creditor for pending payments; the payer for confirmations) and their `push_tokens`, and returns finished Expo messages: group name as title, short body, `data: { group_id, event, route }`. Not client-callable.
+- The trigger posts `{ messages }` via `pg_net` to the `send-push` Edge Function, which holds **no service-role key**: it verifies `x-push-secret`, forwards to Expo, and prunes `DeviceNotRegistered` tokens through `settleup.prune_push_tokens(secret, tokens)` (anon-executable, secret-guarded, max 500). Runbook: `supabase/functions/send-push/README.md`.
+- `push_tokens` is owner-RLS; mobile registers/rotates its own row (`apps/mobile/src/services/push.ts`).
+
+## Product Events (migration `20260909130000`)
+
+- `settleup.product_events(id, event_name, occurred_at, user_id, platform, properties)` holds the sixteen PRD 12.4 events. `settleup.product_event_spec(name)` is the allowlist of enumerated property keys and values; a CHECK constraint rejects anything else, so no free text can be stored. The shared `PRODUCT_EVENT_SPEC` in `packages/shared/src/analytics` must match it (a shared test parses the migration and compares).
+- Signed-in clients insert their own rows (`user_id = auth.uid()`, per-column INSERT grant, no update/delete). Only `public.is_admin()` can read. Account closure detaches `user_id`; global Auth deletion sets it null.
+- Public pages record through `settleup.track_public_event(share_token, name, properties)`: three public events only, resolved to a member or group id and limited to 60 per five minutes per id (`product_event_limits`). A null token records only an invalid-link open against a sentinel key.
+- Server-derived events: `account_created` (trigger on `auth.users` insert) and `group_settled` (trigger after a payment becomes PAID and every member balance is zero, recorded once per ledger state via `group_settlements`). When the deferred currency migration is activated, `record_group_settled()` must compare balances per currency.
+
+## SQL Tests
+
+Run against the live project inside BEGIN…ROLLBACK (Supabase MCP
+`execute_sql`); CI also runs them on a fresh local stack. Suites:
+`currency_ledger`, `currency_lookup_helpers`, `public_payloads`,
+`sharing_and_payment_privacy`, `friends`, `personal_expenses`,
+`account_closure`, `launch_security`, `push_delivery`, `product_events`,
+`group_journey`, `payment_qr_storage`, `recurring_permissions`.
+
+
+`supabase/tests/*.sql` are transactional (`BEGIN … ROLLBACK`) and assert with `ASSERT`/`RAISE`. CI runs them against a local Supabase with every migration applied (`db-tests` job in `.github/workflows/ci.yml`). Locally:
+
+```bash
+supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,realtime,storage-api,supavisor
+for f in supabase/tests/*.sql; do psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$f"; done
+```
+
+Files: `launch_security.sql` (invitations, guest reports, resolution authorization), `public_payloads.sql` (public payload allowlists, rotation, anonymous access to private RPCs), `account_closure.sql`, `currency_ledger.sql`, `push_delivery.sql`, `product_events.sql`.
+
+## Payment QR storage and recurring templates (2026-10-01)
+
+- **QR images** (`20261001140000`): bucket `payment-qr` is public (QR codes are
+  meant to be shown), one folder per user. Owners may read, insert and delete
+  only in their own folder; nobody can list anyone else's. Storage API deletes
+  need SELECT as well as DELETE, which is why the owner-folder SELECT policy
+  exists: without it every delete silently did nothing. The bucket enforces
+  5 MB and JPEG/PNG/WebP (plus the non-standard `image/jpg` older builds send).
+  Apps validate type and size before uploading, delete QR files a saved profile
+  stops using, and delete the whole folder before closing an account. SQL can't
+  delete storage objects (`storage.protect_delete`); `tools/ui-driver/check-qr-delete.sh`
+  exercises deletes through the Storage API on a local stack.
+- **Recurring templates** (`20261001150000`): members see every template and
+  create their own (`created_by_user_id` must be themselves); only the creator
+  or a group owner/admin may pause, edit or delete one. Because RLS makes a
+  blocked update/delete return zero rows instead of an error, the apps check
+  for zero rows and re-read: still visible means "no permission", gone means
+  already deleted.
+
+## Currencies, sharing and friends (applied live 2026-10-01)
+
+- **Currency ledger** (`20260908163441`, `20261001110000`): every amount column
+  is integer minor units of the adjacent `currency_code`. Groups have a
+  `default_currency_code` (new expenses start in it) but may hold several
+  currencies. Balances are always per currency: clients call `*_v2` RPCs with
+  `p_currency_code` once per currency (`get_my_currencies`,
+  `get_group_currencies`, `get_share_currencies` say which). Nothing is ever
+  converted or summed across currencies. Every client sends
+  `x-ledger-version: 2` (`packages/supabase/src/ledger.ts`); clients without it
+  only see PHP rows and get `PT426` for groups holding other currencies.
+- **Sharing and payment privacy** (`20261001120000`): `groups.share_enabled`,
+  `rotate_group_share_token`, `set_group_share_enabled` (both rotate; 256-bit
+  tokens). Payment details reach shared pages only through
+  `member_payment_profile(member, public)`: opt-in
+  (`user_payment_profiles.show_on_shared_links`), never when the member set
+  `group_members.hide_payment_details`, masked unless `share_full_numbers`,
+  and only for people owed money in that currency. Organizers can enter
+  details for members without accounts (`member_payment_details`, labelled
+  `source: organizer`); a claim replaces them with the person's own profile.
+- **Friends** (`20261001130000`): `groups.kind = 'direct'` two-person ledgers
+  (trigger blocks a third member), `friend_invites` (hashed single-use 14-day
+  tokens; no user search), `friendships` (one ledger per pair). Removing a
+  friend, leaving the ledger or closing an account ends the friendship but
+  keeps the ledger as a normal group.
+
 ## Regenerating Types After Schema Changes
 
 ```bash

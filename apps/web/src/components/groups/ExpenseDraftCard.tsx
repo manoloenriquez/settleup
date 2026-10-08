@@ -1,6 +1,7 @@
 "use client";
 
-import { formatCents } from "@template/shared";
+import type { CurrencyCode } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Check, Pencil, X, Sparkles } from "lucide-react";
@@ -8,6 +9,8 @@ import type { ExpenseDraft } from "@template/shared/types";
 
 type Props = {
   draft: ExpenseDraft;
+  /** Currency the draft will be saved in. */
+  currency: CurrencyCode;
   onAccept: () => void;
   onEdit: () => void;
   onDismiss: () => void;
@@ -16,6 +19,7 @@ type Props = {
 
 export function ExpenseDraftCard({
   draft,
+  currency,
   onAccept,
   onEdit,
   onDismiss,
@@ -49,7 +53,7 @@ export function ExpenseDraftCard({
         </div>
         <div>
           <span className="text-slate-500">Amount:</span>{" "}
-          <span className="font-medium text-slate-900">{formatCents(draft.amount_cents)}</span>
+          <span className="font-medium text-slate-900">{formatCurrency(draft.amount_cents, currency)}</span>
         </div>
         {draft.payer_name && (
           <div>

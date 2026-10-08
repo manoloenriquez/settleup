@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { formatCents, isEqualShareSplit } from "@template/shared";
+import { isEqualShareSplit } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Receipt, Users, CreditCard, ChevronDown, ChevronUp, List } from "lucide-react";
-import type { GroupOverviewPayload } from "@template/shared";
+import type { CurrencyCode, GroupOverviewPayload } from "@template/shared";
 
 type Props = {
   expenses: GroupOverviewPayload["expenses"];
+  /** Every amount in this list is in this currency. */
+  currency: CurrencyCode;
 };
 
 type OverviewExpense = GroupOverviewPayload["expenses"][number];
@@ -37,15 +40,15 @@ function splitLabel(exp: OverviewExpense): string {
     : "Custom split";
 }
 
-function payerLine(exp: OverviewExpense): string | null {
+function payerLine(exp: OverviewExpense, currency: CurrencyCode): string | null {
   if (!exp.payers || exp.payers.length === 0) return null;
   const names = exp.payers.map((p) =>
-    exp.payers!.length > 1 ? `${p.display_name} (${formatCents(p.paid_cents)})` : p.display_name,
+    exp.payers!.length > 1 ? `${p.display_name} (${formatCurrency(p.paid_cents, currency)})` : p.display_name,
   );
   return `Paid by ${names.join(", ")}`;
 }
 
-export function OverviewExpenseList({ expenses }: Props): React.ReactElement {
+export function OverviewExpenseList({ expenses, currency }: Props): React.ReactElement {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
   function toggleExpanded(key: string): void {
@@ -95,7 +98,10 @@ export function OverviewExpenseList({ expenses }: Props): React.ReactElement {
                   </span>
                   <div className="flex-1 h-px bg-slate-100" />
                   <span className="text-xs text-slate-400">
-                    {formatCents(group.expenses.reduce((s, e) => s + e.exp.amount_cents, 0))}
+                    {formatCurrency(
+                      group.expenses.reduce((s, e) => s + e.exp.amount_cents, 0),
+                      currency,
+                    )}
                   </span>
                 </div>
 
@@ -103,7 +109,7 @@ export function OverviewExpenseList({ expenses }: Props): React.ReactElement {
                   {group.expenses.map(({ exp, key }) => {
                     const isCredit = exp.amount_cents < 0;
                     const isExpanded = expandedKeys.has(key);
-                    const paidBy = payerLine(exp);
+                    const paidBy = payerLine(exp, currency);
                     const hasDetail = exp.participants.length > 0 || (exp.items?.length ?? 0) > 0;
 
                     return (
@@ -125,7 +131,7 @@ export function OverviewExpenseList({ expenses }: Props): React.ReactElement {
                             </span>
                             <span className="flex items-center gap-1.5 shrink-0">
                               <span className={`font-semibold ${isCredit ? "text-green-600" : "text-slate-700"}`}>
-                                {formatCents(exp.amount_cents)}
+                                {formatCurrency(exp.amount_cents, currency)}
                               </span>
                               {hasDetail &&
                                 (isExpanded ? (
@@ -173,7 +179,7 @@ export function OverviewExpenseList({ expenses }: Props): React.ReactElement {
                                     <div key={j} className="flex items-center justify-between gap-3">
                                       <span className="text-slate-600 truncate">{p.display_name}</span>
                                       <span className="font-medium text-slate-700 whitespace-nowrap">
-                                        {formatCents(p.share_cents)}
+                                        {formatCurrency(p.share_cents, currency)}
                                       </span>
                                     </div>
                                   ))}
@@ -193,13 +199,13 @@ export function OverviewExpenseList({ expenses }: Props): React.ReactElement {
                                         {item.participants && item.participants.length > 0 && (
                                           <p className="text-slate-400 mt-0.5">
                                             {item.participants
-                                              .map((ip) => `${ip.display_name} (${formatCents(ip.share_cents)})`)
+                                              .map((ip) => `${ip.display_name} (${formatCurrency(ip.share_cents, currency)})`)
                                               .join(", ")}
                                           </p>
                                         )}
                                       </div>
                                       <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">
-                                        {formatCents(item.amount_cents)}
+                                        {formatCurrency(item.amount_cents, currency)}
                                       </span>
                                     </div>
                                   ))}

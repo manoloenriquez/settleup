@@ -45,6 +45,14 @@ const runtimeCaching: RuntimeCaching[] = [
     matcher: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/monitoring"),
     handler: new NetworkOnly(),
   },
+  // Never cache capability-link pages (group/member share links, claim and
+  // join codes): a revoked link must stop working, and another person using
+  // this browser must not be able to reopen someone else's balance offline.
+  {
+    matcher: ({ url, sameOrigin }) =>
+      sameOrigin && /^\/(g|p|f)\/|^\/(claim|join)(\/|$)/.test(url.pathname),
+    handler: new NetworkOnly(),
+  },
   // Never cache mutations (Server Actions / form POSTs).
   {
     matcher: ({ request }) => request.method !== "GET",

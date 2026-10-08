@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseConversation } from "../features/conversation";
 
-// LLM_ENABLED is not set → always uses heuristic fallback.
+// Web entry uses the keyword parser only.
 
 describe("parseConversation", () => {
   it("returns error when messages array is empty", async () => {

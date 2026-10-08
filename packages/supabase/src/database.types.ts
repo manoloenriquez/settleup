@@ -1,3 +1,4 @@
+import type { CurrencyCode } from "@template/shared";
 /**
  * Hand-written to match supabase/migrations/*.sql.
  *
@@ -126,18 +127,82 @@ export type Database = {
   };
   settleup: {
     Tables: {
+      closed_accounts: {
+        Row: { user_id: string; closed_at: string };
+        Insert: { user_id: string; closed_at?: string };
+        Update: { user_id?: string; closed_at?: string };
+        Relationships: [];
+      };
+      account_closure_transactions: {
+        Row: { transaction_id: number };
+        Insert: { transaction_id: number };
+        Update: { transaction_id?: number };
+        Relationships: [];
+      };
+      member_claim_invitations: {
+        Row: {
+          member_id: string;
+          token_hash: string;
+          expires_at: string;
+          claimed_by: string | null;
+          claimed_at: string | null;
+        };
+        Insert: {
+          member_id: string;
+          token_hash: string;
+          expires_at: string;
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+        };
+        Update: {
+          member_id?: string;
+          token_hash?: string;
+          expires_at?: string;
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      public_write_limits: {
+        Row: {
+          member_id: string;
+          window_start: string;
+          attempts: number;
+        };
+        Insert: {
+          member_id: string;
+          window_start: string;
+          attempts: number;
+        };
+        Update: {
+          member_id?: string;
+          window_start?: string;
+          attempts?: number;
+        };
+        Relationships: [];
+      };
       groups: {
         Row: {
+          default_currency_code: CurrencyCode;
+          budget_currency_code: CurrencyCode;
+
           id: string;
           name: string;
           owner_user_id: string | null;
           invite_code: string;
           is_archived: boolean;
           share_token: string;
+          share_enabled: boolean;
+          kind: "shared" | "direct";
           created_at: string;
           budget_cents: number | null;
         };
         Insert: {
+          share_enabled?: boolean;
+          kind?: "shared" | "direct";
+          default_currency_code?: CurrencyCode;
+          budget_currency_code?: CurrencyCode;
+
           id?: string;
           name: string;
           owner_user_id?: string | null;
@@ -148,6 +213,9 @@ export type Database = {
           budget_cents?: number | null;
         };
         Update: {
+          default_currency_code?: CurrencyCode;
+          budget_currency_code?: CurrencyCode;
+
           id?: string;
           name?: string;
           owner_user_id?: string | null;
@@ -175,16 +243,20 @@ export type Database = {
           slug: string;
           share_token: string;
           user_id: string | null;
+          departed_at: string | null;
           role: "owner" | "admin" | "member";
+          hide_payment_details: boolean;
           created_at: string;
         };
         Insert: {
+          hide_payment_details?: boolean;
           id?: string;
           group_id: string;
           display_name: string;
           slug: string;
           share_token: string;
           user_id?: string | null;
+          departed_at?: string | null;
           role?: "owner" | "admin" | "member";
           created_at?: string;
         };
@@ -195,6 +267,7 @@ export type Database = {
           slug?: string;
           share_token?: string;
           user_id?: string | null;
+          departed_at?: string | null;
           role?: "owner" | "admin" | "member";
           created_at?: string;
         };
@@ -260,6 +333,8 @@ export type Database = {
       };
       expenses: {
         Row: {
+          currency_code: CurrencyCode;
+
           id: string;
           group_id: string;
           category_id: string | null;
@@ -272,6 +347,8 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id: string;
           category_id?: string | null;
@@ -284,6 +361,8 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id?: string;
           category_id?: string | null;
@@ -445,6 +524,8 @@ export type Database = {
       };
       payments: {
         Row: {
+          currency_code: CurrencyCode;
+
           id: string;
           group_id: string;
           amount_cents: number;
@@ -455,8 +536,11 @@ export type Database = {
           note: string | null;
           created_at: string;
           updated_at: string;
+          report_request_id: string | null;
         };
         Insert: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id: string;
           amount_cents: number;
@@ -467,8 +551,11 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           updated_at?: string;
+          report_request_id?: string | null;
         };
         Update: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id?: string;
           amount_cents?: number;
@@ -479,6 +566,7 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           updated_at?: string;
+          report_request_id?: string | null;
         };
         Relationships: [
           {
@@ -492,6 +580,8 @@ export type Database = {
       };
       recurring_expenses: {
         Row: {
+          currency_code: CurrencyCode;
+
           id: string;
           group_id: string;
           item_name: string;
@@ -507,6 +597,8 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id: string;
           item_name: string;
@@ -522,6 +614,8 @@ export type Database = {
           created_at?: string;
         };
         Update: {
+          currency_code?: CurrencyCode;
+
           id?: string;
           group_id?: string;
           item_name?: string;
@@ -562,6 +656,129 @@ export type Database = {
         };
         Relationships: [];
       };
+      product_events: {
+        Row: {
+          id: string;
+          event_name: string;
+          occurred_at: string;
+          user_id: string | null;
+          platform: string;
+          properties: Json;
+        };
+        Insert: {
+          event_name: string;
+          user_id: string | null;
+          platform: string;
+          properties: Json;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      member_payment_details: {
+        Row: {
+          member_id: string;
+          payer_display_name: string | null;
+          gcash_name: string | null;
+          gcash_number: string | null;
+          gcash_qr_url: string | null;
+          bank_name: string | null;
+          bank_account_name: string | null;
+          bank_account_number: string | null;
+          bank_qr_url: string | null;
+          notes: string | null;
+          show_on_shared_links: boolean;
+          share_full_numbers: boolean;
+          added_by_user_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          member_id?: string;
+          payer_display_name?: string | null;
+          gcash_name?: string | null;
+          gcash_number?: string | null;
+          gcash_qr_url?: string | null;
+          bank_name?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          bank_qr_url?: string | null;
+          notes?: string | null;
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
+          added_by_user_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          member_id?: string;
+          payer_display_name?: string | null;
+          gcash_name?: string | null;
+          gcash_number?: string | null;
+          gcash_qr_url?: string | null;
+          bank_name?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          bank_qr_url?: string | null;
+          notes?: string | null;
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
+          added_by_user_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      personal_expenses: {
+        Row: {
+          id: string;
+          user_id: string;
+          description: string;
+          amount_minor: number;
+          currency_code: string;
+          category_slug: string;
+          expense_date: string;
+          notes: string | null;
+          merchant: string | null;
+          source: string;
+          client_created_at: string;
+          client_updated_at: string;
+          deleted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          description?: string;
+          amount_minor?: number;
+          currency_code?: string;
+          category_slug?: string;
+          expense_date?: string;
+          notes?: string | null;
+          merchant?: string | null;
+          source?: string;
+          client_created_at?: string;
+          client_updated_at?: string;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          description?: string;
+          amount_minor?: number;
+          currency_code?: string;
+          category_slug?: string;
+          expense_date?: string;
+          notes?: string | null;
+          merchant?: string | null;
+          source?: string;
+          client_created_at?: string;
+          client_updated_at?: string;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       push_tokens: {
         Row: {
           user_id: string;
@@ -595,9 +812,13 @@ export type Database = {
           bank_account_number: string | null;
           bank_qr_url: string | null;
           notes: string | null;
+          show_on_shared_links: boolean;
+          share_full_numbers: boolean;
           updated_at: string;
         };
         Insert: {
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
           user_id: string;
           payer_display_name?: string | null;
           gcash_name?: string | null;
@@ -621,6 +842,8 @@ export type Database = {
           bank_account_number?: string | null;
           bank_qr_url?: string | null;
           notes?: string | null;
+          show_on_shared_links?: boolean;
+          share_full_numbers?: boolean;
           updated_at?: string;
         };
         Relationships: [
@@ -636,6 +859,93 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      get_member_balances_v2: {
+        Args: { p_group_id: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_creditor_profiles_v2: {
+        Args: { p_group_id: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_groups_with_stats_v2: { Args: { p_currency_code?: CurrencyCode }; Returns: Json };
+      get_dashboard_summary_v2: { Args: { p_currency_code?: CurrencyCode }; Returns: Json };
+      get_user_activity_v2: {
+        Args: { p_limit?: number; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_friend_view_v2: {
+        Args: { p_share_token: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      get_group_overview_v2: {
+        Args: { p_share_token: string; p_currency_code?: CurrencyCode };
+        Returns: Json;
+      };
+      undo_last_payment_v2: { Args: { p_group_id: string; p_currency_code: CurrencyCode }; Returns: Json };
+      undo_last_payment_for_member_v2: { Args: { p_from_member_id: string; p_currency_code: CurrencyCode }; Returns: Json };
+      track_public_event: {
+        Args: { p_share_token: string | null; p_event_name: string; p_properties?: Json };
+        Returns: boolean;
+      };
+      prune_push_tokens: {
+        Args: { p_secret: string; p_tokens: string[] };
+        Returns: number;
+      };
+      get_group_currencies: { Args: { p_group_id: string }; Returns: Json };
+      get_my_currencies: { Args: Record<string, never>; Returns: Json };
+      create_friend_invite: { Args: { p_display_name: string; p_currency_code: CurrencyCode }; Returns: Json };
+      revoke_friend_invite: { Args: { p_id: string }; Returns: Json };
+      get_friend_invite_preview: { Args: { p_token: string }; Returns: Json };
+      accept_friend_invite: { Args: { p_token: string; p_display_name: string }; Returns: Json };
+      list_friends: { Args: Record<string, never>; Returns: Json };
+      remove_friend: { Args: { p_friend_user_id: string }; Returns: Json };
+      rotate_group_share_token: { Args: { p_group_id: string }; Returns: Json };
+      set_group_share_enabled: { Args: { p_group_id: string; p_enabled: boolean }; Returns: Json };
+      set_hide_payment_details: { Args: { p_group_id: string; p_hidden: boolean }; Returns: Json };
+      upsert_member_payment_details: { Args: { p_member_id: string; p_details: Json }; Returns: Json };
+      delete_member_payment_details: { Args: { p_member_id: string }; Returns: Json };
+      get_share_currencies: { Args: { p_share_token: string }; Returns: Json };
+      get_friend_payment_reports_v2: {
+        Args: { p_share_token: string; p_currency_code: CurrencyCode };
+        Returns: Json;
+      };
+      create_group_v2: {
+        Args: {
+          p_name: string;
+          p_id: string;
+          p_currency_code: CurrencyCode;
+          p_display_name: string;
+        };
+        Returns: Json;
+      };
+      record_payment_v2: {
+        Args: {
+          p_group_id: string;
+          p_from_member_id: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+          p_id: string;
+          p_currency_code: CurrencyCode;
+        };
+        Returns: Json;
+      };
+      set_group_budget_v2: {
+        Args: { p_group_id: string; p_budget_cents: number | null; p_currency_code: CurrencyCode };
+        Returns: Json;
+      };
+      submit_friend_payment_v2: {
+        Args: {
+          p_share_token: string;
+          p_to_member_id: string;
+          p_amount_cents: number;
+          p_request_id: string;
+          p_note?: string;
+          p_currency_code?: CurrencyCode;
+        };
+        Returns: Json;
+      };
+      close_account: { Args: Record<string, never>; Returns: undefined };
+      is_account_closed: { Args: Record<string, never>; Returns: boolean };
       get_friend_view: {
         Args: { p_share_token: string };
         Returns: Json;
@@ -701,8 +1011,11 @@ export type Database = {
         Args: { p_invite_code: string };
         Returns: Json;
       };
-      claim_member: {
-        Args: { p_member_id: string };
+      create_member_claim_invitation: { Args: { p_member_id: string }; Returns: Json };
+      revoke_member_claim_invitation: { Args: { p_member_id: string }; Returns: undefined };
+      get_friend_payment_reports: { Args: { p_share_token: string }; Returns: Json };
+      claim_member_with_token: {
+        Args: { p_token: string };
         Returns: Json;
       };
       rotate_member_share_token: {
@@ -753,6 +1066,7 @@ export type Database = {
           p_to_member_id: string;
           p_amount_cents: number;
           p_note?: string;
+          p_request_id: string;
         };
         Returns: Json;
       };
@@ -774,6 +1088,10 @@ export type Database = {
       };
       get_creditor_profiles: {
         Args: { p_group_id: string };
+        Returns: Json;
+      };
+      upsert_personal_expenses: {
+        Args: { p_rows: Json };
         Returns: Json;
       };
       update_expense: {

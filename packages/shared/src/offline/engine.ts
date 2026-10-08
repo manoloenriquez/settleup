@@ -45,12 +45,15 @@ export type SyncEngineOptions = {
   onChange?: (state: OutboxState) => void;
   /** Called when an entry fails terminally (drive toasts from this). */
   onEntryFailed?: (entry: OutboxEntry) => void;
+  /** Called when an entry is confirmed applied on the server (telemetry). */
+  onEntrySynced?: (entry: OutboxEntry) => void;
 };
 
 export type SyncEngine = {
   /** Loads persisted state and requeues any interrupted `inflight` entries. */
   init: () => Promise<OutboxState>;
   enqueue: (input: NewOutboxEntry) => Promise<OutboxState>;
+  enqueueBatch: (inputs: NewOutboxEntry[]) => Promise<OutboxState>;
   /** Sends runnable entries in FIFO order. Concurrent calls share one run. */
   drain: () => Promise<DrainResult>;
   retry: (id: string) => Promise<OutboxState>;
@@ -71,17 +74,36 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   let initialized = false;
   let activeDrain: Promise<DrainResult> | null = null;
 
-  async function setState(next: OutboxState): Promise<void> {
-    state = next;
-    await options.storage.save(state);
-    options.onChange?.(state);
+  let writes: Promise<void> = Promise.resolve();
+  let activeInit: Promise<OutboxState> | null = null;
+
+  function setState(
+    transform: (current: OutboxState) => OutboxState | Promise<OutboxState>,
+  ): Promise<void> {
+    const operation = writes.then(async () => {
+      const next = await transform(state);
+      await options.storage.save(next);
+      state = next;
+      options.onChange?.(state);
+    });
+    // A failed save rejects its caller, but must not poison future retries.
+    writes = operation.catch(() => undefined);
+    return operation;
   }
 
-  async function init(): Promise<OutboxState> {
-    const raw = await options.storage.load();
-    await setState(recoverInflight(parseOutboxState(raw)));
-    initialized = true;
-    return state;
+  function init(): Promise<OutboxState> {
+    if (activeInit) return activeInit;
+    activeInit = setState(async () =>
+      recoverInflight(parseOutboxState(await options.storage.load())),
+    )
+      .then(() => {
+        initialized = true;
+        return state;
+      })
+      .finally(() => {
+        activeInit = null;
+      });
+    return activeInit;
   }
 
   async function ensureInitialized(): Promise<void> {
@@ -92,10 +114,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const result: DrainResult = { synced: 0, failed: 0, stoppedOffline: false };
 
     for (;;) {
-      const entry = nextRunnable(state, now().toISOString());
+      const reservation: { entry: OutboxEntry | null } = { entry: null };
+      await setState((current) => {
+        reservation.entry = nextRunnable(current, now().toISOString());
+        return reservation.entry ? markInflight(current, reservation.entry.id) : current;
+      });
+      const entry = reservation.entry;
       if (!entry) break;
-
-      await setState(markInflight(state, entry.id));
 
       let execution;
       try {
@@ -109,26 +134,24 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       }
 
       if (execution.ok) {
-        await setState(markSynced(state, entry.id));
+        await setState((current) => markSynced(current, entry.id));
         result.synced += 1;
+        options.onEntrySynced?.(entry);
         continue;
       }
 
       const outboxError = toOutboxError(execution.code, execution.message);
       switch (outboxError.class) {
-        case "duplicate":
-          // Already applied server-side — this replay is a success.
-          await setState(markSynced(state, entry.id));
-          result.synced += 1;
-          break;
         case "network":
-          await setState(requeue(state, entry.id));
+          await setState((current) => requeue(current, entry.id));
           result.stoppedOffline = true;
           return result;
         case "retryable": {
           const delay = nextAttemptDelayMs(entry.attempts + 1, random);
           const nextAttemptAt = new Date(now().getTime() + delay).toISOString();
-          await setState(markRetryableFailure(state, entry.id, outboxError, nextAttemptAt, maxAttempts));
+          await setState((current) =>
+            markRetryableFailure(current, entry.id, outboxError, nextAttemptAt, maxAttempts),
+          );
           const updated = state.entries.find((e) => e.id === entry.id);
           if (updated?.status === "failed") {
             result.failed += 1;
@@ -137,7 +160,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           break;
         }
         default: {
-          await setState(markTerminalFailure(state, entry.id, outboxError));
+          await setState((current) => markTerminalFailure(current, entry.id, outboxError));
           result.failed += 1;
           const updated = state.entries.find((e) => e.id === entry.id);
           if (updated) options.onEntryFailed?.(updated);
@@ -154,7 +177,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
     async enqueue(input: NewOutboxEntry): Promise<OutboxState> {
       await ensureInitialized();
-      await setState(enqueue(state, input));
+      await setState((current) => enqueue(current, input));
+      return state;
+    },
+
+    async enqueueBatch(inputs: NewOutboxEntry[]): Promise<OutboxState> {
+      await ensureInitialized();
+      await setState((current) => inputs.reduce((next, input) => enqueue(next, input), current));
       return state;
     },
 
@@ -169,18 +198,19 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
     async retry(id: string): Promise<OutboxState> {
       await ensureInitialized();
-      await setState(retryEntry(state, id));
+      await setState((current) => retryEntry(current, id));
       return state;
     },
 
     async discard(id: string): Promise<OutboxState> {
       await ensureInitialized();
-      await setState(discardEntry(state, id));
+      await setState((current) => discardEntry(current, id));
       return state;
     },
 
     async clear(): Promise<OutboxState> {
-      await setState(createEmptyOutboxState());
+      await ensureInitialized();
+      await setState(() => createEmptyOutboxState());
       initialized = true;
       return state;
     },

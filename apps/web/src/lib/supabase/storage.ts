@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@template/supabase";
-
-const BUCKET = "payment-qr";
+import { QR_BUCKET as BUCKET } from "@template/shared";
 
 /**
  * Upload a QR image file to the payment-qr storage bucket.

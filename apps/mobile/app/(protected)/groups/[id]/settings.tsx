@@ -1,27 +1,54 @@
+import { MemberInvitationControls } from "@/components/MemberInvitationControls";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
-import { useArchiveGroup, useGroups, useRenameGroup, useTransferOwnership } from "@/hooks/useGroups";
-import { useAddMember, useAddMembersBatch, useMembers, useDeleteMember, useRenameMember } from "@/hooks/useMembers";
+import { useRef, useState } from "react";
+import {
+  useArchiveGroup,
+  useGroups,
+  useRenameGroup,
+  useTransferOwnership,
+} from "@/hooks/useGroups";
+import {
+  useAddMember,
+  useAddMembersBatch,
+  useMembers,
+  useDeleteMember,
+  useRenameMember,
+} from "@/hooks/useMembers";
 import { useRegenerateInviteCode, useLeaveGroup, usePromoteMember } from "@/hooks/useCollaboration";
-import { useRecurringExpenses, useSetRecurringActive, useDeleteRecurringExpense } from "@/hooks/useRecurring";
+import {
+  useRecurringExpenses,
+  useSetRecurringActive,
+  useDeleteRecurringExpense,
+} from "@/hooks/useRecurring";
 import { useSetGroupBudget } from "@/hooks/useGroups";
 import { shareGroupLedger } from "@/services/export";
-import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from "@/hooks/useCategories";
+import {
+  useCategories,
+  useCreateCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+} from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { Card, ListItem, Avatar, Skeleton, useToast } from "@/components/ui";
+import { RowMenuButton } from "@/components/RowMenuButton";
+import { SharedLinkSection } from "@/components/groups/SharedLinkSection";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
-import { DEFAULT_CATEGORY_COLOR, formatCents, parsePHPAmount } from "@template/shared";
+import { amountToInput, DEFAULT_CATEGORY_COLOR, formatAmount, parseAmountInput, type CurrencyCode } from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
 export default function GroupSettingsScreen() {
-  const { id: groupId } = useLocalSearchParams<{ id: string }>();
+  const { id: groupId, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
+  // "Add people" on the group screen opens here with the name field ready.
+  const focusPeople = focus === "people";
+  const scrollRef = useRef<ScrollView>(null);
+  const scrolledToPeople = useRef(false);
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
@@ -61,9 +88,7 @@ export default function GroupSettingsScreen() {
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === groupId);
 
-  const inviteLink = group && WEB_ORIGIN
-    ? `${WEB_ORIGIN}/join?code=${group.invite_code}`
-    : null;
+  const inviteLink = group && WEB_ORIGIN ? `${WEB_ORIGIN}/join?code=${group.invite_code}` : null;
 
   // Use local edit state if user has typed something; otherwise fall back to server value
   const groupNameValue = groupNameInput ?? group?.name ?? "";
@@ -74,30 +99,45 @@ export default function GroupSettingsScreen() {
   const isAdmin = currentMember?.role === "admin";
   const isAdminOrOwner = isOwner || isAdmin;
 
+  // The budget is in the group's main currency (spending in others isn't counted).
+  const budgetCurrency: CurrencyCode = group?.budget_currency_code ?? group?.default_currency_code ?? "PHP";
+
   function handleSaveBudget() {
     const raw = budgetInput ?? "";
-    const cents = parsePHPAmount(raw);
+    const cents = parseAmountInput(raw, budgetCurrency);
     if (!cents || cents <= 0) {
-      toast.error("Enter a valid budget amount");
+      toast.error(`Enter a budget in ${budgetCurrency}.`);
       return;
     }
-    setBudget.mutate({ groupId, budgetCents: cents }, {
-      onSuccess: (res) => {
-        if (res.error) { toast.error(res.error); return; }
-        setBudgetInput(null);
-        toast.success("Budget saved");
+    setBudget.mutate(
+      { groupId, budgetCents: cents, currency: budgetCurrency },
+      {
+        onSuccess: (res) => {
+          if (res.error) {
+            toast.error(res.error);
+            return;
+          }
+          setBudgetInput(null);
+          toast.success("Budget saved");
+        },
       },
-    });
+    );
   }
 
   function handleRemoveBudget() {
-    setBudget.mutate({ groupId, budgetCents: null }, {
-      onSuccess: (res) => {
-        if (res.error) { toast.error(res.error); return; }
-        setBudgetInput(null);
-        toast.success("Budget removed");
+    setBudget.mutate(
+      { groupId, budgetCents: null, currency: budgetCurrency },
+      {
+        onSuccess: (res) => {
+          if (res.error) {
+            toast.error(res.error);
+            return;
+          }
+          setBudgetInput(null);
+          toast.success("Budget removed");
+        },
       },
-    });
+    );
   }
 
   async function handleExportLedger() {
@@ -108,12 +148,18 @@ export default function GroupSettingsScreen() {
   }
 
   function handleToggleRecurring(id: string, active: boolean) {
-    setRecurringActive.mutate({ id, active: !active }, {
-      onSuccess: (res) => {
-        if (res.error) { toast.error(res.error); return; }
-        toast.success(active ? "Recurring expense paused" : "Recurring expense resumed");
+    setRecurringActive.mutate(
+      { id, active: !active },
+      {
+        onSuccess: (res) => {
+          if (res.error) {
+            toast.error(res.error);
+            return;
+          }
+          toast.success(active ? "Recurring expense paused" : "Recurring expense resumed");
+        },
       },
-    });
+    );
   }
 
   function confirmDeleteRecurring(id: string, name: string) {
@@ -122,12 +168,16 @@ export default function GroupSettingsScreen() {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => deleteRecurring.mutate(id, {
-          onSuccess: (res) => {
-            if (res.error) { toast.error(res.error); return; }
-            toast.success("Recurring expense removed");
-          },
-        }),
+        onPress: () =>
+          deleteRecurring.mutate(id, {
+            onSuccess: (res) => {
+              if (res.error) {
+                toast.error(res.error);
+                return;
+              }
+              toast.success("Recurring expense removed");
+            },
+          }),
       },
     ]);
   }
@@ -143,8 +193,11 @@ export default function GroupSettingsScreen() {
           style: "destructive",
           onPress: async () => {
             const r = await leaveGroupMutation.mutateAsync(groupId);
-            if (r.error) { toast.error(r.error); return; }
-            router.replace("/(protected)/(tabs)/groups");
+            if (r.error) {
+              toast.error(r.error);
+              return;
+            }
+            router.replace("/(protected)/(tabs)/shared");
           },
         },
       ],
@@ -155,7 +208,10 @@ export default function GroupSettingsScreen() {
     const name = groupNameValue.trim();
     if (!name || name === group?.name) return;
     const r = await renameGroupMutation.mutateAsync({ groupId, name });
-    if (r.error) { toast.error(r.error); return; }
+    if (r.error) {
+      toast.error(r.error);
+      return;
+    }
     setGroupNameInput(null); // reset local state; query will refresh
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
@@ -184,7 +240,10 @@ export default function GroupSettingsScreen() {
           text: "Regenerate",
           onPress: async () => {
             const r = await regenerateCode.mutateAsync(groupId);
-            if (r.error) { toast.error(r.error); return; }
+            if (r.error) {
+              toast.error(r.error);
+              return;
+            }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -195,15 +254,24 @@ export default function GroupSettingsScreen() {
   async function handleAddMember() {
     if (!newMemberName.trim()) return;
     if (batchMode) {
-      const names = newMemberName.split(",").map((n) => n.trim()).filter(Boolean);
+      const names = newMemberName
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
       if (names.length === 0) return;
       const result = await addMembersBatch.mutateAsync(names);
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
       setNewMemberName("");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       const result = await addMember.mutateAsync(newMemberName.trim());
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
       setNewMemberName("");
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -220,7 +288,10 @@ export default function GroupSettingsScreen() {
           style: "destructive",
           onPress: async () => {
             const r = await transferOwnershipMutation.mutateAsync({ groupId, memberId });
-            if (r.error) { toast.error(r.error); return; }
+            if (r.error) {
+              toast.error(r.error);
+              return;
+            }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -268,7 +339,10 @@ export default function GroupSettingsScreen() {
           text: label,
           onPress: async () => {
             const r = await promoteMemberMutation.mutateAsync({ memberId, role: newRole });
-            if (r.error) { toast.error(r.error); return; }
+            if (r.error) {
+              toast.error(r.error);
+              return;
+            }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -280,7 +354,10 @@ export default function GroupSettingsScreen() {
     const name = newCategoryName.trim();
     if (!name) return;
     const result = await createCategory.mutateAsync({ name, color: newCategoryColor });
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     setNewCategoryName("");
     setNewCategoryColor(DEFAULT_CATEGORY_COLOR);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -292,18 +369,30 @@ export default function GroupSettingsScreen() {
   }
 
   function nextCategoryColor(current: string): string {
-    const palette = [DEFAULT_CATEGORY_COLOR, "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+    const palette = [
+      DEFAULT_CATEGORY_COLOR,
+      "#ef4444",
+      "#3b82f6",
+      "#10b981",
+      "#f59e0b",
+      "#8b5cf6",
+      "#ec4899",
+    ];
     const index = palette.indexOf(current);
     return palette[(index + 1) % palette.length] ?? palette[0]!;
   }
 
-  async function handleUpdateCategory(category: {
-    id: string;
-    name: string;
-    icon: string;
-    color: string;
-    sort_order: number;
-  }, sortOrder = category.sort_order, color = category.color) {
+  async function handleUpdateCategory(
+    category: {
+      id: string;
+      name: string;
+      icon: string;
+      color: string;
+      sort_order: number;
+    },
+    sortOrder = category.sort_order,
+    color = category.color,
+  ) {
     const name = renamingCategoryId === category.id ? renamingCategoryName.trim() : category.name;
     if (!name) {
       setRenamingCategoryId(null);
@@ -316,7 +405,10 @@ export default function GroupSettingsScreen() {
       color,
       sortOrder,
     });
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     setRenamingCategoryId(null);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
@@ -329,25 +421,37 @@ export default function GroupSettingsScreen() {
   }
 
   function confirmArchiveGroup() {
-    Alert.alert("Archive Group?", "The group will be hidden from your list. You can restore it later.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Archive",
-        style: "destructive",
-        onPress: async () => {
-          const r = await archiveGroupMutation.mutateAsync(groupId);
-          if (r.error) { toast.error(r.error); return; }
-          router.replace("/(protected)/(tabs)/groups");
+    Alert.alert(
+      "Archive Group?",
+      "The group will be hidden from your list. You can restore it later.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Archive",
+          style: "destructive",
+          onPress: async () => {
+            const r = await archiveGroupMutation.mutateAsync(groupId);
+            if (r.error) {
+              toast.error(r.error);
+              return;
+            }
+            router.replace("/(protected)/(tabs)/shared");
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   return (
     <>
       <Stack.Screen options={{ title: "Group Settings", headerShown: true }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-
+      <ScrollView
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+      >
         {/* Group name */}
         <View style={styles.sectionLabelRow}>
           <Ionicons name="text-outline" size={12} color={colors.gray400} />
@@ -416,6 +520,18 @@ export default function GroupSettingsScreen() {
           )}
         </Card>
 
+        {/* Shared read-only page */}
+        <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
+          <Ionicons name="globe-outline" size={12} color={colors.gray400} />
+          <Text style={styles.sectionLabel}>SHARED LINK</Text>
+        </View>
+        <SharedLinkSection
+          groupId={groupId}
+          isAdmin={isAdminOrOwner}
+          myMemberId={currentMember?.id ?? null}
+          myHidden={currentMember?.hide_payment_details ?? false}
+        />
+
         {/* Member list */}
         <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
           <Ionicons name="people-outline" size={12} color={colors.gray400} />
@@ -450,6 +566,8 @@ export default function GroupSettingsScreen() {
                     <Text
                       style={styles.renameCancelBtn}
                       onPress={() => setRenamingMemberId(null)}
+                      accessibilityRole="button"
+                      suppressHighlighting={false}
                     >
                       Cancel
                     </Text>
@@ -458,46 +576,69 @@ export default function GroupSettingsScreen() {
                   <ListItem
                     left={<Avatar name={m.display_name} size={32} />}
                     title={`${m.display_name}${m.user_id === user?.id ? " (you)" : ""}`}
-                    subtitle={m.role === "owner" ? "Owner" : m.role === "admin" ? "Admin" : m.user_id ? "Member" : "Unlinked"}
+                    subtitle={
+                      m.departed_at
+                        ? "Former member"
+                        : m.role === "owner"
+                          ? "Owner"
+                          : m.role === "admin"
+                            ? "Admin"
+                            : m.user_id
+                              ? "Member"
+                              : "Unlinked"
+                    }
                     right={
-                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                        {(isAdminOrOwner || m.user_id === user?.id) && (
-                          <Text
-                            style={styles.renameBtn}
-                            onPress={() => startRenameMember(m.id, m.display_name)}
-                          >
-                            Rename
-                          </Text>
-                        )}
-                        {/* Owner-only: promote/demote admin */}
-                        {isOwner && m.role !== "owner" && m.user_id && m.user_id !== user?.id && (
-                          <Text
-                            style={styles.adminBtn}
-                            onPress={() => handlePromoteMember(m.id, m.display_name, m.role === "admin" ? "member" : "admin")}
-                          >
-                            {m.role === "admin" ? "Remove admin" : "Make admin"}
-                          </Text>
-                        )}
-                        {isOwner && m.role !== "owner" && m.user_id && (
-                          <Text
-                            style={styles.transferBtn}
-                            onPress={() => confirmTransferOwnership(m.id, m.display_name)}
-                          >
-                            Make owner
-                          </Text>
-                        )}
-                        {isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id && (
-                          <Text
-                            style={styles.removeBtn}
-                            onPress={() => confirmDeleteMember(m.id, m.display_name)}
-                          >
-                            Remove
-                          </Text>
-                        )}
-                      </View>
+                      <RowMenuButton
+                        title={m.display_name}
+                        choices={[
+                          ...(isAdminOrOwner || m.user_id === user?.id
+                            ? [{ label: "Rename", run: () => startRenameMember(m.id, m.display_name) }]
+                            : []),
+                          ...(isAdminOrOwner && !m.user_id && !m.departed_at
+                            ? [
+                                {
+                                  label: "How to Pay Them",
+                                  run: () =>
+                                    router.push({
+                                      pathname: "/(protected)/groups/[id]/member-payment",
+                                      params: { id: groupId, memberId: m.id },
+                                    }),
+                                },
+                              ]
+                            : []),
+                          ...(isOwner && m.role !== "owner" && m.user_id && m.user_id !== user?.id
+                            ? [
+                                {
+                                  label: m.role === "admin" ? "Remove Admin Role" : "Make Admin",
+                                  run: () =>
+                                    handlePromoteMember(
+                                      m.id,
+                                      m.display_name,
+                                      m.role === "admin" ? "member" : "admin",
+                                    ),
+                                },
+                              ]
+                            : []),
+                          ...(isOwner && m.role !== "owner" && m.user_id
+                            ? [{ label: "Make Owner", run: () => confirmTransferOwnership(m.id, m.display_name) }]
+                            : []),
+                          ...(isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id
+                            ? [
+                                {
+                                  label: "Remove from Group",
+                                  destructive: true,
+                                  run: () => confirmDeleteMember(m.id, m.display_name),
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
                     }
                   />
                 )}
+                {isAdminOrOwner && !m.user_id && !m.departed_at ? (
+                  <MemberInvitationControls memberId={m.id} />
+                ) : null}
                 {i < (membersQ.data ?? []).length - 1 && <View style={styles.divider} />}
               </View>
             ))}
@@ -505,12 +646,25 @@ export default function GroupSettingsScreen() {
         )}
 
         {/* Add member */}
-        <View style={[styles.sectionLabelRow, { marginTop: spacing.base }]}>
+        <View
+          style={[styles.sectionLabelRow, { marginTop: spacing.base }]}
+          onLayout={(event) => {
+            if (!focusPeople || scrolledToPeople.current) return;
+            scrolledToPeople.current = true;
+            scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - spacing.base), animated: false });
+          }}
+        >
           <View style={styles.sectionLabelInner}>
             <Ionicons name="person-add-outline" size={12} color={colors.gray400} />
             <Text style={styles.sectionLabel}>ADD MEMBER</Text>
           </View>
-          <TouchableOpacity onPress={() => { setBatchMode((v) => !v); setNewMemberName(""); }}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => {
+              setBatchMode((v) => !v);
+              setNewMemberName("");
+            }}
+          >
             <Text style={styles.batchToggle}>{batchMode ? "Single" : "Multiple"}</Text>
           </TouchableOpacity>
         </View>
@@ -520,6 +674,8 @@ export default function GroupSettingsScreen() {
               value={newMemberName}
               onChangeText={setNewMemberName}
               placeholder={batchMode ? "Alice, Bob, Carol…" : "Member name"}
+              accessibilityLabel={batchMode ? "Member names, separated by commas" : "Member name"}
+              autoFocus={focusPeople}
               returnKeyType="done"
               onSubmitEditing={handleAddMember}
               multiline={batchMode}
@@ -532,9 +688,7 @@ export default function GroupSettingsScreen() {
             disabled={!newMemberName.trim()}
           />
         </View>
-        {batchMode && (
-          <Text style={styles.batchHint}>Separate names with commas</Text>
-        )}
+        {batchMode && <Text style={styles.batchHint}>Separate names with commas</Text>}
 
         {/* Categories */}
         <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
@@ -555,8 +709,19 @@ export default function GroupSettingsScreen() {
                     onSubmitEditing={() => handleUpdateCategory(category)}
                     containerStyle={{ flex: 1 }}
                   />
-                  <AppButton title="Save" onPress={() => handleUpdateCategory(category)} isLoading={updateCategory.isPending} style={styles.renameSaveBtn} />
-                  <Text style={styles.renameCancelBtn} onPress={() => setRenamingCategoryId(null)}>Cancel</Text>
+                  <AppButton
+                    title="Save"
+                    onPress={() => handleUpdateCategory(category)}
+                    isLoading={updateCategory.isPending}
+                    style={styles.renameSaveBtn}
+                  />
+                  <Text
+                    style={styles.renameCancelBtn}
+                    onPress={() => setRenamingCategoryId(null)}
+                    accessibilityRole="button"
+                  >
+                    Cancel
+                  </Text>
                 </View>
               ) : (
                 <ListItem
@@ -565,13 +730,24 @@ export default function GroupSettingsScreen() {
                   subtitle={category.is_default ? "Default" : "Custom"}
                   right={
                     !category.is_default && isAdminOrOwner ? (
-                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                        <Text style={styles.renameBtn} onPress={() => handleUpdateCategory(category, category.sort_order - 15)}>Up</Text>
-                        <Text style={styles.renameBtn} onPress={() => handleUpdateCategory(category, category.sort_order + 15)}>Down</Text>
-                        <Text style={styles.renameBtn} onPress={() => handleUpdateCategory(category, category.sort_order, nextCategoryColor(category.color))}>Color</Text>
-                        <Text style={styles.renameBtn} onPress={() => startRenameCategory(category.id, category.name)}>Rename</Text>
-                        <Text style={styles.removeBtn} onPress={() => confirmDeleteCategory(category.id, category.name)}>Delete</Text>
-                      </View>
+                      <RowMenuButton
+                        title={category.name}
+                        choices={[
+                          { label: "Move Up", run: () => handleUpdateCategory(category, category.sort_order - 15) },
+                          { label: "Move Down", run: () => handleUpdateCategory(category, category.sort_order + 15) },
+                          {
+                            label: "Change Color",
+                            run: () =>
+                              handleUpdateCategory(category, category.sort_order, nextCategoryColor(category.color)),
+                          },
+                          { label: "Rename", run: () => startRenameCategory(category.id, category.name) },
+                          {
+                            label: "Delete Category",
+                            destructive: true,
+                            run: () => confirmDeleteCategory(category.id, category.name),
+                          },
+                        ]}
+                      />
                     ) : null
                   }
                 />
@@ -594,8 +770,16 @@ export default function GroupSettingsScreen() {
             <TouchableOpacity
               style={[styles.colorSwatch, { backgroundColor: newCategoryColor }]}
               onPress={() => setNewCategoryColor(nextCategoryColor(newCategoryColor))}
+              accessibilityRole="button"
+              accessibilityLabel="Category color. Tap to try the next color"
+              hitSlop={8}
             />
-            <AppButton title="Add" onPress={handleCreateCategory} isLoading={createCategory.isPending} disabled={!newCategoryName.trim()} />
+            <AppButton
+              title="Add"
+              onPress={handleCreateCategory}
+              isLoading={createCategory.isPending}
+              disabled={!newCategoryName.trim()}
+            />
           </View>
         )}
 
@@ -604,22 +788,30 @@ export default function GroupSettingsScreen() {
           <>
             <View style={[styles.sectionLabelRow, { marginTop: spacing.lg }]}>
               <Ionicons name="wallet-outline" size={12} color={colors.gray400} />
-              <Text style={styles.sectionLabel}>BUDGET</Text>
+              <Text style={styles.sectionLabel}>BUDGET ({budgetCurrency})</Text>
             </View>
             <View style={styles.addRow}>
               <View style={{ flex: 1 }}>
                 <AppTextInput
-                  value={budgetInput ?? (group?.budget_cents ? String(group.budget_cents / 100) : "")}
+                  value={
+                    budgetInput ?? (group?.budget_cents ? amountToInput(group.budget_cents, budgetCurrency) : "")
+                  }
                   onChangeText={setBudgetInput}
                   placeholder="e.g. 30000"
                   keyboardType="decimal-pad"
+                  accessibilityLabel={`Group budget in ${budgetCurrency}`}
                   returnKeyType="done"
                   onSubmitEditing={handleSaveBudget}
                 />
               </View>
               <AppButton title="Save" onPress={handleSaveBudget} isLoading={setBudget.isPending} />
               {group?.budget_cents != null && (
-                <AppButton title="Remove" variant="secondary" onPress={handleRemoveBudget} disabled={setBudget.isPending} />
+                <AppButton
+                  title="Remove"
+                  variant="secondary"
+                  onPress={handleRemoveBudget}
+                  disabled={setBudget.isPending}
+                />
               )}
             </View>
             <Text style={styles.batchHint}>Optional spending cap shown on the group page.</Text>
@@ -640,17 +832,26 @@ export default function GroupSettingsScreen() {
             {(recurringQ.data ?? []).map((item, i) => (
               <View key={item.id}>
                 <ListItem
-                  title={`${item.item_name} · ${formatCents(item.amount_cents)}`}
+                  title={`${item.item_name} · ${formatAmount(item.amount_cents, item.currency_code)}`}
                   subtitle={`${item.cadence === "weekly" ? "Weekly" : "Monthly"}${item.payers && item.payers.length > 1 ? ` · ${item.payers.length} payers` : ""} · next ${item.next_run_at}${item.active ? "" : " · paused"}`}
                   right={
-                    <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                      <Text style={styles.renameBtn} onPress={() => handleToggleRecurring(item.id, item.active)}>
-                        {item.active ? "Pause" : "Resume"}
-                      </Text>
-                      <Text style={styles.removeBtn} onPress={() => confirmDeleteRecurring(item.id, item.item_name)}>
-                        Delete
-                      </Text>
-                    </View>
+                    // Only the creator or a group owner/admin may change it (enforced by RLS too).
+                    (item.created_by_user_id === user?.id || isAdminOrOwner) && (
+                      <RowMenuButton
+                        title={item.item_name}
+                        choices={[
+                          {
+                            label: item.active ? "Pause" : "Resume",
+                            run: () => handleToggleRecurring(item.id, item.active),
+                          },
+                          {
+                            label: "Delete Recurring Expense",
+                            destructive: true,
+                            run: () => confirmDeleteRecurring(item.id, item.item_name),
+                          },
+                        ]}
+                      />
+                    )
                   }
                 />
                 {i < (recurringQ.data ?? []).length - 1 && <View style={styles.divider} />}
@@ -728,7 +929,13 @@ const styles = StyleSheet.create({
   inviteHint: { fontSize: fontSize.xs, color: colors.gray400, marginTop: spacing.xs },
   divider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.base },
   addRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-end" },
-  sectionLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.sm, justifyContent: "space-between" },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+    justifyContent: "space-between",
+  },
   sectionLabelInner: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   batchToggle: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
   batchHint: { fontSize: fontSize.xs, color: colors.gray400, marginTop: spacing.xs },
@@ -743,8 +950,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },
-  renameSaveBtn: { height: 36, paddingHorizontal: spacing.sm },
+  renameSaveBtn: { minHeight: 36, paddingHorizontal: spacing.sm },
   renameCancelBtn: { fontSize: fontSize.sm, color: colors.gray500 },
   categoryDot: { width: 14, height: 14, borderRadius: 7 },
-  colorSwatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: colors.surface },
+  colorSwatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
 });

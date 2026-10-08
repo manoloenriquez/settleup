@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "SettleUp",
+    "name": "Talli",
     "slug": "settleup",
     "description": "Split group expenses, simplify balances, and settle debts without awkward math.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "settleup",
+    "scheme": ["talli", "tabkind", "settleup"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -18,8 +18,14 @@
       "policy": "appVersion"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.settleup.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.manoloenriquez.talli",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "appleTeamId": "L8Y7B5Z7EQ",
+      "buildNumber": "6",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -44,14 +50,34 @@
           "backgroundColor": "#f8fafc"
         }
       ],
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Talli reads the receipt photo you pick so it can fill in the expense on this iPhone. Photos are never uploaded for scanning.",
+          "cameraPermission": "Talli uses the camera to photograph receipts. The photo is read on this iPhone and never uploaded for scanning.",
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
           "color": "#059669"
         }
-      ]
+      ],
+      "@sentry/react-native",
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "27.0"
+          }
+        }
+      ],
+      "./plugins/with-pod-deployment-target.js",
+      "./plugins/with-ios-scene-lifecycle.js",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

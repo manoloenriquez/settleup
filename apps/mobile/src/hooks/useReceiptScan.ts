@@ -1,21 +1,32 @@
+import { track } from "@/lib/analytics";
 import { useState, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import type { ExpenseExtraction } from "@template/shared/types";
+import type { ReceiptReview } from "@template/shared";
 import { structureExpenseFromImage, type ReceiptProvider } from "@/lib/ai/receipt";
 
 export function useReceiptScan() {
   const [receipt, setReceipt] = useState<ExpenseExtraction | null>(null);
+  const [review, setReview] = useState<ReceiptReview | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<ReceiptProvider>(null);
+  /** Set when the system will no longer show the permission prompt. */
+  const [permissionBlocked, setPermissionBlocked] = useState(false);
 
   const scanFromCamera = useCallback(async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      setError("Camera permission is required to scan receipts.");
+      setPermissionBlocked(!permission.canAskAgain);
+      setError(
+        permission.canAskAgain
+          ? "Talli needs the camera to photograph receipts. Allow access to scan one."
+          : "Camera access is off for Talli. Turn it on in Settings to scan receipts, or choose a photo instead.",
+      );
       return;
     }
+    setPermissionBlocked(false);
 
     const picked = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
@@ -30,9 +41,15 @@ export function useReceiptScan() {
   const scanFromGallery = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      setError("Photo library permission is required to scan receipts.");
+      setPermissionBlocked(!permission.canAskAgain);
+      setError(
+        permission.canAskAgain
+          ? "Talli needs access to your photos to read a saved receipt."
+          : "Photo access is off for Talli. Turn it on in Settings, or take a photo instead.",
+      );
       return;
     }
+    setPermissionBlocked(false);
 
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -48,6 +65,7 @@ export function useReceiptScan() {
     setIsScanning(true);
     setError(null);
     setReceipt(null);
+    setReview(null);
     setProvider(null);
     setImageUri(uri);
 
@@ -57,7 +75,9 @@ export function useReceiptScan() {
       if (result.error) {
         setError(result.error);
       } else {
+        track({ name: "ai_draft_generated", properties: { source: "receipt" } });
         setReceipt(result.data);
+        setReview(result.review);
         setProvider(result.provider);
       }
     } finally {
@@ -67,9 +87,11 @@ export function useReceiptScan() {
 
   const clear = useCallback(() => {
     setReceipt(null);
+    setReview(null);
     setImageUri(null);
     setError(null);
     setProvider(null);
+    setPermissionBlocked(false);
   }, []);
 
   /** Discard the current shot and immediately reopen the camera. */
@@ -78,5 +100,17 @@ export function useReceiptScan() {
     await scanFromCamera();
   }, [clear, scanFromCamera]);
 
-  return { receipt, imageUri, isScanning, error, provider, scanFromCamera, scanFromGallery, retake, clear };
+  return {
+    receipt,
+    review,
+    imageUri,
+    isScanning,
+    error,
+    provider,
+    permissionBlocked,
+    scanFromCamera,
+    scanFromGallery,
+    retake,
+    clear,
+  };
 }

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { upsertPaymentProfile, uploadQRImageAction } from "@/app/actions/payment-profiles";
+import { removeQRImageAction, upsertPaymentProfile, uploadQRImageAction } from "@/app/actions/payment-profiles";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
@@ -30,6 +30,9 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
     bank_account_number: initial?.bank_account_number ?? "",
     notes: initial?.notes ?? "",
   });
+  // Privacy: both off unless the person opts in (same as the mobile app).
+  const [showOnLinks, setShowOnLinks] = useState(initial?.show_on_shared_links ?? false);
+  const [fullNumbers, setFullNumbers] = useState(initial?.share_full_numbers ?? false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -42,7 +45,11 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await upsertPaymentProfile(form);
+      const result = await upsertPaymentProfile({
+        ...form,
+        show_on_shared_links: showOnLinks,
+        share_full_numbers: showOnLinks && fullNumbers,
+      });
       if (result.error) {
         setError(result.error);
       } else {
@@ -70,6 +77,19 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
         }
       });
     };
+  }
+
+  function handleQRRemove(type: "gcash" | "bank") {
+    startTransition(async () => {
+      const result = await removeQRImageAction(type);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        toast.success("QR image removed");
+        router.refresh();
+        invalidateProfileQueries();
+      }
+    });
   }
 
   return (
@@ -106,7 +126,16 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
               <input type="file" accept="image/*" onChange={handleQRUpload("gcash")} className="hidden" />
             </label>
             {initial?.gcash_qr_url && (
-              <img src={initial.gcash_qr_url} alt="GCash QR" className="mt-2 h-32 w-32 object-contain rounded border" />
+              <div className="mt-2 flex items-end gap-3">
+                <img src={initial.gcash_qr_url} alt="GCash QR" className="h-32 w-32 object-contain rounded border" />
+                <button
+                  type="button"
+                  onClick={() => handleQRRemove("gcash")}
+                  className="text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  Remove GCash QR
+                </button>
+              </div>
             )}
           </div>
         </CardContent>
@@ -143,7 +172,16 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
               <input type="file" accept="image/*" onChange={handleQRUpload("bank")} className="hidden" />
             </label>
             {initial?.bank_qr_url && (
-              <img src={initial.bank_qr_url} alt="Bank QR" className="mt-2 h-32 w-32 object-contain rounded border" />
+              <div className="mt-2 flex items-end gap-3">
+                <img src={initial.bank_qr_url} alt="Bank QR" className="h-32 w-32 object-contain rounded border" />
+                <button
+                  type="button"
+                  onClick={() => handleQRRemove("bank")}
+                  className="text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  Remove Bank QR
+                </button>
+              </div>
             )}
           </div>
         </CardContent>
@@ -155,6 +193,51 @@ export function PaymentProfileForm({ initial }: Props): React.ReactElement {
         onChange={(e) => set("notes", e.target.value)}
         placeholder="e.g. Please send the exact amount"
       />
+
+      <Card>
+        <CardHeader>
+          <h3 className="text-sm font-semibold text-slate-700">Shared links</h3>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <label className="flex items-start justify-between gap-4">
+            <span>
+              <span className="block text-sm font-medium text-slate-900">Show on shared group links</span>
+              <span className="block text-xs text-slate-500">
+                People who owe you money see these details on a group&apos;s shared page, so they can pay you
+                without asking. Only shown while they owe you. You can hide them in any group.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Show payment details on shared group links"
+              aria-checked={showOnLinks}
+              checked={showOnLinks}
+              onChange={(e) => setShowOnLinks(e.target.checked)}
+              className="mt-1 h-5 w-5 accent-emerald-600"
+            />
+          </label>
+          <label className={`flex items-start justify-between gap-4 ${showOnLinks ? "" : "opacity-50"}`}>
+            <span>
+              <span className="block text-sm font-medium text-slate-900">Show full account numbers</span>
+              <span className="block text-xs text-slate-500">
+                Off: only the last 4 digits show (your QR code, if uploaded, still lets people pay). On: people
+                can copy the full number.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Show full account numbers on shared links"
+              aria-checked={showOnLinks && fullNumbers}
+              checked={showOnLinks && fullNumbers}
+              disabled={!showOnLinks}
+              onChange={(e) => setFullNumbers(e.target.checked)}
+              className="mt-1 h-5 w-5 accent-emerald-600"
+            />
+          </label>
+        </CardContent>
+      </Card>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

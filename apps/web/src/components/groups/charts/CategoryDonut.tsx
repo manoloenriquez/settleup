@@ -1,4 +1,5 @@
-import { formatCents } from "@template/shared";
+import type { CurrencyCode } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { CategoryIconTile } from "@/components/groups/CategoryIcon";
 
 type DonutCategory = {
@@ -12,8 +13,11 @@ type DonutCategory = {
 };
 
 type Props = {
+  /** Category totals for expenses in `currency` only (never mixed currencies). */
   categories: DonutCategory[];
+  /** Net total of the same expenses, in `currency` minor units. */
   totalAmountCents: number;
+  currency: CurrencyCode;
 };
 
 const RADIUS = 40;
@@ -27,7 +31,7 @@ const GAP = 2;
  * colors (identity follows the entity across the app); the legend carries
  * icon + name + amount for every slice so identity is never color-alone.
  */
-export function CategoryDonut({ categories, totalAmountCents }: Props): React.ReactElement {
+export function CategoryDonut({ categories, totalAmountCents, currency }: Props): React.ReactElement {
   // Credits (negative expenses) can't be drawn as arc length — chart positive spend only.
   const positive = categories.filter((c) => c.amount_cents > 0);
   const chartTotal = positive.reduce((sum, c) => sum + c.amount_cents, 0);
@@ -69,13 +73,13 @@ export function CategoryDonut({ categories, totalAmountCents }: Props): React.Re
                 strokeDasharray={`${s.length} ${CIRCUMFERENCE - s.length}`}
                 strokeDashoffset={-s.offset}
               >
-                <title>{`${s.name}: ${formatCents(s.amount_cents)} (${Math.round(s.fraction * 100)}%)`}</title>
+                <title>{`${s.name}: ${formatCurrency(s.amount_cents, currency)} (${Math.round(s.fraction * 100)}%)`}</title>
               </circle>
             ))}
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Total</span>
-            <span className="text-sm font-bold tabular-nums text-slate-900">{formatCents(chartTotal)}</span>
+            <span className="text-sm font-bold tabular-nums text-slate-900">{formatCurrency(chartTotal, currency)}</span>
           </div>
         </div>
         <ul className="flex w-full min-w-0 flex-col gap-2">
@@ -83,7 +87,7 @@ export function CategoryDonut({ categories, totalAmountCents }: Props): React.Re
             <li key={s.slug} className="flex items-center gap-2.5">
               <CategoryIconTile icon={s.icon} color={s.color} size="sm" />
               <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{s.name}</span>
-              <span className="text-sm font-semibold tabular-nums text-slate-900">{formatCents(s.amount_cents)}</span>
+              <span className="text-sm font-semibold tabular-nums text-slate-900">{formatCurrency(s.amount_cents, currency)}</span>
               <span className="w-10 text-right text-xs tabular-nums text-slate-400">{Math.round(s.fraction * 100)}%</span>
             </li>
           ))}
