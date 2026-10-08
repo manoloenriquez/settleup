@@ -96,7 +96,9 @@ On an Apple Intelligence iPhone (15 Pro or later, iOS 27, Apple Intelligence on)
 On an iPhone without Apple Intelligence: the Assistant says so and still handles common phrasings
 ("I paid 300 for lunch", "Who owes me?").
 
-## 9. Upload the next TestFlight build
+## 9. TestFlight build 6
 
-The permission system blocks Claude from uploading. Steps in `docs/testflight.md` (bump
-`ios.buildNumber` to 6 first; run `tools/ui-driver/check-upgrade.sh` against build 5's bundle).
+Build 6 was uploaded on 2026-10-08 (archive checked: build 6, live Supabase project, no local
+addresses; upgrade from build 5 passed on the simulator). When App Store Connect finishes processing
+it, add it to your tester group and run the checklist in step 8. Builds after this one follow
+`docs/testflight.md`.

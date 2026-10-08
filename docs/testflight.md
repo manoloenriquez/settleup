@@ -72,7 +72,7 @@ xcodebuild -exportArchive -archivePath build/Talli.xcarchive \
 | 3 | 1.0.0 | 2026-10-01 | Fix for the build 2 launch crash. |
 | 4 | 1.0.0 | 2026-10-01 | Signed-in journey fixes, QR cleanup, recurring permissions, light-only appearance, Dynamic Type. Archived; uploaded by the owner. |
 | 5 | 1.0.0 | 2026-10-01 | Dark mode, single Save on New Expense, invite links back to Shared, remove QR, recurring controls by permission, large-text fixes. Update path from build 3 checked. Uploaded 2026-10-01. |
-| 6 | 1.0.0 | (archive 2026-10-08; upload pending) | Talli Assistant; offline currency fix (P0); edit date and %/shares/exact on mobile; receipt quantities; background-tab idle fix. |
+| 6 | 1.0.0 | 2026-10-08 (uploaded by Claude via `xcodebuild -exportArchive`; upgrade from build 5 checked) | Talli Assistant; offline currency fix (P0); edit date and %/shares/exact on mobile; receipt quantities; background-tab idle fix. |
 
 ## What to Test (build 6)
 
