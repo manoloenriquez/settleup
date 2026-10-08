@@ -2,7 +2,7 @@ import { track } from "@/lib/analytics";
 import type { CurrencyCode } from "@template/shared";
 import { onlineManager, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
-import type { ApiResponse } from "@template/shared";
+import type { ApiResponse, NewOutboxEntry } from "@template/shared";
 import type { Payment } from "@template/supabase";
 import { useOutbox } from "@/context/OutboxContext";
 import {
@@ -13,7 +13,7 @@ import {
   undoLastPaymentForMember,
 } from "@/services/payments";
 
-type RecordPaymentParams = {
+export type RecordPaymentParams = {
   groupId: string;
   fromMemberId: string;
   toMemberId: string;
@@ -21,55 +21,65 @@ type RecordPaymentParams = {
   currencyCode: CurrencyCode;
 };
 
+/**
+ * Records a payment online, or queues the exact RPC input offline.
+ * The client UUID doubles as the record_payment idempotency key, so offline
+ * replays and flaky-network retries can't double-count; pass a stable one to
+ * make a user-level retry replay too.
+ */
+export async function recordPaymentOrQueue(
+  params: RecordPaymentParams,
+  enqueue: (entry: NewOutboxEntry) => Promise<unknown>,
+  clientId: string = Crypto.randomUUID(),
+): Promise<ApiResponse<Payment>> {
+  if (!onlineManager.isOnline()) {
+    if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
+    if (params.fromMemberId === params.toMemberId) {
+      return { data: null, error: "Cannot pay yourself" };
+    }
+    await enqueue({
+      id: clientId,
+      kind: "payment.record",
+      entityId: clientId,
+      groupId: params.groupId,
+      payload: {
+        group_id: params.groupId,
+        from_member_id: params.fromMemberId,
+        to_member_id: params.toMemberId,
+        currency_code: params.currencyCode,
+        amount_cents: params.amountCents,
+      },
+      createdAt: new Date().toISOString(),
+      summary: { title: "Settle up", amountCents: params.amountCents },
+    });
+    const nowISO = new Date().toISOString();
+    return {
+      data: {
+        id: clientId,
+        group_id: params.groupId,
+        currency_code: params.currencyCode,
+        amount_cents: params.amountCents,
+        status: "PAID",
+        from_member_id: params.fromMemberId,
+        to_member_id: params.toMemberId,
+        created_by_user_id: null,
+        note: null,
+        report_request_id: null,
+        created_at: nowISO,
+        updated_at: nowISO,
+      },
+      error: null,
+    };
+  }
+  return recordPayment({ ...params, clientId });
+}
+
 export function useRecordPayment(groupId: string) {
   const qc = useQueryClient();
   const { enqueue } = useOutbox();
   return useMutation({
-    mutationFn: async (params: RecordPaymentParams): Promise<ApiResponse<Payment>> => {
-      // Client-generated UUID doubles as the record_payment idempotency key,
-      // so offline replays and flaky-network retries can't double-count.
-      const clientId = Crypto.randomUUID();
-      if (!onlineManager.isOnline()) {
-        if (params.amountCents <= 0) return { data: null, error: "Amount must be positive" };
-        if (params.fromMemberId === params.toMemberId) {
-          return { data: null, error: "Cannot pay yourself" };
-        }
-        await enqueue({
-          id: clientId,
-          kind: "payment.record",
-          entityId: clientId,
-          groupId: params.groupId,
-          payload: {
-            group_id: params.groupId,
-            from_member_id: params.fromMemberId,
-            to_member_id: params.toMemberId,
-            currency_code: params.currencyCode,
-            amount_cents: params.amountCents,
-          },
-          createdAt: new Date().toISOString(),
-          summary: { title: "Settle up", amountCents: params.amountCents },
-        });
-        const nowISO = new Date().toISOString();
-        return {
-          data: {
-            id: clientId,
-            group_id: params.groupId,
-            currency_code: params.currencyCode,
-            amount_cents: params.amountCents,
-            status: "PAID",
-            from_member_id: params.fromMemberId,
-            to_member_id: params.toMemberId,
-            created_by_user_id: null,
-            note: null,
-            report_request_id: null,
-            created_at: nowISO,
-            updated_at: nowISO,
-          },
-          error: null,
-        };
-      }
-      return recordPayment({ ...params, clientId });
-    },
+    mutationFn: (params: RecordPaymentParams & { clientId?: string }) =>
+      recordPaymentOrQueue(params, enqueue, params.clientId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["activity", groupId] });

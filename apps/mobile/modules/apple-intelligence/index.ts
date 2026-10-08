@@ -13,6 +13,7 @@ type NativeAppleIntelligence = {
   interpretExpense(json: string): Promise<string>;
   interpretSplit(json: string): Promise<string>;
   summarizeInsights(json: string): Promise<string>;
+  interpretAssistant(json: string): Promise<string>;
 };
 
 const native = requireOptionalNativeModule<NativeAppleIntelligence>("AppleIntelligence");

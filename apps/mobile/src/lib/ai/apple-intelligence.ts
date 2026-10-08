@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { z } from "zod";
 import { getNativeModule } from "../../../modules/apple-intelligence";
+import { assistantCommandSchema, type AssistantCommand } from "@template/shared";
 
 // ---------------------------------------------------------------------------
 // Typed wrapper over the local `AppleIntelligence` Expo module.
@@ -209,6 +210,25 @@ export async function interpretExpense(request: ExpenseRequest): Promise<AiResul
 export async function interpretSplit(request: SplitRequest): Promise<AiResult<SplitInterpretation>> {
   const result = await call((native) => native.interpretSplit(JSON.stringify(request)), splitResponseSchema);
   return result.error === null ? ok(result.data.interpretation) : result;
+}
+
+export type AssistantRequest = {
+  text: string;
+  history: { role: "user" | "assistant"; content: string }[];
+  /** Names-only context from buildModelContext. */
+  context: string;
+  userName: string | null;
+  today: string;
+};
+
+const assistantResponseSchema = z.object({ command: assistantCommandSchema, usage: usageSchema });
+
+/** One assistant turn → validated command (words only; resolved in packages/shared). */
+export async function interpretAssistant(
+  request: AssistantRequest,
+): Promise<AiResult<{ command: AssistantCommand; modelMs: number }>> {
+  const result = await call((native) => native.interpretAssistant(JSON.stringify(request)), assistantResponseSchema);
+  return result.error === null ? ok({ command: result.data.command, modelMs: result.data.usage.modelMs }) : result;
 }
 
 export async function summarizeInsights(facts: string): Promise<AiResult<string>> {

@@ -4,6 +4,7 @@ export const ROUTES = {
   spending: "/(protected)/(tabs)/spending",
   shared: "/(protected)/(tabs)/shared",
   account: "/(protected)/(tabs)/account",
+  assistant: "/(protected)/(tabs)/assistant",
   onboarding: "/onboarding",
   login: "/(auth)/login",
   register: "/(auth)/register",

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { accountOutboxKey, parseOutboxState } from "@template/shared";
 import { queryCacheProjectPrefix } from "@/lib/queryClient";
 import { accountPersonalKey, accountPersonalPrefix } from "@/lib/personal/storage";
+import { assistantAccountPrefix, assistantStoreKey } from "@/lib/assistant/storage";
 
 const OUTBOX_PREFIX = "tabkind:outbox:v2:";
 
@@ -20,6 +21,7 @@ export function inactiveAccountKeys(
   outboxIsEmpty: (key: string) => boolean,
   queryPrefix: string,
   personal?: { prefix: string; currentKey: string | null; isSynced: (key: string) => boolean },
+  assistant?: { prefix: string; currentKey: string | null },
 ): string[] {
   const outboxPrefix = `${OUTBOX_PREFIX}${encodeURIComponent(project)}:`;
   const currentQuery = currentOwnerId ? `${queryPrefix}${encodeURIComponent(currentOwnerId)}` : null;
@@ -29,6 +31,8 @@ export function inactiveAccountKeys(
     if (key.startsWith(outboxPrefix)) return key !== currentOutbox && outboxIsEmpty(key);
     // An account's personal expenses: removable once everything is on the server.
     if (personal && key.startsWith(personal.prefix)) return key !== personal.currentKey && personal.isSynced(key);
+    // Another account's assistant conversation: never needed by anyone else.
+    if (assistant && key.startsWith(assistant.prefix)) return key !== assistant.currentKey;
     return false;
   });
 }
@@ -81,6 +85,7 @@ export async function purgeInactiveAccountData(currentOwnerId: string | null): P
       currentKey: currentOwnerId ? accountPersonalKey(currentOwnerId) : null,
       isSynced: (key) => isFullySyncedLedger(values.get(key) ?? null),
     },
+    { prefix: assistantAccountPrefix(), currentKey: currentOwnerId ? assistantStoreKey(currentOwnerId) : null },
   );
   if (doomed.length > 0) await AsyncStorage.multiRemove(doomed);
 }

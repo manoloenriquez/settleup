@@ -58,3 +58,4 @@ Thumbs.db
 # SwiftPM build output of the receipt evaluation harness
 tools/receipt-eval/.build/
 tools/ui-driver/local-test-accounts.env
+tools/assistant-eval/.build/

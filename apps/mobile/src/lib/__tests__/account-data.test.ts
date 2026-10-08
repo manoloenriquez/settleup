@@ -25,6 +25,26 @@ describe("inactiveAccountKeys", () => {
     expect(result).toEqual([q("bob"), q("signed-out"), accountOutboxKey(project, "bob")]);
   });
 
+  it("removes other accounts' assistant conversations, keeps the current one and the guest's", () => {
+    const prefix = "talli:assistant:v1:account:";
+    const mine = `${prefix}p:alice`;
+    const theirs = `${prefix}p:bob`;
+    const result = inactiveAccountKeys(
+      [mine, theirs, "talli:assistant:v1:guest"],
+      project,
+      "alice",
+      () => true,
+      queryPrefix,
+      undefined,
+      { prefix, currentKey: mine },
+    );
+    expect(result).toEqual([theirs]);
+    // Signed out: every account conversation goes, the guest's stays.
+    expect(
+      inactiveAccountKeys([mine, theirs, "talli:assistant:v1:guest"], project, null, () => true, queryPrefix, undefined, { prefix, currentKey: null }),
+    ).toEqual([mine, theirs]);
+  });
+
   it("never removes a queue that still has changes", () => {
     const result = inactiveAccountKeys(keys, project, null, () => false, queryPrefix);
     expect(result).not.toContain(accountOutboxKey(project, "carol"));

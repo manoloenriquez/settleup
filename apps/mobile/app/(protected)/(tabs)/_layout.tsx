@@ -21,6 +21,10 @@ export default function TabsLayout() {
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
         <Label>Shared</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="assistant">
+        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
+        <Label>Assistant</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="account">
         <Icon sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }} />
         <Label>Account</Label>
