@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type StyleProp, type TextStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ReceiptLineItem } from "@template/shared/types";
 import type { FieldState, ReceiptReview } from "@template/shared";
 import type { ReceiptProvider } from "@/lib/ai/receipt";
-import { currencyPrecision, formatAmount, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { currencyPrecision, formatAmount, type CurrencyCode } from "@template/shared";
+import { receiptCentsFromText, receiptTextFromCents } from "@/lib/receipt-amount";
 import { RECEIPT_CHARGES_LABEL as CHARGES_LABEL } from "@/lib/expense-draft";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { AppButton } from "@/components/ui";
@@ -38,6 +39,48 @@ const OVERALL_LABEL: Record<ReceiptReview["overall"], string> = {
  * parts. No numeric confidence is shown: the states come from deterministic
  * checks (OCR agreement, arithmetic, missing fields).
  */
+/** A line amount the person can retype freely; it is reformatted when they leave it. */
+function ItemAmountInput({
+  cents,
+  style,
+  onChangeCents,
+  accessibilityLabel,
+}: {
+  cents: number;
+  style: StyleProp<TextStyle>;
+  onChangeCents: (cents: number) => void;
+  accessibilityLabel: string;
+}): React.ReactElement {
+  const [text, setText] = useState(receiptTextFromCents(cents));
+  const editing = useRef(false);
+  // Follow changes made elsewhere (e.g. a new scan) while not typing here.
+  useEffect(() => {
+    if (!editing.current) setText(receiptTextFromCents(cents));
+  }, [cents]);
+  return (
+    <TextInput
+      style={style}
+      value={text}
+      onFocus={() => {
+        editing.current = true;
+      }}
+      onChangeText={(value) => {
+        setText(value);
+        const parsed = receiptCentsFromText(value);
+        if (parsed !== null) onChangeCents(parsed);
+      }}
+      onBlur={() => {
+        editing.current = false;
+        setText(receiptTextFromCents(cents));
+      }}
+      placeholder="0.00"
+      placeholderTextColor={colors.gray400}
+      keyboardType="decimal-pad"
+      accessibilityLabel={accessibilityLabel}
+    />
+  );
+}
+
 export function ReceiptItemEditor({
   currency,
   merchant,
@@ -173,18 +216,15 @@ export function ReceiptItemEditor({
                     onChangeText={(v) => updateItem(i, { description: v })}
                     placeholder="Item name"
                     placeholderTextColor={colors.gray400}
+                    accessibilityLabel={`Name of item ${i + 1}`}
                   />
                   {item.quantity > 1 && <Text style={styles.itemQty}>×{item.quantity}</Text>}
-                  <TextInput
+                  <ItemAmountInput
+                    cents={item.total_cents}
                     style={[styles.itemAmount, !item.included && styles.itemTextExcluded, flagged && styles.itemAmountWarn]}
-                    value={item.total_cents > 0 ? (item.total_cents / 100).toFixed(2) : ""}
-                    onChangeText={(v) => {
-                      const cents = parseAmountInput(v, "USD") ?? 0; // two-decimal cents, like the receipt
-                      updateItem(i, { total_cents: cents, unit_price_cents: item.quantity > 0 ? Math.round(cents / item.quantity) : cents });
-                    }}
-                    placeholder="0.00"
-                    placeholderTextColor={colors.gray400}
-                    keyboardType="decimal-pad"
+                    onChangeCents={(cents) =>
+                      updateItem(i, { total_cents: cents, unit_price_cents: item.quantity > 0 ? Math.round(cents / item.quantity) : cents })
+                    }
                     accessibilityLabel={`Amount for ${item.description || `item ${i + 1}`}`}
                   />
                 </View>

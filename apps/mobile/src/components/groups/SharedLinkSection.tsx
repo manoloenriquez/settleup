@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Alert, Share, StyleSheet, Switch, Text, View } from "react-native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import { AppButton, Card, useToast } from "@/components/ui";
-import { supabase } from "@/lib/supabase";
+import { useShareLink } from "@/hooks/useShareLink";
 import { regenerateGroupLink, setGroupLinkEnabled, setHideMyPaymentDetails } from "@/services/sharing";
 import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -23,19 +23,7 @@ export function SharedLinkSection({ groupId, isAdmin, myMemberId, myHidden }: Pr
   const [hidden, setHidden] = useState(myHidden);
   useEffect(() => setHidden(myHidden), [myHidden]);
 
-  const linkQ = useQuery({
-    queryKey: ["share-link", groupId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .schema("settleup")
-        .from("groups")
-        .select("share_token, share_enabled")
-        .eq("id", groupId)
-        .single();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-  });
+  const linkQ = useShareLink(groupId);
   const enabled = linkQ.data?.share_enabled ?? false;
   const url = linkQ.data && WEB_ORIGIN ? `${WEB_ORIGIN}/g/${linkQ.data.share_token}` : null;
 

@@ -3,6 +3,7 @@ import { track } from "@/lib/analytics";
 import {
   ActivityIndicator,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   Share,
@@ -16,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useGroupOverviews } from "@/hooks/useOverview";
 import { useGroups } from "@/hooks/useGroups";
+import { useShareLink } from "@/hooks/useShareLink";
 import { Card, Avatar, Badge, EmptyState, SegmentedControl, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { formatAmount, buildSuggestedSettlements, type CurrencyCode } from "@template/shared";
@@ -168,7 +170,10 @@ export default function GroupOverviewScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
-  const overviewQ = useGroupOverviews(group?.share_token);
+  // The live link (a cached group row may hold a token that was replaced).
+  const linkQ = useShareLink(id);
+  const shareToken = linkQ.data?.share_enabled ? linkQ.data.share_token : undefined;
+  const overviewQ = useGroupOverviews(shareToken ?? undefined);
   const overviews = overviewQ.data ?? [];
   const [currencyIndex, setCurrencyIndex] = useState(0);
   const payload = overviews[Math.min(currencyIndex, Math.max(0, overviews.length - 1))];
@@ -183,13 +188,14 @@ export default function GroupOverviewScreen(): React.ReactElement {
   }
 
   async function handleShareLink(): Promise<void> {
-    if (!group?.share_token || !WEB_ORIGIN) {
+    if (!shareToken || !WEB_ORIGIN) {
       toast.error("Share link could not be generated.");
       return;
     }
-    const url = `${WEB_ORIGIN}/g/${group.share_token}`;
+    const url = `${WEB_ORIGIN}/g/${shareToken}`;
+    const intro = `${group?.name ?? "Our group"} on Talli — see who owes what:`;
     try {
-      const shared = await Share.share({ message: url, url });
+      const shared = await Share.share(Platform.OS === "ios" ? { message: intro, url } : { message: `${intro} ${url}` });
       if (shared.action !== Share.dismissedAction) {
         track({ name: "public_link_copied", properties: { link_type: "group" } });
       }
@@ -198,10 +204,23 @@ export default function GroupOverviewScreen(): React.ReactElement {
     }
   }
 
-  if (overviewQ.isLoading || groupsQ.isLoading) {
+  if (linkQ.data && !linkQ.data.share_enabled) {
     return (
       <>
-        <Stack.Screen options={{ title: "Group Overview" }} />
+        <Stack.Screen options={{ title: "Shared Page" }} />
+        <EmptyState
+          icon="link-outline"
+          title="The shared link is off"
+          description="Nobody can open this group’s summary page. A group admin can turn it back on in Group Settings."
+        />
+      </>
+    );
+  }
+
+  if (linkQ.isLoading || overviewQ.isLoading || groupsQ.isLoading) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Shared Page" }} />
         <View style={styles.loader}>
           <ActivityIndicator color={colors.primary} />
         </View>
@@ -212,11 +231,16 @@ export default function GroupOverviewScreen(): React.ReactElement {
   if (!payload) {
     return (
       <>
-        <Stack.Screen options={{ title: "Group Overview" }} />
+        <Stack.Screen options={{ title: "Shared Page" }} />
         <EmptyState
           icon="alert-circle-outline"
-          title="Could not load overview"
-          description="Please try again later."
+          title="Couldn’t load the shared page"
+          description="Check your connection and try again."
+          actionLabel="Try Again"
+          onAction={() => {
+            void linkQ.refetch();
+            void overviewQ.refetch();
+          }}
         />
       </>
     );
@@ -233,7 +257,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Group Overview" }} />
+      <Stack.Screen options={{ title: "Shared Page" }} />
 
       <ScrollView
         keyboardShouldPersistTaps="handled"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatCurrency } from "@/lib/currency";
 import { CopyButton } from "@/components/groups/CopyButton";
+import { isMaskedNumber, organizerNote } from "@/lib/payment-display";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Smartphone, Landmark, ArrowRight, MessageCircle, Hash, ZoomIn, X } from "lucide-react";
@@ -20,9 +21,7 @@ type Props = {
   onAction?: (action: PaymentDetailAction) => void;
 };
 
-function isMasked(value: string): boolean {
-  return value.includes("*");
-}
+const isMasked = isMaskedNumber;
 
 function QrImage({
   src,
@@ -108,7 +107,12 @@ function AccountLine({
         </p>
       </div>
       {!masked && (
-        <CopyButton text={accountNumber} label="Copy" className="ml-auto shrink-0" onCopied={onCopied} />
+        <CopyButton
+          text={accountNumber}
+          label="Copy"
+          className="ml-auto shrink-0"
+          onCopied={onCopied}
+        />
       )}
     </div>
   );
@@ -174,14 +178,17 @@ export function OverviewSettleUpCard({
 
                 {!p && (
                   <p className="text-xs text-slate-400 italic">
-                    {s.to_display_name} hasn&apos;t added payment details yet — ask them how
-                    they&apos;d like to be paid. (They can add details in Account &rarr; Payment
-                    Settings.)
+                    Ask {s.to_display_name} how they&apos;d like to be paid.
                   </p>
                 )}
 
                 {p && (
                   <div className="flex flex-col gap-2.5 pl-2 border-l-2 border-brand-100">
+                    {organizerNote(p.source, s.to_display_name) && (
+                      <p className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-xs text-amber-900">
+                        {organizerNote(p.source, s.to_display_name)}
+                      </p>
+                    )}
                     {p.gcash_number && (
                       <AccountLine
                         onCopied={onCopied}
@@ -192,7 +199,11 @@ export function OverviewSettleUpCard({
                       />
                     )}
                     {p.gcash_qr_url && (
-                      <QrImage src={p.gcash_qr_url} alt={`${s.to_display_name}'s GCash QR`} onReveal={onQr} />
+                      <QrImage
+                        src={p.gcash_qr_url}
+                        alt={`${s.to_display_name}'s GCash QR`}
+                        onReveal={onQr}
+                      />
                     )}
                     {p.bank_name && p.bank_account_number && (
                       <AccountLine
@@ -204,10 +215,14 @@ export function OverviewSettleUpCard({
                       />
                     )}
                     {p.bank_qr_url && (
-                      <QrImage src={p.bank_qr_url} alt={`${s.to_display_name}'s bank QR`} onReveal={onQr} />
+                      <QrImage
+                        src={p.bank_qr_url}
+                        alt={`${s.to_display_name}'s bank QR`}
+                        onReveal={onQr}
+                      />
                     )}
                     {(isMasked(p.gcash_number ?? "") || isMasked(p.bank_account_number ?? "")) && (
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-xs text-slate-500">
                         Account numbers are partially hidden for privacy — scan the QR to pay, or
                         ask {s.to_display_name} for the full number.
                       </p>
@@ -217,12 +232,12 @@ export function OverviewSettleUpCard({
                   </div>
                 )}
 
-                <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-400">
+                <p className="mt-3 flex items-start gap-1.5 text-xs text-slate-500">
                   <MessageCircle size={12} className="mt-0.5 shrink-0" />
                   <span>
                     After paying, message {s.to_display_name} or the group owner so they can record
-                    it. If you were sent a personal Talli link, use its &ldquo;I&apos;ve
-                    paid&rdquo; button instead.
+                    it. If you were sent a personal Talli link, use its &ldquo;I&apos;ve paid&rdquo;
+                    button instead.
                   </span>
                 </p>
               </div>
@@ -260,7 +275,7 @@ export function OverviewSettleUpCard({
         {pp.gcash_number && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex flex-col gap-2">
             <AccountLine
-                        onCopied={onCopied}
+              onCopied={onCopied}
               icon={<Smartphone size={14} className="text-blue-500" />}
               methodLabel="GCash"
               accountNumber={pp.gcash_number}
@@ -272,7 +287,7 @@ export function OverviewSettleUpCard({
         {pp.bank_name && pp.bank_account_number && (
           <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 flex flex-col gap-2">
             <AccountLine
-                        onCopied={onCopied}
+              onCopied={onCopied}
               icon={<Landmark size={14} className="text-brand-500" />}
               methodLabel={pp.bank_name}
               accountNumber={pp.bank_account_number}
@@ -282,14 +297,14 @@ export function OverviewSettleUpCard({
           </div>
         )}
         {(isMasked(pp.gcash_number ?? "") || isMasked(pp.bank_account_number ?? "")) && (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-xs text-slate-500">
             Account numbers are partially hidden for privacy — scan the QR to pay, or ask{" "}
             {pp.payer_display_name ?? "the group owner"} for the full number.
           </p>
         )}
         {pp.notes && <p className="text-xs text-slate-400 italic">{pp.notes}</p>}
         <PaymentReference groupName={groupName} />
-        <p className="flex items-start gap-1.5 text-[11px] text-slate-400">
+        <p className="flex items-start gap-1.5 text-xs text-slate-500">
           <MessageCircle size={12} className="mt-0.5 shrink-0" />
           <span>
             Include your name in the payment reference, then message the group owner so they can

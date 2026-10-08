@@ -20,7 +20,9 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: () => void 
   const line =
     balancesQ.isLoading
       ? "…"
-      : net > 0
+      : balancesQ.isError && !balancesQ.data
+        ? "Balance couldn’t load"
+        : net > 0
         ? `${friend.display_name} owes you ${amount}`
         : net < 0
           ? `You owe ${friend.display_name} ${amount}`

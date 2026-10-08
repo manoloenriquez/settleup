@@ -320,10 +320,25 @@ export default function GroupSettingsScreen() {
   }
 
   function confirmDeleteMember(memberId: string, name: string) {
-    Alert.alert(`Remove ${name}?`, "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => deleteMember.mutate(memberId) },
-    ]);
+    Alert.alert(
+      `Remove ${name}?`,
+      "Only people with no expenses or payments in this group can be removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () =>
+            deleteMember.mutate(memberId, {
+              onSuccess: (r) => {
+                if (r.error) toast.error(r.error);
+                else toast.success(`${name} removed`);
+              },
+              onError: () => toast.error(`${name} couldn’t be removed. Try again.`),
+            }),
+        },
+      ],
+    );
   }
 
   function handlePromoteMember(memberId: string, memberName: string, newRole: "admin" | "member") {

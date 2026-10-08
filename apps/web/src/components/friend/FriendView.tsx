@@ -6,12 +6,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatCurrency, SEPARATE_CURRENCIES_NOTE } from "@/lib/currency";
-import {
-  Receipt,
-  CheckCircle2,
-  TrendingDown,
-  ArrowUpRight,
-} from "lucide-react";
+import { Receipt, CheckCircle2, TrendingDown, ArrowUpRight } from "lucide-react";
 import type {
   CurrencyCode,
   FriendViewPayload,
@@ -42,11 +37,6 @@ function owedIn(payload: FriendViewPayload): number {
 function standingIn(payload: FriendViewPayload): Standing {
   if (owedIn(payload) > 0) return "owes";
   return (payload.net_cents ?? 0) > 0 ? "owed" : "settled";
-}
-
-function joinWithAnd(parts: string[]): string {
-  if (parts.length <= 1) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 /**
@@ -80,54 +70,6 @@ function resolveCreditorProfiles(payload: FriendViewPayload): CreditorPaymentPro
     ];
   }
   return [];
-}
-
-function profileKey(pp: CreditorPaymentProfile): string {
-  return [
-    pp.member_id,
-    pp.display_name,
-    pp.gcash_number,
-    pp.bank_name,
-    pp.bank_account_number,
-    pp.notes,
-  ].join("|");
-}
-
-function buildMessage(views: CurrencyFriendView[], link: string): string {
-  const first = views[0]?.payload;
-  const memberName = first?.member.display_name ?? "";
-  const groupName = first?.group.name ?? "";
-  const owedParts = views
-    .filter(({ payload }) => owedIn(payload) > 0)
-    .map(({ currency, payload }) => formatCurrency(owedIn(payload), currency));
-  const lines: string[] = [
-    owedParts.length > 0
-      ? `Hi ${memberName}! You owe ${joinWithAnd(owedParts)} for ${groupName}.`
-      : `Hi ${memberName}! You're all settled for ${groupName}.`,
-  ];
-  if (owedParts.length > 1) lines.push(SEPARATE_CURRENCIES_NOTE);
-
-  const seen = new Set<string>();
-  for (const { payload } of views) {
-    for (const pp of resolveCreditorProfiles(payload)) {
-      const key = profileKey(pp);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (pp.display_name) lines.push(`Pay to: ${pp.display_name}`);
-      if (pp.gcash_number) {
-        lines.push(`GCash: ${pp.gcash_number}${pp.gcash_name ? ` (${pp.gcash_name})` : ""}`);
-      }
-      if (pp.bank_name && pp.bank_account_number) {
-        lines.push(
-          `Bank: ${pp.bank_name} ${pp.bank_account_number}${pp.bank_account_name ? ` (${pp.bank_account_name})` : ""}`,
-        );
-      }
-      if (pp.notes) lines.push(pp.notes);
-    }
-  }
-  lines.push(`Link: ${link}`);
-
-  return lines.join("\n");
 }
 
 function CurrencySection({
@@ -164,8 +106,8 @@ function CurrencySection({
           {standing === "owes"
             ? `You owe ${formatCurrency(owedIn(payload), currency)}`
             : standing === "owed"
-              ? `You're owed ${formatCurrency(payload.net_cents, currency)}`
-              : "You're settled"}
+            ? `You're owed ${formatCurrency(payload.net_cents, currency)}`
+            : "You're settled"}
         </p>
       </div>
 
@@ -181,7 +123,11 @@ function CurrencySection({
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {s.creditor_profile ? (
-                <ProfilePaymentDetails shareToken={shareToken} pp={s.creditor_profile} />
+                <ProfilePaymentDetails
+                  shareToken={shareToken}
+                  pp={s.creditor_profile}
+                  ownerName={s.to_display_name}
+                />
               ) : (
                 <p className="text-sm text-slate-500">
                   {s.to_display_name} hasn&apos;t added payment details yet — ask them how
@@ -210,7 +156,11 @@ function CurrencySection({
               </h3>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <ProfilePaymentDetails shareToken={shareToken} pp={pp} />
+              <ProfilePaymentDetails
+                shareToken={shareToken}
+                pp={pp}
+                ownerName={pp.display_name || "them"}
+              />
             </CardContent>
           </Card>
         ))}
@@ -278,23 +228,22 @@ export function FriendView({ views, shareLink, shareToken }: Props): React.React
   const first = views[0]?.payload;
   const memberName = first?.member.display_name ?? "";
   const groupName = first?.group.name ?? "";
-  const message = buildMessage(views, shareLink);
   const owing = views.filter(({ payload }) => standingIn(payload) === "owes");
   const owes = owing.length > 0;
-  const isOwed = !owes && views.some(({ payload }) => standingIn(payload) === "owed");
-  const isPaid = !owes;
+  const owedTo = views.filter(({ payload }) => standingIn(payload) === "owed");
+  const isOwed = !owes && owedTo.length > 0;
 
   const heroBg = owes
     ? "bg-gradient-to-br from-amber-500 to-orange-500"
     : isOwed
-      ? "bg-gradient-to-br from-emerald-500 to-teal-500"
-      : "bg-gradient-to-br from-brand-600 to-violet-600";
+    ? "bg-gradient-to-br from-emerald-500 to-teal-500"
+    : "bg-gradient-to-br from-brand-600 to-violet-600";
 
   const heroPill = owes
     ? { label: "You owe", icon: <TrendingDown size={13} className="text-white/80" /> }
     : isOwed
-      ? { label: "You're owed", icon: <ArrowUpRight size={13} className="text-white/80" /> }
-      : { label: "All settled", icon: <CheckCircle2 size={13} className="text-white/80" /> };
+    ? { label: "You're owed", icon: <ArrowUpRight size={13} className="text-white/80" /> }
+    : { label: "All settled", icon: <CheckCircle2 size={13} className="text-white/80" /> };
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
@@ -317,17 +266,31 @@ export function FriendView({ views, shareLink, shareToken }: Props): React.React
               <Avatar name={memberName} size="md" />
               <div>
                 <p className="text-sm font-medium text-white/70">Hi {memberName}</p>
-                {isPaid ? (
-                  <p className="text-3xl sm:text-4xl font-extrabold tracking-tight">All Settled!</p>
-                ) : (
+                {owes ? (
                   owing.map(({ currency, payload }) => (
                     <p
                       key={currency}
-                      className={`${owing.length > 1 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"} font-extrabold tracking-tight`}
+                      className={`${
+                        owing.length > 1 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
+                      } font-extrabold tracking-tight`}
                     >
                       {formatCurrency(owedIn(payload), currency)}
                     </p>
                   ))
+                ) : isOwed ? (
+                  // Someone owes this person: show what, never "All settled".
+                  owedTo.map(({ currency, payload }) => (
+                    <p
+                      key={currency}
+                      className={`${
+                        owedTo.length > 1 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
+                      } font-extrabold tracking-tight`}
+                    >
+                      {formatCurrency(payload.net_cents, currency)} to you
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-3xl sm:text-4xl font-extrabold tracking-tight">All settled!</p>
                 )}
               </div>
             </div>
@@ -343,19 +306,6 @@ export function FriendView({ views, shareLink, shareToken }: Props): React.React
         {views.map((view) => (
           <CurrencySection key={view.currency} view={view} shareToken={shareToken} />
         ))}
-
-        {/* Copy message */}
-        <Card className="bg-slate-50">
-          <CardContent>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Share this message
-              </p>
-              <CopyButton text={message} label="Copy message" />
-            </div>
-            <pre className="whitespace-pre-wrap text-xs text-slate-700 font-mono">{message}</pre>
-          </CardContent>
-        </Card>
 
         {/* Footer */}
         <div className="flex items-center justify-center gap-2 py-2 text-xs text-slate-400">

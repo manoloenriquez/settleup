@@ -7,7 +7,7 @@ import { getPaymentProfile, removeQRImages, upsertPaymentProfile, uploadQRImage 
 import { staleQrPaths } from "@template/shared";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
-import { Card, SectionHeader, ErrorBanner, useToast } from "@/components/ui";
+import { Card, EmptyState, SectionHeader, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 export default function PaymentSettingsScreen() {
@@ -41,6 +41,7 @@ export default function PaymentSettingsScreen() {
     };
   }, [userId]);
 
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     async function load() {
       if (!userId) return;
@@ -65,7 +66,7 @@ export default function PaymentSettingsScreen() {
       setLoading(false);
     }
     void load();
-  }, [userId]);
+  }, [userId, loadAttempt]);
 
   async function handleSave() {
     setSaving(true);
@@ -112,17 +113,30 @@ export default function PaymentSettingsScreen() {
     );
   }
 
+  // Never show an editable form over details that didn't load: saving it
+  // would replace the real details with blanks.
+  if (loadError) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Payment Details", headerShown: true }} />
+        <View style={{ flex: 1, justifyContent: "center", backgroundColor: colors.background }}>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Couldn’t load your payment details"
+            description="Your saved details are safe. Check your connection and try again."
+            actionLabel="Try Again"
+            onAction={() => setLoadAttempt((n) => n + 1)}
+          />
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen options={{ title: "Payment Details", headerShown: true }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
-          {loadError && (
-            <ErrorBanner
-              message={`Couldn't load your payment settings: ${loadError}`}
-              onDismiss={() => setLoadError(null)}
-            />
-          )}
           <SectionHeader title="GCash" />
           <Card>
             <View style={styles.fieldGroup}>

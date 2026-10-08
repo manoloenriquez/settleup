@@ -165,7 +165,9 @@ export function IvePaidButton({
         disabled={locked || !restored}
         inputMode="decimal"
       />
-      <p className="text-xs text-slate-500">Suggested: {formatCurrency(suggestedAmountCents, currency)}</p>
+      <p className="text-xs text-slate-500">
+        Suggested: {formatCurrency(suggestedAmountCents, currency)}
+      </p>
       <Input
         label="Note (optional)"
         value={note}

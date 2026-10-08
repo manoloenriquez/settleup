@@ -168,7 +168,8 @@ export async function deleteMember(memberId: string): Promise<ApiResponse<void>>
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
     const { error } = await db.from("group_members").delete().eq("id", parsed.data);
-    if (error) return { data: null, error: "Failed to delete member." };
+    // Members who are part of expenses or payments are kept so balances never change.
+    if (error) return { data: null, error: error.hint === "member_has_history" ? error.message : "Failed to delete member." };
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

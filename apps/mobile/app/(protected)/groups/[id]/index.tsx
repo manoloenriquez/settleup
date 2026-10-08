@@ -35,6 +35,7 @@ import {
 } from "@/hooks/usePayments";
 import { usePendingExpenses, usePendingPaymentRecords } from "@/hooks/useOutbox";
 import { useGroupRealtime } from "@/hooks/useGroupRealtime";
+import { useShareLink } from "@/hooks/useShareLink";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
@@ -152,6 +153,7 @@ export default function GroupDetailScreen() {
   const undoPayment = useUndoLastPayment(id);
   const undoMemberPayment = useUndoLastPaymentForMember(id);
   const pendingPaymentsQ = usePendingPayments(id);
+  const shareLinkQ = useShareLink(id);
   const pendingExpenses = usePendingExpenses(id);
   const pendingPaymentRecords = usePendingPaymentRecords(id);
   useGroupRealtime(id);
@@ -188,13 +190,28 @@ export default function GroupDetailScreen() {
       );
       return;
     }
-    if (!group?.share_token) {
-      toast.error("Share link could not be generated.");
+    // Read the link as it is now: an admin may have turned it off or replaced it.
+    const link = (await shareLinkQ.refetch()).data;
+    if (!link?.share_token) {
+      toast.error("The shared link couldn’t be loaded. Check your connection and try again.");
       return;
     }
-    const url = `${WEB_ORIGIN}/g/${group.share_token}`;
+    if (!link.share_enabled) {
+      Alert.alert(
+        "The shared link is off",
+        "A group admin turned it off, so nobody can open it. Admins can turn it back on in Group Settings.",
+        [
+          { text: "OK", style: "cancel" },
+          { text: "Group Settings", onPress: () => router.push(`/(protected)/groups/${id}/settings`) },
+        ],
+      );
+      return;
+    }
+    const url = `${WEB_ORIGIN}/g/${link.share_token}`;
+    const intro = `${group?.name ?? "Our group"} on Talli — see who owes what:`;
     try {
-      const shared = await Share.share({ message: url, url });
+      // iOS attaches the URL itself (with a preview); elsewhere it goes in the text.
+      const shared = await Share.share(Platform.OS === "ios" ? { message: intro, url } : { message: `${intro} ${url}` });
       if (shared.action !== Share.dismissedAction) {
         track({ name: "public_link_copied", properties: { link_type: "group" } });
       }

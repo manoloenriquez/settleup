@@ -78,7 +78,9 @@ export async function deleteMember(memberId: string): Promise<ApiResponse<null>>
     .delete()
     .eq("id", memberId);
 
-  if (error) return { data: null, error: error.message };
+  // The database refuses to remove someone who is part of expenses or
+  // payments (it would rewrite everyone's balances); its message says so.
+  if (error) return { data: null, error: error.hint === "member_has_history" ? error.message : "This person couldn’t be removed. Try again." };
   return { data: null, error: null };
 }
 
