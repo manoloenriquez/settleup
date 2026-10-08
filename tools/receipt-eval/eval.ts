@@ -56,10 +56,12 @@ type RawEntry = {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
-const receiptsDir = join(repoRoot, "sample-inputs", "receipts");
+const args = process.argv.slice(2);
+/** --dir synthetic scores sample-inputs/receipts/synthetic (rendered, ground truth by construction). */
+const dirArg = args.indexOf("--dir");
+const receiptsDir = join(repoRoot, "sample-inputs", "receipts", dirArg >= 0 ? args[dirArg + 1]! : "");
 const expectedDir = join(receiptsDir, "expected");
 
-const args = process.argv.slice(2);
 const rawArg = args.indexOf("--raw");
 const saveArg = args.indexOf("--save");
 
@@ -194,6 +196,10 @@ const sum = (f: (r: Row) => number): number => ok.reduce((s, r) => s + f(r), 0);
 const itemsExpected = rows.reduce((s, r) => s + r.itemsExpected, 0);
 console.log(`\nsuccess ${ok.length}/${rows.length} · total ${pct((r) => r.total)} · merchant ${pct((r) => r.merchant)} · date ${pct((r) => r.date)} · subtotal ${pct((r) => r.subtotal)} · tax ${pct((r) => r.tax)} · service charge ${pct((r) => r.serviceCharge)} · discount ${pct((r) => r.discount)}`);
 console.log(`items: price ${sum((r) => r.itemTotals)}/${itemsExpected} · name ${sum((r) => r.itemNames)}/${itemsExpected} · quantity ${sum((r) => r.itemQuantities)}/${itemsExpected} · required fields complete ${pct((r) => r.requiredComplete)}`);
+// Safety: a wrong total the review screen does NOT flag is the dangerous case
+// (the person could save it without noticing). Target: zero.
+const unflagged = ok.filter((r) => !r.total && r.overall !== "needs_review");
+console.log(`currency ${pct((r) => r.currency)} · wrong total flagged for review ${ok.filter((r) => !r.total && r.overall === "needs_review").length} · wrong total NOT flagged ${unflagged.length}${unflagged.length ? ` (${unflagged.map((r) => r.image).join(", ")})` : ""}`);
 if (ok.length > 0) {
   console.log(`latency: model avg ${Math.round(sum((r) => r.modelMs) / ok.length)} ms · ocr avg ${Math.round(sum((r) => r.ocrMs) / ok.length)} ms (first OCR call in a process includes model load)`);
 }

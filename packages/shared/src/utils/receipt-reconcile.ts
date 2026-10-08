@@ -213,8 +213,29 @@ function labelledAmounts(rows: OcrRow[], label: RegExp, exclude?: RegExp): numbe
 const QTY_PREFIX = /^\s*(\d{1,2})\s*(?:x|×|@|pcs?\b)/i;
 const CIRCLED_DIGITS = "①②③④⑤⑥⑦⑧⑨";
 
-/** Quantity and unit price for one OCR row, derived only from what is printed. */
-function quantityFromRow(row: OcrRow, totalCents: number): { quantity: number; unit_price_cents: number } {
+/** "x2" / "×2" printed after the name: "Kaya Toast Set  x2  13.60". */
+const QTY_MARKER = /(?:^|\s)[x×]\s?(\d{1,2})(?=\s|$)/i;
+/** A quantity column: "2  1pc Chickenjoy  198.00" (only on receipts with a QTY header). */
+const QTY_COLUMN = /^\s*(\d{1,2})\s{1,}(?=\S*\p{L})/u;
+/** A quantity sub-line under the item: "3 x 134.00", "2 @ 45.00". */
+const QTY_SUBLINE = /^\s*(\d{1,2})\s*(?:x|×|@)\s*([\d.,]+)\s*$/i;
+
+function splitBy(qty: number, totalCents: number): { quantity: number; unit_price_cents: number } | null {
+  return qty >= 2 && qty <= 99 && totalCents % qty === 0 ? { quantity: qty, unit_price_cents: totalCents / qty } : null;
+}
+
+/**
+ * Quantity and unit price for one OCR row, derived only from what is printed:
+ * a unit price beside the line total, "2 x"/"2 @" prefixes, an "x2" marker, a
+ * quantity column (when the receipt has a QTY header), a "3 x 134.00" line
+ * directly below, or circled digits. Every quantity must divide the printed
+ * line total exactly; otherwise the line stays quantity 1.
+ */
+function quantityFromRow(
+  row: OcrRow,
+  totalCents: number,
+  context: { next?: OcrRow; qtyColumn: boolean } = { qtyColumn: false },
+): { quantity: number; unit_price_cents: number; usedNext?: boolean } {
   const magnitudes = row.magnitudes;
   if (magnitudes.length >= 2) {
     const unit = magnitudes[0]!;
@@ -228,8 +249,26 @@ function quantityFromRow(row: OcrRow, totalCents: number): { quantity: number; u
   }
   const prefix = QTY_PREFIX.exec(row.text);
   if (prefix?.[1]) {
-    const qty = Number.parseInt(prefix[1], 10);
-    if (qty >= 2 && qty <= 99 && totalCents % qty === 0) return { quantity: qty, unit_price_cents: totalCents / qty };
+    const hit = splitBy(Number.parseInt(prefix[1], 10), totalCents);
+    if (hit) return hit;
+  }
+  const marker = QTY_MARKER.exec(row.text);
+  if (marker?.[1]) {
+    const hit = splitBy(Number.parseInt(marker[1], 10), totalCents);
+    if (hit) return hit;
+  }
+  if (context.qtyColumn) {
+    const column = QTY_COLUMN.exec(row.text);
+    if (column?.[1]) {
+      const hit = splitBy(Number.parseInt(column[1], 10), totalCents);
+      if (hit) return hit;
+    }
+  }
+  const sub = context.next ? QTY_SUBLINE.exec(context.next.text) : null;
+  if (sub?.[1] && context.next?.magnitudes[0]) {
+    const qty = Number.parseInt(sub[1], 10);
+    const unit = context.next.magnitudes[0];
+    if (qty >= 2 && qty <= 99 && qty * unit === totalCents) return { quantity: qty, unit_price_cents: unit, usedNext: true };
   }
   for (let i = 0; i < CIRCLED_DIGITS.length; i += 1) {
     if (row.text.includes(CIRCLED_DIGITS[i]!) && i >= 1 && totalCents % (i + 1) === 0) {
@@ -297,11 +336,18 @@ export function reconcileReceiptExtraction(input: ReceiptExtractionInput): Recei
   });
   const usedRows = new Set<number>();
   const items: ReceiptReviewItem[] = [];
+  const qtyColumn = rows.some((row) => /^\s*(qty|quantity)\b/i.test(row.text));
+  // "3 x 134.00" lines belong to the item above, never items of their own.
+  rows.forEach((row, index) => {
+    if (QTY_SUBLINE.test(row.text)) usedRows.add(index);
+  });
   const misfiled: { name: string; cents: number }[] = [];
 
   for (const item of input.items) {
     const name = item.name.trim();
     if (!name) continue;
+    // "3 x 134.00" is the quantity line of the item above, not an item.
+    if (QTY_SUBLINE.test(name)) continue;
     const modelTotal = pesosToCents(item.totalPrice);
     if (isChargeLike(name)) {
       if (modelTotal) misfiled.push({ name, cents: modelTotal });
@@ -320,7 +366,7 @@ export function reconcileReceiptExtraction(input: ReceiptExtractionInput): Recei
       usedRows.add(match.index);
       const row = rows[match.index]!;
       const totalCents = row.magnitudes[row.magnitudes.length - 1]!;
-      const { quantity, unit_price_cents } = quantityFromRow(row, totalCents);
+      const { quantity, unit_price_cents } = quantityFromRow(row, totalCents, { next: rows[match.index + 1], qtyColumn });
       items.push({ name, quantity, unit_price_cents, total_cents: totalCents, state: "verified" });
       continue;
     }
