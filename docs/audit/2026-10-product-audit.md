@@ -318,6 +318,9 @@ enforcement (moot once groups may hold several currencies).
 - Phase 6: share-link rotate/disable, opt-in and masked payment details on shared pages, per-group hide, organizer-entered details for members without accounts; fixed a pre-existing bug where saving mobile payment details failed on any empty field and dropped QR codes.
 - Phase 7: friends via single-use invite links (no search), two-person direct ledgers, friend list with balances, web `/f/<token>` and app `talli://friend` acceptance.
 - All SQL suites pass on the live schema (rolled-back runs).
+- 2026-10-09: UX friction pass on branch `ux/friction-pass`. Measured flows show 33 → 21 taps across the five core
+  flows, plus 8 trust fixes, one of which is a ledger-safety migration still to be applied live. See
+  `docs/ux-audit.md`, `docs/ux-improvement-plan.md` and `docs/ux-validation-report.md`.
 
 ## 8. Final validation (1 October 2026)
 

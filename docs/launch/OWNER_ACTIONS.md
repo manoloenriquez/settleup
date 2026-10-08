@@ -22,6 +22,16 @@ returns 404 and `/.well-known/apple-app-site-association` returns 404.
    Expected: JSON containing `L8Y7B5Z7EQ.com.manoloenriquez.talli`. Then open a friend invite link on
    an iPhone with the app installed: it opens the app, not Safari.
 
+## 1a. Apply `20261009120000_guard_member_history.sql` (ledger safety)
+
+Removing a group member who is part of expenses or payments currently
+cascades and silently changes everyone's balances (`docs/ux-audit.md` U1).
+The migration adds a trigger that refuses that delete; it is additive and
+changes no data. Apply it to the live project, then run
+`supabase/tests/member_history.sql` there inside `BEGIN … ROLLBACK`.
+Without it the new apps still work; the live database just keeps allowing the
+corrupting delete.
+
 ## 2. Apply the analytics migrations (together, in this order)
 
 Never apply `product_events` alone: by itself it would count every app's sign-ups on the shared

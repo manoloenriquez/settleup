@@ -157,6 +157,16 @@ export async function createExpense(formData: FormData): Promise<ApiResponse<voi
   `accessibilityRole` (and `accessibilityState` for selected/checked controls).
   Controls laid out side by side stack when `useStackedLayout()` is true
   (accessibility text sizes). Text controls use `minHeight`, never `height`.
+- **Forms and confirmation** (UX pass, `docs/ux-audit.md`): copy the personal
+  expense form. Focus the first field, put **Save in the header** (the keyboard
+  hides bottom buttons), and don't add a review screen that repeats the form.
+  Prefer Undo for reversible saves (`toast.withAction`); keep an alert for
+  unusually large amounts (`isUnusuallyLarge`), shared-ledger deletes and
+  anything irreversible. Show the person first: "You" in payer choices, your
+  own balance before group totals.
+- **Contrast:** filled controls with white text use `colors.primaryFill`
+  (5.5:1); text on light tints uses the `*Dark` tokens. Don't put white text on
+  `colors.primary`.
 - **Opening a group from outside the tabs** (invite and friend links): use
   `openGroupFromLink()` so there is a back button to the Shared tab. The
   protected stack is anchored on `(tabs)` (`unstable_settings.anchor`, an
