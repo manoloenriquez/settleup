@@ -2,7 +2,9 @@ import { track } from "@/lib/analytics";
 import { useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   Share,
@@ -871,10 +873,11 @@ export default function GroupDetailScreen() {
         animationType="fade"
         onRequestClose={() => setEditingExpense(null)}
       >
-        <View style={styles.modalOverlay}>
+        {/* Keeps Save above the keyboard (the decimal pad has no return key). */}
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Expense</Text>
-            <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.modalScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalLabel}>Name</Text>
               <TextInput
                 style={styles.modalInput}
@@ -991,7 +994,7 @@ export default function GroupDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

@@ -39,8 +39,11 @@ final class EditSplitJourneyTests: XCTestCase {
     replace(app.textFields["Percentage for Dina"], with: "20", in: app)
     XCTAssertTrue(app.element(containing: "Adds up to ₱900.00").waitForExistence(timeout: 5))
     snap("E02-edit-percent")
-    app.buttons["Save"].waitAndTap()
-    XCTAssertTrue(app.element(containing: "Expense updated").waitForExistence(timeout: 15))
+    // Save stays above the decimal pad; tap the one on screen, not a key.
+    app.visibleButton("Save").tap()
+    // The new date and the 50/30/20 balance show on the group screen.
+    XCTAssertTrue(app.element(containing: "10/1/2026").waitForExistence(timeout: 15))
+    XCTAssertTrue(app.element(containing: "You are owed ₱450.00").waitForExistence(timeout: 15))
     snap("E03-saved")
   }
 }
