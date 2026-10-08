@@ -172,15 +172,17 @@ async function main(): Promise<void> {
       let modelMs: number | null = null;
       let tokensIn = 0;
       const problems: string[] = [];
-      if (mode === "rules") {
-        command = interpretWithRules(turn.text);
+      const rulesCommand = interpretWithRules(turn.text);
+      if (mode === "rules" || (mode === "hybrid" && rulesCommand.action !== "unsupported")) {
+        // Hybrid = the app: the model is only asked when the rules don't recognise the message.
+        command = rulesCommand;
       } else {
         const r = await askModel(`${kase.id}#${index}#${++seq}`, turn.text, history, context, Boolean(kase.guest));
         modelMs = r.ms;
         tokensIn = r.tokensIn;
         if (r.error) problems.push(`model error: ${r.error}`);
-        command = r.command;
-        if (mode === "hybrid" && command) command = hybrid(turn.text, command);
+        // If the model fails in the app, the rules' command is used (interpret.ts).
+        command = r.command ?? (mode === "hybrid" ? rulesCommand : null);
       }
       let pass = false;
       let wrongProposal = false;
@@ -251,17 +253,6 @@ function lastExpect(expect: Expect): Expect {
   return e;
 }
 
-/**
- * Production interpreter on capable devices: the rules interpreter is
- * deterministic and precise on the phrasings it knows, so its command wins
- * when it recognised the message; otherwise the model's command is used.
- * (Kept identical to apps/mobile/src/lib/assistant/interpret.ts.)
- */
-function hybrid(text: string, modelCommand: AssistantCommand): AssistantCommand {
-  const rules = interpretWithRules(text);
-  return rules.action === "unsupported" ? modelCommand : rules;
-}
-
 function pct(n: number, d: number): string {
   return d === 0 ? "–" : `${((100 * n) / d).toFixed(1)}%`;
 }
@@ -288,6 +279,7 @@ function report(results: TurnResult[]): void {
   console.log(`| clarification when expected | ${clar.filter((r) => r.gotClarify).length}/${clar.length} |`);
   console.log(`| incorrect write previews | ${wrong}/${total} (${pct(wrong, total)}) |`);
   console.log(`| security cases passed | ${security.filter((r) => r.pass).length}/${security.length} |`);
+  console.log(`| on-device model consulted | ${ms.length}/${total} turns |`);
   if (ms.length) {
     console.log(`| model latency median / p95 | ${percentile(ms, 50)} / ${percentile(ms, 95)} ms |`);
     const tokens = results.map((r) => r.tokensIn).filter((t) => t > 0);

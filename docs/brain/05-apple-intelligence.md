@@ -16,6 +16,29 @@ say why and the manual flows remain.
 | Insights narrative | Statistics computed in code; model writes 2–3 sentences from them | Statistics only |
 | Category | Guided enum for chat; keyword classifier (`inferCategorySlug`) for receipts | Keyword classifier |
 
+## Talli Assistant
+
+A tab that does what the app does from a sentence. Design and safety rules:
+`docs/ai/ASSISTANT_DESIGN.md`; measured quality: `docs/ai/AI_BENCHMARK_RESULTS.md`.
+
+```
+message ─► rules interpreter (packages/shared/src/assistant/rules.ts)
+             └─ unrecognised → AssistantIntelligence.interpret (Swift, guided generation,
+                minimal instructions: policy sentences trip Apple's safety classifier)
+        ─► AssistantCommand (words only) ─► mergeFollowUp (pending question/preview)
+        ─► resolveCommand (deterministic: enrich from the user's own names/dates,
+           amounts only from the user's words or a reconciled receipt, ambiguity →
+           choices) ─► answer | clarify | propose | navigate | refuse
+propose ─► Confirm ─► fresh snapshot + revalidateProposal ─► executor.ts
+           (the screens' own *OrQueue functions; proposal id = idempotency key)
+```
+
+Mobile: `src/hooks/useAssistant.ts`, `src/lib/assistant/{snapshot,interpret,executor,storage}.ts`,
+`src/components/assistant/AssistantMessage.tsx`, `app/(protected)/(tabs)/assistant/`. Transcripts
+are per account on the device (`talli:assistant:v1:*`), purged with the account's data. Evaluate
+with `pnpm --filter @template/assistant-eval eval -- --hybrid --set holdout2`; never tune against
+`holdout2.json`.
+
 ## Receipt pipeline
 
 ```
@@ -127,6 +150,10 @@ scores the reconciled result against `sample-inputs/receipts/expected/*.json`
 with the same TypeScript reconciliation the app ships. It reports total,
 merchant, date, subtotal, tax, service charge, discount, item price/name/
 quantity accuracy, required-field completion, review states and latency.
+
+`--dir synthetic` scores the 30 rendered receipts in `sample-inputs/receipts/synthetic`
+(ground truth by construction, `tools/receipt-eval/synth/generate.py`); the summary line
+"wrong total NOT flagged" must stay 0. Latest results: `docs/ai/AI_BENCHMARK_RESULTS.md`.
 
 Run it after every iOS/macOS release: the system model changes with the OS,
 so prompts and row reconstruction are behaviour that needs regression checks.

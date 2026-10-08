@@ -1,6 +1,6 @@
 # Talli launch implementation status
 
-Updated 2026-09-10. **Not ready for public release.** This document tracks implementation and evidence, not a launch approval. The user-owned `docs/PRD.md` is unchanged. The remaining code work is sequenced in `docs/launch-implementation-plan.md`, which also records the scope decisions D1 to D6 (PHP-only launch, no credit feature, open signup, first-party product events, service-role-free push, nothing pushed or deployed without the owner).
+Updated 2026-09-10. **Superseded for current status by `docs/launch/LAUNCH_READINESS.md` and `docs/launch/RELEASE_REPORT.md` (2026-10-08).** **Not ready for public release.** This document tracks implementation and evidence, not a launch approval. The user-owned `docs/PRD.md` is unchanged. The remaining code work is sequenced in `docs/launch-implementation-plan.md`, which also records the scope decisions D1 to D6 (PHP-only launch, no credit feature, open signup, first-party product events, service-role-free push, nothing pushed or deployed without the owner).
 
 ## Source and deployment
 

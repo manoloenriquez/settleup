@@ -22,7 +22,7 @@ final class AccountJourneyTests: XCTestCase {
     let email = app.textFields["Email"]
     XCTAssertTrue(email.waitForExistence(timeout: 10))
     email.tap()
-    email.slowType(LocalAccount.ana)
+    email.slowType(LocalAccount.newAccount)
     // Reveal both password fields first: iOS only offers (and swaps in) a
     // strong password on secure fields.
     for _ in 0..<2 { app.buttons["Show password"].firstMatch.waitAndTap() }

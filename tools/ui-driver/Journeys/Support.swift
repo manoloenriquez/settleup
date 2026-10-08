@@ -48,6 +48,9 @@ extension XCUIElement {
 enum LocalAccount {
   static var password: String { ProcessInfo.processInfo.environment["LOCAL_TEST_PASSWORD"] ?? "" }
   static let ana = "ana@talli.test"
+  /// Address for journeys that create an account; the runner can pass a fresh
+  /// one (NEW_ACCOUNT_EMAIL) so a re-run on the same local stack still signs up.
+  static var newAccount: String { ProcessInfo.processInfo.environment["NEW_ACCOUNT_EMAIL"].flatMap { $0.isEmpty ? nil : $0 } ?? ana }
   static let ben = "ben@talli.test"
 }
 
