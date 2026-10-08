@@ -19,9 +19,10 @@ function cleanName(raw: string | undefined): string | null {
   let name = raw.trim();
   while (LEAD_WORDS.test(name)) name = name.replace(LEAD_WORDS, "");
   // Filipino particles after a name: "ni Sarah ng 500", "kay Ben sa".
-  // "back" is never part of a name: "I paid Mia back 500" (the patterns match
-  // case-insensitively, so a capitalised second word can't be required).
-  name = name.replace(/\s+(ng|sa|na|po|ay|ko|nang|back)$/i, "");
+  name = name.replace(/\s+(ng|sa|na|po|ay|ko|nang)$/i, "");
+  // "I paid Mia back 500": a lowercase "back" is the verb, not a surname
+  // (the patterns match case-insensitively); "Sarah Back" keeps her name.
+  name = name.replace(/\s+back$/, "");
   return name || null;
 }
 

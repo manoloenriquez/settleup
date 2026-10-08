@@ -104,3 +104,20 @@ describe("personal link headline", () => {
     expect(screen.getByText("All settled!")).toBeTruthy();
   });
 });
+
+describe("personal link with two currencies", () => {
+  it("shows what they owe in one currency and what they're owed in the other", () => {
+    render(
+      <FriendView
+        views={[
+          { currency: "PHP", payload: payload(-45000) },
+          { currency: "USD", payload: { ...payload(2500), currency_code: "USD" } },
+        ]}
+        shareLink="https://x/p/t"
+        shareToken="t"
+      />,
+    );
+    expect(screen.getAllByText("₱450.00").length).toBeGreaterThan(0);
+    expect(screen.getByText(/\+ \$25\.00 to you|\+ US\$25\.00 to you/)).toBeTruthy();
+  });
+});

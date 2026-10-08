@@ -135,8 +135,9 @@ describe("assistant: edits, deletes, payments", () => {
       amount: 500,
       direction: "i_paid_them",
     });
-    // A real two-word name is kept.
+    // Real two-word names are kept, including a surname "Back".
     expect(interpretWithRules("I paid Sarah Lim 500")).toMatchObject({ personName: "Sarah Lim" });
+    expect(interpretWithRules("I paid Sarah Back 500")).toMatchObject({ personName: "Sarah Back" });
   });
 
   it("'Change yesterday's dinner to ₱4,200' keeps it equal over the same people", () => {

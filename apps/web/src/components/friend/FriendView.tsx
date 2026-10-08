@@ -106,8 +106,8 @@ function CurrencySection({
           {standing === "owes"
             ? `You owe ${formatCurrency(owedIn(payload), currency)}`
             : standing === "owed"
-            ? `You're owed ${formatCurrency(payload.net_cents, currency)}`
-            : "You're settled"}
+              ? `You're owed ${formatCurrency(payload.net_cents, currency)}`
+              : "You're settled"}
         </p>
       </div>
 
@@ -236,14 +236,14 @@ export function FriendView({ views, shareLink, shareToken }: Props): React.React
   const heroBg = owes
     ? "bg-gradient-to-br from-amber-500 to-orange-500"
     : isOwed
-    ? "bg-gradient-to-br from-emerald-500 to-teal-500"
-    : "bg-gradient-to-br from-brand-600 to-violet-600";
+      ? "bg-gradient-to-br from-emerald-500 to-teal-500"
+      : "bg-gradient-to-br from-brand-600 to-violet-600";
 
   const heroPill = owes
     ? { label: "You owe", icon: <TrendingDown size={13} className="text-white/80" /> }
     : isOwed
-    ? { label: "You're owed", icon: <ArrowUpRight size={13} className="text-white/80" /> }
-    : { label: "All settled", icon: <CheckCircle2 size={13} className="text-white/80" /> };
+      ? { label: "You're owed", icon: <ArrowUpRight size={13} className="text-white/80" /> }
+      : { label: "All settled", icon: <CheckCircle2 size={13} className="text-white/80" /> };
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
@@ -267,16 +267,27 @@ export function FriendView({ views, shareLink, shareToken }: Props): React.React
               <div>
                 <p className="text-sm font-medium text-white/70">Hi {memberName}</p>
                 {owes ? (
-                  owing.map(({ currency, payload }) => (
-                    <p
-                      key={currency}
-                      className={`${
-                        owing.length > 1 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
-                      } font-extrabold tracking-tight`}
-                    >
-                      {formatCurrency(owedIn(payload), currency)}
-                    </p>
-                  ))
+                  <>
+                    {owing.map(({ currency, payload }) => (
+                      <p
+                        key={currency}
+                        className={`${
+                          owing.length > 1 ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
+                        } font-extrabold tracking-tight`}
+                      >
+                        {formatCurrency(owedIn(payload), currency)}
+                      </p>
+                    ))}
+                    {/* Another currency may be owed to them at the same time. */}
+                    {owedTo.map(({ currency, payload }) => (
+                      <p
+                        key={`owed-${currency}`}
+                        className="text-lg font-bold tracking-tight text-white/90"
+                      >
+                        + {formatCurrency(payload.net_cents, currency)} to you
+                      </p>
+                    ))}
+                  </>
                 ) : isOwed ? (
                   // Someone owes this person: show what, never "All settled".
                   owedTo.map(({ currency, payload }) => (

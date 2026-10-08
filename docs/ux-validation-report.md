@@ -140,13 +140,14 @@ per typed character, 1.2 s to read each new screen, 1.0 s per scroll.
 | Check | Result |
 |---|---|
 | `pnpm typecheck` | 8/8 packages pass |
+| App update (build 6 data → new build, `check-upgrade.sh`) | pass |
 | `pnpm lint` | passes (mobile at `--max-warnings 0`) |
-| Unit tests | shared 340, mobile 98, web 51, ai 24, all passing. Baseline was 335 / 89 / 45 / 24; the new tests cover people parsing, expense stake, receipt amounts, public pages and the Assistant name. |
+| Unit tests | shared 340, mobile 98, web 52, ai 24, all passing. Baseline was 335 / 89 / 45 / 24; the new tests cover people parsing, expense stake, receipt amounts, public pages (incl. mixed currencies) and the Assistant name. |
 | `pnpm --filter @template/web build` | passes |
 | SQL suites (local stack, every migration applied) | 15/15 pass, including the new `member_history` |
 | Measured flows (`run-flows.sh`, before and after) | 5/5 pass in each build |
 | Regression journeys on the simulator | 12/12 pass (table below) |
-| Codex plan review / code review | 1 round each, triaged (see the commit messages) |
+| Codex plan review / code review | plan: 1 round; code: 2 rounds (cap). All findings triaged; accepted ones fixed (single-group add menu, zero-stake label, surname "Back", mixed-currency /p headline, web payment form, partial group creation) |
 
 Regression journeys (XCUITest, iOS 27 simulator, local Supabase, fresh install each):
 
