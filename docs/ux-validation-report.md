@@ -176,10 +176,9 @@ behaviour.
   satisfaction. The model times assume a practised user.
 - **Physical iPhone.** Apple Intelligence receipt scanning and the Assistant
   on device, haptics, and the share sheet on a real phone were not tested.
-- **Live database.** The migration `20261009120000_guard_member_history.sql`
-  is applied locally only. **It must be applied to the live project by the
-  owner.** Until then, the apps show a generic error only if the delete
-  fails, and the live database still allows the corrupting delete.
+- **Live database:** the member-history migration was applied live on
+  9 October 2026 at the owner's request. Its SQL suite passed there inside a
+  rolled-back transaction, and no live expense had been corrupted before.
 - **Largest text on the new group hero and rows:** the large-text tour covers
   Home and payment details only; the group screen was checked in Dark Mode
   at the default size, not at accessibility sizes.
@@ -192,7 +191,7 @@ behaviour.
 
 | Priority | Issue | Why it remains |
 |---|---|---|
-| Owner action | Apply migration `20261009120000` to the live project. Redeploy web. | Needs the owner's Supabase and Vercel access. |
+| Owner action | Redeploy web (the public-page fixes ship with it). | Needs the owner's Vercel access. The live migration was applied on 9 October. |
 | P1 | Joining by invite code creates a second copy of someone already listed under the same name (U27) | Needs a product decision on a "Which of these is you?" claim step. |
 | P1 | Group Settings is still one long screen with four kinds of link | Splitting it into People / Sharing / Group is a larger rewrite. The friend-tab cleanup and the terminology change remove the worst confusion. |
 | P2 | Receipt items are assigned to everyone by default, and assigning is item × person toggles | Needs device testing with real receipts. |

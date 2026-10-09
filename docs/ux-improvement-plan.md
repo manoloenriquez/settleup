@@ -77,7 +77,7 @@ task; bump if a query's data changes).
 
 | Task | Status | Evidence |
 |---|---|---|
-| P0-1 … P0-8 | Done (commit `c4f58a4`). P0-1 also needs the live migration (owner) | SQL suite `member_history`, web tests, browser screenshots, simulator journeys |
+| P0-1 … P0-8 | Done (commit `c4f58a4`). P0-1 applied live on 9 Oct 2026 and tested there (rolled back) | SQL suite `member_history`, web tests, browser screenshots, simulator journeys |
 | P0-3 (web) | Done: Codex plan review found the same blank-form risk on web | `account/payment/page.tsx` |
 | P1-1 … P1-9 | Done (commit `0bf73f9`) | `docs/ux-validation-report.md`: taps 33 → 21, screens 28 → 20 |
 | P1-10 guest banner, P1-11 friend tabs, P1-12 contrast, P1-13 dead-link pages, P1-14 Assistant name, P1-15 terminology | Done | as above |
