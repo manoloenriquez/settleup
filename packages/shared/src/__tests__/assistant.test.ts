@@ -348,3 +348,119 @@ describe("assistant: review fixes", () => {
     expect(run("How much does Sarah owe me?", { snapshot: fixtureSnapshot({ pendingWrites: 2 }) }).text).toContain("2 changes are still waiting to sync");
   });
 });
+
+describe("assistant: settling up in full", () => {
+  // Bali balances simplify to: Mark → John 3,900, Sarah → John 2,400, Sarah → Paolo 825.
+  it("'Settle up with Sarah in Bali' records her full ₱825 to me", () => {
+    const p = proposal(run("Settle up with Sarah in Bali"));
+    expect(p.action).toMatchObject({
+      type: "record_payment",
+      fromMemberId: SARAH_BALI,
+      toMemberId: ME_BALI,
+      amountMinor: 82500,
+      currency: "PHP",
+      settlesFullBalance: true,
+    });
+    expect(p.lines.find((l) => l.label === "Amount")?.value).toContain("full balance");
+  });
+
+  it("'Mark my payment to Sarah as settled' when Sarah owes me says so instead", () => {
+    const plan = run("Mark my payment to Sarah as settled in Bali");
+    expect(plan.kind).toBe("answer");
+    if (plan.kind === "answer") expect(plan.text).toMatch(/Sarah owes you ₱825\.00/);
+  });
+
+  it("'Settle up with John Cruz in Bali' when nothing is owed between us", () => {
+    const plan = run("Settle up with John Cruz in Bali");
+    expect(plan.kind).toBe("answer");
+    if (plan.kind === "answer") expect(plan.text).toMatch(/settled up/);
+  });
+
+  it("a stated amount is used as said, not the balance", () => {
+    const p = proposal(run("Sarah paid me 300 in Bali"));
+    expect(p.action).toMatchObject({ amountMinor: 30000 });
+    expect("settlesFullBalance" in p.action && p.action.settlesFullBalance).toBeFalsy();
+  });
+
+  it("asks to load balances first when they aren't loaded", () => {
+    const snapshot = fixtureSnapshot();
+    const bali = snapshot.groups.find((g) => g.id === "g-bali")!;
+    bali.balances = null;
+    const plan = resolveCommand({ command: interpretWithRules("Settle up with Sarah in Bali"), text: "Settle up with Sarah in Bali", snapshot, focus: EMPTY_FOCUS, newId });
+    expect(isLoadRequest(plan)).toBe(true);
+  });
+
+  it("refuses at Confirm when the balance changed after the preview", () => {
+    const p = proposal(run("Settle up with Sarah in Bali"));
+    const snapshot = fixtureSnapshot();
+    const bali = snapshot.groups.find((g) => g.id === "g-bali")!;
+    bali.balances = [
+      {
+        currency: "PHP",
+        net: [
+          { memberId: ME_BALI, amountMinor: 42500 },
+          { memberId: SARAH_BALI, amountMinor: -282500 },
+          { memberId: JOHN_BALI, amountMinor: 630000 },
+          { memberId: MARK_BALI, amountMinor: -390000 },
+        ],
+      },
+    ];
+    expect(revalidateProposal(p, snapshot)).toMatch(/balance changed.*₱425\.00/);
+    expect(revalidateProposal(p, fixtureSnapshot())).toBeNull();
+  });
+
+  it("rules read the common settle phrasings", () => {
+    expect(interpretWithRules("Settle up with Mia")).toMatchObject({ action: "record_payment", personName: "Mia" });
+    expect(interpretWithRules("Mark my payment to Mia as settled")).toMatchObject({ action: "record_payment", personName: "Mia", direction: "i_paid_them" });
+    expect(interpretWithRules("I paid Mia back")).toMatchObject({ action: "record_payment", personName: "Mia", direction: "i_paid_them", amount: 0 });
+    expect(interpretWithRules("Mia paid me back")).toMatchObject({ action: "record_payment", personName: "Mia", direction: "they_paid_me" });
+  });
+});
+
+describe("assistant: your own expenses", () => {
+  const guest = () => ({ ...fixtureSnapshot(), isGuest: true, groups: [] });
+
+  it("a guest can change an expense's amount (no account needed)", () => {
+    const p = proposal(run("Change the coffee to 220", { snapshot: guest() }));
+    expect(p.action).toMatchObject({
+      type: "edit_personal_expense",
+      expenseId: "p-coffee",
+      expectedUpdatedAt: "2026-10-03T08:00:00Z",
+      amountMinor: 22000,
+      currency: "PHP",
+      description: "Coffee",
+    });
+    expect(p.risk).toBe("write");
+  });
+
+  it("a guest can delete one, and it isn't refused for needing an account", () => {
+    const p = proposal(run("Delete the books", { snapshot: guest() }));
+    expect(p.action).toMatchObject({ type: "delete_personal_expense", expenseId: "p-books" });
+  });
+
+  it("signed in: a name that only matches your own expenses edits that one", () => {
+    const p = proposal(run("Change the coffee to 220"));
+    expect(p.action).toMatchObject({ type: "edit_personal_expense", expenseId: "p-coffee", amountMinor: 22000 });
+  });
+
+  it("signed in: group expenses still come first when they match", () => {
+    const p = proposal(run("Change the Grab ride to 500"));
+    expect(p.action.type).toBe("edit_group_expense");
+  });
+
+  it("refuses at Confirm when the expense changed or was deleted", () => {
+    const p = proposal(run("Change the coffee to 220", { snapshot: guest() }));
+    const changed = guest();
+    changed.personal = changed.personal.map((e) => (e.id === "p-coffee" ? { ...e, updatedAt: "2026-10-09T00:00:00Z" } : e));
+    expect(revalidateProposal(p, changed)).toMatch(/changed since/);
+    const gone = guest();
+    gone.personal = gone.personal.filter((e) => e.id !== "p-coffee");
+    expect(revalidateProposal(p, gone)).toMatch(/deleted/);
+    expect(revalidateProposal(p, guest())).toBeNull();
+  });
+
+  it("'Change my grab ride' never edits a group expense when no personal one matches", () => {
+    const plan = run("Change my grab ride to 500");
+    expect(plan.kind).toBe("refuse");
+  });
+});

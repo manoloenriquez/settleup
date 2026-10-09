@@ -172,8 +172,8 @@ export function fixtureSnapshot(overrides: Partial<AssistantSnapshot> = {}): Ass
     defaultCurrency: "PHP",
     groups: [structuredClone(bali), structuredClone(barkada), structuredClone(markDirect), structuredClone(tokyo)],
     personal: [
-      { id: "p-coffee", description: "Coffee", amountMinor: 18000, currency: "PHP", date: "2026-10-03", category: "food-drinks" },
-      { id: "p-books", description: "Books", amountMinor: 120000, currency: "PHP", date: "2026-09-20", category: "shopping" },
+      { id: "p-coffee", description: "Coffee", amountMinor: 18000, currency: "PHP", date: "2026-10-03", category: "food-drinks", updatedAt: "2026-10-03T08:00:00Z" },
+      { id: "p-books", description: "Books", amountMinor: 120000, currency: "PHP", date: "2026-09-20", category: "shopping", updatedAt: "2026-09-20T08:00:00Z" },
     ],
     ...overrides,
   };

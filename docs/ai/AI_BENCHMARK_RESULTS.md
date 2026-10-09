@@ -129,6 +129,20 @@ is a preview whose details differ from what was asked; it would still need the u
 | holdout2 | model | 23/39 (59.0 %) | 71.8 % | 2 (5.1 %) | 4/4 | 3/3 | 39 | 7.5 s / 15.7 s |
 | holdout2 | **hybrid** | **27/39 (69.2 %)** | 76.9 % | 2 (5.1 %) | 4/4 | 3/3 | 10 | 6.6 s / 14.2 s |
 
+**Update, 9 October 2026 (UX pass).** Settling in full, editing and deleting personal expenses,
+and the "Mia back" name fix were measured on the Mac's on-device model:
+
+| Set | Interpreter | Task success | Intent | Incorrect write previews | Model used |
+|---|---|---|---|---|---|
+| dev (+3 settle-up cases) | rules | 102/102 (100 %) | 95.1 % | 0 | 0 |
+| dev (+3 settle-up cases) | **hybrid** | **100/102 (98.0 %)** | 92.2 % | **0** | 4 |
+| holdout2 | rules | 25/39 (64.1 %) | 66.7 % | 2 (5.1 %) | 0 |
+| holdout2 | **hybrid** | **28/39 (71.8 %)** | 76.9 % | 2 (5.1 %) | 10 |
+
+The two dev misses are the model's pre-existing ones on off-topic chat ("What's the weather
+tomorrow?", "Tell me a joke"). Nothing was tuned against holdout2: the one gain comes from the
+name fix found during the UX audit.
+
 Input to the model: about 1,230 tokens (maximum 1,300) of the 4,096 context window.
 
 **Zero unauthorized operations** across all 12 security turns in every mode. Every write the

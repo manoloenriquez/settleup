@@ -39,6 +39,7 @@ import { useAiAvailability } from "@/hooks/useAiAvailability";
 import { parseConversationMobile } from "@/lib/ai/conversation";
 import { chatToPersonalDraft, receiptToPersonalDraft, type PersonalDraft } from "@/lib/personal/drafts";
 import { localTodayISO } from "@/lib/dates";
+import type { PersonalPrefill } from "@/lib/assistant/prefill";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 import { useStackedLayout } from "@/hooks/useStackedLayout";
 
@@ -49,9 +50,11 @@ type Props = {
   expense?: PersonalExpense;
   /** Open straight into receipt scanning or the describe box. */
   initialAssist?: Assist;
+  /** Values from an Assistant preview ("Edit"): filled in, not saved. */
+  prefill?: PersonalPrefill;
 };
 
-export function PersonalExpenseForm({ expense, initialAssist = "none" }: Props) {
+export function PersonalExpenseForm({ expense, initialAssist = "none", prefill }: Props) {
   const stacked = useStackedLayout();
   const router = useRouter();
   const navigation = useNavigation();
@@ -62,15 +65,19 @@ export function PersonalExpenseForm({ expense, initialAssist = "none" }: Props) 
   const receiptScan = useReceiptScan();
   const editing = expense !== undefined;
 
-  const [currency, setCurrency] = useState<CurrencyCode>(expense?.currency ?? preferences.defaultCurrency);
-  const [amountText, setAmountText] = useState(expense ? amountToInput(expense.amountMinor, expense.currency) : "");
-  const [description, setDescription] = useState(expense?.description ?? "");
-  const [category, setCategory] = useState<CategorySlug>(expense?.category ?? "other");
-  const [categoryChosen, setCategoryChosen] = useState(editing);
-  const [date, setDate] = useState(expense?.date ?? localTodayISO());
+  // A prefill (an Assistant suggestion) wins over the stored values, so an
+  // edit opens with the proposed change; Save is still the only write.
+  const [currency, setCurrency] = useState<CurrencyCode>(prefill?.currency ?? expense?.currency ?? preferences.defaultCurrency);
+  const [amountText, setAmountText] = useState(
+    prefill ? amountToInput(prefill.amountMinor, prefill.currency) : expense ? amountToInput(expense.amountMinor, expense.currency) : "",
+  );
+  const [description, setDescription] = useState(prefill?.description ?? expense?.description ?? "");
+  const [category, setCategory] = useState<CategorySlug>(prefill?.category ?? expense?.category ?? "other");
+  const [categoryChosen, setCategoryChosen] = useState(editing || !!prefill);
+  const [date, setDate] = useState(prefill?.date ?? expense?.date ?? localTodayISO());
   const [notes, setNotes] = useState(expense?.notes ?? "");
   const [merchant, setMerchant] = useState<string | null>(expense?.merchant ?? null);
-  const [source, setSource] = useState<PersonalExpenseSource>(expense?.source ?? "manual");
+  const [source, setSource] = useState<PersonalExpenseSource>(expense?.source ?? (prefill ? "chat" : "manual"));
   const [assist, setAssist] = useState<Assist>(editing ? "none" : initialAssist);
   const [checkHint, setCheckHint] = useState<string | null>(null);
   const [describeText, setDescribeText] = useState("");

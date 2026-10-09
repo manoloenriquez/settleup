@@ -20,9 +20,10 @@ function cleanName(raw: string | undefined): string | null {
   while (LEAD_WORDS.test(name)) name = name.replace(LEAD_WORDS, "");
   // Filipino particles after a name: "ni Sarah ng 500", "kay Ben sa".
   name = name.replace(/\s+(ng|sa|na|po|ay|ko|nang)$/i, "");
-  // "I paid Mia back 500": a lowercase "back" is the verb, not a surname
-  // (the patterns match case-insensitively); "Sarah Back" keeps her name.
-  name = name.replace(/\s+back$/, "");
+  // "I paid Mia back 500", "settle up with Mia in Bali": a lowercase word after
+  // the name is part of the sentence, not a surname (the patterns match
+  // case-insensitively); "Sarah Back" keeps her name.
+  name = name.replace(/\s+(back|in|at|for|from|on|to|with|na)$/, "");
   return name || null;
 }
 
@@ -140,6 +141,19 @@ export function interpretWithRules(input: string): AssistantCommand {
   if (m && !/^(for|me)$/i.test(m[1]!)) {
     return cmd({ action: "record_payment", personName: cleanName(m[1]), amount: amountOf(m[2]), direction: "i_paid_them", groupName: group });
   }
+
+  // Settling in full (no amount needed: the resolver uses the balance):
+  // "Settle up with Mia", "Mark my payment to Mia as settled", "I paid Mia back", "Mia paid me back"
+  m = new RegExp(`\\b(?:settle(?:d)?(?:\\s+up)?|square(?:d)?\\s+up)\\s+with\\s+${NAME}`, "iu").exec(text);
+  if (m) return cmd({ action: "record_payment", personName: cleanName(m[1]), groupName: group });
+  m = new RegExp(`\\bmark\\s+(?:my\\s+)?(?:payment|debt)\\s+(?:to|with)\\s+${NAME}\\s+as\\s+(?:paid|settled|done)`, "iu").exec(text);
+  if (m) return cmd({ action: "record_payment", personName: cleanName(m[1]), direction: "i_paid_them", groupName: group });
+  m = new RegExp(`\\bmark\\s+${NAME}(?:'s)?\\s+(?:payment|debt)\\s+as\\s+(?:paid|settled|received|done)`, "iu").exec(text);
+  if (m) return cmd({ action: "record_payment", personName: cleanName(m[1]), direction: "they_paid_me", groupName: group });
+  m = new RegExp(`\\bI\\s+(?:paid|sent)\\s+${NAME}\\s+back\\b(?![^\\d]*\\d)`, "iu").exec(text);
+  if (m) return cmd({ action: "record_payment", personName: cleanName(m[1]), direction: "i_paid_them", groupName: group });
+  m = new RegExp(`${NAME}\\s+paid\\s+me\\s+back\\b(?![^\\d]*\\d)`, "iu").exec(text);
+  if (m) return cmd({ action: "record_payment", personName: cleanName(m[1]), direction: "they_paid_me", groupName: group });
 
   // "John owes me 300 for coffee", "Utang ni John 300 sa kape"
   m = new RegExp(`${NAME}\\s+owes\\s+me\\s+${AMOUNT}`, "iu").exec(text) ?? new RegExp(`utang\\s+(?:ni|sa akin ni)\\s+${NAME}\\s+(?:ay\\s+)?${AMOUNT}`, "iu").exec(text);

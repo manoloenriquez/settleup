@@ -53,6 +53,7 @@ import {
   type DraftResolution,
   type PersistedDraft,
 } from "@/lib/expense-draft";
+import { parseGroupPrefill } from "@/lib/assistant/prefill";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
 import { equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, isUnusuallyLarge, parseAmountInput, type CurrencyCode } from "@template/shared";
@@ -137,7 +138,10 @@ function AssistButton({
 }
 
 export default function AddExpenseScreen() {
-  const { id: groupId } = useLocalSearchParams<{ id: string }>();
+  const { id: groupId, prefill: prefillParam } = useLocalSearchParams<{ id: string; prefill?: string }>();
+  // Values from an Assistant preview ("Edit"); they win over a saved draft.
+  const prefill = useMemo(() => parseGroupPrefill(prefillParam), [prefillParam]);
+  const prefillApplied = useRef(false);
   const router = useRouter();
   const { session } = useAuth();
   const toast = useToast();
@@ -227,6 +231,32 @@ export default function AddExpenseScreen() {
   }, [groupId]);
 
   useEffect(() => {
+    if (!prefill || prefillApplied.current || members.length === 0) return;
+    prefillApplied.current = true;
+    const ids = new Set(members.map((m) => m.id));
+    const known = prefill.shares.every((share) => ids.has(share.memberId)) && ids.has(prefill.payerMemberId);
+    setChosenCurrency(prefill.currency);
+    setAmount(amountToInput(prefill.amountMinor, prefill.currency));
+    setItemName(prefill.description);
+    setExpenseDate(prefill.date);
+    if (!known) {
+      toast.info("Some people in that suggestion aren’t in the group anymore. Choose who shares it.");
+      return;
+    }
+    hasInitializedMembersRef.current = true;
+    setPayerMemberId(prefill.payerMemberId);
+    setSelectedMembers(new Set(prefill.shares.map((share) => share.memberId)));
+    if (prefill.equal) {
+      setMode("quick");
+    } else {
+      setMode("detailed");
+      setSplitMode("custom");
+      setCustomShares(Object.fromEntries(prefill.shares.map((share) => [share.memberId, amountToInput(share.shareCents, prefill.currency)])));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once, when members are known
+  }, [prefill, members]);
+
+  useEffect(() => {
     if (hasInitializedMembersRef.current || members.length === 0) return;
 
     setSelectedMembers(new Set(members.map((member) => member.id)));
@@ -247,6 +277,12 @@ export default function AddExpenseScreen() {
   const draftUserId = session?.user.id ?? "";
   useEffect(() => {
     if (!draftUserId) return;
+    if (prefill) {
+      // An Assistant suggestion neither loads nor overwrites the saved draft:
+      // abandoning it must not bring it back the next time Add Expense opens.
+      draftHydrated.current = false;
+      return;
+    }
     let cancelled = false;
     draftHydrated.current = false;
     draftCleared.current = false;
@@ -353,7 +389,8 @@ export default function AddExpenseScreen() {
   function clearPersistedDraft(): void {
     draftCleared.current = true;
     latestDraft.current = null;
-    if (!draftUserId) return;
+    // Saving a suggestion leaves the person's own saved draft alone.
+    if (!draftUserId || prefill) return;
     void AsyncStorage.removeItem(draftStorageKey(draftUserId, groupId)).catch(() => undefined);
   }
 

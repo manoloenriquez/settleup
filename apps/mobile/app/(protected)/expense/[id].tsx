@@ -3,10 +3,11 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { EmptyState } from "@/components/ui";
 import { PersonalExpenseForm } from "@/components/personal/PersonalExpenseForm";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
+import { parsePersonalPrefill } from "@/lib/assistant/prefill";
 import { colors } from "@/theme";
 
 export default function EditPersonalExpenseScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, prefill } = useLocalSearchParams<{ id: string; prefill?: string }>();
   const router = useRouter();
   const { status, ledger } = usePersonalLedger();
   const expense = ledger.expenses.find((item) => item.id === id && !item.deletedAt);
@@ -32,7 +33,7 @@ export default function EditPersonalExpenseScreen() {
       </>
     );
   }
-  return <PersonalExpenseForm expense={expense} />;
+  return <PersonalExpenseForm expense={expense} prefill={parsePersonalPrefill(prefill) ?? undefined} />;
 }
 
 const styles = StyleSheet.create({

@@ -68,6 +68,8 @@ export type SnapshotPersonalExpense = {
   currency: CurrencyCode;
   date: string;
   category: CategorySlug;
+  /** Version for the confirm-time check (edits and deletes). */
+  updatedAt: string;
 };
 
 export type AssistantSnapshot = {
@@ -144,7 +146,20 @@ export type ProposalAction =
       toMemberId: string;
       amountMinor: number;
       currency: CurrencyCode;
+      /** The amount came from the balance ("settle up"): re-checked against it at Confirm. */
+      settlesFullBalance?: boolean;
     }
+  | {
+      type: "edit_personal_expense";
+      expenseId: string;
+      expectedUpdatedAt: string;
+      description: string;
+      amountMinor: number;
+      currency: CurrencyCode;
+      date: string;
+      category: CategorySlug;
+    }
+  | { type: "delete_personal_expense"; expenseId: string; expectedUpdatedAt: string }
   | { type: "create_group"; name: string; currency: CurrencyCode; memberNames: string[] }
   | { type: "add_members"; groupId: string; names: string[] }
   | { type: "remove_member"; groupId: string; memberId: string }

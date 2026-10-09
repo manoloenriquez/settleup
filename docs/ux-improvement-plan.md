@@ -87,3 +87,12 @@ task; bump if a query's data changes).
 Acceptance criteria met: F1 ≤ 4 taps/≤ 4 screens (4/4); F2 repeat ≤ 5 taps,
 0 scrolls, ≤ 4 screens (4/0/4); F3 ≤ 6 taps, ≤ 4 screens (5/4); F4 ≤ 4 taps,
 0 scrolls (3/0); F5 ≤ 5 taps (5).
+
+### Follow-up (same day)
+
+| Item | Status |
+|---|---|
+| U27 duplicate people on join: warning before joining, per-person Invite in settings | Done. Migration `20261009140000_preview_group_invite.sql` must be applied live before the next web deploy; the apps fall back if it's missing |
+| Assistant: settle up in full, Edit on previews, personal edit/delete with Undo | Done |
+| Group Settings split into People / Sharing / Group | Done (mobile; web settings unchanged) |
+

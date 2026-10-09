@@ -192,12 +192,70 @@ behaviour.
 | Priority | Issue | Why it remains |
 |---|---|---|
 | Owner action | Redeploy web (the public-page fixes ship with it). | Needs the owner's Vercel access. The live migration was applied on 9 October. |
-| P1 | Joining by invite code creates a second copy of someone already listed under the same name (U27) | Needs a product decision on a "Which of these is you?" claim step. |
-| P1 | Group Settings is still one long screen with four kinds of link | Splitting it into People / Sharing / Group is a larger rewrite. The friend-tab cleanup and the terminology change remove the worst confusion. |
+| P2 | Existing duplicates (joined before the warning existed) still need manual cleanup: the joiner leaves, then accepts the personal invite | Fixing that safely needs an organizer-approved merge, a product decision. |
 | P2 | Receipt items are assigned to everyone by default, and assigning is item × person toggles | Needs device testing with real receipts. |
-| P2 | Assistant: no Edit on a preview; no personal edit or delete; "Settle up with Mia" isn't understood | Changes the AI write contract (an amount not in the user's words), so it's the owner's call, and it needs the macOS 27 eval. |
 | P2 | `gray400` hint text is 2.54:1 | A token change touching ~150 call sites; should be done with a visual pass. |
 | P2 | The Undo toast stays 5 s even under VoiceOver; `/g` and `/p` have no loading skeleton; register asks for the password twice | Small; for the next polish pass. |
+
+## Follow-up (9 October 2026): duplicate people, Assistant, Group Settings
+
+The three open issues, done in that order:
+
+**1. Duplicate people when joining by code (U27).**
+- **Database:** new function `settleup.preview_group_invite` (migration
+  `20261009140000`). It tells a signed-in joiner only whether someone without
+  an account is already listed under their name, and returns no member list.
+- **Before joining:** mobile (both join screens) and web call it first and
+  explain the choice: "There's already a "Ben" in Join Check … ask the
+  organizer for Ben's personal invite." The choices are **Don't Join** or
+  **Join as a New Member**. Someone who's already a member just has the
+  group opened.
+- **Older databases:** if the function isn't there yet, the apps join as before.
+- **Inviting people:** Group Settings rows for people not on Talli yet have an
+  **Invite** button that shares their personal link (which keeps their
+  expenses with them). "Cancel Invitation Link" is in the row's menu. The
+  group-code section says it's for people not listed yet.
+- **Verified:**
+  - SQL suite `preview_group_invite`.
+  - Web tests for the warning and the already-a-member case.
+  - Simulator journey `JoinDuplicateJourneyTests` (`run-join.sh`). The server
+    showed that **Don't Join** added nobody and **Join as a New Member**
+    added one person. Joining again opened the group.
+
+**2. Assistant.**
+- **Settle up in full:**
+  - "Settle up with Mia", "Mark my payment to Mia as settled", "I paid Mia
+    back" and "Mia paid me back" record the full balance.
+  - The amount comes from the ledger (deterministic code, never the model)
+    and is labelled "(full balance)".
+  - Balances are loaded first if they aren't cached. At Confirm the app
+    refetches the balance and refuses if it changed or couldn't be checked.
+  - A stated amount is always used as said.
+- **Edit on previews:** previews of a new personal expense, a new group
+  expense, a payment, or a change to a personal expense open the normal form
+  pre-filled. Nothing is saved until that form's Save.
+- **Your own expenses:** guests and signed-in users can change or delete
+  their own expenses by asking. Each change is checked against the stored
+  version at Confirm, and Undo puts back the old values or the deleted
+  expense, refusing if the expense was changed again since.
+- **Verified:**
+  - Unit tests: shared 353, mobile 104, web 54, all passing.
+  - Prefill tests.
+  - Simulator: `AssistantGuestJourneyTests` (guest edit, delete, Undo, Edit
+    in form) and `AssistantSignedInJourneyTests` (settle Dina's ₱300 in
+    full, Edit opens Add Expense with ₱600.00).
+  - Evals, rules and hybrid on the Mac's on-device model, in
+    `docs/ai/AI_BENCHMARK_RESULTS.md`: no new wrong previews; clean holdout
+    27 → 28/39.
+
+**3. Group Settings** is split into **People** (members, add people, invites),
+**Sharing** (shared link, group code) and **Group** (name, categories, budget,
+recurring, export, leave/archive). "Add people" still opens People with the
+name field ready. Verified by `GroupJourneyTests` (link controls under
+Sharing).
+
+Codex reviewed the plan once and the code in two rounds. Accepted findings
+were fixed and are listed in the commit message.
 
 ## Recommended usability test (5–8 first-time users)
 

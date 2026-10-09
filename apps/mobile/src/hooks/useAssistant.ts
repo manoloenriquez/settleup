@@ -28,14 +28,14 @@ import { useOutbox } from "@/context/OutboxContext";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
 import { usePreferences } from "@/context/PreferencesContext";
 import { localTodayISO } from "@/lib/dates";
-import { buildSnapshot, loadGroupData } from "@/lib/assistant/snapshot";
+import { buildSnapshot, loadGroupData, refreshBalances } from "@/lib/assistant/snapshot";
 import { interpretMessage } from "@/lib/assistant/interpret";
 import { executeProposal, undoAction, type ExecutionResult, type ExecutorDeps } from "@/lib/assistant/executor";
 import { assistantStoreKey, clearTranscript, loadTranscript, saveTranscript, type StoredMessage } from "@/lib/assistant/storage";
 import type { ExpenseWithDetails } from "@/services/expenses";
 import type { ReceiptReview } from "@template/shared";
 
-export type ProposalState = "open" | "running" | "done" | "cancelled" | "replaced";
+export type ProposalState = "open" | "running" | "done" | "cancelled" | "replaced" | "edited";
 
 export type UiMessage = {
   id: string;
@@ -155,7 +155,13 @@ export function useAssistant() {
     enqueue,
     userId,
     myName,
-    personal: { add: ledger.add, remove: ledger.remove },
+    personal: {
+      add: ledger.add,
+      update: ledger.update,
+      remove: ledger.remove,
+      restore: ledger.restore,
+      get: (id) => ledger.expenses.find((e) => e.id === id),
+    },
   };
 
   /** Resolve with one round of data loading when a question needs it. */
@@ -260,6 +266,18 @@ export function useAssistant() {
       running.current.add(proposal.id);
       setProposalState(messageId, "running");
       try {
+        const a = proposal.action;
+        if (a.type === "record_payment" && a.settlesFullBalance && onlineManager.isOnline()) {
+          // The amount came from the balance: check it against the server, not the cache.
+          const refreshed = await refreshBalances(qc, a.groupId, a.currency).then(
+            () => true,
+            () => false,
+          );
+          if (!refreshed) {
+            setProposalState(messageId, "done", { status: "failed", message: "I couldn't check the balance just now, so nothing was recorded. Try again." });
+            return;
+          }
+        }
         const fresh = await snapshot();
         const stale = revalidateProposal(proposal, fresh);
         if (stale) {
@@ -280,12 +298,18 @@ export function useAssistant() {
     },
     // executorDeps is rebuilt each render from stable pieces.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messages, snapshot, qc, enqueue, userId, myName, ledger.add, ledger.remove],
+    [messages, snapshot, qc, enqueue, userId, myName, ledger.add, ledger.update, ledger.remove, ledger.restore, ledger.expenses],
   );
 
   const cancel = useCallback((messageId: string) => {
     pendingRef.current = null;
     setProposalState(messageId, "cancelled");
+  }, []);
+
+  /** "Edit": the preview moves into the normal form; the form's Save is the write. */
+  const edit = useCallback((messageId: string) => {
+    pendingRef.current = null;
+    setProposalState(messageId, "edited");
   }, []);
 
   const undo = useCallback(
@@ -298,7 +322,7 @@ export function useAssistant() {
       setMessages((prev) => [...prev, { id: Crypto.randomUUID(), role: "assistant", text: result.message, at: new Date().toISOString(), result }]);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messages, qc, enqueue, userId, ledger.remove],
+    [messages, qc, enqueue, userId, ledger.remove, ledger.restore, ledger.update, ledger.expenses],
   );
 
   const clear = useCallback(async () => {
@@ -308,5 +332,5 @@ export function useAssistant() {
     await clearTranscript(storeKey);
   }, [storeKey]);
 
-  return { messages, busy: busy || !ready, send, choose, confirm, cancel, undo, clear, isGuest: !userId };
+  return { messages, busy: busy || !ready, send, choose, confirm, cancel, edit, undo, clear, isGuest: !userId };
 }

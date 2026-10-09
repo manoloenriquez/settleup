@@ -39,6 +39,7 @@ import type {
   PreviewLine,
   ProposalAction,
   SnapshotExpense,
+  SnapshotPersonalExpense,
   SnapshotGroup,
 } from "./types";
 
@@ -631,7 +632,165 @@ function scalePayers(expense: SnapshotExpense, newTotal: number): { memberId: st
   return expense.payers.map((p, i) => ({ memberId: p.memberId, amountMinor: scaled[i]! }));
 }
 
+type PersonalTargetResult = { kind: "ok"; expense: SnapshotPersonalExpense } | { kind: "plan"; plan: AssistantPlan } | { kind: "none" };
+
+/** The same matching as findTarget, over the person's own expenses. */
+function findPersonalTarget(ctx: Ctx, useDateAsFilter: boolean): PersonalTargetResult {
+  const all = ctx.snapshot.personal;
+  if (all.length === 0) return { kind: "none" };
+  if (ctx.hints.personalExpenseId) {
+    const hit = all.find((e) => e.id === ctx.hints.personalExpenseId);
+    if (hit) return { kind: "ok", expense: hit };
+  }
+  const ref = (ctx.command.targetReference ?? "").trim();
+  if ((!ref || REFERENCE_WORDS.test(ref)) && ctx.focus.personalExpenseIds.length > 0) {
+    const hit = all.find((e) => e.id === ctx.focus.personalExpenseIds[0]);
+    if (hit) return { kind: "ok", expense: hit };
+  }
+  if (/\b(last|latest|most recent|huli)\b/i.test(ref) && !/\b(last (night|week|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i.test(ref)) {
+    const recent = [...all].sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (recent) return { kind: "ok", expense: recent };
+  }
+  const words = normalizeName(ref.replace(DATE_WORDS, " "))
+    .split(" ")
+    .filter((w) => w.length >= 3 && !["the", "our", "my", "that", "expense", "ang", "yung"].includes(w));
+  let candidates = words.length ? all.filter((e) => words.some((w) => normalizeName(e.description).includes(w))) : [];
+  if (useDateAsFilter && ctx.command.dateMention) {
+    const day = resolveDateMention(ctx.command.dateMention, ctx.snapshot.today);
+    if (day) candidates = (candidates.length ? candidates : words.length ? [] : all).filter((e) => e.date === day);
+  }
+  if (candidates.length === 1) return { kind: "ok", expense: candidates[0]! };
+  if (candidates.length > 1) {
+    return {
+      kind: "plan",
+      plan: {
+        kind: "clarify",
+        text: "Which one?",
+        choices: candidates.slice(0, MAX_CHOICES).map((e) => ({
+          label: `${e.description} · ${money(e.amountMinor, e.currency)} · ${e.date}`,
+          hints: { ...ctx.hints, personalExpenseId: e.id, personal: true },
+        })),
+      },
+    };
+  }
+  return { kind: "none" };
+}
+
+const PERSONAL_NOT_FOUND: AssistantPlan = {
+  kind: "refuse",
+  text: "I couldn't find that expense. Try its name, like \"the groceries\", or open Spending.",
+};
+
+/** Your own expenses first for guests and when you say "my"; otherwise only when no group expense matches. */
+function personalFirst(ctx: Ctx): boolean {
+  return ctx.snapshot.isGuest || !!ctx.hints.personal || !!ctx.hints.personalExpenseId || /\b(my|personal)\b/i.test(ctx.command.targetReference ?? "");
+}
+
+function editPersonalExpense(ctx: Ctx, expense: SnapshotPersonalExpense): AssistantPlan {
+  const c = ctx.command;
+  const currency = expense.currency;
+  const stated = currencyFromWords(c.currency, ctx.text);
+  if (stated && stated !== currency) {
+    return { kind: "refuse", text: `This expense is in ${currency}. Its currency can't be changed — delete it and add it again in ${stated}.` };
+  }
+  let amountMinor = expense.amountMinor;
+  if (c.amount > 0) {
+    const parsed = amountFromText(c.amount, ctx.text, currency);
+    if (parsed === null) return askAmount(ctx, "it");
+    amountMinor = parsed;
+  }
+  let date = expense.date;
+  if (/\b(date|petsa|move|moved|ilipat|change (it|the date) to)\b/i.test(ctx.text) && c.dateMention) {
+    const d = resolveDate(ctx);
+    if (d.kind === "plan") return d.plan;
+    date = d.date;
+  }
+  const description = c.newName && textMentions(ctx.text, c.newName.split(" ")[0] ?? c.newName) ? c.newName : expense.description;
+  if (amountMinor === expense.amountMinor && date === expense.date && description === expense.description) {
+    return { kind: "clarify", text: `What should I change about "${expense.description}"?`, choices: [] };
+  }
+  const lines: PreviewLine[] = [{ label: "Expense", value: `${expense.description} · your expenses` }];
+  if (description !== expense.description) lines.push({ label: "Name", before: expense.description, value: description });
+  if (amountMinor !== expense.amountMinor) lines.push({ label: "Amount", before: money(expense.amountMinor, currency), value: money(amountMinor, currency) });
+  if (date !== expense.date) lines.push({ label: "Date", before: expense.date, value: date });
+  return {
+    kind: "propose",
+    text: "Here's the change. Save it?",
+    proposal: {
+      id: ctx.newId(),
+      risk: "write",
+      title: "Change expense",
+      lines,
+      action: {
+        type: "edit_personal_expense",
+        expenseId: expense.id,
+        expectedUpdatedAt: expense.updatedAt,
+        description,
+        amountMinor,
+        currency,
+        date,
+        category: expense.category,
+      },
+      requiresConnection: false,
+    },
+    focus: { personalExpenseIds: [expense.id] },
+  };
+}
+
+function deletePersonalExpense(ctx: Ctx, expense: SnapshotPersonalExpense): AssistantPlan {
+  return {
+    kind: "propose",
+    text: "Delete this expense? You can undo it.",
+    proposal: {
+      id: ctx.newId(),
+      risk: "write",
+      title: "Delete expense",
+      lines: [
+        { label: "Expense", value: expense.description },
+        { label: "Amount", value: money(expense.amountMinor, expense.currency) },
+        { label: "Date", value: expense.date },
+      ],
+      action: { type: "delete_personal_expense", expenseId: expense.id, expectedUpdatedAt: expense.updatedAt },
+      requiresConnection: false,
+    },
+    focus: { personalExpenseIds: [expense.id] },
+  };
+}
+
+/** Edit or delete: decide between your own expenses and group ones. */
+function routeExpenseChange(
+  ctx: Ctx,
+  useDateAsFilter: boolean,
+  personal: (expense: SnapshotPersonalExpense) => AssistantPlan,
+  group: () => AssistantPlan,
+): AssistantPlan {
+  if (personalFirst(ctx)) {
+    const p = findPersonalTarget(ctx, useDateAsFilter);
+    if (p.kind === "ok") return personal(p.expense);
+    if (p.kind === "plan") return p.plan;
+    // "my coffee" means your own expense: never fall through to a group's.
+    return PERSONAL_NOT_FOUND;
+  }
+  const g = group();
+  // Nothing matched in the groups: maybe it's one of your own.
+  if (g.kind === "refuse" && /couldn't find that expense/.test(g.text)) {
+    const p = findPersonalTarget(ctx, useDateAsFilter);
+    if (p.kind === "ok") return personal(p.expense);
+    if (p.kind === "plan") return p.plan;
+  }
+  return g;
+}
+
 function editExpense(ctx: Ctx): AssistantPlan {
+  const wantsNewDate = /\b(date|petsa|move|moved|ilipat|change (it|the date) to)\b/i.test(ctx.text);
+  return routeExpenseChange(ctx, !wantsNewDate, (e) => editPersonalExpense(ctx, e), () => editGroupExpense(ctx));
+}
+
+function deleteExpense(ctx: Ctx): AssistantPlan {
+  return routeExpenseChange(ctx, true, (e) => deletePersonalExpense(ctx, e), () => deleteGroupExpense(ctx));
+}
+
+function editGroupExpense(ctx: Ctx): AssistantPlan {
   if (ctx.snapshot.isGuest) return guestGroupRefusal();
   const c = ctx.command;
   const wantsNewDate = /\b(date|petsa|move|moved|ilipat|change (it|the date) to)\b/i.test(ctx.text);
@@ -744,7 +903,7 @@ function editExpense(ctx: Ctx): AssistantPlan {
   };
 }
 
-function deleteExpense(ctx: Ctx): AssistantPlan {
+function deleteGroupExpense(ctx: Ctx): AssistantPlan {
   if (ctx.snapshot.isGuest) return guestGroupRefusal();
   const target = findTarget(ctx, true);
   if (target.kind === "plan") return target.plan;
@@ -778,7 +937,15 @@ function deleteExpense(ctx: Ctx): AssistantPlan {
 // record_payment
 // ---------------------------------------------------------------------------
 
-function recordPayment(ctx: Ctx): AssistantPlan {
+/**
+ * "Settle up with Mia", "I paid Mia back", "everything I owe": the person
+ * means the whole balance, so no amount is stated. Only then does the amount
+ * come from the ledger (deterministic, shown in the preview, checked again at
+ * Confirm) instead of the person's words.
+ */
+const SETTLE_CUE = /\b(settle|settled|square(d)? up|in full|full amount|everything|all of it|the whole (thing|balance)|what i owe|what (s)?he owes|what they owe|back|lahat|buo)\b/i;
+
+function recordPayment(ctx: Ctx): AssistantPlan | LoadRequest {
   if (ctx.snapshot.isGuest) return guestGroupRefusal();
   const c = ctx.command;
   const people = personNames(ctx);
@@ -797,6 +964,23 @@ function recordPayment(ctx: Ctx): AssistantPlan {
   if (r.kind === "plan") return r.plan;
   const otherId = r.ids[0]!;
   const other = memberName(group, otherId);
+  const stated = currencyFromWords(c.currency, ctx.text);
+  const statedAmount = c.amount > 0 ? amountFromText(c.amount, ctx.text, stated ?? group.currency) : null;
+  const settleInFull = statedAmount === null && SETTLE_CUE.test(ctx.text);
+
+  if (settleInFull && !group.balances) {
+    if (ctx.snapshot.online) return { kind: "load", groupIds: [group.id] };
+    return { kind: "refuse", text: `I need a connection to check your balance with ${other}. Or say the amount, like "I paid ${other} 500".` };
+  }
+  const owed = pairwiseBalance(group, otherId);
+  if (settleInFull && !direction) {
+    // The balance says which way the money goes.
+    const open = stated ? [stated].filter((code) => owed.has(code)) : [...owed.keys()];
+    if (open.length === 0) {
+      return { kind: "answer", text: `You and ${other} are settled up in ${groupLabel(group)}.`, focus: { groupId: group.id, memberIds: [otherId] } };
+    }
+    if (open.length === 1) direction = (owed.get(open[0]!) ?? 0) > 0 ? "they_paid_me" : "i_paid_them";
+  }
   if (!direction) {
     return {
       kind: "clarify",
@@ -807,8 +991,6 @@ function recordPayment(ctx: Ctx): AssistantPlan {
       ],
     };
   }
-  const owed = pairwiseBalance(group, otherId);
-  const stated = currencyFromWords(c.currency, ctx.text);
   let currency: CurrencyCode = stated ?? group.currency;
   if (!stated) {
     const open = [...owed.keys()];
@@ -821,31 +1003,53 @@ function recordPayment(ctx: Ctx): AssistantPlan {
       };
     }
   }
-  const amountMinor = amountFromText(c.amount, ctx.text, currency);
+  const outstanding = owed.get(currency) ?? 0; // + = they owe me
+  const relevant = direction === "they_paid_me" ? outstanding : -outstanding;
+  let amountMinor = c.amount > 0 ? amountFromText(c.amount, ctx.text, currency) : null;
+  if (amountMinor === null && settleInFull) {
+    if (relevant <= 0) {
+      const text =
+        outstanding === 0
+          ? `You and ${other} are settled up in ${currency}.`
+          : outstanding > 0
+            ? `${other} owes you ${money(outstanding, currency)}, so there's nothing for you to pay back.`
+            : `You owe ${other} ${money(-outstanding, currency)} — ${other} doesn't owe you anything.`;
+      return { kind: "answer", text, focus: { groupId: group.id, memberIds: [otherId] } };
+    }
+    amountMinor = relevant;
+  }
   if (amountMinor === null) return askAmount(ctx, "the payment");
+  const fullBalance = settleInFull && amountMinor === relevant;
   const me = group.myMemberId!;
   const from = direction === "they_paid_me" ? otherId : me;
   const to = direction === "they_paid_me" ? me : otherId;
-  const outstanding = owed.get(currency) ?? 0; // + = they owe me
-  const relevant = direction === "they_paid_me" ? outstanding : -outstanding;
   const lines: PreviewLine[] = [
     { label: "From", value: memberName(group, from) },
     { label: "To", value: memberName(group, to) },
-    { label: "Amount", value: money(amountMinor, currency) },
+    { label: "Amount", value: fullBalance ? `${money(amountMinor, currency)} (full balance)` : money(amountMinor, currency) },
     { label: "Group", value: groupLabel(group) },
   ];
-  if (relevant <= 0) lines.push({ label: "Note", value: `Nothing is owed this way in ${currency} right now — this will put ${direction === "they_paid_me" ? other : "you"} ahead.` });
+  if (fullBalance) lines.push({ label: "Note", value: "Record it after the money has moved — Talli doesn't send money." });
+  else if (relevant <= 0) lines.push({ label: "Note", value: `Nothing is owed this way in ${currency} right now — this will put ${direction === "they_paid_me" ? other : "you"} ahead.` });
   else if (amountMinor > relevant) lines.push({ label: "Note", value: `More than the ${money(relevant, currency)} owed.` });
   else lines.push({ label: "Owed now", value: money(relevant, currency) });
   return {
     kind: "propose",
-    text: "Record this payment?",
+    text: fullBalance ? `Record that ${direction === "they_paid_me" ? `${other} paid you` : `you paid ${other}`} the full ${money(amountMinor, currency)}?` : "Record this payment?",
     proposal: {
       id: ctx.newId(),
       risk: "consequential",
       title: "Record payment",
       lines,
-      action: { type: "record_payment", groupId: group.id, fromMemberId: from, toMemberId: to, amountMinor, currency },
+      action: {
+        type: "record_payment",
+        groupId: group.id,
+        fromMemberId: from,
+        toMemberId: to,
+        amountMinor,
+        currency,
+        ...(fullBalance ? { settlesFullBalance: true } : {}),
+      },
       requiresConnection: false,
     },
     focus: { groupId: group.id, memberIds: [otherId] },

@@ -56,7 +56,8 @@ text (+ optional receipt) ─► Swift AssistantIntelligence.interpret
         │  (rules interpreter when Apple Intelligence is unavailable)
         ▼
 packages/shared/src/assistant
-   validate (Zod) → amount must appear in the user's words (anti-fabrication)
+   validate (Zod) → amount must appear in the user's words (anti-fabrication;
+     one exception, below: settling a balance in full)
    → resolve group/people/expense against the app snapshot (exact/unique;
      ambiguity → choice chips; unknown → ask) → dates (resolveDateMention)
    → split (resolveSplit) → plan:
@@ -80,10 +81,27 @@ apps/mobile Assistant screen
 | add personal expense | write | `PersonalLedgerContext.add` | local-first | `remove` |
 | edit expense (amount, description, date, split) | write | `useUpdateExpense*` with CAS | queued | — (shows before/after) |
 | delete expense | write, consequential | `useDeleteExpense` (creator only) | queued | — |
+| edit / delete personal expense (guests too) | write | `PersonalLedgerContext.update` / `remove`, `updatedAt` checked at Confirm | local-first | previous values / `restore` |
 | record payment | write, consequential | `useRecordPayment` | queued | — |
+| settle up in full ("settle up with Mia", "I paid Mia back") | write, consequential | `useRecordPayment` | queued | — |
 | create group (+ members without accounts) | write | `useCreateGroup` + `useAddMembersBatch` | online only | — |
 | add / remove member, rename group | write, consequential | members/groups hooks (owner/admin) | online only | — |
 | open share link / payment details / settings | navigation | router | — | — |
+
+**Settling in full.** When the person asks to settle and states no amount
+("settle up with Mia", "mark my payment to Mia as settled", "I paid Mia
+back"), the amount is the pairwise balance computed by deterministic code
+(`pairwiseBalance`), never by the model. Balances are loaded first if they
+aren't cached. The preview says "(full balance)". At Confirm the app refetches
+that balance from the server and refuses if it changed. A stated amount is
+always used exactly as said.
+
+**Edit on previews.** Expense and payment previews have an Edit button. It
+opens the normal form (New Expense, Add Expense, Record a Payment) with the
+preview's values, validated again on arrival
+(`apps/mobile/src/lib/assistant/prefill.ts`). The preview is marked "Opened in
+the form". Only the form's own Save writes, and a suggestion replaces any
+saved group draft.
 
 Friends are two-person direct groups (`direct_group_id`), so friend expenses
 and "John owes me 300" are group expenses in that ledger.

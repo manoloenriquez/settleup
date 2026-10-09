@@ -1,6 +1,6 @@
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
-import type { PersonalExpenseInput, Proposal } from "@template/shared";
+import type { PersonalExpense, PersonalExpenseInput, Proposal } from "@template/shared";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics";
 import { supabase } from "@/lib/supabase";
@@ -28,7 +28,15 @@ export type ExecutionStatus = "saved" | "queued" | "failed";
 
 export type UndoAction =
   | { type: "delete_group_expense"; groupId: string; expenseId: string }
-  | { type: "remove_personal_expense"; id: string };
+  | { type: "remove_personal_expense"; id: string }
+  | { type: "restore_personal_expense"; id: string }
+  | {
+      type: "revert_personal_expense";
+      id: string;
+      input: PersonalExpenseInput;
+      /** What the assistant wrote; undo only if the expense still looks like this. */
+      written: { description: string; amountMinor: number; date: string };
+    };
 
 export type ExecutionResult = {
   status: ExecutionStatus;
@@ -45,7 +53,11 @@ export type ExecutorDeps = {
   myName: string | null;
   personal: {
     add: (input: PersonalExpenseInput) => Promise<string>;
+    update: (id: string, input: PersonalExpenseInput) => Promise<void>;
     remove: (id: string) => Promise<void>;
+    restore: (id: string) => Promise<void>;
+    /** The current stored record (not a snapshot copy). */
+    get: (id: string) => PersonalExpense | undefined;
   };
 };
 
@@ -88,6 +100,46 @@ export async function executeProposal(proposal: Proposal, deps: ExecutorDeps): P
           source: "chat",
         });
         return { status: "saved", message: "Saved to your expenses.", undo: { type: "remove_personal_expense", id } };
+      }
+      case "edit_personal_expense":
+      case "delete_personal_expense": {
+        // Checked against the stored record right before writing.
+        const current = deps.personal.get(a.expenseId);
+        if (!current || current.deletedAt) return { status: "failed", message: "That expense was deleted." };
+        if (current.updatedAt !== a.expectedUpdatedAt) {
+          return { status: "failed", message: "That expense was changed since I showed you this. Ask again to see the latest." };
+        }
+        const previous: PersonalExpenseInput = {
+          description: current.description,
+          amountMinor: current.amountMinor,
+          currency: current.currency,
+          category: current.category,
+          date: current.date,
+          notes: current.notes,
+          merchant: current.merchant,
+          source: current.source,
+        };
+        if (a.type === "delete_personal_expense") {
+          await deps.personal.remove(a.expenseId);
+          return { status: "saved", message: "Expense deleted.", undo: { type: "restore_personal_expense", id: a.expenseId } };
+        }
+        // Only what the preview showed changes; notes, merchant and source stay.
+        await deps.personal.update(a.expenseId, {
+          ...previous,
+          description: a.description,
+          amountMinor: a.amountMinor,
+          date: a.date,
+        });
+        return {
+          status: "saved",
+          message: "Expense updated.",
+          undo: {
+            type: "revert_personal_expense",
+            id: a.expenseId,
+            input: previous,
+            written: { description: a.description, amountMinor: a.amountMinor, date: a.date },
+          },
+        };
       }
       case "add_group_expense": {
         if (!deps.userId) return { status: "failed", message: "Sign in to add shared expenses." };
@@ -220,6 +272,22 @@ export async function undoAction(undo: UndoAction, deps: ExecutorDeps): Promise<
   if (undo.type === "remove_personal_expense") {
     await deps.personal.remove(undo.id);
     return { status: "saved", message: "Undone." };
+  }
+  if (undo.type === "restore_personal_expense") {
+    const current = deps.personal.get(undo.id);
+    if (current && !current.deletedAt) return { status: "failed", message: "That expense is already back." };
+    await deps.personal.restore(undo.id);
+    return { status: "saved", message: "Undone — the expense is back." };
+  }
+  if (undo.type === "revert_personal_expense") {
+    // Don't overwrite a change made after the assistant's.
+    const current = deps.personal.get(undo.id);
+    const w = undo.written;
+    if (!current || current.deletedAt || current.description !== w.description || current.amountMinor !== w.amountMinor || current.date !== w.date) {
+      return { status: "failed", message: "That expense changed after my edit, so I left it as it is." };
+    }
+    await deps.personal.update(undo.id, undo.input);
+    return { status: "saved", message: "Undone — the expense is back to how it was." };
   }
   const res = await deleteExpenseOrQueue(undo.groupId, undo.expenseId, deps.enqueue);
   if (res.error) return { status: "failed", message: res.error };

@@ -121,6 +121,9 @@
     { "id": "guest-01", "category": "guest", "lang": "en", "guest": true, "turns": [{ "text": "I paid 180 for coffee", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_personal_expense", "amountMinor": 18000 } } }] },
     { "id": "guest-02", "category": "guest", "lang": "en", "guest": true, "turns": [{ "text": "Split 600 for lunch with Ana", "intent": "add_expense", "expect": { "kind": "refuse" } }] },
     { "id": "guest-03", "category": "guest", "lang": "en", "guest": true, "turns": [{ "text": "How much does Sarah owe me?", "intent": "query_balance", "expect": { "kind": "refuse" } }] },
-    { "id": "guest-04", "category": "guest", "lang": "en", "guest": true, "turns": [{ "text": "How much did I spend this month?", "intent": "query_spending", "expect": { "kind": "answer", "textIncludes": "₱180.00" } }] }
+    { "id": "guest-04", "category": "guest", "lang": "en", "guest": true, "turns": [{ "text": "How much did I spend this month?", "intent": "query_spending", "expect": { "kind": "answer", "textIncludes": "₱180.00" } }] },
+    { "id": "settle-01", "category": "payment", "lang": "en", "turns": [{ "text": "Settle up with Sarah in Bali", "intent": "record_payment", "expect": { "kind": "propose", "action": { "type": "record_payment", "groupId": "g-bali", "fromMemberId": "$SARAH_BALI", "toMemberId": "$ME_BALI", "amountMinor": 82500 } } }] },
+    { "id": "settle-02", "category": "payment", "lang": "en", "turns": [{ "text": "Mark my payment to Sarah as settled in Barkada", "intent": "record_payment", "expect": { "kind": "propose", "action": { "type": "record_payment", "groupId": "g-barkada", "toMemberId": "$SARAH_BK", "amountMinor": 50000 } } }] },
+    { "id": "settle-03", "category": "payment", "lang": "en", "turns": [{ "text": "I paid Sarah back in Barkada", "intent": "record_payment", "expect": { "kind": "propose", "action": { "type": "record_payment", "groupId": "g-barkada", "toMemberId": "$SARAH_BK", "amountMinor": 50000 } } }] }
   ]
 }

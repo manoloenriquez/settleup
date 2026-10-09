@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { formatAmount, type AssistantReceipt, type AssistantRoute } from "@template/shared";
 import { AssistantMessage } from "@/components/assistant/AssistantMessage";
-import { receiptForAssistant, useAssistant } from "@/hooks/useAssistant";
+import { receiptForAssistant, useAssistant, type UiMessage } from "@/hooks/useAssistant";
+import { editRouteFor, type EditRoute } from "@/lib/assistant/prefill";
 import { useAiAvailability } from "@/hooks/useAiAvailability";
 import { useReceiptScan } from "@/hooks/useReceiptScan";
 import { presentChoices } from "@/hooks/useAddMenu";
@@ -78,6 +79,17 @@ export default function AssistantScreen() {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     return () => clearTimeout(t);
   }, [assistant.messages.length, assistant.busy, focused]);
+
+  function editRouteOf(message: UiMessage): EditRoute | null {
+    return message.plan?.kind === "propose" && message.proposalState === "open" ? editRouteFor(message.plan.proposal.action) : null;
+  }
+
+  function openInForm(message: UiMessage): void {
+    const route = editRouteOf(message);
+    if (!route) return;
+    assistant.edit(message.id);
+    router.push(route);
+  }
 
   function open(route: AssistantRoute): void {
     switch (route.screen) {
@@ -195,6 +207,7 @@ export default function AssistantScreen() {
               onChoose={(choice) => void assistant.choose(message.id, choice)}
               onConfirm={() => void assistant.confirm(message.id)}
               onCancel={() => assistant.cancel(message.id)}
+              onEdit={editRouteOf(message) ? () => openInForm(message) : undefined}
               onUndo={() => void assistant.undo(message.id)}
               onOpen={open}
             />

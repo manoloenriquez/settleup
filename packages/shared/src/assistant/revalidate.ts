@@ -1,4 +1,6 @@
 import type { AssistantSnapshot, Proposal, SnapshotGroup } from "./types";
+import { pairwiseBalance } from "./queries";
+import { formatAmount } from "../utils/amount";
 
 // ---------------------------------------------------------------------------
 // Confirm-time check. A preview can sit on screen while data changes (another
@@ -23,6 +25,13 @@ function isAdmin(g: SnapshotGroup): boolean {
 export function revalidateProposal(proposal: Proposal, snapshot: AssistantSnapshot): string | null {
   const a = proposal.action;
   if (a.type === "add_personal_expense") return null;
+  if (a.type === "edit_personal_expense" || a.type === "delete_personal_expense") {
+    // Personal expenses live on this phone: check the current copy, guest or not.
+    const current = snapshot.personal.find((e) => e.id === a.expenseId);
+    if (!current) return "That expense was deleted.";
+    if (current.updatedAt !== a.expectedUpdatedAt) return "That expense was changed since I showed you this. Ask again to see the latest.";
+    return null;
+  }
   if (snapshot.isGuest) return "You're signed out now. Sign in to do this.";
   if (proposal.requiresConnection && !snapshot.online) return "This needs a connection. Try again when you're online.";
   switch (a.type) {
@@ -48,6 +57,18 @@ export function revalidateProposal(proposal: Proposal, snapshot: AssistantSnapsh
       const g = group(snapshot, a.groupId);
       if (!g) return "That group isn't available anymore.";
       if (!hasMembers(g, [a.fromMemberId, a.toMemberId])) return "That person isn't in the group anymore.";
+      if (a.settlesFullBalance) {
+        // "Settle up" took the amount from the balance: it must still be the balance.
+        if (!g.balances) return "I couldn't check the balance just now. Ask again in a moment.";
+        const me = g.myMemberId;
+        const other = a.fromMemberId === me ? a.toMemberId : a.fromMemberId;
+        const owed = pairwiseBalance(g, other).get(a.currency) ?? 0; // + = they owe me
+        const now = a.fromMemberId === me ? -owed : owed;
+        if (now <= 0) return "That balance is already settled. Nothing was recorded.";
+        if (now !== a.amountMinor) {
+          return `The balance changed since I showed you this — it's ${formatAmount(now, a.currency)} now. Ask again to settle the new amount.`;
+        }
+      }
       return null;
     }
     case "create_group":

@@ -9,12 +9,14 @@ type Props = {
   onChoose: (choice: ClarifyChoice) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Present when the proposal can be opened in its normal form. */
+  onEdit?: () => void;
   onUndo: () => void;
   onOpen: (route: AssistantRoute) => void;
   disabled: boolean;
 };
 
-export function AssistantMessage({ message, onChoose, onConfirm, onCancel, onUndo, onOpen, disabled }: Props) {
+export function AssistantMessage({ message, onChoose, onConfirm, onCancel, onEdit, onUndo, onOpen, disabled }: Props) {
   if (message.role === "user") {
     return (
       <View style={styles.userRow}>
@@ -59,7 +61,7 @@ export function AssistantMessage({ message, onChoose, onConfirm, onCancel, onUnd
         </Pressable>
       )}
       {plan?.kind === "propose" ? (
-        <ProposalCard message={message} onConfirm={onConfirm} onCancel={onCancel} onUndo={onUndo} onOpen={onOpen} />
+        <ProposalCard message={message} onConfirm={onConfirm} onCancel={onCancel} onEdit={onEdit} onUndo={onUndo} onOpen={onOpen} />
       ) : null}
     </View>
   );
@@ -80,13 +82,17 @@ function ProposalCard({
   message,
   onConfirm,
   onCancel,
+  onEdit,
   onUndo,
   onOpen,
-}: Pick<Props, "message" | "onConfirm" | "onCancel" | "onUndo" | "onOpen">) {
+}: Pick<Props, "message" | "onConfirm" | "onCancel" | "onEdit" | "onUndo" | "onOpen">) {
   if (message.plan?.kind !== "propose") return null;
   const { proposal } = message.plan;
   const state = message.proposalState ?? "open";
-  const destructive = proposal.action.type === "delete_group_expense" || proposal.action.type === "remove_member";
+  const destructive =
+    proposal.action.type === "delete_group_expense" ||
+    proposal.action.type === "delete_personal_expense" ||
+    proposal.action.type === "remove_member";
   return (
     <View style={[styles.card, proposal.risk === "consequential" && styles.cardConsequential]} accessibilityLabel={`${proposal.title}. ${proposal.lines.map((l) => `${l.label}: ${l.before ? `from ${l.before} to ` : ""}${l.value}`).join(". ")}`}>
       <View style={styles.cardHeader}>
@@ -108,6 +114,16 @@ function ProposalCard({
           <Pressable accessibilityRole="button" onPress={onCancel} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
             <Text style={styles.secondaryText}>Cancel</Text>
           </Pressable>
+          {onEdit ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="Opens the form with these details so you can change them before saving"
+              onPress={onEdit}
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.secondaryText}>Edit</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityHint="Saves this change"
@@ -120,6 +136,7 @@ function ProposalCard({
       ) : null}
       {state === "running" ? <ActivityIndicator style={styles.spinner} color={colors.primary} /> : null}
       {state === "cancelled" ? <Text style={styles.stateText}>Cancelled — nothing was saved.</Text> : null}
+      {state === "edited" ? <Text style={styles.stateText}>Opened in the form — saved only if you tap Save there.</Text> : null}
       {state === "replaced" ? <Text style={styles.stateText}>Replaced by a newer request — nothing was saved.</Text> : null}
       {state === "done" && message.result ? (
         <View style={styles.resultBlock}>
@@ -150,6 +167,7 @@ function badge(state: string, status: string | undefined): string {
   if (state === "done") return status === "saved" ? "Saved" : status === "queued" ? "Waiting to sync" : "Not saved";
   if (state === "running") return "Saving…";
   if (state === "cancelled" || state === "replaced") return "Not saved";
+  if (state === "edited") return "Opened in form";
   return "Not saved yet";
 }
 

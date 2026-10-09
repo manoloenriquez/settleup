@@ -86,7 +86,7 @@ export async function buildSnapshot(deps: Deps): Promise<AssistantSnapshot> {
     pendingWrites: deps.pendingWrites,
     personal: deps.personal
       .filter((e) => !e.deletedAt)
-      .map((e) => ({ id: e.id, description: e.description, amountMinor: e.amountMinor, currency: e.currency, date: e.date, category: e.category })),
+      .map((e) => ({ id: e.id, description: e.description, amountMinor: e.amountMinor, currency: e.currency, date: e.date, category: e.category, updatedAt: e.updatedAt })),
   };
   if (!userId) return base;
 
@@ -176,4 +176,13 @@ export async function loadGroupData(
       fullExpenses.set(groupId, all);
     }),
   );
+}
+
+/** Fresh balance for one currency, so "settle up" is re-checked against the server at Confirm. */
+export async function refreshBalances(qc: QueryClient, groupId: string, currency: CurrencyCode): Promise<void> {
+  await qc.fetchQuery({
+    queryKey: ["balances", groupId, currency],
+    queryFn: async () => unwrap(await getMembersWithBalances(groupId, currency)),
+    staleTime: 0,
+  });
 }
