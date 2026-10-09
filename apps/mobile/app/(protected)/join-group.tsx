@@ -3,6 +3,8 @@ import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { useJoinGroup } from "@/hooks/useCollaboration";
+import { decideJoin } from "@/lib/join-with-code";
+import { openGroupFromLink } from "@/lib/navigation";
 import { AppButton } from "@/components/ui/Button";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { useToast } from "@/components/ui";
@@ -13,11 +15,26 @@ export default function JoinGroupScreen() {
   const router = useRouter();
   const [inviteCode, setInviteCode] = useState("");
   const joinGroup = useJoinGroup();
+  const [checking, setChecking] = useState(false);
 
   async function handleJoin() {
     const code = inviteCode.trim();
     if (!code) {
       toast.error("Please enter an invite code");
+      return;
+    }
+
+    if (checking) return;
+    setChecking(true);
+    const decision = await decideJoin(code).finally(() => setChecking(false));
+    if (decision.kind === "error") {
+      toast.error(decision.message);
+      return;
+    }
+    if (decision.kind === "cancel") return;
+    if (decision.kind === "open") {
+      toast.info(`You’re already in ${decision.groupName}`);
+      openGroupFromLink(router, decision.groupId);
       return;
     }
 
@@ -33,8 +50,7 @@ export default function JoinGroupScreen() {
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success("Joined group");
-    const groupId = result.data.group.id;
-    router.replace(`/(protected)/groups/${groupId}`);
+    openGroupFromLink(router, result.data.group.id);
   }
 
   return (
@@ -67,15 +83,16 @@ export default function JoinGroupScreen() {
               onSubmitEditing={handleJoin}
             />
             <Text style={styles.hint}>
-              Ask your group admin to share the invite code from the group settings page.
+              Already listed in the group by name? Ask the organizer for your personal invite
+              instead, so your expenses come with you.
             </Text>
           </View>
 
           <AppButton
             title={joinGroup.isPending ? "Joining…" : "Join Group"}
             onPress={handleJoin}
-            isLoading={joinGroup.isPending}
-            disabled={!inviteCode.trim()}
+            isLoading={joinGroup.isPending || checking}
+            disabled={!inviteCode.trim() || checking}
             style={styles.button}
           />
         </ScrollView>

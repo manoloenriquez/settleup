@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { ApiResponse } from "@template/shared";
+import { invitePreviewSchema, type ApiResponse, type InvitePreview } from "@template/shared";
 import {
   parseClaimMemberRpcResult,
   parseInviteCodeRpcResult,
@@ -10,6 +10,27 @@ import {
   type Group,
   type GroupMember,
 } from "@template/supabase";
+
+export const PREVIEW_UNAVAILABLE = "preview_unavailable";
+
+/** What joining with this code would do, without joining (no member list). */
+export async function previewGroupInvite(inviteCode: string): Promise<ApiResponse<InvitePreview>> {
+  if (!inviteCode.trim()) return { data: null, error: "Invite code is required" };
+  const { data, error } = await supabase
+    .schema("settleup")
+    .rpc("preview_group_invite", { p_invite_code: inviteCode.trim() });
+  if (error) {
+    // Older databases don't have the check yet: joining still works, so say
+    // "unavailable" and let the caller join without it.
+    if (error.code === "PGRST202" || /could not find the function/i.test(error.message)) {
+      return { data: null, error: PREVIEW_UNAVAILABLE };
+    }
+    return { data: null, error: error.message };
+  }
+  const parsed = invitePreviewSchema.safeParse(data);
+  if (!parsed.success) return { data: null, error: "The invite couldn’t be checked. Try again." };
+  return { data: parsed.data, error: null };
+}
 
 export async function joinGroupByInvite(
   inviteCode: string,

@@ -135,6 +135,18 @@ export const addExpenseSchema = z
     }
   });
 
+/** settleup.preview_group_invite: what joining with a code would do. */
+export const invitePreviewSchema = z.object({
+  group_name: z.string(),
+  member_count: z.number().int().nonnegative(),
+  already_member: z.boolean(),
+  group_id: z.string().uuid().nullable(),
+  your_name: z.string(),
+  /** Someone without an account is already listed under your name. */
+  name_taken: z.boolean(),
+});
+export type InvitePreview = z.infer<typeof invitePreviewSchema>;
+
 export const addMembersBatchSchema = z.object({
   group_id: z.string().uuid(),
   display_names: z.array(z.string().trim().min(1).max(80)).min(1).max(50),

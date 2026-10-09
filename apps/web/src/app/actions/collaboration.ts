@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
-import { joinGroupSchema, claimMemberSchema } from "@template/shared";
-import type { ApiResponse } from "@template/shared";
+import { joinGroupSchema, claimMemberSchema, invitePreviewSchema } from "@template/shared";
+import type { ApiResponse, InvitePreview } from "@template/shared";
 import {
   parseClaimMemberRpcResult,
   parseInviteCodeRpcResult,
@@ -25,6 +25,34 @@ const promoteMemberSchema = z.object({
 
 function isNextInternalError(e: unknown): boolean {
   return typeof e === "object" && e !== null && "digest" in e;
+}
+
+/** What joining with this code would do — checked before joining, no member list. */
+export async function previewInvite(inviteCode: string): Promise<ApiResponse<InvitePreview>> {
+  try {
+    await assertAuth();
+    const parsed = joinGroupSchema.safeParse({ invite_code: inviteCode });
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+    const supabase = await createSettleUpDb();
+    const { data, error } = await supabase
+      .schema("settleup")
+      .rpc("preview_group_invite", { p_invite_code: parsed.data.invite_code });
+    // Older databases don't have the check yet; the form then joins without it.
+    if (error) {
+      return {
+        data: null,
+        error: error.code === "PGRST202" ? "preview_unavailable" : error.message,
+      };
+    }
+    const preview = invitePreviewSchema.safeParse(data);
+    if (!preview.success) return { data: null, error: "The invite couldn't be checked. Try again." };
+    return { data: preview.data, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
 }
 
 export async function joinGroup(

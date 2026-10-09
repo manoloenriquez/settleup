@@ -1030,6 +1030,10 @@ export type Database = {
         Args: { p_group_id: string };
         Returns: Json;
       };
+      preview_group_invite: {
+        Args: { p_invite_code: string };
+        Returns: Json;
+      };
       rename_member: {
         Args: { p_member_id: string; p_new_name: string };
         Returns: Json;

@@ -275,7 +275,8 @@ Run against the live project inside BEGIN…ROLLBACK (Supabase MCP
 `sharing_and_payment_privacy`, `friends`, `personal_expenses`,
 `account_closure`, `launch_security`, `push_delivery`, `product_events`,
 `group_journey`, `payment_qr_storage`, `recurring_permissions`,
-`member_history` (a member who is part of expenses or payments can't be deleted).
+`member_history` (a member who is part of expenses or payments can't be deleted),
+`preview_group_invite` (same-name check before joining with a code; no member list).
 
 
 `supabase/tests/*.sql` are transactional (`BEGIN … ROLLBACK`) and assert with `ASSERT`/`RAISE`. CI runs them against a local Supabase with every migration applied (`db-tests` job in `.github/workflows/ci.yml`). Locally:

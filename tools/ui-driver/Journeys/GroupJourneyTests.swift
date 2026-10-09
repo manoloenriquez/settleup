@@ -75,6 +75,7 @@ final class GroupJourneyTests: XCTestCase {
     // Shared link: off, on, new link
     app.buttons["Group actions"].waitAndTap()
     app.visibleButton("Group Settings").tap()
+    app.visibleButton("Sharing").tap()
     let off = app.buttons["Turn Off Link"]
     for _ in 0..<6 where !off.exists { app.swipeUp() }
     off.waitAndTap()

@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { AppButton } from "@/components/ui/Button";
 import { claimMember, joinGroupByInvite } from "@/services/collaboration";
+import { decideJoin } from "@/lib/join-with-code";
 import { clearAuthDestination, saveAuthDestination } from "@/lib/auth-links";
 import { useQueryClient } from "@tanstack/react-query";
 import { openGroupFromLink } from "@/lib/navigation";
@@ -30,6 +31,23 @@ export function AcceptInvitation({ kind, token }: Props): React.ReactElement {
       if (!session) {
         router.push("/(auth)/login");
         return;
+      }
+      if (kind === "join") {
+        const decision = await decideJoin(token);
+        if (decision.kind === "error") {
+          setError(decision.message);
+          return;
+        }
+        if (decision.kind === "cancel") {
+          // Don't replay this join after a later sign-in.
+          await clearAuthDestination();
+          return;
+        }
+        if (decision.kind === "open") {
+          await clearAuthDestination();
+          openGroupFromLink(router, decision.groupId);
+          return;
+        }
       }
       const result = kind === "claim" ? await claimMember(token) : await joinGroupByInvite(token);
       if (result.error || !result.data) {
