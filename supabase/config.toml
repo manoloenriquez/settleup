@@ -45,8 +45,10 @@ site_url = "http://127.0.0.1:3000"
 additional_redirect_urls = [
   "http://127.0.0.1:3000",
   "http://localhost:3000",
-  # Expo deep link (update scheme from app.json)
-  "myapp://"
+  # The app's auth callback (talli://; tabkind:// for builds that still use it).
+  # Production needs the same entries in the dashboard (docs/launch/OWNER_ACTIONS.md).
+  "talli://auth/callback",
+  "tabkind://auth/callback"
 ]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true

@@ -1,5 +1,13 @@
 import Link from "next/link";
-import { CheckCircle2, Circle, CreditCard, Receipt, Share2, UserPlus, UserRoundCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  CreditCard,
+  Receipt,
+  Share2,
+  UserPlus,
+  UserRoundCheck,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 
@@ -7,6 +15,8 @@ type ChecklistItem = {
   label: string;
   complete: boolean;
   href?: string;
+  onClick?: () => void;
+  onCopied?: () => void;
   copyText?: string;
   copyLabel?: string;
   icon: LucideIcon;
@@ -27,10 +37,14 @@ export function GroupSetupChecklist({ groupId, items }: Props): React.ReactEleme
         <div>
           <p className="text-sm font-semibold text-amber-900">Finish group setup</p>
           <p className="mt-0.5 text-xs text-amber-700">
-            {remaining.length} step{remaining.length !== 1 ? "s" : ""} left before this group is trip-ready.
+            {remaining.length} step{remaining.length !== 1 ? "s" : ""} left to get your group
+            started.
           </p>
         </div>
-        <Link href={`/groups/${groupId}/settings`} className="text-xs font-semibold text-amber-800 hover:text-amber-950">
+        <Link
+          href={`/groups/${groupId}/settings`}
+          className="text-xs font-semibold text-amber-800 hover:text-amber-950"
+        >
           Settings
         </Link>
       </div>
@@ -40,7 +54,10 @@ export function GroupSetupChecklist({ groupId, items }: Props): React.ReactEleme
           const StatusIcon = item.complete ? CheckCircle2 : Circle;
           const content = (
             <span className="flex min-h-11 items-center gap-2 rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs font-medium text-slate-700">
-              <StatusIcon size={14} className={item.complete ? "text-emerald-600" : "text-amber-500"} />
+              <StatusIcon
+                size={14}
+                className={item.complete ? "text-emerald-600" : "text-amber-500"}
+              />
               <Icon size={14} className="text-slate-400" />
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
             </span>
@@ -51,10 +68,20 @@ export function GroupSetupChecklist({ groupId, items }: Props): React.ReactEleme
             return (
               <div key={item.label} className="flex flex-col gap-1">
                 {content}
-                <CopyButton text={item.copyText} label={item.copyLabel ?? "Copy"} />
+                <CopyButton
+                  text={item.copyText}
+                  label={item.copyLabel ?? "Copy"}
+                  onCopied={item.onCopied}
+                />
               </div>
             );
           }
+          if (item.onClick)
+            return (
+              <button key={item.label} type="button" onClick={item.onClick}>
+                {content}
+              </button>
+            );
           if (item.href) {
             return (
               <Link key={item.label} href={item.href}>
@@ -69,7 +96,10 @@ export function GroupSetupChecklist({ groupId, items }: Props): React.ReactEleme
   );
 }
 
-export const setupChecklistIcons: Record<"members" | "claim" | "payment" | "share" | "expense", LucideIcon> = {
+export const setupChecklistIcons: Record<
+  "members" | "claim" | "payment" | "share" | "expense",
+  LucideIcon
+> = {
   members: UserPlus,
   claim: UserRoundCheck,
   payment: CreditCard,

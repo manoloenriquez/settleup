@@ -1,6 +1,10 @@
+import { minorToDecimal, type CurrencyCode } from "./currency";
+
 export type LedgerExpense = {
   item_name: string;
   amount_cents: number;
+  /** Absent for rows from before currencies existed — those are pesos. */
+  currency_code?: CurrencyCode;
   created_at: string;
   /** User-set expense date (YYYY-MM-DD); falls back to created_at when absent. */
   expense_date?: string | null;
@@ -14,6 +18,7 @@ export type LedgerPayment = {
   from_name: string;
   to_name: string;
   amount_cents: number;
+  currency_code?: CurrencyCode;
   created_at: string;
   status: string;
 };
@@ -29,8 +34,9 @@ function row(cells: string[]): string {
   return cells.map(csvEscape).join(",");
 }
 
-function pesos(cents: number): string {
-  return (cents / 100).toFixed(2);
+/** Plain decimal in the row's own currency ("1234.50", "1500" for JPY). */
+function decimal(minor: number, currency: CurrencyCode | undefined): string {
+  return minorToDecimal(minor, currency ?? "PHP");
 }
 
 function day(dateStr: string): string {
@@ -39,13 +45,14 @@ function day(dateStr: string): string {
 
 /**
  * Builds a flat CSV ledger of a group's expenses and payments, oldest first.
- * Amounts are plain decimal pesos so spreadsheets treat them as numbers.
+ * Amounts are plain decimals in each row's own currency (named in the
+ * currency column) so spreadsheets treat them as numbers; nothing is converted.
  */
 export function buildGroupLedgerCsv(
   expenses: LedgerExpense[],
   payments: LedgerPayment[],
 ): string {
-  const header = row(["type", "date", "description", "category", "amount_php", "paid_by", "split_with", "status", "notes"]);
+  const header = row(["type", "date", "description", "category", "amount", "currency", "paid_by", "split_with", "status", "notes"]);
 
   const expenseRows = expenses.map((e) => ({
     date: e.expense_date ?? e.created_at,
@@ -54,7 +61,8 @@ export function buildGroupLedgerCsv(
       day(e.expense_date ?? e.created_at),
       e.item_name,
       e.category_name ?? "",
-      pesos(e.amount_cents),
+      decimal(e.amount_cents, e.currency_code),
+      e.currency_code ?? "PHP",
       e.payer_names.join("; "),
       e.participant_names.join("; "),
       "",
@@ -69,7 +77,8 @@ export function buildGroupLedgerCsv(
       day(p.created_at),
       `${p.from_name} paid ${p.to_name}`,
       "",
-      pesos(p.amount_cents),
+      decimal(p.amount_cents, p.currency_code),
+      p.currency_code ?? "PHP",
       p.from_name,
       p.to_name,
       p.status,

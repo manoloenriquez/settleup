@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { Banknote, Clock } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CategoryIconTile } from "@/components/groups/CategoryIcon";
 import { relativeTime } from "@/lib/relative-time";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 import type { RecentActivityItem } from "@/app/actions/activity";
 
 type Props = {
@@ -17,7 +18,7 @@ const amountClasses = {
 } as const;
 
 function signedAmount(item: RecentActivityItem): string {
-  const amount = formatCents(item.amount_cents);
+  const amount = formatCurrency(item.amount_cents, currencyOrPhp(item.currency_code));
   if (item.direction === "in") return `+${amount}`;
   if (item.direction === "out") return `-${amount}`;
   return amount;

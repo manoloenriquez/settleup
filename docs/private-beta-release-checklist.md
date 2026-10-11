@@ -17,7 +17,7 @@ Use this before inviting trusted friends to use SettleUp on a real trip or group
 
 - Web env vars are set for Supabase URL and publishable key.
 - Mobile env vars are set for Supabase URL, publishable key, and `EXPO_PUBLIC_WEB_URL`.
-- `LLM_ENABLED` and any provider keys are configured intentionally; leave disabled if AI is not part of the beta.
+- No AI provider keys exist. On-device intelligence ships in the iOS 27 build with the `AppleIntelligence` module linked; `pnpm eval:receipts` is green on the release Mac.
 - No service role key is present in web or mobile runtime env.
 
 ## Auth

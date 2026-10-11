@@ -2,11 +2,7 @@ import { useState, useCallback } from "react";
 import type { SmartSplitResult } from "@template/shared/types";
 import { suggestSplitMobile } from "@/lib/ai/smart-split";
 
-type UseSmartSplitOptions = {
-  groupId: string;
-};
-
-export function useSmartSplit({ groupId }: UseSmartSplitOptions) {
+export function useSmartSplit() {
   const [result, setResult] = useState<SmartSplitResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,13 +16,7 @@ export function useSmartSplit({ groupId }: UseSmartSplitOptions) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await suggestSplitMobile({
-        groupId,
-        itemName: opts.itemName,
-        amountCents: opts.amountCents,
-        memberNames: opts.memberNames,
-        context: opts.context,
-      });
+      const res = await suggestSplitMobile(opts);
       if (res.error) {
         setError(res.error);
         return null;
@@ -36,7 +26,7 @@ export function useSmartSplit({ groupId }: UseSmartSplitOptions) {
     } finally {
       setIsLoading(false);
     }
-  }, [groupId]);
+  }, []);
 
   const clear = useCallback(() => {
     setResult(null);

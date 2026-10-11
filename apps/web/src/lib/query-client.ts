@@ -9,9 +9,7 @@ import { get, set, del } from "idb-keyval";
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /** Bump when the shape of cached query data changes incompatibly. */
-const CACHE_BUSTER = "web-v1";
-
-const CACHE_STORAGE_KEY = "settleup-query-cache";
+const CACHE_BUSTER = "web-v3-currency";
 
 /** Query-key roots that must never be persisted (AI output, identity, transient state). */
 const NON_PERSISTED_KEYS = new Set(["ai", "insights", "ai-availability", "auth-user"]);
@@ -63,24 +61,27 @@ const idbStringStorage = {
   },
 };
 
-const persister = createAsyncStoragePersister({
-  storage: idbStringStorage,
-  key: CACHE_STORAGE_KEY,
-  throttleTime: 2_000,
-});
+export function persistOptionsForAccount(
+  ownerId: string | null,
+): Omit<PersistQueryClientOptions, "queryClient"> {
+  const project = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "";
+  const scope = `${encodeURIComponent(project)}:${encodeURIComponent(ownerId ?? "signed-out")}`;
+  return {
+    persister: createAsyncStoragePersister({
+      storage: ownerId ? idbStringStorage : undefined,
+      key: `tabkind:query-cache:${scope}`,
+      throttleTime: 2_000,
+    }),
+    maxAge: CACHE_MAX_AGE_MS,
+    buster: `${CACHE_BUSTER}:${scope}`,
+    dehydrateOptions: {
+      shouldDehydrateQuery: (query) =>
+        query.state.status === "success" && !NON_PERSISTED_KEYS.has(String(query.queryKey[0])),
+    },
+  };
+}
 
-export const persistOptions: Omit<PersistQueryClientOptions, "queryClient"> = {
-  persister,
-  maxAge: CACHE_MAX_AGE_MS,
-  buster: CACHE_BUSTER,
-  dehydrateOptions: {
-    // Persist only settled successful data; skip AI/insights results.
-    shouldDehydrateQuery: (query) =>
-      query.state.status === "success" && !NON_PERSISTED_KEYS.has(String(query.queryKey[0])),
-  },
-};
-
-/** Drop the persisted snapshot (sign-out: no cross-account cache bleed). */
-export async function clearPersistedQueryCache(): Promise<void> {
-  await idbStringStorage.removeItem(CACHE_STORAGE_KEY);
+/** The old snapshot has no verified owner. It contains only refetchable server data. */
+export async function removeLegacyQueryCache(): Promise<void> {
+  await idbStringStorage.removeItem("settleup-query-cache");
 }

@@ -89,7 +89,7 @@ export function InstallPrompt(): React.ReactElement | null {
     <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:bottom-4 md:left-auto md:right-4 md:px-0">
       <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl md:max-w-sm">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600">
-          <span className="text-base font-bold text-white">S</span>
+          <span className="text-base font-bold text-white">T</span>
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-900">Install {APP_NAME}</p>

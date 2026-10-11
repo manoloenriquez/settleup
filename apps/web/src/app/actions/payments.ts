@@ -3,8 +3,8 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { logServerError } from "@/lib/log";
-import { recordPaymentSchema } from "@template/shared";
-import type { ApiResponse } from "@template/shared";
+import { currencyCodeSchema, recordPaymentSchema } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import {
   parseRecordPaymentRpcResult,
   parseSuccessRpcResult,
@@ -24,21 +24,25 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { id, group_id, from_member_id, to_member_id, amount_cents } = parsed.data;
+    const { id, group_id, from_member_id, to_member_id, amount_cents, currency_code } = parsed.data;
+    // The client id is the idempotency key: a retried submit replays rather
+    // than recording the payment twice.
+    if (!id) return { data: null, error: "Missing payment id." };
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data: result, error } = await db.rpc("record_payment", {
+    const { data: result, error } = await db.rpc("record_payment_v2", {
       p_group_id: group_id,
       p_from_member_id: from_member_id,
       p_to_member_id: to_member_id,
       p_amount_cents: amount_cents,
-      ...(id ? { p_id: id } : {}),
+      p_id: id,
+      p_currency_code: currency_code,
     });
 
     if (error) {
-      logServerError("record_payment", error);
+      logServerError("record_payment_v2", error);
       return { data: null, error: "Failed to record payment." };
     }
     return parseRecordPaymentRpcResult(result);
@@ -49,17 +53,24 @@ export async function recordPayment(input: unknown): Promise<ApiResponse<Payment
   }
 }
 
-export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse<void>> {
+/** Undoes the member's most recent payment in the currency being viewed. */
+export async function undoLastPayment(
+  fromMemberId: string,
+  currency: CurrencyCode,
+): Promise<ApiResponse<void>> {
   try {
     const parsed = memberIdSchema.safeParse(fromMemberId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid member ID." };
+    const parsedCurrency = currencyCodeSchema.safeParse(currency);
+    if (!parsedCurrency.success) return { data: null, error: "Unsupported currency." };
 
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data: result, error } = await db.rpc("undo_last_payment_for_member", {
+    const { data: result, error } = await db.rpc("undo_last_payment_for_member_v2", {
       p_from_member_id: parsed.data,
+      p_currency_code: parsedCurrency.data,
     });
     if (error) return { data: null, error: "Failed to undo payment." };
     const parsedResult = parseSuccessRpcResult(result);
@@ -71,17 +82,24 @@ export async function undoLastPayment(fromMemberId: string): Promise<ApiResponse
   }
 }
 
-export async function undoMyLastPayment(groupId: string): Promise<ApiResponse<void>> {
+/** Undoes my most recent payment in this group, in the currency being viewed. */
+export async function undoMyLastPayment(
+  groupId: string,
+  currency: CurrencyCode,
+): Promise<ApiResponse<void>> {
   try {
     const parsed = groupIdSchema.safeParse(groupId);
     if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid group ID." };
+    const parsedCurrency = currencyCodeSchema.safeParse(currency);
+    if (!parsedCurrency.success) return { data: null, error: "Unsupported currency." };
 
     await assertAuth();
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data: result, error } = await db.rpc("undo_last_payment", {
+    const { data: result, error } = await db.rpc("undo_last_payment_v2", {
       p_group_id: parsed.data,
+      p_currency_code: parsedCurrency.data,
     });
     if (error) return { data: null, error: "No payment of yours found to undo." };
     const parsedResult = parseSuccessRpcResult(result);

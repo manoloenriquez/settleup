@@ -1,17 +1,20 @@
 "use client";
 
-import { formatCents, computePairwiseDebts } from "@template/shared";
+import { computePairwiseDebts } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { ArrowRight } from "lucide-react";
-import type { GroupOverviewPayload } from "@template/shared";
+import type { CurrencyCode, GroupOverviewPayload } from "@template/shared";
 
 type Props = {
   expenses: GroupOverviewPayload["expenses"];
   payments: NonNullable<GroupOverviewPayload["payments"]>;
+  /** Every amount in this section is in this currency. */
+  currency: CurrencyCode;
 };
 
-export function OverviewPairwiseDebts({ expenses, payments }: Props): React.ReactElement | null {
+export function OverviewPairwiseDebts({ expenses, payments, currency }: Props): React.ReactElement | null {
   // Needs payer data on every expense to attribute debts; hide otherwise
   // (older DB payloads, or groups whose only expenses are payerless credits).
   if (!expenses.every((e) => Array.isArray(e.payers))) return null;
@@ -39,7 +42,7 @@ export function OverviewPairwiseDebts({ expenses, payments }: Props): React.Reac
             <ArrowRight size={13} className="text-slate-400 shrink-0" />
             <Avatar name={d.to_display_name} size="sm" />
             <span className="text-slate-700 min-w-0 truncate">{d.to_display_name}</span>
-            <span className="ml-auto font-semibold text-slate-900 shrink-0">{formatCents(d.amount_cents)}</span>
+            <span className="ml-auto font-semibold text-slate-900 shrink-0">{formatCurrency(d.amount_cents, currency)}</span>
           </div>
         ))}
       </CardContent>

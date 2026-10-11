@@ -1,3 +1,4 @@
+import type { CurrencyCode } from "../utils/currency";
 // ---------------------------------------------------------------------------
 // NOTE: Domain entity types (Profile, Waitlist, UserRole) live in
 // @template/supabase — they are generated from the DB schema.
@@ -5,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 export * from "./ai";
+export * from "./personal";
 
 // ---------------------------------------------------------------------------
 // Generic API response wrappers
@@ -30,15 +32,14 @@ export type PaginatedResponse<T> = {
 export type RequireFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
 /** Make every key optional recursively */
-export type DeepPartial<T> = T extends object
-  ? { [P in keyof T]?: DeepPartial<T[P]> }
-  : T;
+export type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T;
 
 // ---------------------------------------------------------------------------
 // SettleUp domain types
 // ---------------------------------------------------------------------------
 
 export type SimplifiedDebt = {
+  currency_code?: CurrencyCode;
   from_member_id: string;
   from_display_name: string;
   to_member_id: string;
@@ -57,6 +58,10 @@ export type CreditorPaymentProfile = {
   bank_account_number: string | null;
   bank_qr_url: string | null;
   notes: string | null;
+  /** "organizer": entered by a group admin for someone without an account (unverified). */
+  source?: "self" | "organizer";
+  /** True when shared pages show only the last four digits. */
+  numbers_masked?: boolean;
 };
 
 export type SuggestedSettlement = SimplifiedDebt & {
@@ -98,6 +103,8 @@ export type CategorySpendingSummary = ExpenseCategorySummary & {
 };
 
 export type MemberBalance = {
+  currency_code?: CurrencyCode;
+  departed_at?: string | null;
   member_id: string;
   display_name: string;
   slug: string;
@@ -110,6 +117,8 @@ export type MemberBalance = {
 };
 
 export type GroupOverviewPayload = {
+  /** Every amount in this payload is in this currency (per-currency v2 RPCs). */
+  currency_code?: CurrencyCode;
   group: { id: string; name: string };
   members: { member_id: string; display_name: string; net_cents: number; owed_cents: number }[];
   expenses: {
@@ -150,6 +159,8 @@ export type GroupOverviewPayload = {
 };
 
 export type FriendViewPayload = {
+  /** Every amount in this payload is in this currency (per-currency v2 RPCs). */
+  currency_code?: CurrencyCode;
   group: { id: string; name: string };
   member: { id: string; display_name: string };
   net_cents: number;
@@ -188,7 +199,10 @@ export type GroupWithStats = {
   share_token: string;
   budget_cents: number | null;
   created_at: string;
-  // Computed
+  /** Currency new expenses start in; the group may also hold others. */
+  default_currency_code?: CurrencyCode;
+  budget_currency_code?: CurrencyCode;
+  // Computed (in default_currency_code)
   member_count: number;
   pending_count: number;
   total_owed_cents: number;
@@ -210,6 +224,8 @@ export type DashboardSpendPoint = {
 };
 
 export type DashboardSummary = {
+  /** All amounts are in this currency; there is one summary per currency. */
+  currency_code?: CurrencyCode;
   net_balance_cents: number;
   total_groups: number;
   total_unsettled_cents: number;

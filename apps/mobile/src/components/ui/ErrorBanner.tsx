@@ -16,12 +16,12 @@ export function ErrorBanner({ message, onRetry, onDismiss }: ErrorBannerProps): 
         {message}
       </Text>
       {onRetry && (
-        <TouchableOpacity style={styles.action} onPress={onRetry} accessibilityLabel="Retry">
+        <TouchableOpacity accessibilityRole="button" style={styles.action} onPress={onRetry} accessibilityLabel="Retry">
           <Text style={styles.actionText}>Retry</Text>
         </TouchableOpacity>
       )}
       {onDismiss && (
-        <TouchableOpacity onPress={onDismiss} accessibilityLabel="Dismiss" style={styles.dismiss}>
+        <TouchableOpacity accessibilityRole="button" onPress={onDismiss} accessibilityLabel="Dismiss" style={styles.dismiss}>
           <Ionicons name="close" size={18} color={colors.danger} />
         </TouchableOpacity>
       )}
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   actionText: {
     fontSize: fontSize.sm,

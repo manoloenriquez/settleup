@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { currencyName, parsePeopleNames, type CurrencyCode } from "@template/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { addMembersBatch } from "@/services/members";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
+import { usePreferences } from "@/context/PreferencesContext";
+import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/context/AuthContext";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
@@ -17,9 +25,22 @@ export default function NewGroupScreen() {
   const [name, setName] = useState("");
   const createGroup = useCreateGroup();
   const outbox = useOutbox();
+  const { preferences } = usePreferences();
+  const { session } = useAuth();
+  const { data: profile } = useProfile();
+  const [currency, setCurrency] = useState<CurrencyCode>(preferences.defaultCurrency);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const suggestedName = profile?.full_name?.trim() || session?.user.email?.split("@")[0] || "";
+  const [myName, setMyName] = useState<string | null>(null);
+  const displayName = (myName ?? suggestedName).trim();
+  const [people, setPeople] = useState("");
+  const names = parsePeopleNames(people, [displayName]);
+  const qc = useQueryClient();
+
+  const canCreate = !!name.trim() && !!displayName && !createGroup.isPending;
 
   async function handleCreate() {
-    if (!name.trim()) return;
+    if (!name.trim() || !displayName || createGroup.isPending) return;
 
     if (!onlineManager.isOnline()) {
       // Queue for replay (client id doubles as the group id). Never navigate
@@ -30,15 +51,23 @@ export default function NewGroupScreen() {
         kind: "group.create",
         entityId: clientId,
         groupId: clientId,
-        payload: { name: name.trim() },
+        payload: { name: name.trim(), currency_code: currency, display_name: displayName },
         createdAt: new Date().toISOString(),
         summary: { title: name.trim(), amountCents: 0 },
       });
       router.back();
+      if (names.length > 0) {
+        toast.info("The group will be created when you’re back online. Add people from the group then.");
+      }
       return;
     }
 
-    const result = await createGroup.mutateAsync(name.trim());
+    const result = await createGroup.mutateAsync({
+      id: Crypto.randomUUID(),
+      name: name.trim(),
+      currency,
+      displayName,
+    });
     if (result.error) {
       toast.error(result.error);
       return;
@@ -50,20 +79,55 @@ export default function NewGroupScreen() {
       return;
     }
 
-    router.replace(`/(protected)/groups/${result.data.id}`);
+    const groupId = result.data.id;
+    if (names.length > 0) {
+      // The group exists either way; if adding people fails, say so and send
+      // the organizer straight to the add-people field instead of losing them.
+      const added = await addMembersBatch(groupId, names);
+      void qc.invalidateQueries({ queryKey: ["members", groupId] });
+      void qc.invalidateQueries({ queryKey: ["groups"] });
+      if (added.error) {
+        toast.error(`Group created, but ${names.join(", ")} couldn’t be added. Add them here.`);
+        router.replace(`/(protected)/groups/${groupId}/settings?focus=people`);
+        return;
+      }
+    }
+    router.replace(`/(protected)/groups/${groupId}`);
   }
 
   return (
     <>
-      <Stack.Screen options={{ title: "New Group", headerShown: true }} />
+      <Stack.Screen
+        options={{
+          title: "New Group",
+          headerShown: true,
+          // Reachable while the keyboard covers the bottom button.
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => void handleCreate()}
+              disabled={!canCreate}
+              accessibilityRole="button"
+              accessibilityLabel="Create"
+              accessibilityState={{ disabled: !canCreate }}
+              hitSlop={12}
+            >
+              {createGroup.isPending ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={[styles.headerAction, !canCreate && styles.headerActionDisabled]}>Create</Text>
+              )}
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
           <Text style={styles.heading}>Create a Group</Text>
           <Text style={styles.sub}>
-            Give your group a name — like "Barkada Trip" or "House Expenses".
+            For a trip, a household or a night out. You can add people next — they don’t need the app.
           </Text>
 
           <View style={styles.form}>
@@ -71,21 +135,73 @@ export default function NewGroupScreen() {
               label="Group Name"
               value={name}
               onChangeText={setName}
-              placeholder="e.g. Barkada Trip 2025"
+              placeholder="e.g. Siargao Trip"
               autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleCreate}
+              returnKeyType="next"
             />
 
+            <AppTextInput
+              label="Your name in this group"
+              value={myName ?? suggestedName}
+              onChangeText={setMyName}
+              placeholder="How others will see you"
+              autoCapitalize="words"
+              returnKeyType="done"
+            />
+
+            <View style={styles.currencyRow}>
+              <AppTextInput
+                label="Who’s in? (optional)"
+                value={people}
+                onChangeText={setPeople}
+                placeholder="e.g. Carla, Dina, Eli"
+                autoCapitalize="words"
+                returnKeyType="done"
+                accessibilityLabel="People in this group, separated by commas"
+                onSubmitEditing={() => void handleCreate()}
+              />
+              <Text style={styles.hint}>
+                {names.length > 0
+                  ? `Adds ${names.join(", ")}. They don’t need the app — you can send each a link later.`
+                  : "Separate names with commas. You can add people later too."}
+              </Text>
+            </View>
+
+            <View style={styles.currencyRow}>
+              <Text style={styles.label}>Main currency</Text>
+              <TouchableOpacity
+                style={styles.currencyBtn}
+                onPress={() => setPickerOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Main currency ${currencyName(currency)}. Change`}
+              >
+                <Text style={styles.currencyText}>
+                  {currencyName(currency)} ({currency})
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.gray400} />
+              </TouchableOpacity>
+              <Text style={styles.hint}>
+                Expenses start in this currency. Any expense can use another one — balances are kept per
+                currency and never converted.
+              </Text>
+            </View>
+
             <AppButton
-              title={createGroup.isPending ? "Creating…" : "Create Group"}
+              title={createGroup.isPending ? "Creating…" : names.length > 0 ? `Create Group with ${names.length + 1} People` : "Create Group"}
               onPress={handleCreate}
               isLoading={createGroup.isPending}
-              disabled={!name.trim() || createGroup.isPending}
+              disabled={!name.trim() || !displayName || createGroup.isPending}
             />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <CurrencyPicker
+        visible={pickerOpen}
+        selected={currency}
+        suggested={[preferences.defaultCurrency]}
+        onSelect={setCurrency}
+        onClose={() => setPickerOpen(false)}
+      />
     </>
   );
 }
@@ -96,4 +212,21 @@ const styles = StyleSheet.create({
   heading: { fontSize: fontSize["2xl"], fontWeight: fontWeight.bold, color: colors.gray900 },
   sub: { fontSize: fontSize.base, color: colors.gray500, marginTop: spacing.xs, marginBottom: spacing.xl, lineHeight: 22 },
   form: { gap: spacing.md },
+  currencyRow: { gap: spacing.xs },
+  label: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
+  currencyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+  },
+  currencyText: { fontSize: fontSize.md, color: colors.gray900 },
+  headerAction: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primary },
+  headerActionDisabled: { color: colors.gray400 },
+  hint: { fontSize: fontSize.sm, color: colors.gray500, lineHeight: 18 },
 });

@@ -3,7 +3,7 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import type { ApiResponse } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import { z } from "zod";
 
 const groupIdSchema = z.string().uuid("Invalid group ID.");
@@ -15,6 +15,8 @@ export type ActivityItem = {
   // Expense fields
   item_name?: string;
   amount_cents: number;
+  /** The expense's or payment's own currency. */
+  currency_code: CurrencyCode;
   payer_names?: string[];
   participant_count?: number;
   category?: {
@@ -49,13 +51,13 @@ export async function getGroupActivity(
         .eq("group_id", parsed.data),
       db
         .from("expenses")
-        .select("id, item_name, amount_cents, created_at, category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id), participants:expense_participants(member_id)")
+        .select("id, item_name, amount_cents, currency_code, created_at, category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id), participants:expense_participants(member_id)")
         .eq("group_id", parsed.data)
         .order("created_at", { ascending: false })
         .limit(50),
       db
         .from("payments")
-        .select("id, amount_cents, from_member_id, to_member_id, created_at")
+        .select("id, amount_cents, currency_code, from_member_id, to_member_id, created_at")
         .eq("group_id", parsed.data)
         .eq("status", "PAID")
         .order("created_at", { ascending: false })
@@ -82,6 +84,7 @@ export async function getGroupActivity(
         created_at: exp.created_at,
         item_name: exp.item_name,
         amount_cents: exp.amount_cents,
+        currency_code: exp.currency_code,
         payer_names: payerNames,
         participant_count: participants.length,
         category: exp.category,
@@ -94,6 +97,7 @@ export async function getGroupActivity(
         type: "payment",
         created_at: pay.created_at,
         amount_cents: pay.amount_cents,
+        currency_code: pay.currency_code,
         from_name: pay.from_member_id ? memberMap.get(pay.from_member_id) ?? "Unknown" : undefined,
         to_name: pay.to_member_id ? memberMap.get(pay.to_member_id) ?? "Unknown" : undefined,
       });
@@ -121,6 +125,8 @@ export type RecentActivityItem = {
   subtitle: string;
   /** How this event moved the viewer's balance (absolute value). */
   amount_cents: number;
+  /** The expense's or payment's own currency. */
+  currency_code: CurrencyCode;
   direction: "in" | "out" | "neutral";
   category: {
     id: string;
@@ -149,13 +155,13 @@ export async function getRecentActivity(
       db
         .from("expenses")
         .select(
-          "id, group_id, item_name, amount_cents, created_at, group:groups(id, name), category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id, paid_cents, member:group_members(display_name)), participants:expense_participants(member_id, share_cents)",
+          "id, group_id, item_name, amount_cents, currency_code, created_at, group:groups(id, name), category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id, paid_cents, member:group_members(display_name)), participants:expense_participants(member_id, share_cents)",
         )
         .order("created_at", { ascending: false })
         .limit(parsedLimit.data),
       db
         .from("payments")
-        .select("id, group_id, amount_cents, created_at, from_member_id, to_member_id, group:groups(id, name)")
+        .select("id, group_id, amount_cents, currency_code, created_at, from_member_id, to_member_id, group:groups(id, name)")
         .eq("status", "PAID")
         .order("created_at", { ascending: false })
         .limit(parsedLimit.data),
@@ -211,6 +217,7 @@ export async function getRecentActivity(
         title: exp.item_name,
         subtitle: `${payerLabel} paid`,
         amount_cents: myNet !== 0 ? Math.abs(myNet) : exp.amount_cents,
+        currency_code: exp.currency_code,
         direction: myNet > 0 ? "in" : myNet < 0 ? "out" : "neutral",
         category: exp.category,
       });
@@ -237,6 +244,7 @@ export async function getRecentActivity(
         title: pay.group.name,
         subtitle,
         amount_cents: pay.amount_cents,
+        currency_code: pay.currency_code,
         direction: toMine ? "in" : fromMine ? "out" : "neutral",
         category: null,
       });

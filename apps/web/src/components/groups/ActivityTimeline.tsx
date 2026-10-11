@@ -1,9 +1,9 @@
-import { formatCents } from "@template/shared";
 import { Receipt, Banknote, Clock } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CategoryBadge } from "./CategoryControls";
 import type { ActivityItem } from "@/app/actions/activity";
 import { relativeTime } from "@/lib/relative-time";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 
 type Props = {
   activities: ActivityItem[];
@@ -53,7 +53,7 @@ export function ActivityTimeline({ activities }: Props): React.ReactElement {
                   <p className="text-sm text-slate-700">
                     <span className="font-medium">{activity.item_name}</span>
                     {" — "}
-                    <span className="font-semibold">{formatCents(activity.amount_cents)}</span>
+                    <span className="font-semibold">{formatCurrency(activity.amount_cents, currencyOrPhp(activity.currency_code))}</span>
                     {activity.participant_count && (
                       <span className="text-slate-500">
                         {" "}split {activity.participant_count} ways
@@ -69,7 +69,7 @@ export function ActivityTimeline({ activities }: Props): React.ReactElement {
                     <span className="font-medium">{activity.to_name}</span>
                     {" "}
                     <span className="font-semibold text-emerald-600">
-                      {formatCents(activity.amount_cents)}
+                      {formatCurrency(activity.amount_cents, currencyOrPhp(activity.currency_code))}
                     </span>
                   </p>
                 )}

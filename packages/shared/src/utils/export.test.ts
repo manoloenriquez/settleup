@@ -26,10 +26,23 @@ describe("buildGroupLedgerCsv", () => {
     );
 
     const lines = csv.trim().split("\n");
-    expect(lines[0]).toBe("type,date,description,category,amount_php,paid_by,split_with,status,notes");
+    expect(lines[0]).toBe("type,date,description,category,amount,currency,paid_by,split_with,status,notes");
     // payment (June 1) sorts before expense (June 2)
-    expect(lines[1]).toBe("payment,2026-06-01,Ben paid Ana,,1358.50,Ben,Ana,PAID,");
-    expect(lines[2]).toBe("expense,2026-06-02,Dinner,Food & Drinks,2717.00,Ana,Ana; Ben,,");
+    expect(lines[1]).toBe("payment,2026-06-01,Ben paid Ana,,1358.50,PHP,Ben,Ana,PAID,");
+    expect(lines[2]).toBe("expense,2026-06-02,Dinner,Food & Drinks,2717.00,PHP,Ana,Ana; Ben,,");
+  });
+
+  it("writes each row in its own currency without converting", () => {
+    const csv = buildGroupLedgerCsv(
+      [
+        { item_name: "Ramen", amount_cents: 1500, currency_code: "JPY", created_at: "2026-06-03T10:00:00Z", payer_names: ["Ana"], participant_names: ["Ana"] },
+        { item_name: "Taxi", amount_cents: 1250, currency_code: "USD", created_at: "2026-06-04T10:00:00Z", payer_names: ["Ben"], participant_names: ["Ben"] },
+      ],
+      [],
+    );
+    const lines = csv.trim().split("\n");
+    expect(lines[1]).toBe("expense,2026-06-03,Ramen,,1500,JPY,Ana,Ana,,");
+    expect(lines[2]).toBe("expense,2026-06-04,Taxi,,12.50,USD,Ben,Ben,,");
   });
 
   it("escapes commas and quotes in fields", () => {

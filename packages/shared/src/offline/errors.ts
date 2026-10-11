@@ -7,7 +7,7 @@
 //
 //   PT409 — idempotency-key mismatch or compare-and-swap conflict
 //   PT404 — target row no longer exists
-//   23505 — unique violation on a replayed direct insert (already applied)
+//   23505 — unverified unique violation; retain the draft for review
 // ---------------------------------------------------------------------------
 
 import type { OutboxError, SyncErrorClass } from "./types";
@@ -40,7 +40,8 @@ const RETRYABLE_PG_CODES = new Set([
 export function classifySyncError(code: string | null, message: string): SyncErrorClass {
   if (code === "PT409") return "conflict";
   if (code === "PT404") return "not_found";
-  if (code === "23505") return "duplicate";
+  if (code === "23505") return "conflict";
+  if (code === "OUTBOX_PAUSED") return "network";
 
   if (NETWORK_MESSAGE_PATTERNS.some((re) => re.test(message))) return "network";
   if (TIMEOUT_MESSAGE_PATTERNS.some((re) => re.test(message))) return "retryable";

@@ -12,7 +12,7 @@ export default function LegalLayout({
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-6">
           <Link href={ROUTES.HOME} className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
-              <span className="text-sm font-bold text-white">S</span>
+              <span className="text-sm font-bold text-white">T</span>
             </div>
             <span className="text-lg font-bold text-slate-900">{APP_NAME}</span>
           </Link>

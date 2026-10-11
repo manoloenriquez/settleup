@@ -27,15 +27,24 @@ export default async function AccountPaymentPage(): Promise<React.ReactElement> 
         </div>
       </div>
 
-      {profileResult.error && (
-        <p className="text-sm text-red-600">{profileResult.error}</p>
+      {/* Never show an editable form over details that didn't load: saving it
+          would replace the real details with blanks. */}
+      {profileResult.error ? (
+        <Card>
+          <CardContent>
+            <p className="text-sm font-semibold text-slate-900">Couldn&apos;t load your payment details</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Your saved details are safe. Reload the page to try again.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent>
+            <PaymentProfileForm initial={profileResult.data ?? null} />
+          </CardContent>
+        </Card>
       )}
-
-      <Card>
-        <CardContent>
-          <PaymentProfileForm initial={profileResult.data ?? null} />
-        </CardContent>
-      </Card>
     </div>
   );
 }

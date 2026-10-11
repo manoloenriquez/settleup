@@ -1,0 +1,28 @@
+{
+  "image": "IMG_7894.jpg",
+  "notes": "Long restaurant bill slip with a 2-unit line, 10% service charge, a 40% promo discount in parentheses, inclusive VAT, and the total printed twice (Total Due / Total Amt Due). Handwriting on the slip.",
+  "merchant": "KIWAMI BGC",
+  "date": "2026-03-24",
+  "currency": "PHP",
+  "subtotal": 4625.00,
+  "tax": 297.32,
+  "taxInclusive": true,
+  "serviceCharge": 247.77,
+  "discount": 1850.00,
+  "tip": null,
+  "total": 3022.77,
+  "items": [
+    { "name": "Coke Zero", "quantity": 1, "unitPrice": 125.00, "totalPrice": 125.00 },
+    { "name": "Goma Salmon - 8pcs", "quantity": 1, "unitPrice": 635.00, "totalPrice": 635.00 },
+    { "name": "Yabu Mozzarella Katsu Sticks", "quantity": 1, "unitPrice": 345.00, "totalPrice": 345.00 },
+    { "name": "Menchi Katsu Set Renov - BR", "quantity": 1, "unitPrice": 445.00, "totalPrice": 445.00 },
+    { "name": "Karaka Tamago", "quantity": 1, "unitPrice": 560.00, "totalPrice": 560.00 },
+    { "name": "Rosu Tornado Omelet Curry 120g - Brown Rice", "quantity": 2, "unitPrice": 570.00, "totalPrice": 1140.00 },
+    { "name": "Akamaru Tamago", "quantity": 1, "unitPrice": 540.00, "totalPrice": 540.00 },
+    { "name": "Kaedama Extra Noodles (Straight)", "quantity": 1, "unitPrice": 95.00, "totalPrice": 95.00 },
+    { "name": "Winged Gyoza", "quantity": 1, "unitPrice": 295.00, "totalPrice": 295.00 },
+    { "name": "Extra Miso Soup", "quantity": 1, "unitPrice": 125.00, "totalPrice": 125.00 },
+    { "name": "Kuromitsu Boba Sundae", "quantity": 1, "unitPrice": 170.00, "totalPrice": 170.00 },
+    { "name": "Hokkaido Milk w/ Lengua de Gato", "quantity": 1, "unitPrice": 150.00, "totalPrice": 150.00 }
+  ]
+}

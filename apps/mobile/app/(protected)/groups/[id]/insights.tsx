@@ -5,7 +5,7 @@ import { getGroupInsights } from "@/services/insights";
 import { useGroups } from "@/hooks/useGroups";
 import { useInsightsAI } from "@/hooks/useInsightsAI";
 import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailability";
-import { formatCents } from "@template/shared";
+import { formatAmount, type CurrencyCode } from "@template/shared";
 import { Card, ErrorBanner, SectionHeader, SkeletonCard, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
@@ -15,27 +15,28 @@ export default function InsightsScreen() {
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === groupId);
 
+  const currency: CurrencyCode = group?.default_currency_code ?? "PHP";
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const { data: insights, isLoading, isFetching, isError, refetch } = useQuery({
-    queryKey: ["insights", groupId],
+    queryKey: ["insights", groupId, currency],
     queryFn: async () => {
-      const res = await getGroupInsights(groupId);
+      const res = await getGroupInsights(groupId, currency);
       if (res.error) throw new Error(res.error);
       return res.data;
     },
-    enabled: !!groupId,
+    enabled: !!groupId && !!group,
   });
 
   const { summary, isGenerating, generate } = useInsightsAI();
   const aiAvailability = useAiAvailability();
 
   function handleGenerateSummary() {
-    if (aiAvailability === "unavailable") {
-      toast.error(AI_UNAVAILABLE_MESSAGE);
+    if (aiAvailability.state === "unavailable") {
+      toast.error(aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE);
       return;
     }
     if (!insights || !group) return;
     void generate({
-      groupId,
       groupName: group.name,
       insights: {
         total_expenses: insights.total_expenses,
@@ -55,6 +56,7 @@ export default function InsightsScreen() {
         })),
         period: insights.period_days > 0 ? { first_expense: "", last_expense: "" } : null,
       },
+      currency,
     });
   }
 
@@ -62,6 +64,7 @@ export default function InsightsScreen() {
     <>
       <Stack.Screen options={{ title: "Group Insights", headerShown: true }} />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -85,6 +88,9 @@ export default function InsightsScreen() {
           )
         ) : (
           <View style={styles.cards}>
+            <Text style={styles.currencyNote}>
+              Expenses in {currency}. Expenses in other currencies are not included here.
+            </Text>
             <Card style={styles.statCard}>
               <Text style={styles.statLabel}>TOTAL EXPENSES</Text>
               <Text style={styles.statValue}>{insights.total_expenses}</Text>
@@ -144,6 +150,7 @@ export default function InsightsScreen() {
               </Card>
             ) : (
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.generateBtn}
                 onPress={handleGenerateSummary}
                 activeOpacity={0.7}
@@ -162,6 +169,7 @@ export default function InsightsScreen() {
 }
 
 const styles = StyleSheet.create({
+  currencyNote: { fontSize: fontSize.sm, color: colors.gray500 },
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: spacing["2xl"] },
   cards: { padding: spacing.base, gap: spacing.sm },

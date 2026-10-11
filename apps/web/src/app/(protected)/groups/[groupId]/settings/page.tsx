@@ -7,6 +7,7 @@ import { RecurringExpensesSection } from "@/components/groups/RecurringExpensesS
 import { BudgetSection } from "@/components/groups/BudgetSection";
 import { ExportSection } from "@/components/groups/ExportSection";
 import { listRecurringExpenses } from "@/app/actions/recurring";
+import { currencyOrPhp } from "@/lib/currency";
 
 type Props = {
   params: Promise<{ groupId: string }>;
@@ -22,7 +23,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const [{ data: group }, { data: members }, { data: categories }, recurringResult] = await Promise.all([
     db
       .from("groups")
-      .select("id, name, owner_user_id, invite_code, share_token, budget_cents")
+      .select("id, name, owner_user_id, invite_code, share_token, budget_cents, default_currency_code, budget_currency_code")
       .eq("id", groupId)
       .single(),
     db
@@ -45,6 +46,8 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const currentMember = (members ?? []).find((m) => m.user_id === user.id);
   const isAdmin = currentMember?.role === "admin";
   const isAdminOrOwner = isOwner || isAdmin;
+  // The budget is kept in one currency: its own, else the group default.
+  const budgetCurrency = currencyOrPhp(group.budget_currency_code ?? group.default_currency_code);
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,16 +70,24 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         isAdmin={isAdmin}
         isAdminOrOwner={isAdminOrOwner}
         currentUserId={user.id}
-      />
+      >
+        <BudgetSection
+          key={budgetCurrency}
+          groupId={groupId}
+          budgetCents={group.budget_cents}
+          currency={budgetCurrency}
+          canEdit={isAdminOrOwner}
+        />
 
-      <BudgetSection groupId={groupId} budgetCents={group.budget_cents} canEdit={isAdminOrOwner} />
+        <RecurringExpensesSection
+          recurring={recurringResult.data ?? []}
+          members={members ?? []}
+          currentUserId={user.id}
+          isAdminOrOwner={isAdminOrOwner}
+        />
 
-      <RecurringExpensesSection
-        recurring={recurringResult.data ?? []}
-        members={members ?? []}
-      />
-
-      <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
+        <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
+      </GroupSettingsClient>
     </div>
   );
 }

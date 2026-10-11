@@ -34,6 +34,16 @@ export function LoginForm(): React.ReactElement {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {searchParams.get("passwordUpdated") === "1" && (
+        <p role="status" className="text-sm text-emerald-700">
+          Password updated. Sign in with your new password.
+        </p>
+      )}
+      {searchParams.get("error") === "auth" && (
+        <p role="alert" className="text-sm text-red-700">
+          Your sign-in link is invalid or expired. Please try again.
+        </p>
+      )}
       {expired && !error && (
         <div
           role="status"
@@ -78,7 +88,8 @@ export function LoginForm(): React.ReactElement {
             type="button"
             onClick={() => setShowPassword(!showPassword)}
             className="absolute right-3 top-8 text-slate-400 hover:text-slate-600 transition-colors"
-            tabIndex={-1}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
           >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>

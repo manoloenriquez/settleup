@@ -1,19 +1,16 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { authCallbackUrl, clearAuthDestination } from "@/lib/auth-links";
 import { Alert } from "react-native";
 import { onlineManager } from "@tanstack/react-query";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { clearPersistedQueryCache, queryClient } from "@/lib/queryClient";
 import { emailSchema, passwordSchema, signInSchema } from "@template/shared";
 import type { ApiResponse } from "@template/shared";
 import type { Profile } from "@template/supabase";
+import { track } from "@/lib/analytics";
+
+/** Accounts already reported as created during this app run. */
+const recordedAccounts = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +28,8 @@ type AuthContextValue = {
    * Use this to show a splash/loading screen before navigating.
    */
   loading: boolean;
+  accountClosed: boolean;
+  recovering: boolean;
   signIn: (email: string, password: string) => Promise<ApiResponse<void>>;
   signUp: (email: string, password: string) => Promise<ApiResponse<void>>;
   signOut: () => Promise<void>;
@@ -48,11 +47,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [accountClosed, setAccountClosed] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Start loading=true; set to false after the first auth event is resolved.
   const [loading, setLoading] = useState(true);
   const initialised = useRef(false);
   const hadSessionRef = useRef(false);
+  const profileRequest = useRef(0);
   const intentionalSignOutRef = useRef(false);
 
   // -------------------------------------------------------------------------
@@ -61,18 +63,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // -------------------------------------------------------------------------
 
   const loadProfile = useCallback((userId: string) => {
+    const request = ++profileRequest.current;
     void (async () => {
       try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
+        const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        const { data: closed } = await supabase.schema("settleup").rpc("is_account_closed");
+        if (request !== profileRequest.current) return;
+        setAccountClosed(closed === true);
         setProfile(data ?? null);
       } catch {
-        setProfile(null);
+        if (request === profileRequest.current) setProfile(null);
       } finally {
-        if (!initialised.current) {
+        if (request === profileRequest.current && !initialised.current) {
           setLoading(false);
           initialised.current = true;
         }
@@ -85,16 +87,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // -------------------------------------------------------------------------
 
   useEffect(() => {
+    const requestCounter = profileRequest;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      if (event === "SIGNED_OUT") {
+        setRecovering(false);
+        setAccountClosed(false);
+      }
 
       if (newSession?.user) {
         hadSessionRef.current = true;
+        // Counted here, not by a trigger on the shared auth.users table; the
+        // database keeps one per user and repeats are ignored.
+        if (!recordedAccounts.has(newSession.user.id)) {
+          recordedAccounts.add(newSession.user.id);
+          track({ name: "account_created" });
+        }
         // Trigger async profile load — callback itself stays synchronous.
         loadProfile(newSession.user.id);
       } else {
+        profileRequest.current++;
         // Detect session expiry: had a session, now SIGNED_OUT without a deliberate signOut() call.
         // Skip the alert while offline — a refresh that failed for lack of
         // connectivity is not an expired session, and supabase-js retries it.
@@ -106,12 +121,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ) {
           Alert.alert("Session expired", "Please sign in again to continue.");
         }
-        if (event === "SIGNED_OUT") {
-          // No cross-account bleed: drop the in-memory query cache and its
-          // persisted snapshot along with the session.
-          queryClient.clear();
-          void clearPersistedQueryCache();
-        }
         hadSessionRef.current = false;
         setProfile(null);
         // If this is the first event and there's no session, we're done loading.
@@ -122,7 +131,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      requestCounter.current++;
+      subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
   // -------------------------------------------------------------------------
@@ -163,6 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signUp({
       email: emailResult.data,
       password,
+      options: { emailRedirectTo: authCallbackUrl() },
     });
 
     if (error) return { data: null, error: error.message };
@@ -176,12 +189,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut(): Promise<void> {
     intentionalSignOutRef.current = true;
     try {
-      await supabase.auth.signOut();
+      await clearAuthDestination();
+      await supabase.auth.signOut({ scope: "local" });
       // onAuthStateChange fires with SIGNED_OUT → session/profile cleared → RouteGuard navigates.
     } finally {
       // Reset on next tick so the listener (which fires synchronously via the
       // realtime channel) sees the flag while it processes the SIGNED_OUT event.
-      setTimeout(() => { intentionalSignOutRef.current = false; }, 0);
+      setTimeout(() => {
+        intentionalSignOutRef.current = false;
+      }, 0);
     }
   }
 
@@ -192,6 +208,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: session?.user ?? null,
         profile,
         loading,
+        accountClosed,
+        recovering,
         signIn,
         signUp,
         signOut,

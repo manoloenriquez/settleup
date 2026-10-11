@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { ApiResponse } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import { mergeAndSortActivity, type ActivityItem } from "@/lib/activity-utils";
 
 export type { ActivityItem } from "@/lib/activity-utils";
@@ -9,14 +9,14 @@ export async function getGroupActivity(groupId: string): Promise<ApiResponse<Act
     supabase
       .schema("settleup")
       .from("expenses")
-      .select("id, item_name, amount_cents, created_at, category:expense_categories(id, name, slug, icon, color, is_default)")
+      .select("id, item_name, amount_cents, currency_code, created_at, category:expense_categories(id, name, slug, icon, color, is_default)")
       .eq("group_id", groupId)
       .order("created_at", { ascending: false })
       .limit(30),
     supabase
       .schema("settleup")
       .from("payments")
-      .select("id, amount_cents, created_at, from_member_id")
+      .select("id, amount_cents, currency_code, created_at, from_member_id")
       .eq("group_id", groupId)
       .eq("status", "PAID")
       .order("created_at", { ascending: false })
@@ -36,6 +36,7 @@ export type RecentActivityItem = {
   subtitle: string;
   /** How this event moved the viewer's balance (absolute value). */
   amount_cents: number;
+  currency_code: CurrencyCode;
   direction: "in" | "out" | "neutral";
   category: {
     id: string;
@@ -62,13 +63,13 @@ export async function getRecentActivity(
     db
       .from("expenses")
       .select(
-        "id, group_id, item_name, amount_cents, created_at, group:groups(id, name), category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id, paid_cents, member:group_members(display_name)), participants:expense_participants(member_id, share_cents)",
+        "id, group_id, item_name, amount_cents, currency_code, created_at, group:groups(id, name), category:expense_categories(id, name, slug, icon, color, is_default), payers:expense_payers(member_id, paid_cents, member:group_members(display_name)), participants:expense_participants(member_id, share_cents)",
       )
       .order("created_at", { ascending: false })
       .limit(limit),
     db
       .from("payments")
-      .select("id, group_id, amount_cents, created_at, from_member_id, to_member_id, group:groups(id, name)")
+      .select("id, group_id, amount_cents, currency_code, created_at, from_member_id, to_member_id, group:groups(id, name)")
       .eq("status", "PAID")
       .order("created_at", { ascending: false })
       .limit(limit),
@@ -123,6 +124,7 @@ export async function getRecentActivity(
       title: exp.item_name,
       subtitle: `${payerLabel} paid`,
       amount_cents: myNet !== 0 ? Math.abs(myNet) : exp.amount_cents,
+      currency_code: exp.currency_code,
       direction: myNet > 0 ? "in" : myNet < 0 ? "out" : "neutral",
       category: exp.category,
     });
@@ -149,6 +151,7 @@ export async function getRecentActivity(
       title: pay.group.name,
       subtitle,
       amount_cents: pay.amount_cents,
+      currency_code: pay.currency_code,
       direction: toMine ? "in" : fromMine ? "out" : "neutral",
       category: null,
     });

@@ -1,17 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { formatCents } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { GroupOverviewPayload } from "@template/shared";
+import type { CurrencyCode, GroupOverviewPayload } from "@template/shared";
 
 type Props = {
   members: GroupOverviewPayload["members"];
   expenses: GroupOverviewPayload["expenses"];
   payments: NonNullable<GroupOverviewPayload["payments"]>;
+  /** Every amount in this section is in this currency. */
+  currency: CurrencyCode;
 };
 
 type MemberWithNet = GroupOverviewPayload["members"][number] & {
@@ -68,6 +70,7 @@ function computeBreakdown(
   memberId: string,
   expenses: GroupOverviewPayload["expenses"],
   payments: NonNullable<GroupOverviewPayload["payments"]>,
+  currency: CurrencyCode,
 ): Breakdown {
   const shares: BreakdownLine[] = [];
   const paid: BreakdownLine[] = [];
@@ -77,7 +80,7 @@ function computeBreakdown(
     if (share) {
       shares.push({
         label: e.item_name,
-        detail: `${formatCents(share.share_cents)} of ${formatCents(e.amount_cents)}`,
+        detail: `${formatCurrency(share.share_cents, currency)} of ${formatCurrency(e.amount_cents, currency)}`,
         amount_cents: share.share_cents,
       });
     }
@@ -113,7 +116,17 @@ function computeBreakdown(
   };
 }
 
-function BreakdownSection({ title, lines, sign }: { title: string; lines: BreakdownLine[]; sign: "+" | "-" }): React.ReactElement | null {
+function BreakdownSection({
+  title,
+  lines,
+  sign,
+  currency,
+}: {
+  title: string;
+  lines: BreakdownLine[];
+  sign: "+" | "-";
+  currency: CurrencyCode;
+}): React.ReactElement | null {
   if (lines.length === 0) return null;
   return (
     <div>
@@ -127,7 +140,7 @@ function BreakdownSection({ title, lines, sign }: { title: string; lines: Breakd
             </span>
             <span className={`whitespace-nowrap font-medium ${sign === "+" ? "text-emerald-600" : "text-slate-500"}`}>
               {sign === "+" ? "+" : "−"}
-              {formatCents(line.amount_cents)}
+              {formatCurrency(line.amount_cents, currency)}
             </span>
           </div>
         ))}
@@ -136,7 +149,7 @@ function BreakdownSection({ title, lines, sign }: { title: string; lines: Breakd
   );
 }
 
-export function OverviewMemberBreakdown({ members, expenses, payments }: Props): React.ReactElement {
+export function OverviewMemberBreakdown({ members, expenses, payments, currency }: Props): React.ReactElement {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const sorted = sortedMembers(members);
   const canExplain = hasBreakdownData(expenses);
@@ -170,9 +183,9 @@ export function OverviewMemberBreakdown({ members, expenses, payments }: Props):
                   {m._net === 0 ? (
                     <Badge variant="success">Settled</Badge>
                   ) : m._net > 0 ? (
-                    <Badge variant="success">owed {formatCents(m._net)}</Badge>
+                    <Badge variant="success">owed {formatCurrency(m._net, currency)}</Badge>
                   ) : (
-                    <Badge variant="warning">owes {formatCents(m._owed)}</Badge>
+                    <Badge variant="warning">owes {formatCurrency(m._owed, currency)}</Badge>
                   )}
                   {canExplain &&
                     (isExpanded ? (
@@ -195,7 +208,7 @@ export function OverviewMemberBreakdown({ members, expenses, payments }: Props):
               );
             }
 
-            const breakdown = isExpanded ? computeBreakdown(m.member_id, expenses, payments) : null;
+            const breakdown = isExpanded ? computeBreakdown(m.member_id, expenses, payments, currency) : null;
             const arithmeticMatches = breakdown !== null && breakdown.clientNet === m._net;
 
             return (
@@ -217,23 +230,23 @@ export function OverviewMemberBreakdown({ members, expenses, payments }: Props):
                       <p className="text-xs text-slate-400">No expenses or payments involve {m.display_name} yet.</p>
                     ) : (
                       <>
-                        <BreakdownSection title="Their share of expenses" lines={breakdown.shares} sign="-" />
-                        <BreakdownSection title="They paid for" lines={breakdown.paid} sign="+" />
-                        <BreakdownSection title="Payments they made" lines={breakdown.sent} sign="+" />
-                        <BreakdownSection title="Payments they received" lines={breakdown.received} sign="-" />
+                        <BreakdownSection title="Their share of expenses" lines={breakdown.shares} sign="-" currency={currency} />
+                        <BreakdownSection title="They paid for" lines={breakdown.paid} sign="+" currency={currency} />
+                        <BreakdownSection title="Payments they made" lines={breakdown.sent} sign="+" currency={currency} />
+                        <BreakdownSection title="Payments they received" lines={breakdown.received} sign="-" currency={currency} />
                         {arithmeticMatches && (
                           <div className="border-t border-slate-100 pt-2 text-xs text-slate-500">
                             <div className="flex items-baseline justify-between gap-3">
                               <span>
-                                Paid {formatCents(breakdown.paidTotal + breakdown.sentTotal)} − share{" "}
-                                {formatCents(breakdown.sharesTotal + breakdown.receivedTotal)}
+                                Paid {formatCurrency(breakdown.paidTotal + breakdown.sentTotal, currency)} − share{" "}
+                                {formatCurrency(breakdown.sharesTotal + breakdown.receivedTotal, currency)}
                               </span>
                               <span className="font-semibold text-slate-700 whitespace-nowrap">
                                 {m._net === 0
                                   ? "Settled"
                                   : m._net > 0
-                                    ? `is owed ${formatCents(m._net)}`
-                                    : `owes ${formatCents(m._owed)}`}
+                                    ? `is owed ${formatCurrency(m._net, currency)}`
+                                    : `owes ${formatCurrency(m._owed, currency)}`}
                               </span>
                             </div>
                           </div>
@@ -249,7 +262,7 @@ export function OverviewMemberBreakdown({ members, expenses, payments }: Props):
         {totalOwed > 0 && (
           <div className="mt-4 border-t border-slate-100 pt-3 flex justify-between text-sm">
             <span className="font-medium text-slate-600">Total outstanding</span>
-            <span className="font-bold text-slate-900">{formatCents(totalOwed)}</span>
+            <span className="font-bold text-slate-900">{formatCurrency(totalOwed, currency)}</span>
           </div>
         )}
       </CardContent>

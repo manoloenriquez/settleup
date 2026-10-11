@@ -1,13 +1,25 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import type { NewOutboxEntry } from "@template/shared";
+import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGroupData } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { addExpensesBatch, addItemizedExpense } from "@/app/actions/expenses";
 import { createRecurringExpense } from "@/app/actions/recurring";
-import { parsePHPAmount, formatCents, equalSplit, percentSplit, sharesSplit } from "@template/shared";
+import {
+  amountToInput,
+  currencySymbol,
+  equalSplit,
+  parseAmountInput,
+  percentSplit,
+  sharesSplit,
+  type CurrencyCode,
+} from "@template/shared";
+import { formatCurrency, MONEY_LOCALE } from "@/lib/currency";
 import type { OutboxJson } from "@template/shared";
+import { errorClassFor, participantBucket } from "@template/shared/analytics";
+import { track } from "@/lib/analytics/client";
 import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
@@ -42,9 +54,13 @@ type LineItemState = {
   participantIds: string[];
 };
 
-type ItemState = {
+export type ItemState = {
+  /** Set when the item was prefilled by an AI draft; reported as the entry mode. */
+  origin?: "chat" | "receipt";
+  id: string;
   categoryId: string | null;
   itemName: string;
+  notes: string;
   amountStr: string;
   selectedIds: string[];
   splitMode: SplitMode;
@@ -58,15 +74,31 @@ type ItemState = {
   repeats: "none" | "weekly" | "monthly";
 };
 
-function makeEmptyItem(
+function trackItemSaved(item: ItemState): void {
+  const participants =
+    item.expenseMode === "itemized"
+      ? new Set(item.lineItems.flatMap((line) => line.participantIds)).size
+      : item.selectedIds.length;
+  track({
+    name: "expense_saved",
+    properties: {
+      entry_mode: item.origin ?? (item.expenseMode === "itemized" ? "itemized" : "detailed"),
+      participant_bucket: participantBucket(participants),
+    },
+  });
+}
+
+export function makeEmptyItem(
   allMemberIds: string[],
   firstMemberId: string,
   categoryId: string | null,
   previousSelectedIds?: string[],
 ): ItemState {
   return {
+    id: crypto.randomUUID(),
     categoryId,
     itemName: "",
+    notes: "",
     amountStr: "",
     selectedIds: previousSelectedIds ?? allMemberIds,
     splitMode: "equal",
@@ -89,21 +121,37 @@ type Props = {
   groupId: string;
   members: GroupMember[];
   categories: ExpenseCategory[];
+  items: ItemState[];
+  setItems: Dispatch<SetStateAction<ItemState[]>>;
+  expenseDate: string;
+  setExpenseDate: Dispatch<SetStateAction<string>>;
+  /** Currency every expense in this draft is saved in (chosen in the dialog). */
+  currency: CurrencyCode;
+  onSaved: () => void;
 };
 
-export function AddExpenseForm({ groupId, members, categories }: Props): React.ReactElement {
+export function AddExpenseForm({
+  currency,
+  groupId,
+  members,
+  categories,
+  items,
+  setItems,
+  expenseDate,
+  setExpenseDate,
+  onSaved,
+}: Props): React.ReactElement {
   const allMemberIds = members.map((m) => m.id);
+  const amountPrefix = currencySymbol(currency, MONEY_LOCALE);
   const firstMemberId = members[0]?.id ?? "";
   const defaultCategoryId = categories.find((category) => category.slug === "other")?.id ?? null;
-  const [items, setItems] = useState<ItemState[]>([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
-  const [expenseDate, setExpenseDate] = useState<string>(localTodayISO());
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState<Record<number, boolean>>({});
   const [confirming, setConfirming] = useState(false);
   const queryClient = useQueryClient();
   const online = useOnline();
-  const { enqueue } = useWebOutbox();
+  const { enqueueBatch } = useWebOutbox();
 
   function updateItem(index: number, patch: Partial<ItemState>): void {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
@@ -130,7 +178,10 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   function addItem(): void {
     setItems((prev) => {
       const last = prev[prev.length - 1];
-      return [...prev, makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId, last?.selectedIds)];
+      return [
+        ...prev,
+        makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId, last?.selectedIds),
+      ];
     });
   }
 
@@ -142,7 +193,9 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== itemIndex) return item;
-        const newLineItems = item.lineItems.map((li, j) => (j === liIndex ? { ...li, ...patch } : li));
+        const newLineItems = item.lineItems.map((li, j) =>
+          j === liIndex ? { ...li, ...patch } : li,
+        );
         return { ...item, lineItems: newLineItems };
       }),
     );
@@ -184,13 +237,16 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
   function getCustomSum(item: ItemState): number {
     return item.selectedIds.reduce((sum, id) => {
-      const v = parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0;
+      const v = parseAmountInput(item.customAmounts[id] ?? "0", currency) ?? 0;
       return sum + v;
     }, 0);
   }
 
   function getPercentSum(item: ItemState): number {
-    return item.selectedIds.reduce((sum, id) => sum + (Number.parseFloat(item.percentAmounts[id] ?? "") || 0), 0);
+    return item.selectedIds.reduce(
+      (sum, id) => sum + (Number.parseFloat(item.percentAmounts[id] ?? "") || 0),
+      0,
+    );
   }
 
   function getShareWeights(item: ItemState): number[] {
@@ -203,10 +259,15 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
   }
 
   /** Resolve the item's split mode to exact custom_splits cents, or null if invalid. */
-  function resolveCustomSplits(item: ItemState, amountCents: number): { member_id: string; share_cents: number }[] | null {
+  function resolveCustomSplits(
+    item: ItemState,
+    amountCents: number,
+  ): { member_id: string; share_cents: number }[] | null {
     try {
       if (item.splitMode === "percent") {
-        const percents = item.selectedIds.map((id) => Number.parseFloat(item.percentAmounts[id] ?? "") || 0);
+        const percents = item.selectedIds.map(
+          (id) => Number.parseFloat(item.percentAmounts[id] ?? "") || 0,
+        );
         const cents = percentSplit(amountCents, percents);
         return item.selectedIds.map((id, i) => ({ member_id: id, share_cents: cents[i] ?? 0 }));
       }
@@ -220,7 +281,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
     if (item.splitMode === "custom") {
       return item.selectedIds.map((id) => ({
         member_id: id,
-        share_cents: parsePHPAmount(item.customAmounts[id] ?? "0") ?? 0,
+        share_cents: parseAmountInput(item.customAmounts[id] ?? "0", currency) ?? 0,
       }));
     }
     return null;
@@ -228,17 +289,25 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
   function getPayerSum(item: ItemState): number {
     return item.payers.reduce((sum, p) => {
-      const v = parsePHPAmount(p.amountStr) ?? 0;
+      const v = parseAmountInput(p.amountStr, currency) ?? 0;
       return sum + v;
     }, 0);
   }
 
   function getLineItemsTotal(item: ItemState): number {
-    return item.lineItems.reduce((sum, li) => sum + (parsePHPAmount(li.amountStr) ?? 0), 0);
+    return item.lineItems.reduce((sum, li) => sum + (parseAmountInput(li.amountStr, currency) ?? 0), 0);
   }
 
   function isItemValid(item: ItemState): boolean {
-    const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+    const activeIds = new Set(
+      members.filter((member) => !member.departed_at).map((member) => member.id),
+    );
+    if (
+      item.selectedIds.some((id) => !activeIds.has(id)) ||
+      item.payers.some((payer) => !activeIds.has(payer.memberId))
+    )
+      return false;
+    const amountCents = parseAmountInput(item.amountStr, currency) ?? 0;
     if (!item.itemName.trim() || amountCents <= 0) return false;
     if (item.payers.length === 0) return false;
     if (item.payers.some((p) => !p.memberId)) return false;
@@ -248,7 +317,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
       if (item.splitPayer && getPayerSum(item) !== amountCents) return false;
       // all line items must have name, amount > 0, at least one participant
       for (const li of item.lineItems) {
-        const liCents = parsePHPAmount(li.amountStr) ?? 0;
+        const liCents = parseAmountInput(li.amountStr, currency) ?? 0;
         if (!li.name.trim() || liCents <= 0 || li.participantIds.length === 0) return false;
       }
       // line items total must equal expense amount
@@ -297,12 +366,13 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           item.splitPayer
             ? item.payers
                 .filter((p) => p.memberId)
-                .map((p) => ({ memberId: p.memberId, paidCents: parsePHPAmount(p.amountStr) ?? 0 }))
+                .map((p) => ({ memberId: p.memberId, paidCents: parseAmountInput(p.amountStr, currency) ?? 0 }))
             : [{ memberId: item.payers[0]!.memberId, paidCents: amountCents }];
 
+        const queued: NewOutboxEntry[] = [];
         for (const item of wholeItems) {
-          const amountCents = parsePHPAmount(item.amountStr)!;
-          const clientId = crypto.randomUUID();
+          const amountCents = parseAmountInput(item.amountStr, currency)!;
+          const clientId = item.id;
           const payload =
             item.splitMode === "equal"
               ? buildEqualExpenseRpcInput({
@@ -310,7 +380,9 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   groupId,
                   categoryId: item.categoryId,
                   itemName: item.itemName.trim(),
+                  notes: item.notes || undefined,
                   amountCents,
+                  currencyCode: currency,
                   expenseDate: expenseDate || undefined,
                   participantIds: item.selectedIds,
                   payers: itemPayers(item, amountCents),
@@ -320,7 +392,9 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   groupId,
                   categoryId: item.categoryId,
                   itemName: item.itemName.trim(),
+                  notes: item.notes || undefined,
                   amountCents,
+                  currencyCode: currency,
                   expenseDate: expenseDate || undefined,
                   customSplits: (resolveCustomSplits(item, amountCents) ?? []).map((s) => ({
                     memberId: s.member_id,
@@ -328,7 +402,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   })),
                   payers: itemPayers(item, amountCents),
                 });
-          await enqueue({
+          queued.push({
             id: clientId,
             kind: "expense.create",
             entityId: clientId,
@@ -340,23 +414,25 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
         }
 
         for (const item of itemizedItems) {
-          const amountCents = parsePHPAmount(item.amountStr)!;
-          const clientId = crypto.randomUUID();
+          const amountCents = parseAmountInput(item.amountStr, currency)!;
+          const clientId = item.id;
           const payload = buildItemizedExpenseRpcInput({
             clientId,
             groupId,
             categoryId: item.categoryId,
             itemName: item.itemName.trim(),
+            notes: item.notes || undefined,
             amountCents,
+            currencyCode: currency,
             expenseDate: expenseDate || undefined,
             payers: itemPayers(item, amountCents),
             lineItems: item.lineItems.map((li) => ({
               name: li.name.trim(),
-              amountCents: parsePHPAmount(li.amountStr)!,
+              amountCents: parseAmountInput(li.amountStr, currency)!,
               participantIds: li.participantIds,
             })),
           });
-          await enqueue({
+          queued.push({
             id: clientId,
             kind: "expense.create_itemized",
             entityId: clientId,
@@ -367,12 +443,22 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           });
         }
 
+        try {
+          await enqueueBatch(queued);
+        } catch {
+          setError("Could not save on this device. Your draft is still here; please try again.");
+          return;
+        }
         if (wholeItems.some((item) => item.repeats !== "none")) {
-          toast.error("Repeats need a connection — the expense was queued without its repeat schedule.");
+          toast.error(
+            "Repeats need a connection — the expense was queued without its repeat schedule.",
+          );
         }
         toast.info("Saved offline — will sync when you're back online");
+        for (const item of items) trackItemSaved(item);
         setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
         setExpenseDate(localTodayISO());
+        onSaved();
         setShowAdvanced({});
         setConfirming(false);
       })();
@@ -383,21 +469,23 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
       // Submit whole-expense items as batch
       if (wholeItems.length > 0) {
         const batchItems = wholeItems.map((item) => {
-          const amount_cents = parsePHPAmount(item.amountStr)!;
+          const amount_cents = parseAmountInput(item.amountStr, currency)!;
           const payers = item.splitPayer
             ? item.payers
                 .filter((p) => p.memberId)
                 .map((p) => ({
                   member_id: p.memberId,
-                  paid_cents: parsePHPAmount(p.amountStr) ?? 0,
+                  paid_cents: parseAmountInput(p.amountStr, currency) ?? 0,
                 }))
             : [{ member_id: item.payers[0]!.memberId, paid_cents: amount_cents }];
 
           if (item.splitMode === "equal") {
             return {
-              id: crypto.randomUUID(),
+              id: item.id,
               item_name: item.itemName.trim(),
+              notes: item.notes || undefined,
               amount_cents,
+              currency_code: currency,
               category_id: item.categoryId,
               expense_date: expenseDate || undefined,
               split_mode: "equal" as const,
@@ -408,9 +496,11 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           // percent/shares/custom all resolve to exact cents client-side and
           // travel through the existing custom path.
           return {
-            id: crypto.randomUUID(),
+            id: item.id,
             item_name: item.itemName.trim(),
+            notes: item.notes || undefined,
             amount_cents,
+            currency_code: currency,
             category_id: item.categoryId,
             expense_date: expenseDate || undefined,
             split_mode: "custom" as const,
@@ -425,33 +515,36 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           // The batch RPC is atomic — on error nothing was saved, so the user
           // can fix the problem and resubmit without creating duplicates.
           setError(result.error);
+          track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
           return;
         }
       }
 
       // Submit each itemized expense individually
       for (const item of itemizedItems) {
-        const amount_cents = parsePHPAmount(item.amountStr)!;
+        const amount_cents = parseAmountInput(item.amountStr, currency)!;
         const payers = item.splitPayer
           ? item.payers
               .filter((p) => p.memberId)
               .map((p) => ({
                 member_id: p.memberId,
-                paid_cents: parsePHPAmount(p.amountStr) ?? 0,
+                paid_cents: parseAmountInput(p.amountStr, currency) ?? 0,
               }))
           : [{ member_id: item.payers[0]!.memberId, paid_cents: amount_cents }];
 
         const line_items = item.lineItems.map((li) => ({
           name: li.name.trim(),
-          amount_cents: parsePHPAmount(li.amountStr)!,
+          amount_cents: parseAmountInput(li.amountStr, currency)!,
           participant_ids: li.participantIds,
         }));
 
         const result = await addItemizedExpense({
-          id: crypto.randomUUID(),
+          id: item.id,
           group_id: groupId,
           item_name: item.itemName.trim(),
+          notes: item.notes || undefined,
           amount_cents,
+          currency_code: currency,
           category_id: item.categoryId,
           expense_date: expenseDate || undefined,
           payers,
@@ -460,6 +553,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
 
         if (result.error) {
           setError(result.error);
+          track({ name: "expense_save_failed", properties: { error_class: errorClassFor(result.error) } });
           return;
         }
       }
@@ -467,21 +561,24 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
       // Save recurring templates for items marked weekly/monthly
       for (const item of wholeItems) {
         if (item.repeats === "none") continue;
-        const amountCents = parsePHPAmount(item.amountStr)!;
+        const amountCents = parseAmountInput(item.amountStr, currency)!;
         const recurringPayers = item.splitPayer
           ? item.payers
               .filter((p) => p.memberId)
-              .map((p) => ({ member_id: p.memberId, paid_cents: parsePHPAmount(p.amountStr) ?? 0 }))
+              .map((p) => ({ member_id: p.memberId, paid_cents: parseAmountInput(p.amountStr, currency) ?? 0 }))
               .filter((p) => p.paid_cents > 0)
           : [{ member_id: item.payers[0]!.memberId, paid_cents: amountCents }];
         if (recurringPayers.length === 0) {
-          toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: no valid payers.`);
+          toast.error(
+            `Expense added, but the ${item.repeats} repeat could not be saved: no valid payers.`,
+          );
           continue;
         }
         const recurringResult = await createRecurringExpense({
           group_id: groupId,
           item_name: item.itemName.trim(),
           amount_cents: amountCents,
+          currency_code: currency,
           category_id: item.categoryId,
           payer_member_id: recurringPayers[0]!.member_id,
           participant_member_ids: item.selectedIds,
@@ -489,12 +586,16 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           payers: recurringPayers,
         });
         if (recurringResult.error) {
-          toast.error(`Expense added, but the ${item.repeats} repeat could not be saved: ${recurringResult.error}`);
+          toast.error(
+            `Expense added, but the ${item.repeats} repeat could not be saved: ${recurringResult.error}`,
+          );
         }
       }
 
+      for (const item of items) trackItemSaved(item);
       setItems([makeEmptyItem(allMemberIds, firstMemberId, defaultCategoryId)]);
       setExpenseDate(localTodayISO());
+      onSaved();
       setShowAdvanced({});
       setConfirming(false);
       toast.success("Expense added!");
@@ -508,18 +609,29 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
           <p className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Review</p>
           {items.map((item, i) => {
-            const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+            const amountCents = parseAmountInput(item.amountStr, currency) ?? 0;
             const payerName = item.splitPayer
-              ? item.payers.filter((p) => p.memberId).map((p) => members.find((m) => m.id === p.memberId)?.display_name ?? p.memberId).join(", ")
+              ? item.payers
+                  .filter((p) => p.memberId)
+                  .map((p) => members.find((m) => m.id === p.memberId)?.display_name ?? p.memberId)
+                  .join(", ")
               : (members.find((m) => m.id === item.payers[0]?.memberId)?.display_name ?? "—");
             return (
-              <div key={i} className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-1.5">
+              <div
+                key={i}
+                className="rounded-md border border-slate-200 bg-white p-3 flex flex-col gap-1.5"
+              >
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-900">{item.itemName}</span>
-                  <span className="font-semibold text-brand-700">{formatCents(amountCents)}</span>
+                  <span className="font-semibold text-brand-700">{formatCurrency(amountCents, currency)}</span>
                 </div>
                 <p className="text-xs text-slate-500">
-                  <CategoryBadge category={categories.find((category) => category.id === item.categoryId) ?? null} compact />
+                  <CategoryBadge
+                    category={
+                      categories.find((category) => category.id === item.categoryId) ?? null
+                    }
+                    compact
+                  />
                   {" · "}
                   Paid by <span className="font-medium text-slate-700">{payerName}</span>
                   {item.expenseMode === "whole" && (
@@ -535,7 +647,10 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                     </>
                   )}
                   {item.expenseMode === "itemized" && (
-                    <> · {item.lineItems.length} line item{item.lineItems.length !== 1 ? "s" : ""}</>
+                    <>
+                      {" "}
+                      · {item.lineItems.length} line item{item.lineItems.length !== 1 ? "s" : ""}
+                    </>
                   )}
                 </p>
                 {item.expenseMode === "itemized" && (
@@ -543,7 +658,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                     {item.lineItems.map((li, j) => (
                       <li key={j} className="text-xs text-slate-600 flex justify-between">
                         <span>{li.name || `Item ${j + 1}`}</span>
-                        <span>{formatCents(parsePHPAmount(li.amountStr) ?? 0)}</span>
+                        <span>{formatCurrency(parseAmountInput(li.amountStr, currency) ?? 0, currency)}</span>
                       </li>
                     ))}
                   </ul>
@@ -563,7 +678,13 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
           >
             Back to Edit
           </button>
-          <Button type="button" isLoading={isPending} disabled={isPending} onClick={handleConfirm} className="flex-1">
+          <Button
+            type="button"
+            isLoading={isPending}
+            disabled={isPending}
+            onClick={handleConfirm}
+            className="flex-1"
+          >
             Confirm &amp; Add
           </Button>
         </div>
@@ -582,17 +703,22 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
         />
       </div>
       {items.map((item, index) => {
-        const amountCents = parsePHPAmount(item.amountStr) ?? 0;
+        const amountCents = parseAmountInput(item.amountStr, currency) ?? 0;
         const customSum = getCustomSum(item);
-        const customMismatch = item.splitMode === "custom" && amountCents > 0 && customSum !== amountCents;
+        const customMismatch =
+          item.splitMode === "custom" && amountCents > 0 && customSum !== amountCents;
         const advanced = showAdvanced[index] ?? false;
         const lineItemsTotal = getLineItemsTotal(item);
-        const lineItemsMismatch = item.expenseMode === "itemized" && amountCents > 0 && lineItemsTotal !== amountCents;
+        const lineItemsMismatch =
+          item.expenseMode === "itemized" && amountCents > 0 && lineItemsTotal !== amountCents;
 
         // Preview text for equal split
         const splitPreview =
-          item.expenseMode === "whole" && item.splitMode === "equal" && amountCents > 0 && item.selectedIds.length > 0
-            ? `Split ${item.selectedIds.length} ways: ~${formatCents(equalSplit(amountCents, item.selectedIds.length)[0] ?? 0)} each`
+          item.expenseMode === "whole" &&
+          item.splitMode === "equal" &&
+          amountCents > 0 &&
+          item.selectedIds.length > 0
+            ? `Split ${item.selectedIds.length} ways: ~${formatCurrency(equalSplit(amountCents, item.selectedIds.length)[0] ?? 0, currency)} each`
             : null;
 
         return (
@@ -650,17 +776,24 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                 label={item.expenseMode === "itemized" ? "Expense name" : "Item name"}
                 value={item.itemName}
                 onChange={(e) => updateItem(index, { itemName: e.target.value })}
-                placeholder={item.expenseMode === "itemized" ? "e.g. Dinner at Jollibee" : "e.g. Wahunori"}
+                placeholder={
+                  item.expenseMode === "itemized" ? "e.g. Dinner at Jollibee" : "e.g. Wahunori"
+                }
               />
               <Input
                 label="Total amount"
-                leftAddon="₱"
+                leftAddon={amountPrefix}
                 value={item.amountStr}
                 onChange={(e) => updateItem(index, { amountStr: e.target.value })}
-                placeholder="e.g. 8703.39"
+                placeholder="e.g. 1500"
               />
             </div>
 
+            <Input
+              label="Notes (optional)"
+              value={item.notes}
+              onChange={(event) => updateItem(index, { notes: event.target.value })}
+            />
             <CategorySelect
               categories={categories}
               value={item.categoryId}
@@ -702,19 +835,17 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
             )}
 
             {/* Split preview (whole mode only) */}
-            {splitPreview && (
-              <p className="text-xs text-slate-500">{splitPreview}</p>
-            )}
+            {splitPreview && <p className="text-xs text-slate-500">{splitPreview}</p>}
 
             {/* Itemized mode: line items */}
             {item.expenseMode === "itemized" && (
               <div className="flex flex-col gap-3">
                 <p className="text-sm font-medium text-slate-700">Line items</p>
                 {item.lineItems.map((li, liIndex) => {
-                  const liCents = parsePHPAmount(li.amountStr) ?? 0;
+                  const liCents = parseAmountInput(li.amountStr, currency) ?? 0;
                   const liPreview =
                     liCents > 0 && li.participantIds.length > 0
-                      ? `~${formatCents(equalSplit(liCents, li.participantIds.length)[0] ?? 0)} each`
+                      ? `~${formatCurrency(equalSplit(liCents, li.participantIds.length)[0] ?? 0, currency)} each`
                       : null;
                   return (
                     <div
@@ -726,15 +857,19 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                           <Input
                             label="Item"
                             value={li.name}
-                            onChange={(e) => updateLineItem(index, liIndex, { name: e.target.value })}
+                            onChange={(e) =>
+                              updateLineItem(index, liIndex, { name: e.target.value })
+                            }
                             placeholder="e.g. Burger"
                           />
                           <Input
                             label="Amount"
-                            leftAddon="₱"
+                            leftAddon={amountPrefix}
                             value={li.amountStr}
-                            onChange={(e) => updateLineItem(index, liIndex, { amountStr: e.target.value })}
-                            placeholder="0.00"
+                            onChange={(e) =>
+                              updateLineItem(index, liIndex, { amountStr: e.target.value })
+                            }
+                            placeholder={amountToInput(0, currency)}
                           />
                         </div>
                         {item.lineItems.length > 1 && (
@@ -767,7 +902,9 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                         </div>
                       </div>
                       {liPreview && (
-                        <p className="text-xs text-slate-500">{li.participantIds.length} people · {liPreview}</p>
+                        <p className="text-xs text-slate-500">
+                          {li.participantIds.length} people · {liPreview}
+                        </p>
                       )}
                     </div>
                   );
@@ -780,8 +917,10 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                   <Plus size={12} /> Add line item
                 </button>
                 {amountCents > 0 && (
-                  <p className={`text-xs font-medium ${lineItemsMismatch ? "text-red-600" : "text-slate-500"}`}>
-                    {formatCents(lineItemsTotal)} of {formatCents(amountCents)} allocated
+                  <p
+                    className={`text-xs font-medium ${lineItemsMismatch ? "text-red-600" : "text-slate-500"}`}
+                  >
+                    {formatCurrency(lineItemsTotal, currency)} of {formatCurrency(amountCents, currency)} allocated
                     {lineItemsMismatch ? " — line items must sum to total" : ""}
                   </p>
                 )}
@@ -830,7 +969,12 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                         value={item.splitMode}
                         onChange={(mode) => {
                           if (mode === "smart") return;
-                          updateItem(index, { splitMode: mode, customAmounts: {}, percentAmounts: {}, shareWeights: {} });
+                          updateItem(index, {
+                            splitMode: mode,
+                            customAmounts: {},
+                            percentAmounts: {},
+                            shareWeights: {},
+                          });
                         }}
                         showSmart={false}
                       />
@@ -843,6 +987,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                       members={members}
                       firstMemberId={firstMemberId}
                       amountCents={amountCents}
+                      currency={currency}
                       updateItem={updateItem}
                       getPayerSum={getPayerSum}
                     />
@@ -864,7 +1009,10 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                                   value={item.percentAmounts[id] ?? ""}
                                   onChange={(e) =>
                                     updateItem(index, {
-                                      percentAmounts: { ...item.percentAmounts, [id]: e.target.value },
+                                      percentAmounts: {
+                                        ...item.percentAmounts,
+                                        [id]: e.target.value,
+                                      },
                                     })
                                   }
                                   placeholder="0"
@@ -873,9 +1021,16 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                             );
                           })}
                         </div>
-                        <p className={`text-xs font-medium ${Math.abs(getPercentSum(item) - 100) > 0.01 ? "text-red-600" : "text-slate-500"}`}>
-                          {getPercentSum(item).toFixed(2).replace(/\.?0+$/, "")}% of 100%
-                          {Math.abs(getPercentSum(item) - 100) > 0.01 ? " — percentages must sum to 100" : ""}
+                        <p
+                          className={`text-xs font-medium ${Math.abs(getPercentSum(item) - 100) > 0.01 ? "text-red-600" : "text-slate-500"}`}
+                        >
+                          {getPercentSum(item)
+                            .toFixed(2)
+                            .replace(/\.?0+$/, "")}
+                          % of 100%
+                          {Math.abs(getPercentSum(item) - 100) > 0.01
+                            ? " — percentages must sum to 100"
+                            : ""}
                         </p>
                       </div>
                     )}
@@ -883,7 +1038,10 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                     {/* Shares split inputs */}
                     {item.splitMode === "shares" && item.selectedIds.length > 0 && (
                       <div className="flex flex-col gap-2">
-                        <p className="text-sm font-medium text-slate-700">Shares <span className="font-normal text-slate-400">(blank = 1 share)</span></p>
+                        <p className="text-sm font-medium text-slate-700">
+                          Shares{" "}
+                          <span className="font-normal text-slate-400">(blank = 1 share)</span>
+                        </p>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                           {item.selectedIds.map((id) => {
                             const member = members.find((m) => m.id === id);
@@ -905,19 +1063,23 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                             );
                           })}
                         </div>
-                        {amountCents > 0 && !getShareWeights(item).some((w) => !Number.isFinite(w) || w <= 0) && (
-                          <p className="text-xs text-slate-500">
-                            {item.selectedIds
-                              .map((id, i) => {
-                                const member = members.find((m) => m.id === id);
-                                const cents = resolveCustomSplits(item, amountCents)?.[i]?.share_cents ?? 0;
-                                return `${member?.display_name ?? "?"}: ${formatCents(cents)}`;
-                              })
-                              .join(" · ")}
-                          </p>
-                        )}
+                        {amountCents > 0 &&
+                          !getShareWeights(item).some((w) => !Number.isFinite(w) || w <= 0) && (
+                            <p className="text-xs text-slate-500">
+                              {item.selectedIds
+                                .map((id, i) => {
+                                  const member = members.find((m) => m.id === id);
+                                  const cents =
+                                    resolveCustomSplits(item, amountCents)?.[i]?.share_cents ?? 0;
+                                  return `${member?.display_name ?? "?"}: ${formatCurrency(cents, currency)}`;
+                                })
+                                .join(" · ")}
+                            </p>
+                          )}
                         {getShareWeights(item).some((w) => !Number.isFinite(w) || w <= 0) && (
-                          <p className="text-xs font-medium text-red-600">Shares must be positive numbers</p>
+                          <p className="text-xs font-medium text-red-600">
+                            Shares must be positive numbers
+                          </p>
                         )}
                       </div>
                     )}
@@ -934,21 +1096,26 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                               <div key={id}>
                                 <Input
                                   label={member.display_name}
-                                  leftAddon="₱"
+                                  leftAddon={amountPrefix}
                                   value={item.customAmounts[id] ?? ""}
                                   onChange={(e) =>
                                     updateItem(index, {
-                                      customAmounts: { ...item.customAmounts, [id]: e.target.value },
+                                      customAmounts: {
+                                        ...item.customAmounts,
+                                        [id]: e.target.value,
+                                      },
                                     })
                                   }
-                                  placeholder="0.00"
+                                  placeholder={amountToInput(0, currency)}
                                 />
                               </div>
                             );
                           })}
                         </div>
-                        <p className={`text-xs font-medium ${customMismatch ? "text-red-600" : "text-slate-500"}`}>
-                          {formatCents(customSum)} of {formatCents(amountCents)} assigned
+                        <p
+                          className={`text-xs font-medium ${customMismatch ? "text-red-600" : "text-slate-500"}`}
+                        >
+                          {formatCurrency(customSum, currency)} of {formatCurrency(amountCents, currency)} assigned
                           {customMismatch ? " — amounts must match total" : ""}
                         </p>
                       </div>
@@ -964,6 +1131,7 @@ export function AddExpenseForm({ groupId, members, categories }: Props): React.R
                 members={members}
                 firstMemberId={firstMemberId}
                 amountCents={amountCents}
+                currency={currency}
                 updateItem={updateItem}
                 getPayerSum={getPayerSum}
               />
@@ -1002,11 +1170,22 @@ type PayerSectionProps = {
   members: GroupMember[];
   firstMemberId: string;
   amountCents: number;
+  currency: CurrencyCode;
   updateItem: (index: number, patch: Partial<ItemState>) => void;
   getPayerSum: (item: ItemState) => number;
 };
 
-function PayerSection({ item, index, members, firstMemberId, amountCents, updateItem, getPayerSum }: PayerSectionProps): React.ReactElement {
+function PayerSection({
+  item,
+  index,
+  members,
+  firstMemberId,
+  amountCents,
+  currency,
+  updateItem,
+  getPayerSum,
+}: PayerSectionProps): React.ReactElement {
+  const amountPrefix = currencySymbol(currency, MONEY_LOCALE);
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -1053,14 +1232,14 @@ function PayerSection({ item, index, members, firstMemberId, amountCents, update
               <div className="w-28">
                 <Input
                   label="Amount"
-                  leftAddon="₱"
+                  leftAddon={amountPrefix}
                   value={payer.amountStr}
                   onChange={(e) => {
                     const newPayers = [...item.payers];
                     newPayers[pi] = { ...payer, amountStr: e.target.value };
                     updateItem(index, { payers: newPayers });
                   }}
-                  placeholder="0.00"
+                  placeholder={amountToInput(0, currency)}
                 />
               </div>
               {item.payers.length > 1 && (
@@ -1094,7 +1273,7 @@ function PayerSection({ item, index, members, firstMemberId, amountCents, update
                 getPayerSum(item) !== amountCents ? "text-red-600" : "text-slate-500"
               }`}
             >
-              {formatCents(getPayerSum(item))} of {formatCents(amountCents)} assigned
+              {formatCurrency(getPayerSum(item), currency)} of {formatCurrency(amountCents, currency)} assigned
               {getPayerSum(item) !== amountCents ? " — amounts must match total" : ""}
             </p>
           )}

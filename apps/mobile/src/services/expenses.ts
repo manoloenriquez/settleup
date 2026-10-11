@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { API_LIMITS } from "@template/shared";
-import type { ApiResponse, PaginatedResponse } from "@template/shared";
+import type { ApiResponse, CurrencyCode, PaginatedResponse } from "@template/shared";
 import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
@@ -32,11 +32,14 @@ type ExpenseWithDetailsRow = Expense & {
 };
 
 export async function addExpense(params: {
+  notes?: string;
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
   clientId?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
+  /** Currency of this expense (its own; groups can hold several). */
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   memberIds: string[];
   payerMemberId: string;
@@ -51,11 +54,13 @@ export async function addExpense(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildEqualExpenseRpcInput({
+        notes: params.notes,
         clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
+        currencyCode: params.currencyCode,
         expenseDate: params.expenseDate,
         participantIds: params.memberIds,
         payers: [{ memberId: params.payerMemberId, paidCents: params.amountCents }],
@@ -68,11 +73,14 @@ export async function addExpense(params: {
 }
 
 export async function addExpenseCustomSplit(params: {
+  notes?: string;
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
   clientId?: string;
   groupId: string;
   itemName: string;
   amountCents: number;
+  /** Currency of this expense (its own; groups can hold several). */
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -96,11 +104,13 @@ export async function addExpenseCustomSplit(params: {
     .schema("settleup")
     .rpc("create_expense", {
       p_input: buildCustomExpenseRpcInput({
+        notes: params.notes,
         clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
+        currencyCode: params.currencyCode,
         expenseDate: params.expenseDate,
         customSplits: params.customSplits,
         payers: params.payers,
@@ -113,11 +123,14 @@ export async function addExpenseCustomSplit(params: {
 }
 
 export async function addItemizedExpense(params: {
+  notes?: string;
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
   clientId?: string;
   groupId: string;
   expenseName: string;
   amountCents: number;
+  /** Currency of this expense (its own; groups can hold several). */
+  currencyCode: CurrencyCode;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -131,11 +144,13 @@ export async function addItemizedExpense(params: {
     .schema("settleup")
     .rpc("create_itemized_expense", {
       p_input: buildItemizedExpenseRpcInput({
+        notes: params.notes,
         clientId: params.clientId,
         groupId: params.groupId,
         categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,
+        currencyCode: params.currencyCode,
         expenseDate: params.expenseDate,
         payers: params.payers,
         lineItems: params.lineItems,
@@ -148,11 +163,16 @@ export async function addItemizedExpense(params: {
 }
 
 export async function updateExpense(params: {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot: server rejects with PT409 if the expense changed since. */
   expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
+  /** Currency of this expense (its own; groups can hold several). */
+  currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   participantIds: string[];
   payers: { memberId: string; paidCents: number }[];
@@ -165,11 +185,14 @@ export async function updateExpense(params: {
     .schema("settleup")
     .rpc("update_expense", {
       p_input: buildUpdateEqualExpenseRpcInput({
+        notes: params.notes,
         expenseId: params.expenseId,
         expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
+        currencyCode: params.currencyCode,
+        expenseDate: params.expenseDate,
         participantIds: params.participantIds,
         payers: params.payers,
       }),
@@ -181,11 +204,16 @@ export async function updateExpense(params: {
 }
 
 export async function updateExpenseCustomSplit(params: {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot: server rejects with PT409 if the expense changed since. */
   expectedUpdatedAt?: string;
   itemName: string;
   amountCents: number;
+  /** Currency of this expense (its own; groups can hold several). */
+  currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   customSplits: { memberId: string; shareCents: number }[];
   payers: { memberId: string; paidCents: number }[];
@@ -197,11 +225,14 @@ export async function updateExpenseCustomSplit(params: {
     .schema("settleup")
     .rpc("update_expense", {
       p_input: buildUpdateCustomExpenseRpcInput({
+        notes: params.notes,
         expenseId: params.expenseId,
         expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.itemName,
         amountCents: params.amountCents,
+        currencyCode: params.currencyCode,
+        expenseDate: params.expenseDate,
         customSplits: params.customSplits,
         payers: params.payers,
       }),
@@ -213,11 +244,16 @@ export async function updateExpenseCustomSplit(params: {
 }
 
 export async function updateItemizedExpense(params: {
+  notes?: string;
   expenseId: string;
   /** CAS snapshot: server rejects with PT409 if the expense changed since. */
   expectedUpdatedAt?: string;
   expenseName: string;
   amountCents: number;
+  /** Currency of this expense (its own; groups can hold several). */
+  currencyCode: CurrencyCode;
+  /** ISO date (YYYY-MM-DD); omitted keeps the stored date. */
+  expenseDate?: string;
   categoryId?: string | null;
   payers: { memberId: string; paidCents: number }[];
   lineItems: { name: string; amountCents: number; participantIds: string[] }[];
@@ -230,11 +266,14 @@ export async function updateItemizedExpense(params: {
     .schema("settleup")
     .rpc("update_itemized_expense", {
       p_input: buildUpdateItemizedExpenseRpcInput({
+        notes: params.notes,
         expenseId: params.expenseId,
         expectedUpdatedAt: params.expectedUpdatedAt,
         categoryId: params.categoryId,
         itemName: params.expenseName,
         amountCents: params.amountCents,
+        currencyCode: params.currencyCode,
+        expenseDate: params.expenseDate,
         payers: params.payers,
         lineItems: params.lineItems,
       }),
@@ -288,18 +327,24 @@ export async function listExpenses(
 /** Lightweight all-rows totals so headers/budgets stay correct under pagination. */
 export async function listExpenseTotals(
   groupId: string,
-): Promise<ApiResponse<{ count: number; positiveTotalCents: number }>> {
+): Promise<ApiResponse<{ count: number; totals: { currency: CurrencyCode; amountMinor: number }[] }>> {
   const { data, error, count } = await supabase
     .schema("settleup")
     .from("expenses")
-    .select("amount_cents", { count: "exact" })
+    .select("amount_cents, currency_code", { count: "exact" })
     .eq("group_id", groupId);
 
   if (error) return { data: null, error: error.message };
+  // Spending per currency — amounts in different currencies are never added.
+  const byCurrency = new Map<CurrencyCode, number>();
+  for (const expense of data ?? []) {
+    const currency = expense.currency_code as CurrencyCode;
+    byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + Math.max(0, expense.amount_cents));
+  }
   return {
     data: {
       count: count ?? 0,
-      positiveTotalCents: (data ?? []).reduce((sum, e) => sum + Math.max(0, e.amount_cents), 0),
+      totals: [...byCurrency].map(([currency, amountMinor]) => ({ currency, amountMinor })),
     },
     error: null,
   };

@@ -16,6 +16,8 @@ export function SegmentedControl<T extends string>({ segments, value, onChange }
         const active = seg.value === value;
         return (
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
             key={seg.value}
             style={[styles.segment, active && styles.segmentActive]}
             onPress={() => onChange(seg.value)}

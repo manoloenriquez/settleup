@@ -1,5 +1,6 @@
 import { createBrowserClient as _createBrowserClient } from "@supabase/ssr";
 import type { Database } from "./database.types";
+import { LEDGER_HEADERS } from "./ledger";
 
 /**
  * Creates a Supabase client for use in Client Components.
@@ -17,5 +18,5 @@ export function createBrowserClient() {
     );
   }
 
-  return _createBrowserClient<Database>(url, key);
+  return _createBrowserClient<Database>(url, key, { global: { headers: { ...LEDGER_HEADERS } } });
 }

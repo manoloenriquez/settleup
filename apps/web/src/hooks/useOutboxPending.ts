@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import type { OutboxEntry, OutboxEntryStatus } from "@template/shared";
+import type { CurrencyCode, OutboxEntry, OutboxEntryStatus } from "@template/shared";
 import { useWebOutbox } from "@/components/OutboxProvider";
+import { currencyOrPhp } from "@/lib/currency";
 
 // ---------------------------------------------------------------------------
 // Render-time merge helpers: the React Query cache stays pure server data;
@@ -14,6 +15,7 @@ export type PendingExpenseRow = {
   id: string;
   item_name: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   expense_date: string | null;
   status: OutboxEntryStatus;
 };
@@ -21,6 +23,7 @@ export type PendingExpenseRow = {
 export type PendingPaymentRow = {
   id: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   status: OutboxEntryStatus;
 };
 
@@ -34,6 +37,14 @@ function payloadExpenseDate(entry: OutboxEntry): string | null {
   return null;
 }
 
+/** The queued payload's currency; entries from before currencies existed are pesos. */
+function payloadCurrency(entry: OutboxEntry): CurrencyCode {
+  if (entry.payload !== null && typeof entry.payload === "object" && !Array.isArray(entry.payload)) {
+    return currencyOrPhp(entry.payload["currency_code"]);
+  }
+  return "PHP";
+}
+
 /** Locally created expenses in this group that have not synced yet. */
 export function usePendingExpenses(groupId: string): PendingExpenseRow[] {
   const { entries } = useWebOutbox();
@@ -45,6 +56,7 @@ export function usePendingExpenses(groupId: string): PendingExpenseRow[] {
           id: e.id,
           item_name: e.summary.title,
           amount_cents: e.summary.amountCents,
+          currency_code: payloadCurrency(e),
           expense_date: payloadExpenseDate(e),
           status: e.status,
         })),
@@ -59,7 +71,12 @@ export function usePendingPaymentRecords(groupId: string): PendingPaymentRow[] {
     () =>
       entries
         .filter((e) => e.groupId === groupId && e.kind === "payment.record")
-        .map((e) => ({ id: e.id, amount_cents: e.summary.amountCents, status: e.status })),
+        .map((e) => ({
+          id: e.id,
+          amount_cents: e.summary.amountCents,
+          currency_code: payloadCurrency(e),
+          status: e.status,
+        })),
     [entries, groupId],
   );
 }

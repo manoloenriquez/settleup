@@ -1,0 +1,5 @@
+{"automationSeconds":24,"fields":2,"flow":"F1","keystrokes":8,"note":"","phase":"before","screenNames":["welcome","currency","account-choice","home","new-expense","saved"],"screens":6,"scrolls":0,"taps":6}
+{"automationSeconds":37,"fields":3,"flow":"F3","keystrokes":20,"note":"","phase":"before","screenNames":["shared","shared-menu","new-group","group","settings-people","group-with-people"],"screens":6,"scrolls":0,"taps":9}
+{"automationSeconds":26,"fields":1,"flow":"F5","keystrokes":4,"note":"","phase":"before","screenNames":["shared","group","edit-expense","saved"],"screens":4,"scrolls":0,"taps":6}
+{"automationSeconds":27,"fields":2,"flow":"F2","keystrokes":10,"note":"","phase":"before","screenNames":["home","add-menu","group-picker","add-expense","confirm","saved"],"screens":6,"scrolls":1,"taps":7}
+{"automationSeconds":19,"fields":0,"flow":"F4","keystrokes":0,"note":"balance visible at launch","phase":"before","screenNames":["home","shared","group","balances","record-payment","recorded"],"screens":6,"scrolls":1,"taps":5}

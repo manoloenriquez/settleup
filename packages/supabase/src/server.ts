@@ -1,5 +1,6 @@
 import { createServerClient as _createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { Database } from "./database.types";
+import { LEDGER_HEADERS } from "./ledger";
 
 export interface CookieAdapter {
   getAll: () => Array<{ name: string; value: string }>;
@@ -23,6 +24,7 @@ export function createServerClient(adapter: CookieAdapter) {
   }
 
   return _createServerClient<Database>(url, key, {
+    global: { headers: { ...LEDGER_HEADERS } },
     cookies: {
       getAll: adapter.getAll,
       setAll: adapter.setAll,

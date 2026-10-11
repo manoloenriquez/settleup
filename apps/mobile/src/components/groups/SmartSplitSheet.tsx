@@ -2,11 +2,12 @@ import { useCallback, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import type { SmartSplitResult } from "@template/shared/types";
-import { formatCents } from "@template/shared";
+import { formatAmount, type CurrencyCode } from "@template/shared";
 import { AppButton } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type SmartSplitSheetProps = {
+  currency: CurrencyCode;
   itemName: string;
   amountCents: number;
   memberNames: string[];
@@ -18,6 +19,7 @@ type SmartSplitSheetProps = {
 };
 
 export function SmartSplitSheet({
+  currency,
   itemName,
   amountCents,
   memberNames,
@@ -27,6 +29,7 @@ export function SmartSplitSheet({
   onApply,
   onClose,
 }: SmartSplitSheetProps) {
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
   const sheetRef = useRef<BottomSheet>(null);
   const [context, setContext] = useState("");
 
@@ -50,13 +53,13 @@ export function SmartSplitSheet({
       <BottomSheetView style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Smart Split</Text>
-          <TouchableOpacity onPress={handleClose} hitSlop={8}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={handleClose} hitSlop={8}>
             <Text style={styles.closeBtn}>✕</Text>
           </TouchableOpacity>
         </View>
 
         <Text style={styles.subtitle}>
-          Splitting "{itemName}" ({formatCents(amountCents)}) among {memberNames.length} members
+          Splitting "{itemName}" ({formatCents(amountCents)}) among {memberNames.length} {memberNames.length === 1 ? "member" : "members"}
         </Text>
 
         <Text style={styles.label}>Context (optional)</Text>

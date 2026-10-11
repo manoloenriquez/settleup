@@ -1,47 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { computeInsights } from "@template/ai/insights";
-import { getGroupInsights } from "@/app/actions/insights";
 import { useExpenseSummaries, useGroupRow, useMembersWithBalances } from "@/hooks/queries";
-import { InsightsDashboard } from "@/components/groups/InsightsDashboard";
+import { InsightsCurrencyNote, InsightsDashboard } from "@/components/groups/InsightsDashboard";
+import { currencyOrPhp } from "@/lib/currency";
+import type { CurrencyCode } from "@template/shared";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
-import { ChevronRight, BarChart3, Sparkles } from "lucide-react";
+import { ChevronRight, BarChart3 } from "lucide-react";
 
 type Props = {
   groupId: string;
 };
 
 /**
- * Numeric insights render instantly from the cached expense summaries; the
- * LLM summary (rate-limited, seconds-slow) streams in after paint via its own
- * query — "insights" is in NON_PERSISTED_KEYS so AI output never persists.
+ * Numeric insights render instantly from the cached expense summaries. The
+ * narrative summary is an on-device feature of the iPhone app (Apple
+ * Intelligence); the web shows the statistics only.
+ *
+ * Every total covers the group's default currency only: amounts in different
+ * currencies are never added together or converted.
  */
 export function InsightsPageClient({ groupId }: Props): React.ReactElement {
   const groupQ = useGroupRow(groupId);
-  const summariesQ = useExpenseSummaries(groupId);
-  const balancesQ = useMembersWithBalances(groupId);
+  const group = groupQ.data ?? null;
+  const currency: CurrencyCode | undefined = group ? currencyOrPhp(group.default_currency_code) : undefined;
 
-  const summaries = summariesQ.data ?? [];
+  const summariesQ = useExpenseSummaries(groupId);
+  const balancesQ = useMembersWithBalances(groupId, currency);
+
+  const allSummaries = summariesQ.data ?? [];
+  // Old cached rows may predate currencies; they were PHP.
+  const summaries = allSummaries.filter((e) => currencyOrPhp(e.currency_code) === currency);
+  const otherCurrencies = [
+    ...new Set(allSummaries.map((e) => currencyOrPhp(e.currency_code)).filter((c) => c !== currency)),
+  ].sort();
   const memberNameMap = new Map((balancesQ.data ?? []).map((b) => [b.member_id, b.display_name]));
 
-  const llmQ = useQuery({
-    queryKey: ["insights", groupId],
-    queryFn: async () => {
-      const result = await getGroupInsights(groupId);
-      if (result.error !== null) throw new Error(result.error);
-      return result.data?.llm_summary ?? null;
-    },
-    staleTime: Infinity,
-    retry: 0,
-    enabled: summaries.length > 0,
-  });
-
-  const group = groupQ.data ?? null;
-
-  if (!group) {
+  if (!group || !currency) {
     if (groupQ.isSuccess) {
       return (
         <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center animate-fade-in">
@@ -91,26 +88,25 @@ export function InsightsPageClient({ groupId }: Props): React.ReactElement {
             <p className="text-sm text-slate-500 mt-0.5">{group.name}</p>
           </div>
         </div>
+        <div className="mt-3">
+          <InsightsCurrencyNote currency={currency} otherCurrencies={otherCurrencies} />
+        </div>
       </div>
 
       {summariesQ.isSuccess && insights.total_expenses === 0 ? (
         <Card>
           <EmptyState
             icon={BarChart3}
-            title="No expenses yet"
-            description="Add some expenses to see insights about your group spending."
+            title={otherCurrencies.length > 0 ? `No expenses in ${currency} yet` : "No expenses yet"}
+            description={
+              otherCurrencies.length > 0
+                ? `Insights cover expenses in ${currency} only. Add an expense in ${currency} to see them.`
+                : "Add some expenses to see insights about your group spending."
+            }
           />
         </Card>
       ) : (
-        <>
-          {llmQ.isFetching && (
-            <p className="flex items-center gap-2 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-brand-700">
-              <Sparkles size={15} className="animate-pulse" />
-              Generating AI summary…
-            </p>
-          )}
-          <InsightsDashboard insights={{ ...insights, llm_summary: llmQ.data ?? null }} />
-        </>
+        <InsightsDashboard insights={{ ...insights, llm_summary: null }} currency={currency} />
       )}
     </div>
   );

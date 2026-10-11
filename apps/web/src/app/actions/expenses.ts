@@ -5,7 +5,7 @@ import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
 import { logServerError } from "@/lib/log";
 import { API_LIMITS, addExpenseSchema, addExpensesBatchSchema, addItemizedExpenseSchema, updateExpenseSchema, updateItemizedExpenseSchema } from "@template/shared";
-import type { ApiResponse, PaginatedResponse } from "@template/shared";
+import type { ApiResponse, CurrencyCode, PaginatedResponse } from "@template/shared";
 import {
   buildCustomExpenseRpcInput,
   buildEqualExpenseRpcInput,
@@ -51,7 +51,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { id, group_id, category_id, item_name, amount_cents, notes, expense_date, participant_ids, payers } = parsed.data;
+    const { id, group_id, category_id, item_name, currency_code, amount_cents, notes, expense_date, participant_ids, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -63,6 +63,7 @@ export async function addExpense(input: unknown): Promise<ApiResponse<Expense>> 
         categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
+        currencyCode: currency_code,
         notes,
         expenseDate: expense_date,
         participantIds: participant_ids,
@@ -110,6 +111,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
             categoryId: item.category_id,
             itemName: item.item_name,
             amountCents: item.amount_cents,
+            currencyCode: item.currency_code,
             notes: item.notes,
             expenseDate: item.expense_date,
             participantIds: item.participant_ids,
@@ -124,6 +126,7 @@ export async function addExpensesBatch(input: unknown): Promise<ApiResponse<Expe
             categoryId: item.category_id,
             itemName: item.item_name,
             amountCents: item.amount_cents,
+            currencyCode: item.currency_code,
             notes: item.notes,
             expenseDate: item.expense_date,
             customSplits: (item.custom_splits ?? []).map((split) => ({
@@ -169,7 +172,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { id, group_id, category_id, item_name, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
+    const { id, group_id, category_id, item_name, currency_code, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -181,6 +184,7 @@ export async function addItemizedExpense(input: unknown): Promise<ApiResponse<Ex
         categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
+        currencyCode: currency_code,
         notes,
         expenseDate: expense_date,
         payers: payers.map((payer) => ({
@@ -216,7 +220,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { expense_id, expected_updated_at, category_id, item_name, amount_cents, notes, expense_date, split_mode, participant_ids, custom_splits, payers } = parsed.data;
+    const { expense_id, expected_updated_at, category_id, item_name, currency_code, amount_cents, notes, expense_date, split_mode, participant_ids, custom_splits, payers } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -228,6 +232,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
           categoryId: category_id,
           itemName: item_name,
           amountCents: amount_cents,
+          currencyCode: currency_code,
           notes,
           expenseDate: expense_date,
           participantIds: participant_ids,
@@ -239,6 +244,7 @@ export async function updateExpense(input: unknown): Promise<ApiResponse<Expense
           categoryId: category_id,
           itemName: item_name,
           amountCents: amount_cents,
+          currencyCode: currency_code,
           notes,
           expenseDate: expense_date,
           customSplits: (custom_splits ?? []).map((s) => ({ memberId: s.member_id, shareCents: s.share_cents })),
@@ -272,7 +278,7 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
 
-    const { expense_id, expected_updated_at, category_id, item_name, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
+    const { expense_id, expected_updated_at, category_id, item_name, currency_code, amount_cents, notes, expense_date, payers, line_items } = parsed.data;
 
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
@@ -284,6 +290,7 @@ export async function updateItemizedExpense(input: unknown): Promise<ApiResponse
         categoryId: category_id,
         itemName: item_name,
         amountCents: amount_cents,
+        currencyCode: currency_code,
         notes,
         expenseDate: expense_date,
         payers: payers.map((p) => ({ memberId: p.member_id, paidCents: p.paid_cents })),
@@ -368,6 +375,8 @@ export type ExpenseSummary = {
   id: string;
   item_name: string;
   amount_cents: number;
+  /** The expense's own currency; totals must never add different currencies. */
+  currency_code: CurrencyCode;
   expense_date: string;
   created_at: string;
   category: ExpenseCategory | null;
@@ -393,7 +402,7 @@ export async function listExpenseSummaries(
 
     const { data: rows, error } = await db
       .from("expenses")
-      .select("id, item_name, amount_cents, expense_date, created_at, category:expense_categories(*), payers:expense_payers(member_id, paid_cents), participants:expense_participants(member_id, share_cents)")
+      .select("id, item_name, amount_cents, currency_code, expense_date, created_at, category:expense_categories(*), payers:expense_payers(member_id, paid_cents), participants:expense_participants(member_id, share_cents)")
       .eq("group_id", parsed.data)
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false });

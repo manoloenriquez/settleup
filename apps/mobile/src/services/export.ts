@@ -14,13 +14,13 @@ export async function shareGroupLedger(groupId: string, groupName: string): Prom
     db.from("group_members").select("id, display_name").eq("group_id", groupId),
     db
       .from("expenses")
-      .select("item_name, amount_cents, notes, created_at, expense_date, category:expense_categories(name), payers:expense_payers(member_id), participants:expense_participants(member_id)")
+      .select("item_name, amount_cents, currency_code, notes, created_at, expense_date, category:expense_categories(name), payers:expense_payers(member_id), participants:expense_participants(member_id)")
       .eq("group_id", groupId)
       .order("expense_date", { ascending: true })
       .order("created_at", { ascending: true }),
     db
       .from("payments")
-      .select("from_member_id, to_member_id, amount_cents, status, created_at")
+      .select("from_member_id, to_member_id, amount_cents, currency_code, status, created_at")
       .eq("group_id", groupId)
       .order("created_at", { ascending: true }),
   ]);
@@ -35,6 +35,7 @@ export async function shareGroupLedger(groupId: string, groupName: string): Prom
   const expenses: LedgerExpense[] = (expensesRes.data ?? []).map((e) => ({
     item_name: e.item_name,
     amount_cents: e.amount_cents,
+    currency_code: e.currency_code,
     created_at: e.created_at,
     expense_date: e.expense_date,
     payer_names: (e.payers ?? []).map((p) => name(p.member_id)),
@@ -47,6 +48,7 @@ export async function shareGroupLedger(groupId: string, groupName: string): Prom
     from_name: name(p.from_member_id),
     to_name: name(p.to_member_id),
     amount_cents: p.amount_cents,
+    currency_code: p.currency_code,
     created_at: p.created_at,
     status: p.status,
   }));

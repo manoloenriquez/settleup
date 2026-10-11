@@ -1,7 +1,12 @@
 import type { GroupMember } from "@template/supabase";
 import type { MemberBalance } from "@template/shared";
-import { formatCents } from "@template/shared";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 import { CopyButton } from "./CopyButton";
+import { track } from "@/lib/analytics/client";
+
+function trackMemberLinkCopied(): void {
+  track({ name: "public_link_copied", properties: { link_type: "member" } });
+}
 
 type Props = {
   member: GroupMember;
@@ -19,7 +24,7 @@ function buildMessage(
   link: string,
 ): string {
   return [
-    `Hi ${member.display_name}! You owe ${formatCents(balance.owed_cents)} for ${groupName}.`,
+    `Hi ${member.display_name}! You owe ${formatCurrency(balance.owed_cents, currencyOrPhp(balance.currency_code))} for ${groupName}.`,
     paymentText,
     `Link: ${link}`,
   ]
@@ -44,7 +49,7 @@ export function MemberRow({
         <p
           className={`text-sm font-semibold ${balance.is_paid ? "text-green-600" : "text-red-500"}`}
         >
-          {balance.is_paid ? "Paid" : formatCents(balance.owed_cents)}
+          {balance.is_paid ? "Paid" : formatCurrency(balance.owed_cents, currencyOrPhp(balance.currency_code))}
         </p>
       </div>
       <span
@@ -54,8 +59,8 @@ export function MemberRow({
       >
         {balance.is_paid ? "Paid" : "Pending"}
       </span>
-      <CopyButton text={link} label="Copy Link" />
-      <CopyButton text={message} label="Copy Msg" />
+      <CopyButton text={link} label="Copy Link" onCopied={trackMemberLinkCopied} />
+      <CopyButton text={message} label="Copy Msg" onCopied={trackMemberLinkCopied} />
     </div>
   );
 }

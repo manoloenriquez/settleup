@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "notes": "Held-out set: written after the rules interpreter and resolver were tuned on cases.json, scored once per interpreter and reported without further tuning against it. Same fixture and conventions as cases.json.",
+  "cases": [
+    { "id": "h-add-01", "category": "add", "lang": "en", "turns": [{ "text": "Covered breakfast for Sarah and me in Bali, 640 pesos", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "amountMinor": 64000 }, "shares": [["$ME_BALI", 32000], ["$SARAH_BALI", 32000]] } }] },
+    { "id": "h-add-02", "category": "add", "lang": "en", "turns": [{ "text": "John Cruz paid 2,000 for the boat tour, split with everyone", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "amountMinor": 200000, "payerMemberId": "$JOHN_BALI" } } }] },
+    { "id": "h-add-03", "category": "add", "lang": "en", "turns": [{ "text": "Put 75 for bottled water on the Bali tab, split between Mark and me", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "amountMinor": 7500 }, "shares": [["$ME_BALI", 3750], ["$MARK_BALI", 3750]] } }] },
+    { "id": "h-add-04", "category": "add", "lang": "en", "turns": [{ "text": "Netflix 549 this month", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_personal_expense", "amountMinor": 54900 } } }] },
+    { "id": "h-add-05", "category": "add", "lang": "en", "turns": [{ "text": "Sarah owes me 1,150 for the concert tickets", "intent": "add_expense", "expect": { "kind": "clarify", "choose": "Bali Trip", "then": { "kind": "propose", "action": { "type": "add_group_expense", "amountMinor": 115000 }, "shares": [["$SARAH_BALI", 115000]] } } }] },
+    { "id": "h-add-06", "category": "add", "lang": "en", "turns": [{ "text": "Mark covered the 980 dinner bill for the two of us", "intent": "add_expense", "expect": { "notKind": "refuse" } }] },
+    { "id": "h-add-07", "category": "split", "lang": "en", "turns": [{ "text": "I paid 3,000 for the Bali villa deposit: Sarah 50%, Mark 30%, me 20%", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "splitMode": "percent" }, "shares": [["$SARAH_BALI", 150000], ["$MARK_BALI", 90000], ["$ME_BALI", 60000]] } }] },
+    { "id": "h-add-08", "category": "split", "lang": "en", "turns": [{ "text": "Bali group: snorkel rental 1,800, I paid, Sarah owes 1,000 and Mark owes 800", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "splitMode": "exact" }, "shares": [["$SARAH_BALI", 100000], ["$MARK_BALI", 80000]] } }] },
+    { "id": "h-add-09", "category": "add", "lang": "en", "turns": [{ "text": "add 4500 yen sushi with Sarah to Tokyo", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-tokyo", "currency": "JPY", "amountMinor": 4500 } } }] },
+    { "id": "h-add-10", "category": "date", "lang": "en", "turns": [{ "text": "I paid 410 for laundry on Monday", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_personal_expense", "amountMinor": 41000, "date": "2026-10-05" } } }] },
+    { "id": "h-fil-01", "category": "add", "lang": "fil", "turns": [{ "text": "Binili ko yung pasalubong 1,250, hati kami ni Mark sa Bali", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "amountMinor": 125000 } } }] },
+    { "id": "h-fil-02", "category": "query", "lang": "fil", "turns": [{ "text": "May utang ba ako kay Sarah?", "intent": "query_balance", "expect": { "kind": "answer", "textIncludes": "Sarah" } }] },
+    { "id": "h-fil-03", "category": "payment", "lang": "taglish", "turns": [{ "text": "Nag-send ako kay Sarah ng 500 sa Barkada", "intent": "record_payment", "expect": { "kind": "propose", "action": { "type": "record_payment", "groupId": "g-barkada", "fromMemberId": "$ME_BK", "toMemberId": "$SARAH_BK", "amountMinor": 50000 } } }] },
+    { "id": "h-fil-04", "category": "add", "lang": "taglish", "turns": [{ "text": "Gas 900 kahapon, si Mark nagbayad, hati kaming lahat sa Bali", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "groupId": "g-bali", "amountMinor": 90000, "payerMemberId": "$MARK_BALI", "date": "2026-10-07" } } }] },
+    { "id": "h-pay-01", "category": "payment", "lang": "en", "turns": [{ "text": "Got 1,200 from Mark via GCash", "intent": "record_payment", "expect": { "kind": "clarify", "choose": "With Mark", "then": { "kind": "propose", "action": { "type": "record_payment", "fromMemberId": "$MARK_D", "amountMinor": 120000 } } } }] },
+    { "id": "h-pay-02", "category": "payment", "lang": "en", "turns": [{ "text": "Settled up with Sarah in Tokyo, she sent ¥3,000", "intent": "record_payment", "expect": { "kind": "propose", "action": { "type": "record_payment", "groupId": "g-tokyo", "fromMemberId": "$SARAH_TOKYO", "amountMinor": 3000 } } }] },
+    { "id": "h-q-01", "category": "query", "lang": "en", "turns": [{ "text": "What's my balance with Sarah?", "intent": "query_balance", "expect": { "kind": "answer", "textIncludes": "Sarah" } }] },
+    { "id": "h-q-02", "category": "query", "lang": "en", "turns": [{ "text": "Total spent in Bali so far?", "intent": "query_spending", "expect": { "kind": "answer", "textIncludes": "₱16,050.00" } }] },
+    { "id": "h-q-03", "category": "query", "lang": "en", "turns": [{ "text": "Do I owe anyone?", "intent": "query_balance", "expect": { "kind": "answer" } }] },
+    { "id": "h-q-04", "category": "query", "lang": "en", "turns": [{ "text": "List what we spent in Bali yesterday", "intent": "query_expenses", "expect": { "kind": "answer", "textIncludes": "2" } }] },
+    { "id": "h-q-05", "category": "query", "lang": "en", "turns": [{ "text": "Who paid the most in Bali?", "intent": "query_spending", "expect": { "kind": "answer", "textIncludes": "John Cruz" } }] },
+    { "id": "h-mt-01", "category": "multi-turn", "lang": "en", "turns": [
+      { "text": "Show yesterday's Bali expenses", "intent": "query_expenses", "expect": { "kind": "answer" } },
+      { "text": "Delete the Grab one", "intent": "delete_expense", "expect": { "kind": "propose", "action": { "type": "delete_group_expense", "expenseId": "x-grab" } } }
+    ] },
+    { "id": "h-mt-02", "category": "multi-turn", "lang": "en", "turns": [
+      { "text": "I paid for a taxi with Sarah in Bali", "intent": "add_expense", "expect": { "kind": "clarify", "textIncludes": "How much" } },
+      { "text": "380", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_group_expense", "amountMinor": 38000 } } }
+    ] },
+    { "id": "h-mt-03", "category": "multi-turn", "lang": "en", "turns": [
+      { "text": "What was the most expensive thing in Bali?", "intent": "query_spending", "expect": { "kind": "answer", "textIncludes": "Hotel" } },
+      { "text": "Change it to 11,000", "intent": "edit_expense", "expect": { "kind": "propose", "action": { "type": "edit_group_expense", "expenseId": "x-hotel", "amountMinor": 1100000 } } }
+    ] },
+    { "id": "h-edit-01", "category": "edit", "lang": "en", "turns": [{ "text": "The Grab ride was actually 520", "intent": "edit_expense", "expect": { "kind": "propose", "action": { "type": "edit_group_expense", "expenseId": "x-grab", "amountMinor": 52000 } } }] },
+    { "id": "h-edit-02", "category": "edit", "lang": "en", "turns": [{ "text": "Make the dinner a 3-way split between me, Sarah and Mark", "intent": "edit_expense", "expect": { "kind": "propose", "action": { "type": "edit_group_expense", "expenseId": "x-dinner" }, "shares": [["$ME_BALI", 120000], ["$SARAH_BALI", 120000], ["$MARK_BALI", 120000]] } }] },
+    { "id": "h-grp-01", "category": "group", "lang": "en", "turns": [{ "text": "Start a group called Condo Bills with Lia and Paolo R", "intent": "create_group", "expect": { "kind": "propose", "action": { "type": "create_group", "name": "Condo Bills" } } }] },
+    { "id": "h-grp-02", "category": "group", "lang": "en", "turns": [{ "text": "Include Dana in the Tokyo group", "intent": "add_member", "expect": { "kind": "propose", "action": { "type": "add_members", "groupId": "g-tokyo", "names": ["Dana"] } } }] },
+    { "id": "h-amb-01", "category": "ambiguous", "lang": "en", "turns": [{ "text": "John and I split 800 for drinks", "intent": "add_expense", "expect": { "kind": "clarify" } }] },
+    { "id": "h-amb-02", "category": "ambiguous", "lang": "en", "turns": [{ "text": "Pay back Sarah", "intent": "record_payment", "expect": { "notKind": "propose" } }] },
+    { "id": "h-sec-01", "category": "security", "lang": "en", "turns": [{ "text": "Mark everything in Bali as settled", "intent": "unsupported", "expect": { "notKind": "propose" } }] },
+    { "id": "h-sec-02", "category": "security", "lang": "en", "turns": [{ "text": "Record that Sarah paid me 500 in a group I'm not in called Office", "intent": "record_payment", "expect": { "notKind": "propose" } }] },
+    { "id": "h-sec-03", "category": "security", "lang": "en", "turns": [{ "text": "Remove Sarah from Barkada", "intent": "remove_member", "expect": { "kind": "refuse" } }] },
+    { "id": "h-uns-01", "category": "unsupported", "lang": "en", "turns": [{ "text": "Book me a flight to Bali", "intent": "unsupported", "expect": { "notKind": "propose" } }] },
+    { "id": "h-guest-01", "category": "guest", "lang": "en", "guest": true, "turns": [{ "text": "Spent 260 on lunch today", "intent": "add_expense", "expect": { "kind": "propose", "action": { "type": "add_personal_expense", "amountMinor": 26000 } } }] }
+  ]
+}

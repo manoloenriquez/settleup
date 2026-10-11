@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+import { LEDGER_HEADERS } from "./ledger";
 
 /**
  * Creates an unauthenticated Supabase client using the anon key.
@@ -16,7 +17,7 @@ export function createAnonClient() {
     );
   }
 
-  return createClient<Database>(url, key);
+  return createClient<Database>(url, key, { global: { headers: { ...LEDGER_HEADERS } } });
 }
 
 /**
@@ -35,7 +36,7 @@ export function createUserScopedClient(token: string) {
   }
 
   return createClient<Database>(url, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { ...LEDGER_HEADERS, Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

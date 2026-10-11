@@ -55,7 +55,7 @@ export type SyncErrorClass =
   | "conflict"
   /** Target row is gone (PT404 / deleted elsewhere) — needs the user's attention. */
   | "not_found"
-  /** Unique violation on a replayed insert (23505) — the write already applied; treat as success. */
+  /** Legacy persisted error label; new executors must verify replay and return ok: true. */
   | "duplicate"
   /** Validation/authorization/unknown — retrying will not help. */
   | "terminal";
@@ -88,6 +88,8 @@ export type OutboxEntry = {
   /** The exact RPC/table input to replay, as built by the settleup builders. */
   payload: OutboxJson;
   status: OutboxEntryStatus;
+  /** True once transmission starts. Missing in old queues means the outcome may be unknown. */
+  hasBeenSent?: boolean;
   /** Retryable attempts consumed so far (offline failures don't count). */
   attempts: number;
   /** ISO timestamp; FIFO order key. */

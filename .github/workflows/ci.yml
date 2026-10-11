@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
@@ -45,4 +45,38 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_URL: https://example.com
-          LLM_ENABLED: "false"
+
+  db-tests:
+    name: Database migrations and SQL tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Starts a local Postgres with every migration in supabase/migrations
+      # applied (including ones not yet applied to the shared remote project).
+      # Heavy services are excluded; the SQL tests only need the database.
+      - name: Start local database
+        run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,realtime,storage-api,supavisor
+
+      # Each test wraps its fixtures in BEGIN ... ROLLBACK and fails on any
+      # ASSERT or RAISE EXCEPTION. ON_ERROR_STOP turns that into a non-zero exit.
+      - name: Run SQL tests
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          for file in supabase/tests/*.sql; do
+            echo "== $file"
+            psql "postgresql://postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -q -f "$file"
+          done
+
+      - name: Stop local database
+        if: always()
+        run: supabase stop --no-backup

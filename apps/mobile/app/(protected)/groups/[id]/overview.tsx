@@ -1,13 +1,31 @@
-import { ActivityIndicator, Image, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { track } from "@/lib/analytics";
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useGroupOverview } from "@/hooks/useOverview";
+import { useGroupOverviews } from "@/hooks/useOverview";
 import { useGroups } from "@/hooks/useGroups";
-import { Card, Avatar, Badge, EmptyState, useToast } from "@/components/ui";
+import { useShareLink } from "@/hooks/useShareLink";
+import { Card, Avatar, Badge, EmptyState, SegmentedControl, useToast } from "@/components/ui";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
-import { formatCents, buildSuggestedSettlements } from "@template/shared";
-import type { GroupOverviewPayload, SuggestedSettlement, CreditorPaymentProfile } from "@template/shared";
+import { formatAmount, buildSuggestedSettlements, type CurrencyCode } from "@template/shared";
+import type {
+  GroupOverviewPayload,
+  SuggestedSettlement,
+  CreditorPaymentProfile,
+} from "@template/shared";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_WEB_URL ?? "";
 
@@ -42,7 +60,9 @@ function computeSettlements(payload: GroupOverviewPayload): SuggestedSettlement[
 }
 
 function buildSummaryText(payload: GroupOverviewPayload): string {
-  const lines: string[] = [`GROUP SUMMARY — ${payload.group.name}`, "", "WHO OWES:"];
+  const currency: CurrencyCode = payload.currency_code ?? "PHP";
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
+  const lines: string[] = [`GROUP SUMMARY — ${payload.group.name} (${currency})`, "", "WHO OWES:"];
 
   for (const m of payload.members) {
     const net = m.net_cents ?? 0;
@@ -56,24 +76,31 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
     }
   }
 
-  const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
+  const totalOwed = payload.members.reduce(
+    (sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))),
+    0,
+  );
   lines.push("", `Total outstanding: ${formatCents(totalOwed)}`);
 
   const settlements = computeSettlements(payload);
   if (settlements.length > 0) {
     lines.push("", "SUGGESTED SETTLEMENTS:");
     for (const s of settlements) {
-      lines.push(`${s.from_display_name} pays ${formatCents(s.amount_cents)} to ${s.to_display_name}`);
+      lines.push(
+        `${s.from_display_name} pays ${formatCents(s.amount_cents)} to ${s.to_display_name}`,
+      );
       const pp = s.creditor_profile;
       if (pp?.gcash_number) lines.push(`  GCash: ${pp.gcash_number}`);
-      if (pp?.bank_name && pp?.bank_account_number) lines.push(`  Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+      if (pp?.bank_name && pp?.bank_account_number)
+        lines.push(`  Bank: ${pp.bank_name} ${pp.bank_account_number}`);
     }
   } else {
     const pp = payload.payment_profile;
     if (pp) {
       if (pp.payer_display_name) lines.push("", `Pay to: ${pp.payer_display_name}`);
       if (pp.gcash_number) lines.push(`GCash: ${pp.gcash_number}`);
-      if (pp.bank_name && pp.bank_account_number) lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
+      if (pp.bank_name && pp.bank_account_number)
+        lines.push(`Bank: ${pp.bank_name} ${pp.bank_account_number}`);
       if (pp.notes) lines.push(pp.notes);
     }
   }
@@ -81,13 +108,20 @@ function buildSummaryText(payload: GroupOverviewPayload): string {
   return lines.join("\n");
 }
 
-function PaymentDetails({ profile }: { profile: CreditorPaymentProfile }): React.ReactElement | null {
+function PaymentDetails({
+  profile,
+}: {
+  profile: CreditorPaymentProfile;
+}): React.ReactElement | null {
   const hasGcash = profile.gcash_name || profile.gcash_number;
   const hasBank = profile.bank_name || profile.bank_account_number;
   if (!hasGcash && !hasBank) return null;
 
   return (
     <View style={styles.paymentDetails}>
+      {profile.source === "organizer" ? (
+        <Text style={styles.paymentNotes}>Added by the organizer — not confirmed by {profile.display_name}.</Text>
+      ) : null}
       {hasGcash ? (
         <View style={styles.paymentMethod}>
           <View style={styles.paymentMethodHeader}>
@@ -136,8 +170,15 @@ export default function GroupOverviewScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupsQ = useGroups();
   const group = (groupsQ.data ?? []).find((g) => g.id === id);
-  const overviewQ = useGroupOverview(group?.share_token);
-  const payload = overviewQ.data;
+  // The live link (a cached group row may hold a token that was replaced).
+  const linkQ = useShareLink(id);
+  const shareToken = linkQ.data?.share_enabled ? linkQ.data.share_token : undefined;
+  const overviewQ = useGroupOverviews(shareToken ?? undefined);
+  const overviews = overviewQ.data ?? [];
+  const [currencyIndex, setCurrencyIndex] = useState(0);
+  const payload = overviews[Math.min(currencyIndex, Math.max(0, overviews.length - 1))];
+  const currency: CurrencyCode = payload?.currency_code ?? "PHP";
+  const formatCents = (minor: number): string => formatAmount(minor, currency);
 
   async function handleCopySummary(): Promise<void> {
     if (!payload) return;
@@ -147,22 +188,39 @@ export default function GroupOverviewScreen(): React.ReactElement {
   }
 
   async function handleShareLink(): Promise<void> {
-    if (!group?.share_token || !WEB_ORIGIN) {
+    if (!shareToken || !WEB_ORIGIN) {
       toast.error("Share link could not be generated.");
       return;
     }
-    const url = `${WEB_ORIGIN}/g/${group.share_token}`;
+    const url = `${WEB_ORIGIN}/g/${shareToken}`;
+    const intro = `${group?.name ?? "Our group"} on Talli — see who owes what:`;
     try {
-      await Share.share({ message: url, url });
+      const shared = await Share.share(Platform.OS === "ios" ? { message: intro, url } : { message: `${intro} ${url}` });
+      if (shared.action !== Share.dismissedAction) {
+        track({ name: "public_link_copied", properties: { link_type: "group" } });
+      }
     } catch {
       // User cancelled
     }
   }
 
-  if (overviewQ.isLoading || groupsQ.isLoading) {
+  if (linkQ.data && !linkQ.data.share_enabled) {
     return (
       <>
-        <Stack.Screen options={{ title: "Group Overview" }} />
+        <Stack.Screen options={{ title: "Shared Page" }} />
+        <EmptyState
+          icon="link-outline"
+          title="The shared link is off"
+          description="Nobody can open this group’s summary page. A group admin can turn it back on in Group Settings."
+        />
+      </>
+    );
+  }
+
+  if (linkQ.isLoading || overviewQ.isLoading || groupsQ.isLoading) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Shared Page" }} />
         <View style={styles.loader}>
           <ActivityIndicator color={colors.primary} />
         </View>
@@ -173,23 +231,36 @@ export default function GroupOverviewScreen(): React.ReactElement {
   if (!payload) {
     return (
       <>
-        <Stack.Screen options={{ title: "Group Overview" }} />
-        <EmptyState icon="alert-circle-outline" title="Could not load overview" description="Please try again later." />
+        <Stack.Screen options={{ title: "Shared Page" }} />
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Couldn’t load the shared page"
+          description="Check your connection and try again."
+          actionLabel="Try Again"
+          onAction={() => {
+            void linkQ.refetch();
+            void overviewQ.refetch();
+          }}
+        />
       </>
     );
   }
 
   const settlements = computeSettlements(payload);
   const pp = payload.payment_profile;
-  const totalOwed = payload.members.reduce((sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))), 0);
+  const totalOwed = payload.members.reduce(
+    (sum, m) => sum + (m.owed_cents ?? Math.max(0, -(m.net_cents ?? 0))),
+    0,
+  );
   const sorted = sortedMembers(payload.members);
   const isSettled = totalOwed === 0;
 
   return (
     <>
-      <Stack.Screen options={{ title: "Group Overview" }} />
+      <Stack.Screen options={{ title: "Shared Page" }} />
 
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -215,13 +286,32 @@ export default function GroupOverviewScreen(): React.ReactElement {
           {!isSettled && (
             <Text style={styles.heroSubtext}>{formatCents(totalOwed)} outstanding</Text>
           )}
+          {overviews.length > 1 && (
+            <View style={styles.currencySwitch}>
+              <SegmentedControl
+                segments={overviews.map((o, index) => ({ value: String(index), label: o.currency_code ?? "PHP" }))}
+                value={String(Math.min(currencyIndex, overviews.length - 1))}
+                onChange={(value) => setCurrencyIndex(Number(value))}
+              />
+            </View>
+          )}
           <View style={styles.heroActions}>
-            <TouchableOpacity style={styles.heroBtn} onPress={handleCopySummary} activeOpacity={0.7}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.heroBtn}
+              onPress={handleCopySummary}
+              activeOpacity={0.7}
+            >
               <Ionicons name="copy-outline" size={14} color={colors.primary} />
               <Text style={styles.heroBtnText}>Copy Summary</Text>
             </TouchableOpacity>
             {WEB_ORIGIN ? (
-              <TouchableOpacity style={styles.heroBtn} onPress={handleShareLink} activeOpacity={0.7}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.heroBtn}
+                onPress={handleShareLink}
+                activeOpacity={0.7}
+              >
                 <Ionicons name="share-outline" size={14} color={colors.primary} />
                 <Text style={styles.heroBtnText}>Share Link</Text>
               </TouchableOpacity>
@@ -237,7 +327,11 @@ export default function GroupOverviewScreen(): React.ReactElement {
               key={m.member_id}
               style={[
                 styles.memberRow,
-                m._net < 0 ? styles.memberRowOwes : m._net > 0 ? styles.memberRowOwed : styles.memberRowSettled,
+                m._net < 0
+                  ? styles.memberRowOwes
+                  : m._net > 0
+                    ? styles.memberRowOwed
+                    : styles.memberRowSettled,
               ]}
             >
               <View style={styles.memberInfo}>
@@ -277,9 +371,7 @@ export default function GroupOverviewScreen(): React.ReactElement {
                     <Text style={styles.settlementAmount}>{formatCents(s.amount_cents)}</Text>
                   </View>
                   {!s.creditor_profile && (
-                    <Text style={styles.noPaymentText}>
-                      No payment details set
-                    </Text>
+                    <Text style={styles.noPaymentText}>No payment details set</Text>
                   )}
                   {s.creditor_profile ? <PaymentDetails profile={s.creditor_profile} /> : null}
                 </View>
@@ -322,16 +414,29 @@ export default function GroupOverviewScreen(): React.ReactElement {
         <Card padding={spacing.sm}>
           {payload.expenses.length > 0 ? (
             payload.expenses.map((exp, i) => (
-              <View key={i} style={[styles.expenseRow, i < payload.expenses.length - 1 && styles.expenseRowBorder]}>
+              <View
+                key={i}
+                style={[
+                  styles.expenseRow,
+                  i < payload.expenses.length - 1 && styles.expenseRowBorder,
+                ]}
+              >
                 <View style={styles.expenseHeader}>
                   <Text style={styles.expenseName}>{exp.item_name}</Text>
-                  <Text style={[styles.expenseAmount, exp.amount_cents < 0 && { color: colors.success }]}>
+                  <Text
+                    style={[
+                      styles.expenseAmount,
+                      exp.amount_cents < 0 && { color: colors.success },
+                    ]}
+                  >
                     {formatCents(exp.amount_cents)}
                   </Text>
                 </View>
                 {exp.participants.length > 0 && (
                   <Text style={styles.expenseParticipants}>
-                    {exp.participants.map((p) => `${p.display_name} (${formatCents(p.share_cents)})`).join(", ")}
+                    {exp.participants
+                      .map((p) => `${p.display_name} (${formatCents(p.share_cents)})`)
+                      .join(", ")}
                   </Text>
                 )}
                 {exp.items && exp.items.length > 0 && (
@@ -339,7 +444,9 @@ export default function GroupOverviewScreen(): React.ReactElement {
                     {exp.items.map((item, j) => (
                       <View key={j} style={styles.expenseItemRow}>
                         <Text style={styles.expenseItemName}>{item.name}</Text>
-                        <Text style={styles.expenseItemAmount}>{formatCents(item.amount_cents)}</Text>
+                        <Text style={styles.expenseItemAmount}>
+                          {formatCents(item.amount_cents)}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -347,16 +454,20 @@ export default function GroupOverviewScreen(): React.ReactElement {
               </View>
             ))
           ) : (
-            <EmptyState icon="receipt-outline" title="No expenses yet" description="Expenses will appear here once added." />
+            <EmptyState
+              icon="receipt-outline"
+              title="No expenses yet"
+              description="Expenses will appear here once added."
+            />
           )}
         </Card>
 
         {/* Footer */}
         <View style={styles.footer}>
           <View style={styles.footerLogo}>
-            <Text style={styles.footerLogoText}>S</Text>
+            <Text style={styles.footerLogoText}>T</Text>
           </View>
-          <Text style={styles.footerText}>Powered by SettleUp</Text>
+          <Text style={styles.footerText}>Powered by Talli</Text>
         </View>
       </ScrollView>
     </>
@@ -364,19 +475,34 @@ export default function GroupOverviewScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  loader: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
+  currencySwitch: { marginTop: spacing.md },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
   scroll: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.base, paddingBottom: 40 },
 
   // Hero
   hero: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryFill,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     marginBottom: spacing.base,
   },
-  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
-  heroLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: "rgba(255,255,255,0.7)" },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  heroLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: "rgba(255,255,255,0.7)",
+  },
   heroBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -387,7 +513,12 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
   },
   heroBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.white },
-  heroGroupName: { fontSize: fontSize["2xl"], fontWeight: fontWeight.bold, color: colors.white, marginBottom: 2 },
+  heroGroupName: {
+    fontSize: fontSize["2xl"],
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+    marginBottom: 2,
+  },
   heroSubtext: { fontSize: fontSize.sm, color: "rgba(255,255,255,0.7)", marginBottom: spacing.md },
   heroActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   heroBtn: {
@@ -422,9 +553,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderLeftWidth: 4,
   },
-  memberRowOwes: { borderLeftColor: colors.warning, backgroundColor: colors.warningLight + "60" },
-  memberRowOwed: { borderLeftColor: colors.success, backgroundColor: colors.successLight + "60" },
-  memberRowSettled: { borderLeftColor: colors.gray200, backgroundColor: colors.gray50 + "80" },
+  memberRowOwes: { borderLeftColor: colors.warning, backgroundColor: colors.warningTintSoft },
+  memberRowOwed: { borderLeftColor: colors.success, backgroundColor: colors.successTintSoft },
+  memberRowSettled: { borderLeftColor: colors.gray200, backgroundColor: colors.neutralTint },
   memberInfo: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   memberName: { fontSize: fontSize.sm, color: colors.gray700 },
 
@@ -455,8 +586,18 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   settlementName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray700 },
-  settlementAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.gray900, marginLeft: "auto" },
-  noPaymentText: { fontSize: fontSize.xs, color: colors.gray400, fontStyle: "italic", marginTop: spacing.sm },
+  settlementAmount: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+    color: colors.gray900,
+    marginLeft: "auto",
+  },
+  noPaymentText: {
+    fontSize: fontSize.xs,
+    color: colors.gray400,
+    fontStyle: "italic",
+    marginTop: spacing.sm,
+  },
 
   // Payment details
   paymentDetails: { marginTop: spacing.sm, gap: spacing.sm },
@@ -467,8 +608,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
-  paymentMethodHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.xs },
-  paymentMethodLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
+  paymentMethodHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  paymentMethodLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.gray700,
+  },
   paymentMethodValue: { fontSize: fontSize.sm, fontFamily: "monospace", color: colors.gray900 },
   qrWrapper: {
     alignItems: "center",
@@ -483,14 +633,24 @@ const styles = StyleSheet.create({
   paymentNotes: { fontSize: fontSize.xs, color: colors.gray400, fontStyle: "italic" },
 
   // Pay-to row (fallback)
-  payToRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  payToRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
   payToName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray700 },
 
   // Expenses
   expenseRow: { paddingVertical: spacing.sm, paddingHorizontal: spacing.sm },
   expenseRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   expenseHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  expenseName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.gray800, flex: 1 },
+  expenseName: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.gray800,
+    flex: 1,
+  },
   expenseAmount: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
   expenseParticipants: { fontSize: fontSize.xs, color: colors.gray400, marginTop: 4 },
   expenseItems: {
@@ -505,7 +665,13 @@ const styles = StyleSheet.create({
   expenseItemAmount: { fontSize: fontSize.xs, color: colors.gray500 },
 
   // Footer
-  footer: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingVertical: spacing.lg },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.lg,
+  },
   footerLogo: {
     width: 20,
     height: 20,

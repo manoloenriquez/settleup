@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
-import { joinGroupSchema, claimMemberSchema } from "@template/shared";
-import type { ApiResponse } from "@template/shared";
+import { joinGroupSchema, claimMemberSchema, invitePreviewSchema } from "@template/shared";
+import type { ApiResponse, InvitePreview } from "@template/shared";
 import {
   parseClaimMemberRpcResult,
   parseInviteCodeRpcResult,
@@ -25,6 +25,34 @@ const promoteMemberSchema = z.object({
 
 function isNextInternalError(e: unknown): boolean {
   return typeof e === "object" && e !== null && "digest" in e;
+}
+
+/** What joining with this code would do — checked before joining, no member list. */
+export async function previewInvite(inviteCode: string): Promise<ApiResponse<InvitePreview>> {
+  try {
+    await assertAuth();
+    const parsed = joinGroupSchema.safeParse({ invite_code: inviteCode });
+    if (!parsed.success) {
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    }
+    const supabase = await createSettleUpDb();
+    const { data, error } = await supabase
+      .schema("settleup")
+      .rpc("preview_group_invite", { p_invite_code: parsed.data.invite_code });
+    // Older databases don't have the check yet; the form then joins without it.
+    if (error) {
+      return {
+        data: null,
+        error: error.code === "PGRST202" ? "preview_unavailable" : error.message,
+      };
+    }
+    const preview = invitePreviewSchema.safeParse(data);
+    if (!preview.success) return { data: null, error: "The invite couldn't be checked. Try again." };
+    return { data: preview.data, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
 }
 
 export async function joinGroup(
@@ -60,11 +88,9 @@ export async function joinGroup(
   }
 }
 
-export async function claimMember(
-  memberId: string,
-): Promise<ApiResponse<{ member: GroupMember }>> {
+export async function claimMember(token: string): Promise<ApiResponse<{ member: GroupMember }>> {
   try {
-    const parsed = claimMemberSchema.safeParse({ member_id: memberId });
+    const parsed = claimMemberSchema.safeParse({ token });
     if (!parsed.success) {
       return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
@@ -73,8 +99,8 @@ export async function claimMember(
     const supabase = await createSettleUpDb();
     const db = supabase.schema("settleup");
 
-    const { data: result, error } = await db.rpc("claim_member", {
-      p_member_id: parsed.data.member_id,
+    const { data: result, error } = await db.rpc("claim_member_with_token", {
+      p_token: parsed.data.token,
     });
 
     if (error) return { data: null, error: error.message };
@@ -140,7 +166,8 @@ export async function promoteMember(
 ): Promise<ApiResponse<GroupMember>> {
   try {
     const parsed = promoteMemberSchema.safeParse({ member_id: memberId, role });
-    if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    if (!parsed.success)
+      return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
     await assertAuth();
     const supabase = await createSettleUpDb();
@@ -157,5 +184,40 @@ export async function promoteMember(
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Something went wrong." };
+  }
+}
+
+export async function createClaimInvitation(
+  memberId: string,
+): Promise<ApiResponse<{ token: string }>> {
+  try {
+    await assertAuth();
+    const parsed = memberIdSchema.safeParse(memberId);
+    if (!parsed.success) return { data: null, error: "Invalid member." };
+    const db = await createSettleUpDb();
+    const { data, error } = await db
+      .schema("settleup")
+      .rpc("create_member_claim_invitation", { p_member_id: parsed.data });
+    const result = z.object({ token: z.string() }).safeParse(data);
+    if (error || !result.success)
+      return { data: null, error: error?.message ?? "Could not create invitation." };
+    return { data: result.data, error: null };
+  } catch {
+    return { data: null, error: "Could not create invitation." };
+  }
+}
+
+export async function revokeClaimInvitation(memberId: string): Promise<ApiResponse<void>> {
+  try {
+    await assertAuth();
+    const parsed = memberIdSchema.safeParse(memberId);
+    if (!parsed.success) return { data: null, error: "Invalid member." };
+    const db = await createSettleUpDb();
+    const { error } = await db
+      .schema("settleup")
+      .rpc("revoke_member_claim_invitation", { p_member_id: parsed.data });
+    return error ? { data: null, error: error.message } : { data: undefined, error: null };
+  } catch {
+    return { data: null, error: "Could not revoke invitation." };
   }
 }

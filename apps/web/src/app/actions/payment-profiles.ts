@@ -4,15 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { cachedAuth } from "@/lib/supabase/queries";
-import { upsertPaymentProfileSchema } from "@template/shared";
+import { MAX_QR_FILE_SIZE_BYTES, QR_ALLOWED_MIME_TYPES, QR_BUCKET, qrStoragePath, upsertPaymentProfileSchema } from "@template/shared";
 import { uploadQRImage } from "@/lib/supabase/storage";
 import type { ApiResponse } from "@template/shared";
 import type { UserPaymentProfile } from "@template/supabase";
 import { z } from "zod";
 
 const uploadTypeSchema = z.enum(["gcash", "bank"]);
-const QR_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_QR_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const QR_TYPES = new Set(QR_ALLOWED_MIME_TYPES);
 
 export async function getPaymentProfile(): Promise<ApiResponse<UserPaymentProfile | null>> {
   try {
@@ -76,7 +75,7 @@ export async function uploadQRImageAction(
     if (!(file instanceof File)) {
       return { data: null, error: "No file provided." };
     }
-    if (!QR_ALLOWED_MIME_TYPES.has(file.type)) {
+    if (!QR_TYPES.has(file.type)) {
       return { data: null, error: "Unsupported file type. Use JPEG, PNG, or WebP." };
     }
     if (file.size > MAX_QR_FILE_SIZE_BYTES) {
@@ -90,14 +89,62 @@ export async function uploadQRImageAction(
     const field = parsedType.data === "gcash" ? "gcash_qr_url" : "bank_qr_url";
     const settleUpSupabase = await createSettleUpDb();
     const db = settleUpSupabase.schema("settleup");
+    const { data: previous } = await db
+      .from("user_payment_profiles")
+      .select("gcash_qr_url, bank_qr_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
     const { error } = await db
       .from("user_payment_profiles")
       .upsert({ user_id: user.id, [field]: publicUrl, updated_at: new Date().toISOString() });
 
-    if (error) return { data: null, error: "Failed to save QR image URL." };
+    if (error) {
+      // The new file is not referenced anywhere; don't leave it public.
+      const orphan = qrStoragePath(publicUrl, user.id);
+      if (orphan) await supabase.storage.from(QR_BUCKET).remove([orphan]);
+      return { data: null, error: "Failed to save QR image URL." };
+    }
+    // The replaced image would otherwise stay public forever.
+    const replaced = qrStoragePath(previous?.[field], user.id);
+    if (replaced && replaced !== qrStoragePath(publicUrl, user.id)) {
+      await supabase.storage.from(QR_BUCKET).remove([replaced]);
+    }
     return { data: publicUrl, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
     return { data: null, error: "Failed to upload QR image." };
+  }
+}
+
+/** Remove a QR image: clear it from the profile, then delete the public file. */
+export async function removeQRImageAction(type: "gcash" | "bank"): Promise<ApiResponse<null>> {
+  try {
+    const parsedType = uploadTypeSchema.safeParse(type);
+    if (!parsedType.success) return { data: null, error: "Invalid QR type." };
+
+    const user = await assertAuth();
+    const field = parsedType.data === "gcash" ? "gcash_qr_url" : "bank_qr_url";
+    const settleUpSupabase = await createSettleUpDb();
+    const db = settleUpSupabase.schema("settleup");
+    const { data: previous } = await db
+      .from("user_payment_profiles")
+      .select("gcash_qr_url, bank_qr_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const { error } = await db
+      .from("user_payment_profiles")
+      .update({ [field]: null, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+    if (error) return { data: null, error: "Failed to remove QR image." };
+
+    const path = qrStoragePath(previous?.[field], user.id);
+    if (path) {
+      const supabase = await createClient();
+      await supabase.storage.from(QR_BUCKET).remove([path]);
+    }
+    return { data: null, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Failed to remove QR image." };
   }
 }

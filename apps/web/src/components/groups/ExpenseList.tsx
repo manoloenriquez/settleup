@@ -9,19 +9,30 @@ import { useExpensesInfinite } from "@/hooks/queries";
 import { usePendingExpenses } from "@/hooks/useOutboxPending";
 import { useOnline } from "@/hooks/useOnline";
 import { useWebOutbox } from "@/components/OutboxProvider";
-import { formatCents, DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
+import { formatCurrency, formatTotalsByCurrency } from "@/lib/currency";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
 import { CategoryIconTile } from "./CategoryIcon";
 import { EditExpenseDialog } from "./EditExpenseDialog";
-import { Search, Trash2, Pencil, Receipt, List, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import {
+  Search,
+  Trash2,
+  Pencil,
+  Receipt,
+  List,
+  ChevronDown,
+  ChevronUp,
+  MessageCircle,
+} from "lucide-react";
 import { CommentThread } from "./CommentThread";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import type { ExpenseWithParticipants } from "@/app/actions/expenses";
 
 type Props = {
+  readOnly?: boolean;
   members: GroupMember[];
   categories: ExpenseCategory[];
   currentUserId: string;
@@ -69,11 +80,21 @@ function isEqualSplit(expense: ExpenseWithParticipants): boolean {
     return false;
   }
 
-  const shares = expense.participants.map((participant) => participant.share_cents).sort((a, b) => a - b);
+  const shares = expense.participants
+    .map((participant) => participant.share_cents)
+    .sort((a, b) => a - b);
   return shares[shares.length - 1]! - shares[0]! <= 1;
 }
 
-export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner, groupId, pageSize }: Props): React.ReactElement {
+export function ExpenseList({
+  readOnly = false,
+  members,
+  categories,
+  currentUserId,
+  isAdminOrOwner,
+  groupId,
+  pageSize,
+}: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -150,22 +171,32 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
     }
   }
 
-  function handleDelete(): void {
+  async function handleDelete(): Promise<void> {
     if (!deleteTarget) return;
 
     if (!online) {
       // Queue the delete for replay; if the expense itself is a queued
       // offline create, the reducer cancels the whole local chain instead.
       const target = allExpenses.find((e) => e.id === deleteTarget);
-      void enqueue({
-        id: crypto.randomUUID(),
-        kind: "expense.delete",
-        entityId: deleteTarget,
-        groupId,
-        payload: {},
-        createdAt: new Date().toISOString(),
-        summary: { title: target ? `Delete "${target.item_name}"` : "Delete expense", amountCents: 0 },
-      });
+      try {
+        await enqueue({
+          id: crypto.randomUUID(),
+          kind: "expense.delete",
+          entityId: deleteTarget,
+          groupId,
+          payload: {},
+          createdAt: new Date().toISOString(),
+          summary: {
+            title: target ? `Delete "${target.item_name}"` : "Delete expense",
+            amountCents: 0,
+          },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       setDeleteTarget(null);
       return;
@@ -185,7 +216,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
   }
 
   function canEditExpense(expense: ExpenseWithParticipants): boolean {
-    return isAdminOrOwner || expense.created_by_user_id === currentUserId;
+    return !readOnly && (isAdminOrOwner || expense.created_by_user_id === currentUserId);
   }
 
   function openEdit(expense: ExpenseWithParticipants): void {
@@ -204,7 +235,10 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
       {/* Search bar */}
       {expenses.length > 0 && (
         <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10"
+          />
           <Input
             type="text"
             value={search}
@@ -236,7 +270,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
                 </p>
               </div>
               <p className="shrink-0 text-base font-extrabold tracking-tight text-slate-900">
-                {formatCents(Math.abs(pending.amount_cents))}
+                {formatCurrency(Math.abs(pending.amount_cents), pending.currency_code)}
               </p>
             </div>
           ))}
@@ -274,7 +308,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
             </span>
             <div className="flex-1 h-px bg-slate-100" />
             <span className="text-xs text-slate-400">
-              {formatCents(group.expenses.reduce((s, e) => s + e.amount_cents, 0))}
+              {formatTotalsByCurrency(group.expenses)}
             </span>
           </div>
 
@@ -284,7 +318,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
                 .map((p) => {
                   const name = memberMap.get(p.member_id) ?? "Unknown";
                   return expense.payers.length > 1
-                    ? `${name} (${formatCents(p.paid_cents)})`
+                    ? `${name} (${formatCurrency(p.paid_cents, expense.currency_code)})`
                     : name;
                 })
                 .join(", ");
@@ -310,7 +344,9 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
                     {/* Category icon tile */}
                     <CategoryIconTile
                       icon={isCredit ? "receipt" : expense.category?.icon}
-                      color={isCredit ? "#059669" : expense.category?.color ?? DEFAULT_CATEGORY_COLOR}
+                      color={
+                        isCredit ? "#059669" : (expense.category?.color ?? DEFAULT_CATEGORY_COLOR)
+                      }
                       size="sm"
                     />
 
@@ -341,8 +377,10 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
 
                     {/* Amount */}
                     <div className="text-right shrink-0">
-                      <p className={`text-base font-extrabold tracking-tight ${isCredit ? "text-emerald-600" : "text-slate-900"}`}>
-                        {formatCents(Math.abs(expense.amount_cents))}
+                      <p
+                        className={`text-base font-extrabold tracking-tight ${isCredit ? "text-emerald-600" : "text-slate-900"}`}
+                      >
+                        {formatCurrency(Math.abs(expense.amount_cents), expense.currency_code)}
                       </p>
                       {expense.items && expense.items.length > 0 && (
                         <button
@@ -399,7 +437,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
                         const participants = item.item_participants
                           .map((ip) => {
                             const name = memberMap.get(ip.member_id) ?? "Unknown";
-                            return `${name} (${formatCents(ip.share_cents)})`;
+                            return `${name} (${formatCurrency(ip.share_cents, expense.currency_code)})`;
                           })
                           .join(", ");
                         return (
@@ -411,7 +449,7 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
                               )}
                             </div>
                             <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">
-                              {formatCents(item.amount_cents)}
+                              {formatCurrency(item.amount_cents, expense.currency_code)}
                             </span>
                           </div>
                         );
@@ -421,7 +459,13 @@ export function ExpenseList({ members, categories, currentUserId, isAdminOrOwner
 
                   {/* Comment thread */}
                   {commentIds.has(expense.id) && (
-                    <CommentThread expenseId={expense.id} groupId={groupId} members={members} currentUserId={currentUserId} />
+                    <CommentThread
+                      readOnly={readOnly}
+                      expenseId={expense.id}
+                      groupId={groupId}
+                      members={members}
+                      currentUserId={currentUserId}
+                    />
                   )}
                 </div>
               );

@@ -1,4 +1,4 @@
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
@@ -11,14 +11,25 @@ type ReceiptScannerProps = {
   onClear: () => void;
   /** Discard the current shot and reopen the camera (for blurry/skewed shots). */
   onRetake?: () => void;
+  /** True when a denied permission can only be changed in the Settings app. */
+  permissionBlocked?: boolean;
 };
 
-export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGallery, onClear, onRetake }: ReceiptScannerProps) {
+export function ReceiptScanner({
+  imageUri,
+  isScanning,
+  error,
+  onCamera,
+  onGallery,
+  onClear,
+  onRetake,
+  permissionBlocked = false,
+}: ReceiptScannerProps) {
   if (isScanning) {
     return (
       <View style={styles.scanning}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.scanningText}>Scanning receipt…</Text>
+        <Text style={styles.scanningText}>Reading the receipt on this iPhone…</Text>
       </View>
     );
   }
@@ -34,12 +45,12 @@ export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGaller
         )}
         <View style={styles.previewActions}>
           {onRetake && (
-            <TouchableOpacity style={styles.retakeBtn} onPress={onRetake} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" style={styles.retakeBtn} onPress={onRetake} activeOpacity={0.7}>
               <Ionicons name="camera-outline" size={16} color={colors.primary} />
               <Text style={styles.clearBtnText}>Retake</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" style={styles.clearBtn} onPress={onClear} activeOpacity={0.7}>
             <Text style={styles.clearBtnText}>Use Different Image</Text>
           </TouchableOpacity>
         </View>
@@ -49,23 +60,42 @@ export function ReceiptScanner({ imageUri, isScanning, error, onCamera, onGaller
 
   return (
     <View style={styles.container}>
-      <Text style={styles.hint}>Scan a receipt to automatically extract expense details</Text>
+      <Text style={styles.hint}>Photograph a receipt and Talli fills in the details for you to check.</Text>
       <Text style={styles.framingHint}>Fill the frame with the receipt, keep it flat, and avoid glare</Text>
 
       {error && (
-        <View style={styles.errorBox}>
+        <View style={styles.errorBox} accessibilityRole="alert">
           <Text style={styles.errorText}>{error}</Text>
+          {permissionBlocked && (
+            <TouchableOpacity
+              onPress={() => void Linking.openSettings()}
+              style={styles.settingsBtn}
+              accessibilityRole="button"
+            >
+              <Text style={styles.settingsBtnText}>Open Settings</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onCamera} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onCamera}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+        >
           <Ionicons name="camera-outline" size={32} color={colors.gray500} />
-          <Text style={styles.actionLabel}>Camera</Text>
+          <Text style={styles.actionLabel}>Take Photo</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onGallery} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onGallery}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+        >
           <Ionicons name="images-outline" size={32} color={colors.gray500} />
-          <Text style={styles.actionLabel}>Gallery</Text>
+          <Text style={styles.actionLabel}>Choose Photo</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -77,6 +107,8 @@ const styles = StyleSheet.create({
   hint: { fontSize: fontSize.sm, color: colors.gray500, textAlign: "center", paddingHorizontal: spacing.lg },
   errorBox: { backgroundColor: colors.dangerLight, borderRadius: borderRadius.md, padding: spacing.md, width: "100%" },
   errorText: { color: colors.danger, fontSize: fontSize.sm, textAlign: "center" },
+  settingsBtn: { alignSelf: "center", marginTop: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  settingsBtnText: { color: colors.primary, fontWeight: fontWeight.semibold, fontSize: fontSize.sm },
   actions: { flexDirection: "row", gap: spacing.md },
   actionBtn: {
     flex: 1,

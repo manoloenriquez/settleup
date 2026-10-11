@@ -66,9 +66,22 @@ export const parsedReceiptSchema = parsedReceiptBaseSchema
     }
   });
 
+export const expenseDraftSplitSchema = z.strictObject({
+  mode: z.enum(["percent", "shares", "fixed", "exclude"]),
+  shares: z.array(
+    z.strictObject({
+      member_name: z.string(),
+      percent: z.number().nullable(),
+      weight: z.number().nullable(),
+      fixed_cents: z.number().int().nullable(),
+      excluded: z.boolean(),
+    }),
+  ),
+});
+
 export const expenseDraftSchema = z.strictObject({
   item_name: z.string().min(1),
-  amount_cents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero"),
+  amount_cents: z.number().int().positive("Amount must be positive"),
   confidence: z.number().min(0).max(1),
   participant_names: z.array(z.string()),
   payer_name: z.string().nullable(),
@@ -76,6 +89,7 @@ export const expenseDraftSchema = z.strictObject({
   notes: z.string().nullable(),
   date: z.iso.date().nullable().default(null),
   source: z.enum(["receipt", "conversation", "manual"]),
+  split: expenseDraftSplitSchema.nullable().optional(),
 });
 
 export const splitSuggestionSchema = z.strictObject({
@@ -94,10 +108,6 @@ export const smartSplitResultSchema = z.strictObject({
 export const conversationMessageSchema = z.strictObject({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1),
-});
-
-export const llmSummarySchema = z.strictObject({
-  summary: z.string(),
 });
 
 export const insightsSummarySchema = z.strictObject({
@@ -141,4 +151,3 @@ export type SplitSuggestionInput = z.infer<typeof splitSuggestionSchema>;
 export type SmartSplitResultInput = z.infer<typeof smartSplitResultSchema>;
 export type ConversationMessageInput = z.infer<typeof conversationMessageSchema>;
 export type InsightsSummaryInput = z.infer<typeof insightsSummarySchema>;
-export type LlmSummaryInput = z.infer<typeof llmSummarySchema>;

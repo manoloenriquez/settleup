@@ -9,15 +9,53 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
+import { ROUTES } from "@/lib/routes";
 import { useAuth } from "@/context/AuthContext";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { AppButton } from "@/components/ui/Button";
+import { supabase } from "@/lib/supabase";
+import { authCallbackUrl } from "@/lib/auth-links";
 import { APP_NAME } from "@template/shared";
 import { signInWithGoogle } from "@/lib/google-auth";
+import { AppleSignInButton } from "@/components/AppleSignInButton";
 import { colors, borderRadius, fontSize, fontWeight, spacing } from "@/theme";
 
-function ConfirmEmailState() {
+function ConfirmEmailState({
+  email,
+  onChange,
+}: {
+  email: string;
+  onChange: () => void;
+}): React.ReactElement {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [nextAt, setNextAt] = useState(0);
+  async function resend(): Promise<void> {
+    if (Date.now() < nextAt) {
+      setMessage("Please wait one minute before requesting another email.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: authCallbackUrl() },
+      });
+      setMessage(
+        error
+          ? "Could not resend. Please try again shortly."
+          : "If confirmation is needed, a new link is on its way.",
+      );
+      setNextAt(Date.now() + 60000);
+    } catch {
+      setMessage("Could not send. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <View style={styles.confirmCard}>
       <View style={styles.iconWrap}>
@@ -25,10 +63,15 @@ function ConfirmEmailState() {
       </View>
       <Text style={styles.confirmTitle}>Check your email</Text>
       <Text style={styles.confirmSubtitle}>
-        We sent you a confirmation link. Tap it to activate your account, then come back to sign in.
+        We sent a confirmation link to {email}. Open it on this iPhone to finish creating your
+        account. You can keep using Talli in the meantime.
       </Text>
+      <AppButton title="Keep Using Talli" onPress={() => router.replace(ROUTES.home)} />
+      <AppButton title="Resend Email" variant="secondary" onPress={resend} isLoading={busy} />
+      <AppButton title="Use a Different Email" onPress={onChange} variant="ghost" />
+      {message ? <Text accessibilityRole="alert">{message}</Text> : null}
       <Link href="/(auth)/login" asChild>
-        <Pressable style={styles.backToLogin}>
+        <Pressable accessibilityRole="link" style={styles.backToLogin}>
           <Text style={styles.backToLoginText}>Back to sign in</Text>
         </Pressable>
       </Link>
@@ -61,7 +104,7 @@ export default function RegisterScreen() {
   if (awaitingConfirmation) {
     return (
       <View style={styles.flex}>
-        <ConfirmEmailState />
+        <ConfirmEmailState email={email} onChange={() => setAwaitingConfirmation(false)} />
       </View>
     );
   }
@@ -170,6 +213,8 @@ export default function RegisterScreen() {
             <View style={styles.dividerLine} />
           </View>
 
+          <AppleSignInButton mode="signUp" onError={setError} />
+
           <AppButton
             title="Continue with Google"
             onPress={handleGoogleSignIn}
@@ -182,7 +227,7 @@ export default function RegisterScreen() {
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
           <Link href="/(auth)/login" asChild>
-            <Pressable>
+            <Pressable accessibilityRole="link">
               <Text style={styles.link}>Sign in</Text>
             </Pressable>
           </Link>

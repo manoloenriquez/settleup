@@ -14,7 +14,7 @@ export function ChipGroup({ chips, selected, onToggle, label }: ChipGroupProps) 
   return (
     <View style={styles.wrapper}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+      <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {chips.map((chip) => {
           const active = selected.has(chip.id);
           return (

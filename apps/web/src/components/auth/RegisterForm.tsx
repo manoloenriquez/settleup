@@ -4,23 +4,12 @@ import { useState, useTransition } from "react";
 import { signUp } from "@/app/actions/auth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { APP_NAME } from "@template/shared";
-import { Eye, EyeOff, UserPlus, Mail } from "lucide-react";
+import { safeReturnPath } from "@template/shared";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { resendConfirmation } from "@/app/actions/recovery";
+import { Eye, EyeOff, UserPlus } from "lucide-react";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-
-function ConfirmEmailState(): React.ReactElement {
-  return (
-    <div className="text-center py-4">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100">
-        <Mail size={24} className="text-brand-600" />
-      </div>
-      <h3 className="text-lg font-semibold text-slate-900">Check your email</h3>
-      <p className="mt-2 text-sm text-slate-600">
-        We sent you a confirmation link. Click it to activate your account.
-      </p>
-    </div>
-  );
-}
 
 export function RegisterForm(): React.ReactElement {
   const [pending, startTransition] = useTransition();
@@ -28,12 +17,56 @@ export function RegisterForm(): React.ReactElement {
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  if (awaitingConfirmation) return <ConfirmEmailState />;
+  const searchParams = useSearchParams();
+  const destination = safeReturnPath(searchParams.get("redirectTo"));
+  const [email, setEmail] = useState("");
+  const [resendAt, setResendAt] = useState(0);
+  const [message, setMessage] = useState("");
+
+  if (awaitingConfirmation)
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Check your email</h2>
+        <p>We sent a confirmation link to {email}. Open it to continue to your group.</p>
+        <p className="text-sm text-slate-500">Check your spam folder if it does not arrive.</p>
+        {error && <p role="alert">{error}</p>}
+        {message && <p role="status">{message}</p>}
+        <Button
+          isLoading={pending}
+          onClick={() => {
+            if (Date.now() < resendAt) {
+              setMessage("Please wait a minute before resending.");
+              return;
+            }
+            startTransition(async () => {
+              const result = await resendConfirmation(email, destination);
+              setError(result.error);
+              setResendAt(Date.now() + 60_000);
+              if (!result.error) setMessage("Confirmation email sent.");
+            });
+          }}
+        >
+          Resend confirmation
+        </Button>
+        <button
+          type="button"
+          className="block text-sm text-brand-700"
+          onClick={() => {
+            setAwaitingConfirmation(false);
+            setError(null);
+          }}
+        >
+          Change email address
+        </button>
+      </div>
+    );
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     setError(null);
     const formData = new FormData(e.currentTarget);
+    formData.set("redirectTo", destination);
+    setEmail(String(formData.get("email") ?? ""));
 
     startTransition(async () => {
       const result = await signUp(null, formData);
@@ -47,11 +80,6 @@ export function RegisterForm(): React.ReactElement {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-slate-900">{APP_NAME}</h2>
-        <p className="mt-1 text-sm text-slate-500">Create your account</p>
-      </div>
-
       {error && (
         <div
           role="alert"
@@ -69,6 +97,7 @@ export function RegisterForm(): React.ReactElement {
         required
         autoComplete="email"
         autoFocus
+        defaultValue={email}
       />
 
       <div className="relative">
@@ -84,7 +113,8 @@ export function RegisterForm(): React.ReactElement {
           type="button"
           onClick={() => setShowPassword(!showPassword)}
           className="absolute right-3 top-8 text-slate-400 hover:text-slate-600 transition-colors"
-          tabIndex={-1}
+          aria-label={showPassword ? "Hide password" : "Show password"}
+          aria-pressed={showPassword}
         >
           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
@@ -113,6 +143,17 @@ export function RegisterForm(): React.ReactElement {
       </div>
 
       <GoogleSignInButton label="Sign up with Google" />
+      <p className="text-xs text-slate-500">
+        By creating an account, you agree to our{" "}
+        <Link className="underline" href="/terms">
+          Terms
+        </Link>{" "}
+        and acknowledge our{" "}
+        <Link className="underline" href="/privacy">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </form>
   );
 }

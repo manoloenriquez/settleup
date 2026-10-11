@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addMember, addMembersBatch, deleteMember, listMembers, renameMember } from "@/services/members";
 
@@ -18,7 +19,8 @@ export function useAddMember(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => addMember(groupId, name),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result.data) track({ name: "member_added" });
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["groups"] });
@@ -30,7 +32,9 @@ export function useAddMembersBatch(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (names: string[]) => addMembersBatch(groupId, names),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      const added = Array.isArray(result.data) ? result.data.length : 0;
+      for (let i = 0; i < added; i++) track({ name: "member_added" });
       void qc.invalidateQueries({ queryKey: ["members", groupId] });
       void qc.invalidateQueries({ queryKey: ["balances", groupId] });
       void qc.invalidateQueries({ queryKey: ["groups"] });

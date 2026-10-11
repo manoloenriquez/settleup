@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { toast } from "sonner";
 import { useState } from "react";
 import { CloudUpload, X } from "lucide-react";
-import { formatCents } from "@template/shared";
-import type { OutboxEntry } from "@template/shared";
+import type { CurrencyCode, OutboxEntry } from "@template/shared";
 import { useWebOutbox } from "@/components/OutboxProvider";
 import { Button } from "@/components/ui/Button";
+import { currencyOrPhp, formatCurrency } from "@/lib/currency";
 
 // Total Record: the compiler forces a label for every outbox kind.
 const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
@@ -24,11 +26,16 @@ const KIND_LABELS: Record<OutboxEntry["kind"], string> = {
   "category.delete": "Delete category",
 };
 
+/** The queued write's own currency; legacy entries without one are PHP. */
+function entryCurrency(entry: OutboxEntry): CurrencyCode {
+  return currencyOrPhp((entry.payload as { currency_code?: unknown } | null)?.currency_code);
+}
+
 function conflictCopy(entry: OutboxEntry): string {
   if (entry.kind === "payment.confirm" || entry.kind === "payment.reject") {
-    return "Already resolved differently by someone else.";
+    return "This payment was already resolved differently. Open the group to review its status.";
   }
-  return "Changed by someone else.";
+  return "This change conflicts with a saved record. Open the group, review the latest record, then edit again. Your queued draft is kept.";
 }
 
 /**
@@ -68,7 +75,9 @@ export function PendingChangesPopover(): React.ReactElement | null {
                     </p>
                     <p className="truncate text-sm font-medium text-slate-900">
                       {entry.summary.title}
-                      {entry.summary.amountCents > 0 ? ` · ${formatCents(entry.summary.amountCents)}` : ""}
+                      {entry.summary.amountCents > 0
+                        ? ` · ${formatCurrency(entry.summary.amountCents, entryCurrency(entry))}`
+                        : ""}
                     </p>
                   </div>
                   <span
@@ -82,8 +91,8 @@ export function PendingChangesPopover(): React.ReactElement | null {
                   </span>
                 </div>
                 {entry.status === "failed" && (
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <p className="min-w-0 truncate text-xs text-red-600">
+                  <div className="mt-2 flex flex-col gap-2">
+                    <p className="text-xs text-red-600">
                       {entry.lastError?.class === "conflict"
                         ? conflictCopy(entry)
                         : entry.lastError?.class === "not_found"
@@ -91,10 +100,43 @@ export function PendingChangesPopover(): React.ReactElement | null {
                           : (entry.lastError?.message ?? "Sync failed.")}
                     </p>
                     <div className="flex shrink-0 gap-1">
-                      <Button size="sm" variant="secondary" onClick={() => void retry(entry.id)}>
-                        Retry
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => void discard(entry.id)}>
+                      {entry.lastError?.class === "conflict" ||
+                      entry.lastError?.class === "duplicate" ? (
+                        <Link
+                          href={`/groups/${entry.groupId}`}
+                          className="rounded px-2 py-1 text-sm font-medium text-indigo-700"
+                          onClick={() => setOpen(false)}
+                        >
+                          Review group
+                        </Link>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            void retry(entry.id).catch(() =>
+                              toast.error("Could not retry. Your saved change has been kept."),
+                            )
+                          }
+                        >
+                          Retry
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Discard this saved draft? This removes only this device's pending change. Changes already saved to the group will remain.",
+                            )
+                          ) {
+                            void discard(entry.id).catch(() =>
+                              toast.error("Could not discard. Your saved change has been kept."),
+                            );
+                          }
+                        }}
+                      >
                         Discard
                       </Button>
                     </div>

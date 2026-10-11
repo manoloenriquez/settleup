@@ -2,6 +2,21 @@
 // AI feature types — used by web app LLM layer and shared validation
 // ---------------------------------------------------------------------------
 
+/**
+ * How the user described an unequal split in natural language. Names are raw
+ * and resolved like `participant_names`; the app computes the cents.
+ */
+export type ExpenseDraftSplit = {
+  mode: "percent" | "shares" | "fixed" | "exclude";
+  shares: {
+    member_name: string;
+    percent: number | null;
+    weight: number | null;
+    fixed_cents: number | null;
+    excluded: boolean;
+  }[];
+};
+
 export type ExpenseDraft = {
   item_name: string;
   amount_cents: number;
@@ -12,6 +27,8 @@ export type ExpenseDraft = {
   notes: string | null;
   date: string | null; // ISO date (YYYY-MM-DD) the expense occurred, if known
   source: "receipt" | "conversation" | "manual";
+  /** Unequal split as described by the user; absent or null means equal. */
+  split?: ExpenseDraftSplit | null;
 };
 
 export type ReceiptLineItem = {

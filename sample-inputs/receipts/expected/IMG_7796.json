@@ -1,0 +1,20 @@
+{
+  "image": "IMG_7796.jpg",
+  "notes": "Restaurant bill slip, no merchant name printed (POS provider footer is not the merchant). Decoy 'Total 1,385.00' line before 'TOTAL AMOUNT'. VAT is inclusive. Photographed at an angle.",
+  "merchant": null,
+  "date": "2026-03-22",
+  "currency": "PHP",
+  "subtotal": 1385.00,
+  "tax": 148.39,
+  "taxInclusive": true,
+  "serviceCharge": 123.66,
+  "discount": null,
+  "tip": null,
+  "total": 1508.66,
+  "items": [
+    { "name": "NYCSBury Skille", "quantity": 1, "unitPrice": 575.00, "totalPrice": 575.00 },
+    { "name": "Big League", "quantity": 1, "unitPrice": 395.00, "totalPrice": 395.00 },
+    { "name": "Pancake 2pcs", "quantity": 1, "unitPrice": 280.00, "totalPrice": 280.00 },
+    { "name": "Sd Sausage 2pcs", "quantity": 1, "unitPrice": 135.00, "totalPrice": 135.00 }
+  ]
+}

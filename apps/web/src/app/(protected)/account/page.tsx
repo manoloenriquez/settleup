@@ -1,8 +1,9 @@
+import { SUPPORT_HREF } from "@/lib/branding";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreditCard, ChevronRight, MessageCircle, Shield, LogOut } from "lucide-react";
 import { redirect } from "next/navigation";
-import { BETA_SUPPORT_EMAIL, ROUTES } from "@template/shared";
+import { ROUTES } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { signOut } from "@/app/actions/auth";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
@@ -38,7 +39,7 @@ export default async function AccountPage(): Promise<React.ReactElement> {
             <ChevronRight size={16} className="text-slate-300" />
           </Link>
           <a
-            href={`mailto:${BETA_SUPPORT_EMAIL}?subject=SettleUp%20beta%20feedback`}
+            href={SUPPORT_HREF}
             className="flex items-center gap-3 border-t border-slate-100 px-4 py-3.5 hover:bg-slate-50 transition-colors"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">

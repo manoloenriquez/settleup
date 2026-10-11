@@ -15,11 +15,13 @@ export function CategoryPicker({ categories, selectedId, onSelect, label = "Cate
   return (
     <View>
       <Text style={styles.label}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+      <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {sorted.map((category) => {
           const active = selectedId === category.id;
           return (
             <TouchableOpacity
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
               key={category.id}
               style={[styles.chip, active && styles.chipActive]}
               onPress={() => onSelect(category.id)}

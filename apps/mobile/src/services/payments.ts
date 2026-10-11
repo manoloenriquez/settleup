@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { recordPaymentSchema } from "@template/shared";
-import type { ApiResponse } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import {
   parseRecordPaymentRpcResult,
   parseSuccessRpcResult,
@@ -9,11 +9,12 @@ import {
 
 export async function recordPayment(params: {
   /** Client-generated UUID: idempotency key for offline/flaky-network replays. */
-  clientId?: string;
+  clientId: string;
   groupId: string;
   fromMemberId: string;
   toMemberId: string;
   amountCents: number;
+  currencyCode: CurrencyCode;
 }): Promise<ApiResponse<Payment>> {
   const parsed = recordPaymentSchema.safeParse({
     id: params.clientId,
@@ -21,27 +22,29 @@ export async function recordPayment(params: {
     from_member_id: params.fromMemberId,
     to_member_id: params.toMemberId,
     amount_cents: params.amountCents,
+    currency_code: params.currencyCode,
   });
   if (!parsed.success) return { data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const { data, error } = await supabase
     .schema("settleup")
-    .rpc("record_payment", {
+    .rpc("record_payment_v2", {
       p_group_id: params.groupId,
       p_from_member_id: params.fromMemberId,
       p_to_member_id: params.toMemberId,
       p_amount_cents: params.amountCents,
-      ...(params.clientId ? { p_id: params.clientId } : {}),
+      p_id: params.clientId,
+      p_currency_code: params.currencyCode,
     })
 
   if (error || !data) return { data: null, error: error?.message ?? "Failed to record payment" };
   return parseRecordPaymentRpcResult(data);
 }
 
-export async function undoLastPayment(groupId: string): Promise<ApiResponse<null>> {
+export async function undoLastPayment(groupId: string, currency: CurrencyCode): Promise<ApiResponse<null>> {
   const { data, error } = await supabase
     .schema("settleup")
-    .rpc("undo_last_payment", { p_group_id: groupId });
+    .rpc("undo_last_payment_v2", { p_group_id: groupId, p_currency_code: currency });
 
   if (error || !data) return { data: null, error: error?.message ?? "No payment found" };
   const parsed = parseSuccessRpcResult(data);
@@ -55,6 +58,7 @@ export type PendingPayment = {
   from_member_id: string;
   to_member_id: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   note: string | null;
   created_at: string;
 };
@@ -63,7 +67,7 @@ export async function listPendingPayments(groupId: string): Promise<ApiResponse<
   const { data, error } = await supabase
     .schema("settleup")
     .from("payments")
-    .select("id, group_id, from_member_id, to_member_id, amount_cents, note, created_at")
+    .select("id, group_id, from_member_id, to_member_id, amount_cents, currency_code, note, created_at")
     .eq("group_id", groupId)
     .eq("status", "PENDING")
     .order("created_at", { ascending: false });
@@ -85,10 +89,13 @@ export async function resolvePendingPayment(
   return { data: null, error: null };
 }
 
-export async function undoLastPaymentForMember(memberId: string): Promise<ApiResponse<null>> {
+export async function undoLastPaymentForMember(
+  memberId: string,
+  currency: CurrencyCode,
+): Promise<ApiResponse<null>> {
   const { data, error } = await supabase
     .schema("settleup")
-    .rpc("undo_last_payment_for_member", { p_from_member_id: memberId });
+    .rpc("undo_last_payment_for_member_v2", { p_from_member_id: memberId, p_currency_code: currency });
 
   if (error || !data) return { data: null, error: error?.message ?? "No payment found" };
   const parsed = parseSuccessRpcResult(data);

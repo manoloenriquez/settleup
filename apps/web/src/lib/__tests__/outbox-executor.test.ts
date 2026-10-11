@@ -6,6 +6,7 @@ type TableCall = { table: string; op: string; args: unknown };
 
 const rpcCalls: RpcCall[] = [];
 const tableCalls: TableCall[] = [];
+let savedComment: { expense_id: string; author_user_id: string; body: string } | null = null;
 let nextError: { code: string; message: string } | null = null;
 
 vi.mock("@/lib/supabase/client", () => {
@@ -18,6 +19,13 @@ vi.mock("@/lib/supabase/client", () => {
           return { abortSignal: () => result() };
         },
         from: (table: string) => ({
+          select: () => ({
+            eq: () => ({
+              abortSignal: () => ({
+                maybeSingle: () => Promise.resolve({ data: savedComment, error: null }),
+              }),
+            }),
+          }),
           delete: () => ({
             eq: (column: string, value: unknown) => {
               tableCalls.push({ table, op: "delete", args: { column, value } });
@@ -34,7 +42,9 @@ vi.mock("@/lib/supabase/client", () => {
   };
 });
 
-import { outboxExecutor } from "../outbox/executor";
+import { supabase } from "@/lib/supabase/client";
+import { createOutboxExecutor } from "../outbox/executor";
+const outboxExecutor = createOutboxExecutor(supabase);
 
 function entry(overrides: Partial<OutboxEntry>): OutboxEntry {
   return {
@@ -57,6 +67,7 @@ beforeEach(() => {
   rpcCalls.length = 0;
   tableCalls.length = 0;
   nextError = null;
+  savedComment = null;
 });
 
 describe("web outboxExecutor kind → Supabase call mapping", () => {
@@ -70,23 +81,44 @@ describe("web outboxExecutor kind → Supabase call mapping", () => {
     for (const [kind, rpcName] of cases) {
       const result = await outboxExecutor(entry({ kind }));
       expect(result).toEqual({ ok: true });
-      expect(rpcCalls.at(-1)).toEqual({ name: rpcName, args: { p_input: { item_name: "Coffee" } } });
+      expect(rpcCalls.at(-1)).toEqual({
+        name: rpcName,
+        args: { p_input: { item_name: "Coffee" } },
+      });
     }
   });
 
-  it("records payments through record_payment with the entity id as p_id", async () => {
+  it("records payments through record_payment_v2 with the entity id and the payment's currency", async () => {
     const result = await outboxExecutor(
       entry({
         kind: "payment.record",
         entityId: "pay-1",
-        payload: { group_id: "g", from_member_id: "a", to_member_id: "b", amount_cents: 500 },
+        payload: { group_id: "g", from_member_id: "a", to_member_id: "b", amount_cents: 500, currency_code: "JPY" },
       }),
     );
     expect(result).toEqual({ ok: true });
     expect(rpcCalls.at(-1)).toEqual({
-      name: "record_payment",
-      args: { p_group_id: "g", p_from_member_id: "a", p_to_member_id: "b", p_amount_cents: 500, p_id: "pay-1" },
+      name: "record_payment_v2",
+      args: {
+        p_group_id: "g",
+        p_from_member_id: "a",
+        p_to_member_id: "b",
+        p_amount_cents: 500,
+        p_id: "pay-1",
+        p_currency_code: "JPY",
+      },
     });
+  });
+
+  it("replays payments queued before currencies existed as pesos", async () => {
+    await outboxExecutor(
+      entry({
+        kind: "payment.record",
+        entityId: "pay-0",
+        payload: { group_id: "g", from_member_id: "a", to_member_id: "b", amount_cents: 500 },
+      }),
+    );
+    expect(rpcCalls.at(-1)?.args).toMatchObject({ p_currency_code: "PHP" });
   });
 
   it("deletes expenses directly by entity id (0 rows affected = success)", async () => {
@@ -123,14 +155,23 @@ describe("web outboxExecutor kind → Supabase call mapping", () => {
 });
 
 describe("group / category / payment-resolution kinds", () => {
-  it("creates groups via create_group_with_owner with the entity id as p_id", async () => {
+  it("creates groups with create_group_v2, and old name-only entries with the legacy RPC", async () => {
     const result = await outboxExecutor(
-      entry({ kind: "group.create", entityId: "grp-1", payload: { name: "Trip" } }),
+      entry({
+        kind: "group.create",
+        entityId: "grp-1",
+        payload: { name: "Tokyo", currency_code: "JPY", display_name: "Mano" },
+      }),
     );
     expect(result).toEqual({ ok: true });
     expect(rpcCalls.at(-1)).toEqual({
+      name: "create_group_v2",
+      args: { p_name: "Tokyo", p_id: "grp-1", p_currency_code: "JPY", p_display_name: "Mano" },
+    });
+    await outboxExecutor(entry({ kind: "group.create", entityId: "grp-0", payload: { name: "Old" } }));
+    expect(rpcCalls.at(-1)).toEqual({
       name: "create_group_with_owner",
-      args: { p_name: "Trip", p_id: "grp-1" },
+      args: { p_name: "Old", p_id: "grp-0" },
     });
   });
 
@@ -146,7 +187,13 @@ describe("group / category / payment-resolution kinds", () => {
     expect(result).toEqual({ ok: true });
     expect(rpcCalls.at(-1)).toEqual({
       name: "create_expense_category",
-      args: { p_group_id: "group-1", p_name: "Food", p_icon: "utensils", p_color: "#ff0000", p_id: "cat-1" },
+      args: {
+        p_group_id: "group-1",
+        p_name: "Food",
+        p_icon: "utensils",
+        p_color: "#ff0000",
+        p_id: "cat-1",
+      },
     });
   });
 
@@ -155,7 +202,13 @@ describe("group / category / payment-resolution kinds", () => {
       entry({
         kind: "category.update",
         entityId: "cat-1",
-        payload: { name: "Food", icon: "utensils", color: "#ff0000", sort_order: 10, expected_updated_at: "2026-01-01T00:00:00Z" },
+        payload: {
+          name: "Food",
+          icon: "utensils",
+          color: "#ff0000",
+          sort_order: 10,
+          expected_updated_at: "2026-01-01T00:00:00Z",
+        },
       }),
     );
     expect(result).toEqual({ ok: true });
@@ -174,12 +227,29 @@ describe("group / category / payment-resolution kinds", () => {
 
   it("deletes categories and resolves payments by entity id", async () => {
     await outboxExecutor(entry({ kind: "category.delete", entityId: "cat-9" }));
-    expect(rpcCalls.at(-1)).toEqual({ name: "delete_expense_category", args: { p_category_id: "cat-9" } });
+    expect(rpcCalls.at(-1)).toEqual({
+      name: "delete_expense_category",
+      args: { p_category_id: "cat-9" },
+    });
 
     await outboxExecutor(entry({ kind: "payment.confirm", entityId: "pay-1", payload: {} }));
     expect(rpcCalls.at(-1)).toEqual({ name: "confirm_payment", args: { p_payment_id: "pay-1" } });
 
     await outboxExecutor(entry({ kind: "payment.reject", entityId: "pay-2", payload: {} }));
     expect(rpcCalls.at(-1)).toEqual({ name: "reject_payment", args: { p_payment_id: "pay-2" } });
+  });
+});
+
+describe("authorized comment replay verification", () => {
+  it("accepts only the exact saved comment after a duplicate-key response", async () => {
+    const payload = { expense_id: "expense-1", author_user_id: "author-1", body: "Train tickets" };
+    nextError = { code: "23505", message: "Duplicate key" };
+    const pending = entry({ kind: "comment.create", payload });
+    savedComment = payload;
+    expect(await outboxExecutor(pending)).toEqual({ ok: true });
+    savedComment = { ...payload, body: "Different comment" };
+    expect(await outboxExecutor(pending)).toMatchObject({ ok: false, code: "PT409" });
+    savedComment = null;
+    expect(await outboxExecutor(pending)).toMatchObject({ ok: false, code: "PT409" });
   });
 });

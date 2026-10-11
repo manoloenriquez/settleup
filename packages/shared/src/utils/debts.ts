@@ -1,6 +1,8 @@
+import { isCurrencyCode, type CurrencyCode } from "./currency";
 import type { CreditorPaymentProfile, SimplifiedDebt, SuggestedSettlement } from "../types";
 
 type BalanceInput = {
+  currency_code?: CurrencyCode;
   member_id: string;
   display_name: string;
   net_cents: number;
@@ -16,6 +18,8 @@ type BalanceInput = {
  * @returns Minimal list of transfers to settle all debts
  */
 export function simplifyDebts(balances: BalanceInput[]): SimplifiedDebt[] {
+  const currency = assertSingleCurrency(balances);
+  const coded = balances.some((balance) => balance.currency_code !== undefined);
   // Build mutable lists of debtors (net < 0) and creditors (net > 0)
   const debtors: { member_id: string; display_name: string; amount: number }[] = [];
   const creditors: { member_id: string; display_name: string; amount: number }[] = [];
@@ -48,6 +52,7 @@ export function simplifyDebts(balances: BalanceInput[]): SimplifiedDebt[] {
         to_member_id: creditor.member_id,
         to_display_name: creditor.display_name,
         amount_cents: transfer,
+        ...(coded ? { currency_code: currency } : {}),
       });
     }
 
@@ -62,11 +67,13 @@ export function simplifyDebts(balances: BalanceInput[]): SimplifiedDebt[] {
 }
 
 type PairwiseExpenseInput = {
+  currency_code?: CurrencyCode;
   payers?: { member_id: string; display_name: string; paid_cents: number }[];
   participants: { member_id?: string; display_name: string; share_cents: number }[];
 };
 
 type PairwisePaymentInput = {
+  currency_code?: CurrencyCode;
   from_member_id: string;
   from_display_name: string;
   to_member_id: string;
@@ -89,6 +96,8 @@ export function computePairwiseDebts(
   expenses: PairwiseExpenseInput[],
   payments: PairwisePaymentInput[],
 ): SimplifiedDebt[] {
+  const currency = assertSingleCurrency([...expenses, ...payments]);
+  const coded = [...expenses, ...payments].some((entry) => entry.currency_code !== undefined);
   const owed = new Map<string, number>(); // "from|to" -> cents
   const names = new Map<string, string>();
 
@@ -147,11 +156,13 @@ export function computePairwiseDebts(
       to_member_id: creditor,
       to_display_name: names.get(creditor) ?? "Unknown",
       amount_cents: Math.abs(net),
+      ...(coded ? { currency_code: currency } : {}),
     });
   }
 
   return result.sort(
-    (a, b) => b.amount_cents - a.amount_cents || a.from_display_name.localeCompare(b.from_display_name),
+    (a, b) =>
+      b.amount_cents - a.amount_cents || a.from_display_name.localeCompare(b.from_display_name),
   );
 }
 
@@ -168,4 +179,15 @@ export function buildSuggestedSettlements(
     ...debt,
     creditor_profile: profileMap.get(debt.to_member_id) ?? null,
   }));
+}
+
+/** Older PHP-only values remain readable, but must never mix with coded foreign values. */
+function assertSingleCurrency(
+  values: ReadonlyArray<{ currency_code?: CurrencyCode }>,
+): CurrencyCode {
+  const currencies = new Set(values.map((value) => value.currency_code ?? "PHP"));
+  if (currencies.size > 1) throw new Error("Calculate balances separately for each currency.");
+  const currency = [...currencies][0] ?? "PHP";
+  if (!isCurrencyCode(currency)) throw new Error("Unsupported ledger currency.");
+  return currency;
 }

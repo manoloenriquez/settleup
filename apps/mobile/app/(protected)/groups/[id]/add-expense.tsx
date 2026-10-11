@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,8 +14,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useAddExpense, useAddExpenseCustomSplit, useAddItemizedExpense } from "@/hooks/useExpenses";
+import {
+  deleteExpenseOrQueue,
+  useAddExpense,
+  useAddExpenseCustomSplit,
+  useAddItemizedExpense,
+  useExpenseMutationInvalidations,
+} from "@/hooks/useExpenses";
+import { useOutbox } from "@/context/OutboxContext";
+import { rememberLastGroup } from "@/lib/last-group";
 import { useCreateRecurringExpense } from "@/hooks/useRecurring";
+import { useGroups } from "@/hooks/useGroups";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { useMembers } from "@/hooks/useMembers";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/context/AuthContext";
@@ -24,15 +36,41 @@ import { AI_UNAVAILABLE_MESSAGE, useAiAvailability } from "@/hooks/useAiAvailabi
 import { AmountInput, ChipGroup, SegmentedControl, AppButton, ErrorBanner, useToast, Avatar } from "@/components/ui";
 import { AppTextInput } from "@/components/ui/TextInput";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
-import { ReceiptReviewCard } from "@/components/groups/ReceiptReviewCard";
-import { CategoryPicker, CategoryPill } from "@/components/groups/CategoryPicker";
+import { ReceiptItemEditor, type EditableLineItem } from "@/components/scan/ReceiptItemEditor";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ExpenseDraft } from "@template/shared/types";
+import {
+  applyDraftSplit,
+  applySmartSplit,
+  draftStorageKey,
+  isDraftEmpty,
+  isDraftResolved,
+  parsePersistedDraft,
+  receiptToLineItems,
+  resolutionEdited,
+  resolveDraft,
+  seedReceiptItems,
+  type DraftResolution,
+  type PersistedDraft,
+} from "@/lib/expense-draft";
+import { parseGroupPrefill } from "@/lib/assistant/prefill";
+import { CategoryPicker } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { formatCents, parsePHPAmount, equalSplit, percentSplit, sharesSplit } from "@template/shared";
+import { equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, isUnusuallyLarge, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { errorClassFor, participantBucket } from "@template/shared/analytics";
+import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
 
 type Mode = "quick" | "chat" | "receipt" | "detailed" | "itemized";
 type SplitMode = "equal" | "percent" | "shares" | "custom";
 type LineItem = { name: string; amountStr: string; participantIds: string[] };
+/** An AI chat suggestion awaiting explicit member resolution; never saved directly. */
+type AiReview = {
+  draft: ExpenseDraft;
+  auto: DraftResolution;
+  resolution: DraftResolution;
+  categoryId: string | null;
+};
 
 /** Local YYYY-MM-DD (never UTC — toISOString is a day off after 8am PH). */
 function localTodayISO(): string {
@@ -53,7 +91,7 @@ function dateToISO(date: Date): string {
 function DateField({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
   const [show, setShow] = useState(false);
   const date = isoToLocalDate(value);
-  const label = date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const label = date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   return (
     <View>
       <Text style={styles.label}>Date</Text>
@@ -82,27 +120,64 @@ function DateField({ value, onChange }: { value: string; onChange: (iso: string)
   );
 }
 
+function AssistButton({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}): React.ReactElement {
+  return (
+    <TouchableOpacity style={styles.assistBtn} onPress={onPress} accessibilityRole="button" activeOpacity={0.7}>
+      <Ionicons name={icon} size={18} color={colors.primaryDark} />
+      <Text style={styles.assistText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function AddExpenseScreen() {
-  const { id: groupId } = useLocalSearchParams<{ id: string }>();
+  const { id: groupId, prefill: prefillParam } = useLocalSearchParams<{ id: string; prefill?: string }>();
+  // Values from an Assistant preview ("Edit"); they win over a saved draft.
+  const prefill = useMemo(() => parseGroupPrefill(prefillParam), [prefillParam]);
+  const prefillApplied = useRef(false);
   const router = useRouter();
   const { session } = useAuth();
   const toast = useToast();
 
   const membersQ = useMembers(groupId);
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
+  const myMemberName = members.find((m) => m.user_id === session?.user.id)?.display_name ?? null;
   const categoriesQ = useCategories(groupId);
   const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
   const addExpense = useAddExpense(groupId);
+  const { enqueue } = useOutbox();
+  const invalidateGroup = useExpenseMutationInvalidations(groupId);
   const addCustomSplit = useAddExpenseCustomSplit(groupId);
   const addItemized = useAddItemizedExpense(groupId);
   const createRecurring = useCreateRecurringExpense(groupId);
-  const conversationAI = useConversationAI({ groupId, members });
-  const smartSplit = useSmartSplit({ groupId });
+  const conversationAI = useConversationAI({ members, userName: myMemberName });
+  const smartSplit = useSmartSplit();
   const receiptScan = useReceiptScan();
   const aiAvailability = useAiAvailability();
   const [showSmartSplit, setShowSmartSplit] = useState(false);
 
   const [mode, setMode] = useState<Mode>("quick");
+
+  // Expenses start in the group's main currency; any one can use another.
+  // Splits and balances stay in the expense's own currency (never converted).
+  const groupsQ = useGroups();
+  const groupCurrency: CurrencyCode =
+    (groupsQ.data ?? []).find((g) => g.id === groupId)?.default_currency_code ?? "PHP";
+  const [chosenCurrency, setChosenCurrency] = useState<CurrencyCode | null>(null);
+  const expenseCurrency: CurrencyCode = chosenCurrency ?? groupCurrency;
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const parseMoney = (text: string): number | null => parseAmountInput(text, expenseCurrency);
+  const money = (minor: number): string => formatAmount(minor, expenseCurrency);
+  /** Receipts and chat drafts report two-decimal cents; convert to this currency's minor units. */
+  const centsToInput = (cents: number): string =>
+    amountToInput(Math.round((cents * 10 ** currencyPrecision(expenseCurrency)) / 100), expenseCurrency);
 
   // Shared form state
   const [itemName, setItemName] = useState("");
@@ -130,26 +205,56 @@ export default function AddExpenseScreen() {
   // Itemized mode state
   const [lineItems, setLineItems] = useState<LineItem[]>([{ name: "", amountStr: "", participantIds: [] }]);
 
-  // Confirmation step state (quick / detailed / itemized)
-  const [confirming, setConfirming] = useState(false);
+  // One save at a time (the header button can be tapped twice quickly).
+  const savingRef = useRef(false);
 
-  // Chat mode state
+  // Chat mode state: the suggestion under review lives here until the user
+  // resolves every name and moves it into the shared form.
   const [chatInput, setChatInput] = useState("");
-  const [draftItem, setDraftItem] = useState("");
-  const [draftAmount, setDraftAmount] = useState("");
-  const [draftMembers, setDraftMembers] = useState<Set<string>>(new Set());
+  const [aiReview, setAiReview] = useState<AiReview | null>(null);
+  const [notes, setNotes] = useState("");
+  // Receipt mode: editable line items seeded from the scan result
+  const [receiptItems, setReceiptItems] = useState<EditableLineItem[]>([]);
+  const draftHydrated = useRef(false);
+  const latestDraft = useRef<PersistedDraft | null>(null);
+  const draftCleared = useRef(false);
   const hasInitializedMembersRef = useRef(false);
 
   // Initialize payer to first member that matches user
   const myMember = members.find((m) => m.user_id === session?.user.id) ?? members[0];
   const effectivePayerId = payerMemberId || myMember?.id || "";
-  const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
 
   useEffect(() => {
     hasInitializedMembersRef.current = false;
     setSelectedMembers(new Set());
     setPayerMemberId("");
   }, [groupId]);
+
+  useEffect(() => {
+    if (!prefill || prefillApplied.current || members.length === 0) return;
+    prefillApplied.current = true;
+    const ids = new Set(members.map((m) => m.id));
+    const known = prefill.shares.every((share) => ids.has(share.memberId)) && ids.has(prefill.payerMemberId);
+    setChosenCurrency(prefill.currency);
+    setAmount(amountToInput(prefill.amountMinor, prefill.currency));
+    setItemName(prefill.description);
+    setExpenseDate(prefill.date);
+    if (!known) {
+      toast.info("Some people in that suggestion aren’t in the group anymore. Choose who shares it.");
+      return;
+    }
+    hasInitializedMembersRef.current = true;
+    setPayerMemberId(prefill.payerMemberId);
+    setSelectedMembers(new Set(prefill.shares.map((share) => share.memberId)));
+    if (prefill.equal) {
+      setMode("quick");
+    } else {
+      setMode("detailed");
+      setSplitMode("custom");
+      setCustomShares(Object.fromEntries(prefill.shares.map((share) => [share.memberId, amountToInput(share.shareCents, prefill.currency)])));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once, when members are known
+  }, [prefill, members]);
 
   useEffect(() => {
     if (hasInitializedMembersRef.current || members.length === 0) return;
@@ -166,6 +271,149 @@ export default function AddExpenseScreen() {
     setCategoryId(categories.find((category) => category.slug === "other")?.id ?? categories[0]?.id ?? null);
   }, [categories, categoryId]);
 
+  // Restore this account's unsaved draft for the group so leaving the screen
+  // loses nothing. Keyed by account so a shared device never surfaces another
+  // person's draft.
+  const draftUserId = session?.user.id ?? "";
+  useEffect(() => {
+    if (!draftUserId) return;
+    if (prefill) {
+      // An Assistant suggestion neither loads nor overwrites the saved draft:
+      // abandoning it must not bring it back the next time Add Expense opens.
+      draftHydrated.current = false;
+      return;
+    }
+    let cancelled = false;
+    draftHydrated.current = false;
+    draftCleared.current = false;
+    AsyncStorage.getItem(draftStorageKey(draftUserId, groupId))
+      .then((raw) => {
+        if (cancelled) return;
+        const saved = parsePersistedDraft(raw);
+        if (saved && !isDraftEmpty(saved)) {
+          setMode(saved.mode === "chat" || saved.mode === "receipt" ? "detailed" : saved.mode);
+          setItemName(saved.itemName);
+          setAmount(saved.amount);
+          setNotes(saved.notes);
+          setSelectedMembers(new Set(saved.selectedMemberIds));
+          hasInitializedMembersRef.current = true;
+          setPayerMemberId(saved.payerMemberId);
+          setCategoryId(saved.categoryId);
+          setExpenseDate(saved.expenseDate);
+          setSplitMode(saved.splitMode);
+          setCustomShares(saved.customShares);
+          setPercentShares(saved.percentShares);
+          setShareWeights(saved.shareWeights);
+          setRepeats(saved.repeats);
+          setMultiPayer(saved.multiPayer);
+          setPayerAmounts(saved.payerAmounts);
+          setLineItems(saved.lineItems);
+          setChosenCurrency(saved.currencyCode ?? "PHP");
+          toast.info("Restored your unsaved draft");
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) draftHydrated.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per account and group
+  }, [draftUserId, groupId]);
+
+  useEffect(() => {
+    if (!draftHydrated.current || !draftUserId) return;
+    const snapshot: PersistedDraft = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      mode,
+      itemName,
+      amount,
+      notes,
+      selectedMemberIds: [...selectedMembers],
+      payerMemberId,
+      categoryId,
+      expenseDate,
+      splitMode,
+      customShares,
+      percentShares,
+      shareWeights,
+      repeats,
+      multiPayer,
+      payerAmounts,
+      lineItems,
+      currencyCode: expenseCurrency,
+    };
+    latestDraft.current = snapshot;
+    draftCleared.current = false;
+    const key = draftStorageKey(draftUserId, groupId);
+    const timer = setTimeout(() => {
+      if (isDraftEmpty(snapshot)) void AsyncStorage.removeItem(key).catch(() => undefined);
+      else void AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => undefined);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [
+    draftUserId,
+    groupId,
+    mode,
+    itemName,
+    amount,
+    notes,
+    selectedMembers,
+    payerMemberId,
+    categoryId,
+    expenseDate,
+    splitMode,
+    customShares,
+    percentShares,
+    shareWeights,
+    repeats,
+    multiPayer,
+    payerAmounts,
+    lineItems,
+    expenseCurrency,
+  ]);
+
+  // Leaving inside the debounce window must not drop the newest edits.
+  useEffect(() => {
+    return () => {
+      const snapshot = latestDraft.current;
+      if (!draftHydrated.current || draftCleared.current || !snapshot || !draftUserId) return;
+      const key = draftStorageKey(draftUserId, groupId);
+      if (isDraftEmpty(snapshot)) void AsyncStorage.removeItem(key).catch(() => undefined);
+      else void AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => undefined);
+    };
+  }, [draftUserId, groupId]);
+
+  function clearPersistedDraft(): void {
+    draftCleared.current = true;
+    latestDraft.current = null;
+    // Saving a suggestion leaves the person's own saved draft alone.
+    if (!draftUserId || prefill) return;
+    void AsyncStorage.removeItem(draftStorageKey(draftUserId, groupId)).catch(() => undefined);
+  }
+
+  // Seed the editable receipt review from each new scan result. Charges become
+  // a shared line and discounts are spread across the items, so the included
+  // items already add up to what was paid.
+  useEffect(() => {
+    const receipt = receiptScan.receipt;
+    if (!receipt) {
+      setReceiptItems([]);
+      return;
+    }
+    const seeded = seedReceiptItems(receipt);
+    setReceiptItems(seeded.items);
+    if (seeded.discountCents > 0) {
+      toast.info(`A discount of ${money(seeded.discountCents)} was spread across the items so the total matches the receipt.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable; seed once per scan
+  }, [receiptScan.receipt]);
+
+  const activeGroupMembers = members.filter((member) => !member.departed_at);
+  const aiResolved = aiReview ? isDraftResolved(aiReview.resolution, members) : false;
+
   function toggleMember(id: string) {
     setSelectedMembers((prev) => {
       const next = new Set(prev);
@@ -176,12 +424,12 @@ export default function AddExpenseScreen() {
   }
 
   function getPayersArray(): { memberId: string; paidCents: number }[] {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     if (!multiPayer) {
       return [{ memberId: effectivePayerId, paidCents: amountCents }];
     }
     return Object.entries(payerAmounts)
-      .map(([id, val]) => ({ memberId: id, paidCents: parsePHPAmount(val) ?? 0 }))
+      .map(([id, val]) => ({ memberId: id, paidCents: parseMoney(val) ?? 0 }))
       .filter((p) => p.paidCents > 0);
   }
 
@@ -189,7 +437,7 @@ export default function AddExpenseScreen() {
     if (!multiPayer) return true;
     const sum = getPayersArray().reduce((s, p) => s + p.paidCents, 0);
     if (sum !== amountCents) {
-      toast.error(`Payer total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Payer total ${money(sum)} must equal expense amount ${money(amountCents)}`);
       return false;
     }
     return true;
@@ -224,15 +472,15 @@ export default function AddExpenseScreen() {
       return null;
     }
     if (splitMode === "custom") {
-      return ids.map((id) => ({ memberId: id, shareCents: parsePHPAmount(customShares[id] ?? "0") ?? 0 }));
+      return ids.map((id) => ({ memberId: id, shareCents: parseMoney(customShares[id] ?? "0") ?? 0 }));
     }
     return null;
   }
 
   function validateCustomSplitSum(amountCents: number): boolean {
-    const sum = [...selectedMembers].reduce((s, id) => s + (parsePHPAmount(customShares[id] ?? "0") ?? 0), 0);
+    const sum = [...selectedMembers].reduce((s, id) => s + (parseMoney(customShares[id] ?? "0") ?? 0), 0);
     if (sum !== amountCents) {
-      toast.error(`Custom split total ₱${(sum / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Custom split total ${money(sum)} must equal expense amount ${money(amountCents)}`);
       return false;
     }
     return true;
@@ -243,7 +491,7 @@ export default function AddExpenseScreen() {
       toast.error("Please enter what this expense was for.");
       return;
     }
-    const amountCents = parsePHPAmount(amount);
+    const amountCents = parseMoney(amount);
     if (amountCents === null) {
       toast.error("Please enter the expense amount.");
       return;
@@ -264,25 +512,91 @@ export default function AddExpenseScreen() {
       toast.error("Please select who paid for this.");
       return;
     }
-    setConfirming(true);
+    confirmThenSave(amountCents, handleQuickSave);
   }
 
+  /**
+   * Saving is the confirmation: the form already shows every value, and the
+   * toast offers Undo. Only an unusually large amount (a likely decimal slip)
+   * asks first, as the personal form does.
+   */
+  function confirmThenSave(amountCents: number, save: () => Promise<void>): void {
+    const run = () => {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      void save().finally(() => {
+        savingRef.current = false;
+      });
+    };
+    if (isUnusuallyLarge(amountCents, expenseCurrency)) {
+      Alert.alert(`Save ${money(amountCents)}?`, "That’s a large amount. Check the decimal point before saving.", [
+        { text: "Edit Amount", style: "cancel" },
+        { text: "Save", onPress: run },
+      ]);
+      return;
+    }
+    run();
+  }
+
+  /** After any save: forget the draft, remember the group, offer Undo, go back. */
+  function afterSaved(expenseId: string | null): void {
+    clearPersistedDraft();
+    void rememberLastGroup(session?.user.id ?? "", groupId);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (expenseId) {
+      toast.withAction("Expense added", {
+        label: "Undo",
+        onPress: () => {
+          // Same path as deleting from the list: online it deletes the row,
+          // offline it cancels the queued create (or queues the delete).
+          void deleteExpenseOrQueue(groupId, expenseId, enqueue).then((res) => {
+            invalidateGroup();
+            if (res.error) toast.error(`Couldn’t undo: ${res.error}`);
+            else toast.info("Expense removed");
+          });
+        },
+      });
+    } else {
+      toast.success("Expense added");
+    }
+    router.back();
+  }
+
+  function trackSaveFailed(error: string): void {
+    track({ name: "expense_save_failed", properties: { error_class: errorClassFor(error) } });
+  }
+
+  const draftOrigin = useRef<"chat" | "receipt" | null>(null);
+
+  function trackSaved(entryMode: "quick" | "detailed" | "itemized" | "chat", participants: number): void {
+    const origin = entryMode === "detailed" ? draftOrigin.current : null;
+    track({
+      name: "expense_saved",
+      properties: { entry_mode: origin ?? entryMode, participant_bucket: participantBucket(participants) },
+    });
+  }
+
+  useEffect(() => {
+    track({ name: "expense_draft_started", properties: { entry_mode: mode } });
+  }, [mode]);
+
   async function handleQuickSave() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     const result = await addExpense.mutateAsync({
       groupId,
       itemName: itemName.trim(),
       amountCents,
+      currencyCode: expenseCurrency,
       categoryId,
       memberIds: [...selectedMembers],
       payerMemberId: effectivePayerId,
       createdByUserId: session?.user.id ?? "",
       expenseDate,
+      notes,
     });
-    if (result.error) { toast.error(result.error); return; }
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+    trackSaved("quick", selectedMembers.size);
+    afterSaved(result.data?.id ?? null);
   }
 
   function handleDetailedReview() {
@@ -290,7 +604,7 @@ export default function AddExpenseScreen() {
       toast.error("Please enter what this expense was for.");
       return;
     }
-    const amountCents = parsePHPAmount(amount);
+    const amountCents = parseMoney(amount);
     if (amountCents === null) {
       toast.error("Please enter the expense amount.");
       return;
@@ -321,27 +635,43 @@ export default function AddExpenseScreen() {
       toast.error("Please select who paid.");
       return;
     }
-    setConfirming(true);
+    confirmThenSave(amountCents, handleDetailedSave);
   }
 
   async function handleDetailedSave() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     const payers = getPayersArray();
+    let savedId: string | null = null;
     if (splitMode !== "equal") {
       // percent/shares resolve to exact cents and reuse the custom-split path
       const customSplits = resolveCustomSplits(amountCents);
       if (!customSplits) { toast.error("Could not resolve the split. Check the values and try again."); return; }
-      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, customSplits, payers, expenseDate });
-      if (result.error) { toast.error(result.error); return; }
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, customSplits, payers, expenseDate, notes });
+      if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+      trackSaved("detailed", customSplits.length);
+      savedId = result.data?.id ?? null;
+    } else if (multiPayer) {
+      // Equal split with several payers: the equal-split RPC accepts one payer,
+      // so send exact equal shares through the custom path with every payer.
+      const ids = [...selectedMembers];
+      const shares = equalSplit(amountCents, ids.length);
+      const customSplits = ids.map((memberId, index) => ({ memberId, shareCents: shares[index] ?? 0 }));
+      const result = await addCustomSplit.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, customSplits, payers, expenseDate, notes });
+      if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+      trackSaved("detailed", ids.length);
+      savedId = result.data?.id ?? null;
     } else {
-      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate });
-      if (result.error) { toast.error(result.error); return; }
+      const result = await addExpense.mutateAsync({ groupId, itemName: itemName.trim(), amountCents, currencyCode: expenseCurrency, categoryId, memberIds: [...selectedMembers], payerMemberId: effectivePayerId, createdByUserId: session?.user.id ?? "", expenseDate, notes });
+      if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+      trackSaved("detailed", selectedMembers.size);
+      savedId = result.data?.id ?? null;
     }
     if (repeats !== "none") {
       const recurringResult = await createRecurring.mutateAsync({
         groupId,
         itemName: itemName.trim(),
         amountCents,
+        currencyCode: expenseCurrency,
         categoryId,
         payers,
         participantMemberIds: [...selectedMembers],
@@ -350,11 +680,15 @@ export default function AddExpenseScreen() {
       });
       if (recurringResult.error) {
         toast.error(`Expense added, but the ${repeats} repeat could not be saved`);
+        clearPersistedDraft();
+        router.back();
+        return;
       }
+      // A repeating expense keeps its template; undoing only the first copy would confuse.
+      afterSaved(null);
+      return;
     }
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    afterSaved(savedId);
   }
 
   async function handleChatSend() {
@@ -364,45 +698,83 @@ export default function AddExpenseScreen() {
 
     const aiResult = await conversationAI.sendMessage(userMsg);
 
-    // Sync AI draft into local form state
+    // Hold the suggestion for review. Names resolve only by exact match; the
+    // user must pick a member for anything unknown before it enters the form.
     const aiDraft = aiResult.draft;
     if (aiDraft) {
-      setDraftItem(aiDraft.item_name);
-      setDraftAmount(aiDraft.amount_cents > 0 ? String(aiDraft.amount_cents / 100) : "");
-      // Match participant names to member IDs
-      const matchedIds = aiDraft.participant_names.length > 0
-        ? members
-            .filter((m) => aiDraft.participant_names.includes(m.display_name))
-            .map((m) => m.id)
-        : members.map((m) => m.id);
-      setDraftMembers(new Set(matchedIds));
-      if (aiDraft.date) setExpenseDate(aiDraft.date);
+      track({ name: "ai_draft_generated", properties: { source: "chat" } });
+      const auto = resolveDraft(aiDraft, members);
       const suggested = categories.find((category) => category.is_default && category.slug === aiDraft.category_slug);
-      if (suggested) setCategoryId(suggested.id);
+      setAiReview({ draft: aiDraft, auto, resolution: auto, categoryId: suggested?.id ?? categoryId });
     }
   }
 
-  async function handleChatSave() {
-    const amountCents = parsePHPAmount(draftAmount) ?? 0;
-    if (!draftItem || amountCents <= 0) {
-      toast.error("Could not extract expense details. Please fill in manually.");
-      return;
-    }
-    const memberIds = draftMembers.size > 0 ? [...draftMembers] : members.map((m) => m.id);
-    const result = await addExpense.mutateAsync({
-      groupId,
-      itemName: draftItem,
-      amountCents,
-      categoryId,
-      memberIds,
-      payerMemberId: effectivePayerId,
-      createdByUserId: session?.user.id ?? "",
-      expenseDate,
+  /** Moves the reviewed suggestion into the shared form; saving stays a human step. */
+  function applyAiReview(): void {
+    if (!aiReview || !aiResolved) return;
+    track({
+      name: "ai_draft_resolved",
+      properties: { status: resolutionEdited(aiReview.auto, aiReview.resolution) ? "edited" : "accepted" },
     });
-    if (result.error) { toast.error(result.error); return; }
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    const { draft, resolution } = aiReview;
+    setItemName(draft.item_name);
+    setAmount(draft.amount_cents > 0 ? centsToInput(draft.amount_cents) : "");
+    setNotes(draft.notes ?? "");
+    const participantIds = resolution.participants.map((participant) => participant.memberId);
+    setSelectedMembers(new Set(participantIds));
+    setPayerMemberId(resolution.payerId);
+    setMultiPayer(false);
+    // An unequal split the user described in words becomes the matching split
+    // mode with its inputs prefilled; the cents are computed by the form.
+    const described = applyDraftSplit(
+      draft.split ?? null,
+      resolution.participants.map((participant, index) => ({
+        memberId: participant.memberId,
+        name: members.find((m) => m.id === participant.memberId)?.display_name ?? draft.participant_names[index] ?? "",
+      })),
+      draft.amount_cents,
+    );
+    setSplitMode(described.splitMode);
+    setPercentShares(described.percentShares);
+    setShareWeights(described.shareWeights);
+    setCustomShares(described.customShares);
+    if (described.excludedMemberIds.length > 0) {
+      setSelectedMembers(new Set(participantIds.filter((id) => !described.excludedMemberIds.includes(id))));
+    }
+    if (aiReview.categoryId) setCategoryId(aiReview.categoryId);
+    if (draft.date) setExpenseDate(draft.date);
+    draftOrigin.current = "chat";
+    setAiReview(null);
+    conversationAI.clearDraft();
+    setMode("detailed");
+  }
+
+  function dismissAiReview(): void {
+    track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+    setAiReview(null);
+    conversationAI.clearDraft();
+  }
+
+  function setReviewPayer(memberId: string): void {
+    setAiReview((current) =>
+      current ? { ...current, resolution: { ...current.resolution, payerId: memberId } } : current,
+    );
+  }
+
+  function setReviewParticipant(index: number, memberId: string): void {
+    setAiReview((current) =>
+      current
+        ? {
+            ...current,
+            resolution: {
+              ...current.resolution,
+              participants: current.resolution.participants.map((participant, position) =>
+                position === index ? { ...participant, memberId } : participant,
+              ),
+            },
+          }
+        : current,
+    );
   }
 
   function updateLineItem(i: number, patch: Partial<LineItem>) {
@@ -422,19 +794,19 @@ export default function AddExpenseScreen() {
   }
 
   function handleItemizedReview() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     if (!itemName.trim() || amountCents <= 0) {
       toast.error("Please fill in expense name and total amount.");
       return;
     }
-    const filled = lineItems.filter((li) => li.name.trim() && (parsePHPAmount(li.amountStr) ?? 0) > 0);
+    const filled = lineItems.filter((li) => li.name.trim() && (parseMoney(li.amountStr) ?? 0) > 0);
     if (filled.length === 0) {
       toast.error("Add at least one line item with a name and amount.");
       return;
     }
-    const liTotal = filled.reduce((s, li) => s + (parsePHPAmount(li.amountStr) ?? 0), 0);
+    const liTotal = filled.reduce((s, li) => s + (parseMoney(li.amountStr) ?? 0), 0);
     if (liTotal !== amountCents) {
-      toast.error(`Line items total ₱${(liTotal / 100).toFixed(2)} must equal expense amount ₱${(amountCents / 100).toFixed(2)}`);
+      toast.error(`Line items total ${money(liTotal)} must equal expense amount ${money(amountCents)}`);
       return;
     }
     if (!validatePayerSum(amountCents)) return;
@@ -442,154 +814,136 @@ export default function AddExpenseScreen() {
       toast.error("Please select who paid.");
       return;
     }
-    setConfirming(true);
+    confirmThenSave(amountCents, handleItemizedSave);
   }
 
   async function handleItemizedSave() {
-    const amountCents = parsePHPAmount(amount) ?? 0;
+    const amountCents = parseMoney(amount) ?? 0;
     const payers = getPayersArray();
-    const filledItems = lineItems.filter((li) => li.name.trim() && (parsePHPAmount(li.amountStr) ?? 0) > 0);
+    const filledItems = lineItems.filter((li) => li.name.trim() && (parseMoney(li.amountStr) ?? 0) > 0);
     const result = await addItemized.mutateAsync({
       groupId,
       expenseName: itemName.trim(),
       amountCents,
+      currencyCode: expenseCurrency,
       categoryId,
       payers,
       expenseDate,
+      notes,
       lineItems: filledItems.map((li) => ({
         name: li.name.trim(),
-        amountCents: parsePHPAmount(li.amountStr) ?? 0,
+        amountCents: parseMoney(li.amountStr) ?? 0,
         participantIds: li.participantIds.length > 0 ? li.participantIds : members.map((m) => m.id),
       })),
     });
-    if (result.error) { toast.error(result.error); return; }
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Expense added");
-    router.back();
+    if (result.error) { toast.error(result.error); trackSaveFailed(result.error); return; }
+    trackSaved(
+      "itemized",
+      new Set(
+        filledItems.flatMap((li) =>
+          li.participantIds.length > 0 ? li.participantIds : members.map((m) => m.id),
+        ),
+      ).size,
+    );
+    afterSaved(result.data?.id ?? null);
   }
 
   const memberChips = members.map((m) => ({ id: m.id, label: m.display_name }));
-  const amountCents = parsePHPAmount(amount) ?? 0;
+  const amountCents = parseMoney(amount) ?? 0;
 
   // Custom split running total
   const customSplitSum = splitMode === "custom"
-    ? [...selectedMembers].reduce((s, id) => s + (parsePHPAmount(customShares[id] ?? "0") ?? 0), 0)
+    ? [...selectedMembers].reduce((s, id) => s + (parseMoney(customShares[id] ?? "0") ?? 0), 0)
     : 0;
   const splitRemaining = amountCents - customSplitSum;
 
   // Multi-payer running total
   const payerSum = multiPayer
-    ? Object.entries(payerAmounts).reduce((s, [, v]) => s + (parsePHPAmount(v) ?? 0), 0)
+    ? Object.entries(payerAmounts).reduce((s, [, v]) => s + (parseMoney(v) ?? 0), 0)
     : 0;
   const payerRemaining = amountCents - payerSum;
 
   const isSavePending = addExpense.isPending || addCustomSplit.isPending || addItemized.isPending;
-
-  if (confirming) {
-    const payerLabel = multiPayer
-      ? Object.entries(payerAmounts).filter(([, v]) => (parsePHPAmount(v) ?? 0) > 0).map(([id, v]) => `${members.find((m) => m.id === id)?.display_name ?? id} (${formatCents(parsePHPAmount(v) ?? 0)})`).join(", ")
-      : (members.find((m) => m.id === effectivePayerId)?.display_name ?? "—");
-
-    const onConfirm = mode === "quick" ? handleQuickSave : mode === "detailed" ? handleDetailedSave : handleItemizedSave;
-
-    return (
-      <>
-        <Stack.Screen options={{ title: "Confirm Expense", headerShown: true }} />
-        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { justifyContent: "flex-start" }]}>
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>REVIEW</Text>
-            <Text style={styles.confirmName}>{itemName}</Text>
-            <Text style={styles.confirmAmount}>{formatCents(amountCents)}</Text>
-            <CategoryPill category={selectedCategory} />
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Date</Text>
-              <Text style={styles.confirmValue}>{isoToLocalDate(expenseDate).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</Text>
-            </View>
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Paid by</Text>
-              <Text style={styles.confirmValue}>{payerLabel}</Text>
-            </View>
-            {mode === "quick" && (
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Split</Text>
-                <Text style={styles.confirmValue}>Equal · {selectedMembers.size} member{selectedMembers.size !== 1 ? "s" : ""}</Text>
-              </View>
-            )}
-            {mode === "detailed" && (
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Split</Text>
-                <Text style={styles.confirmValue}>
-                  {splitMode === "custom"
-                    ? "Custom"
-                    : splitMode === "percent"
-                      ? "By percentage"
-                      : splitMode === "shares"
-                        ? "By shares"
-                        : `Equal · ${selectedMembers.size} member${selectedMembers.size !== 1 ? "s" : ""}`}
-                </Text>
-              </View>
-            )}
-            {mode === "itemized" && lineItems.filter((li) => li.name.trim()).map((li, i) => (
-              <View key={i} style={styles.confirmRow}>
-                <Text style={styles.confirmLabel} numberOfLines={1}>{li.name}</Text>
-                <Text style={styles.confirmValue}>{formatCents(parsePHPAmount(li.amountStr) ?? 0)}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.confirmActions}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => setConfirming(false)} activeOpacity={0.7}>
-              <Text style={styles.backBtnText}>Back to Edit</Text>
-            </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <AppButton title={isSavePending ? "Saving…" : "Confirm & Save"} onPress={onConfirm} isLoading={isSavePending} />
-            </View>
-          </View>
-        </ScrollView>
-      </>
-    );
-  }
+  // Chat and receipt modes lead into the form; saving happens from the form.
+  const saveAction =
+    mode === "quick" ? handleQuickReview : mode === "detailed" ? handleDetailedReview : mode === "itemized" ? handleItemizedReview : null;
+  const canSave = saveAction !== null && itemName.trim().length > 0 && amount.trim().length > 0 && !isSavePending;
+  // "You" first, then everyone else in group order.
+  const payerChoices = [
+    ...members.filter((m) => m.user_id === session?.user.id).map((m) => ({ id: m.id, label: "You" })),
+    ...members.filter((m) => m.user_id !== session?.user.id).map((m) => ({ id: m.id, label: m.display_name })),
+  ];
 
   return (
     <>
-      <Stack.Screen options={{ title: "Add Expense", headerShown: true }} />
+      <Stack.Screen
+        options={{
+          title: "Add Expense",
+          headerShown: true,
+          headerRight: () =>
+            saveAction ? (
+              <TouchableOpacity
+                onPress={saveAction}
+                disabled={!canSave}
+                accessibilityRole="button"
+                accessibilityLabel="Save"
+                accessibilityState={{ disabled: !canSave }}
+                hitSlop={12}
+              >
+                {isSavePending ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={[styles.headerSave, !canSave && styles.headerSaveDisabled]}>Save</Text>
+                )}
+              </TouchableOpacity>
+            ) : null,
+        }}
+      />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {/* Smart add hint — jumps into the natural-language chat mode */}
-          {mode !== "chat" && (
+          {/* Typing is the main path; a receipt or a sentence can fill it in. */}
+          {mode === "chat" || mode === "receipt" ? (
             <TouchableOpacity
-              style={styles.smartBanner}
-              onPress={() => setMode("chat")}
-              activeOpacity={0.8}
+              accessibilityRole="button"
+              style={styles.backToForm}
+              onPress={() => setMode("quick")}
+              hitSlop={8}
             >
-              <View style={styles.smartBannerHeader}>
-                <Ionicons name="sparkles" size={14} color={colors.primary} />
-                <Text style={styles.smartBannerTitle}>Smart add</Text>
-              </View>
-              <Text style={styles.smartBannerSub}>
-                Try typing something like:{" "}
-                <Text style={styles.smartBannerExample}>
-                  “Dinner 2400 paid by Manolo, split with Aya and Carlo”
-                </Text>
-              </Text>
+              <Ionicons name="create-outline" size={16} color={colors.primaryDark} />
+              <Text style={styles.backToFormText}>Type It In Instead</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.assistRow}>
+              <AssistButton
+                icon="scan-outline"
+                label="Scan Receipt"
+                onPress={() => {
+                  if (aiAvailability.state === "unavailable") {
+                    toast.info(`${aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE} Type the amount instead.`);
+                    return;
+                  }
+                  setMode("receipt");
+                }}
+              />
+              <AssistButton icon="chatbubble-ellipses-outline" label="Describe It" onPress={() => setMode("chat")} />
+            </View>
+          )}
+
+          {(mode === "detailed" || mode === "itemized") && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.backToForm}
+              onPress={() => setMode("quick")}
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-back" size={16} color={colors.primaryDark} />
+              <Text style={styles.backToFormText}>Simple Equal Split</Text>
             </TouchableOpacity>
           )}
 
-          <SegmentedControl
-            segments={[
-              { value: "quick" as Mode, label: "Quick" },
-              { value: "chat" as Mode, label: "Chat" },
-              { value: "receipt" as Mode, label: "Receipt" },
-              { value: "detailed" as Mode, label: "Detailed" },
-              { value: "itemized" as Mode, label: "Itemized" },
-            ]}
-            value={mode}
-            onChange={(m) => { setMode(m); if (m !== "chat") conversationAI.reset(); }}
-          />
-
           {/* ---- QUICK MODE ---- */}
           {mode === "quick" && (() => {
-            const quickAmountCents = parsePHPAmount(amount) ?? 0;
+            const quickAmountCents = parseMoney(amount) ?? 0;
             const quickSelected = members.filter((m) => selectedMembers.has(m.id));
             const quickShares = new Map<string, number>();
             if (quickAmountCents > 0 && quickSelected.length > 0) {
@@ -598,15 +952,15 @@ export default function AddExpenseScreen() {
             }
             return (
               <View style={styles.form}>
-                <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
-                <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" />
+                <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} autoFocus />
+                <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at La Lucci" returnKeyType="done" />
                 <DateField value={expenseDate} onChange={setExpenseDate} />
                 <View>
                   <Text style={styles.label}>Paid by</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                    {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                  <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                    {payerChoices.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.label}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -638,7 +992,7 @@ export default function AddExpenseScreen() {
                             {m.user_id === session?.user.id ? " (you)" : ""}
                           </Text>
                           <Text style={[styles.splitAmount, !selected && styles.splitAmountOff]}>
-                            {formatCents(selected ? quickShares.get(m.id) ?? 0 : 0)}
+                            {money(selected ? quickShares.get(m.id) ?? 0 : 0)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -646,13 +1000,13 @@ export default function AddExpenseScreen() {
                   </View>
                 </View>
                 <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
-                <View style={styles.quickActionsRow}>
-                  <TouchableOpacity style={styles.moreOptionsBtn} onPress={() => setMode("detailed")} activeOpacity={0.7}>
-                    <Text style={styles.moreOptionsText}>More options</Text>
+                <View style={styles.moreRow}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.moreLink} onPress={() => setMode("detailed")} hitSlop={6}>
+                    <Text style={styles.moreLinkText}>Split Unequally · More Options</Text>
                   </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <AppButton title="Save expense" onPress={handleQuickReview} disabled={!itemName.trim() || !amount} />
-                  </View>
+                  <TouchableOpacity accessibilityRole="button" style={styles.moreLink} onPress={() => setMode("itemized")} hitSlop={6}>
+                    <Text style={styles.moreLinkText}>Split by Item</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -661,7 +1015,9 @@ export default function AddExpenseScreen() {
           {/* ---- CHAT MODE ---- */}
           {mode === "chat" && (
             <View style={styles.form}>
-              {aiAvailability === "unavailable" && <ErrorBanner message={AI_UNAVAILABLE_MESSAGE} />}
+              {aiAvailability.state === "unavailable" && (
+                <ErrorBanner message={`${aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE} Simple messages like "Lunch 500 split Ana Ben" still work.`} />
+              )}
               <View style={styles.chatHistory}>
                 {conversationAI.messages.length === 0 && (
                   <Text style={styles.chatHint}>Try: "Lunch 500 split with Manolo and Ana"</Text>
@@ -677,20 +1033,70 @@ export default function AddExpenseScreen() {
                   </View>
                 )}
               </View>
-              {draftItem ? (
-                <View style={styles.draftCard}>
-                  <Text style={styles.draftTitle}>DRAFT</Text>
-                  <Text style={styles.draftItem}>{draftItem}</Text>
-                  <Text style={styles.draftAmount}>{draftAmount ? `\u20B1${draftAmount}` : "\u2014"}</Text>
-                  <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
-                  <AppButton title="Confirm & Save" onPress={handleChatSave} isLoading={addExpense.isPending} />
+              {aiReview ? (
+                <View style={styles.draftCard} accessibilityLabel="Review AI suggestion">
+                  <Text style={styles.draftTitle}>REVIEW SUGGESTION</Text>
+                  <Text style={styles.draftItem}>{aiReview.draft.item_name}</Text>
+                  <Text style={styles.draftAmount}>{money(aiReview.draft.amount_cents)}</Text>
+                  <Text style={styles.chatHint}>
+                    Check who paid and who shared this. Anything the assistant could not match to a member must be chosen before you continue.
+                  </Text>
+                  <View>
+                    <Text style={styles.sublabel}>
+                      Paid by{aiReview.resolution.payerSuggested ? ` · suggested "${aiReview.resolution.payerSuggested}"` : ""}
+                      {aiReview.resolution.payerId ? "" : " · choose a member"}
+                    </Text>
+                    <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                      {activeGroupMembers.map((m) => {
+                        const selected = aiReview.resolution.payerId === m.id;
+                        return (
+                          <TouchableOpacity key={m.id} style={[styles.payerChip, selected && styles.payerChipActive]} onPress={() => setReviewPayer(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`Resolved payer ${m.display_name}`}>
+                            <Text style={[styles.payerChipText, selected && styles.payerChipTextActive]}>{m.display_name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                  {aiReview.resolution.participants.map((participant, index) => (
+                    <View key={index}>
+                      <Text style={styles.sublabel}>
+                        Participant {index + 1}
+                        {participant.suggested ? ` · suggested "${participant.suggested}"` : ""}
+                        {participant.memberId ? "" : " · choose a member"}
+                      </Text>
+                      <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                        {activeGroupMembers.map((m) => {
+                          const selected = participant.memberId === m.id;
+                          return (
+                            <TouchableOpacity key={m.id} style={[styles.payerChip, selected && styles.payerChipActive]} onPress={() => setReviewParticipant(index, m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`Resolved participant ${index + 1} ${m.display_name}`}>
+                              <Text style={[styles.payerChipText, selected && styles.payerChipTextActive]}>{m.display_name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  ))}
+                  {aiResolved && aiReview.draft.amount_cents > 0 && (
+                    <Text style={styles.sublabel}>
+                      Share: {money(equalSplit(aiReview.draft.amount_cents, aiReview.resolution.participants.length)[0] ?? 0)} each
+                    </Text>
+                  )}
+                  <CategoryPicker categories={categories} selectedId={aiReview.categoryId} onSelect={(id) => setAiReview((current) => (current ? { ...current, categoryId: id } : current))} />
+                  <View style={styles.quickActionsRow}>
+                    <TouchableOpacity accessibilityRole="button" style={styles.moreOptionsBtn} onPress={dismissAiReview} activeOpacity={0.7}>
+                      <Text style={styles.moreOptionsText}>Dismiss</Text>
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <AppButton title="Use These Details" onPress={applyAiReview} disabled={!aiResolved} />
+                    </View>
+                  </View>
                 </View>
               ) : null}
               <View style={styles.chatInputRow}>
                 <View style={styles.chatTextInput}>
                   <AppTextInput value={chatInput} onChangeText={setChatInput} placeholder="Describe the expense…" onSubmitEditing={() => void handleChatSend()} returnKeyType="send" />
                 </View>
-                <TouchableOpacity style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing || aiAvailability === "unavailable"}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Send" style={styles.sendBtn} onPress={() => void handleChatSend()} disabled={conversationAI.isProcessing}>
                   <Text style={styles.sendBtnText}>{"\u2192"}</Text>
                 </TouchableOpacity>
               </View>
@@ -704,23 +1110,46 @@ export default function AddExpenseScreen() {
                 imageUri={receiptScan.imageUri}
                 isScanning={receiptScan.isScanning}
                 error={receiptScan.error}
+                permissionBlocked={receiptScan.permissionBlocked}
                 onCamera={() => void receiptScan.scanFromCamera()}
                 onGallery={() => void receiptScan.scanFromGallery()}
                 onClear={receiptScan.clear}
                 onRetake={() => void receiptScan.retake()}
               />
               {receiptScan.receipt && (
-                <ReceiptReviewCard
-                  receipt={receiptScan.receipt}
+                <ReceiptItemEditor
+                  currency={expenseCurrency}
+                  merchant={receiptScan.receipt.merchant}
+                  date={receiptScan.receipt.date}
+                  items={receiptItems}
+                  review={receiptScan.review}
                   provider={receiptScan.provider}
-                  onAccept={(name, cents) => {
+                  onItemsChange={setReceiptItems}
+                  onContinue={(name, cents, items) => {
+                    const original = receiptScan.receipt;
+                    if (!original) return;
+                    const included = items.filter((item) => item.included && item.total_cents > 0);
+                    if (included.length === 0) {
+                      toast.error("Keep at least one item to continue.");
+                      return;
+                    }
+                    const edited = cents !== original.total_cents;
+                    track({ name: "ai_draft_resolved", properties: { status: edited ? "edited" : "accepted" } });
+                    draftOrigin.current = "receipt";
+                    const everyone = activeGroupMembers.map((m) => m.id);
                     setItemName(name);
-                    setAmount(String(cents / 100));
-                    if (receiptScan.receipt?.date) setExpenseDate(receiptScan.receipt.date);
+                    setAmount(centsToInput(cents));
+                    if (original.date) setExpenseDate(original.date);
+                    const suggested = categories.find((category) => category.is_default && category.slug === inferReceiptCategory(original.merchant, included.map((item) => item.description)));
+                    if (suggested) setCategoryId(suggested.id);
+                    setLineItems(receiptToLineItems(items, everyone));
                     receiptScan.clear();
-                    setMode("detailed");
+                    setMode("itemized");
                   }}
-                  onDismiss={receiptScan.clear}
+                  onBack={() => {
+                    track({ name: "ai_draft_resolved", properties: { status: "discarded" } });
+                    receiptScan.clear();
+                  }}
                 />
               )}
             </View>
@@ -729,9 +1158,10 @@ export default function AddExpenseScreen() {
           {/* ---- ITEMIZED MODE ---- */}
           {mode === "itemized" && (
             <View style={styles.form}>
-              <AppTextInput label="Expense Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
-              <AmountInput label="Total Amount" value={amount} onChangeText={setAmount} />
+              <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
+              <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner at Jollibee" />
               <DateField value={expenseDate} onChange={setExpenseDate} />
+              <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything worth remembering" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Line items */}
@@ -743,7 +1173,7 @@ export default function AddExpenseScreen() {
                       <View style={styles.lineItemHeader}>
                         <Text style={styles.lineItemIndex}>Item {i + 1}</Text>
                         {lineItems.length > 1 && (
-                          <TouchableOpacity onPress={() => setLineItems((prev) => prev.filter((_, idx) => idx !== i))}>
+                          <TouchableOpacity accessibilityRole="button" onPress={() => setLineItems((prev) => prev.filter((_, idx) => idx !== i))}>
                             <Text style={styles.removeText}>Remove</Text>
                           </TouchableOpacity>
                         )}
@@ -753,13 +1183,15 @@ export default function AddExpenseScreen() {
                           <AppTextInput value={li.name} onChangeText={(v) => updateLineItem(i, { name: v })} placeholder="Item name" />
                         </View>
                         <View style={{ width: 110 }}>
-                          <AmountInput value={li.amountStr} onChangeText={(v) => updateLineItem(i, { amountStr: v })} />
+                          <AmountInput currency={expenseCurrency} value={li.amountStr} onChangeText={(v) => updateLineItem(i, { amountStr: v })} />
                         </View>
                       </View>
                       <Text style={styles.sublabel}>Who had this?</Text>
                       <View style={styles.participantRow}>
                         {members.map((m) => (
                           <TouchableOpacity
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: li.participantIds.includes(m.id) }}
                             key={m.id}
                             style={[styles.participantChip, li.participantIds.includes(m.id) && styles.participantChipActive]}
                             onPress={() => toggleLineItemParticipant(i, m.id)}
@@ -774,6 +1206,7 @@ export default function AddExpenseScreen() {
                     </View>
                   ))}
                   <TouchableOpacity
+                    accessibilityRole="button"
                     style={styles.addLineItemBtn}
                     onPress={() => setLineItems((prev) => [...prev, { name: "", amountStr: "", participantIds: [] }])}
                   >
@@ -782,9 +1215,9 @@ export default function AddExpenseScreen() {
                 </View>
 
                 {/* Line items total vs expense total */}
-                {(parsePHPAmount(amount) ?? 0) > 0 && (() => {
-                  const total = parsePHPAmount(amount) ?? 0;
-                  const liTotal = lineItems.reduce((s, li) => s + (parsePHPAmount(li.amountStr) ?? 0), 0);
+                {(parseMoney(amount) ?? 0) > 0 && (() => {
+                  const total = parseMoney(amount) ?? 0;
+                  const liTotal = lineItems.reduce((s, li) => s + (parseMoney(li.amountStr) ?? 0), 0);
                   const remaining = total - liTotal;
                   return (
                     <View style={[styles.splitSumRow, remaining !== 0 && styles.splitSumError]}>
@@ -795,7 +1228,7 @@ export default function AddExpenseScreen() {
                         </View>
                       ) : (
                         <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                          {remaining > 0 ? `₱${(remaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(remaining) / 100).toFixed(2)} over`}
+                          {remaining > 0 ? `${money(remaining)} remaining` : `${money(Math.abs(remaining))} over`}
                         </Text>
                       )}
                     </View>
@@ -807,15 +1240,15 @@ export default function AddExpenseScreen() {
               <View>
                 <View style={styles.paidByHeader}>
                   <Text style={styles.label}>Paid by</Text>
-                  <TouchableOpacity onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
                     <Text style={styles.multiPayerToggle}>{multiPayer ? "Single payer" : "Split payment"}</Text>
                   </TouchableOpacity>
                 </View>
                 {!multiPayer ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                    {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                  <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                    {payerChoices.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.label}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -825,7 +1258,7 @@ export default function AddExpenseScreen() {
                       <View key={m.id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
+                          <AmountInput currency={expenseCurrency} value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
                         </View>
                       </View>
                     ))}
@@ -837,7 +1270,7 @@ export default function AddExpenseScreen() {
                         </View>
                       ) : (
                         <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                          {payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
+                          {payerRemaining > 0 ? `${money(payerRemaining)} remaining` : `${money(Math.abs(payerRemaining))} over`}
                         </Text>
                       )}
                     </View>
@@ -845,16 +1278,16 @@ export default function AddExpenseScreen() {
                 )}
               </View>
 
-              <AppButton title="Review" onPress={handleItemizedReview} disabled={!itemName.trim() || !amount} />
             </View>
           )}
 
           {/* ---- DETAILED MODE ---- */}
           {mode === "detailed" && (
             <View style={styles.form}>
-              <AppTextInput label="Item Name" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
-              <AmountInput label="Amount" value={amount} onChangeText={setAmount} />
+              <AmountInput label="Amount" value={amount} onChangeText={setAmount} currency={expenseCurrency} onCurrencyPress={() => setCurrencyPickerOpen(true)} />
+              <AppTextInput label="Description" value={itemName} onChangeText={setItemName} placeholder="e.g. Dinner" />
               <DateField value={expenseDate} onChange={setExpenseDate} />
+              <AppTextInput label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="e.g. Ana's birthday dinner" />
               <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
 
               {/* Recurring cadence */}
@@ -879,7 +1312,7 @@ export default function AddExpenseScreen() {
                 <Text style={styles.label}>How to split</Text>
                 <View style={styles.toggleRow}>
                   {(["equal", "percent", "shares", "custom"] as SplitMode[]).map((s) => (
-                    <TouchableOpacity key={s} style={[styles.toggleBtn, splitMode === s && styles.toggleBtnActive]} onPress={() => setSplitMode(s)} activeOpacity={0.7}>
+                    <TouchableOpacity accessibilityRole="radio" accessibilityState={{ selected: splitMode === s }} key={s} style={[styles.toggleBtn, splitMode === s && styles.toggleBtnActive]} onPress={() => setSplitMode(s)} activeOpacity={0.7}>
                       <Text style={[styles.toggleBtnText, splitMode === s && styles.toggleBtnTextActive]}>
                         {s === "equal" ? "Equal" : s === "percent" ? "%" : s === "shares" ? "Shares" : "Custom"}
                       </Text>
@@ -949,7 +1382,7 @@ export default function AddExpenseScreen() {
                   {amountCents > 0 && !getShareWeightsArray().some((w) => !Number.isFinite(w) || w <= 0) && (
                     <Text style={styles.sublabel}>
                       {(resolveCustomSplits(amountCents) ?? [])
-                        .map((split) => `${members.find((mem) => mem.id === split.memberId)?.display_name ?? "?"}: ${formatCents(split.shareCents)}`)
+                        .map((split) => `${members.find((mem) => mem.id === split.memberId)?.display_name ?? "?"}: ${money(split.shareCents)}`)
                         .join(" · ")}
                     </Text>
                   )}
@@ -960,10 +1393,11 @@ export default function AddExpenseScreen() {
               {splitMode === "custom" && selectedMembers.size > 0 && (
                 <View style={styles.customSplitSection}>
                   <TouchableOpacity
+                    accessibilityRole="button"
                     style={styles.smartSplitBtn}
                     onPress={() => {
-                      if (aiAvailability === "unavailable") {
-                        toast.error(AI_UNAVAILABLE_MESSAGE);
+                      if (aiAvailability.state === "unavailable") {
+                        toast.error(aiAvailability.reason ?? AI_UNAVAILABLE_MESSAGE);
                         return;
                       }
                       setShowSmartSplit(true);
@@ -981,7 +1415,7 @@ export default function AddExpenseScreen() {
                       <View key={id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={customShares[id] ?? ""} onChangeText={(v) => setCustomShares((prev) => ({ ...prev, [id]: v }))} accessibilityLabel={`Share for ${m.display_name}`} />
+                          <AmountInput currency={expenseCurrency} value={customShares[id] ?? ""} onChangeText={(v) => setCustomShares((prev) => ({ ...prev, [id]: v }))} accessibilityLabel={`Share for ${m.display_name}`} />
                         </View>
                       </View>
                     );
@@ -994,7 +1428,7 @@ export default function AddExpenseScreen() {
                       </View>
                     ) : (
                       <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                        {splitRemaining > 0 ? `₱${(splitRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(splitRemaining) / 100).toFixed(2)} over`}
+                        {splitRemaining > 0 ? `${money(splitRemaining)} remaining` : `${money(Math.abs(splitRemaining))} over`}
                       </Text>
                     )}
                   </View>
@@ -1005,16 +1439,16 @@ export default function AddExpenseScreen() {
               <View>
                 <View style={styles.paidByHeader}>
                   <Text style={styles.label}>Paid by</Text>
-                  <TouchableOpacity onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => setMultiPayer((v) => !v)} activeOpacity={0.7}>
                     <Text style={styles.multiPayerToggle}>{multiPayer ? "Single payer" : "Split payment"}</Text>
                   </TouchableOpacity>
                 </View>
 
                 {!multiPayer ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
-                    {members.map((m) => (
-                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.display_name}`}>
-                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.display_name}</Text>
+                  <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerRow}>
+                    {payerChoices.map((m) => (
+                      <TouchableOpacity key={m.id} style={[styles.payerChip, effectivePayerId === m.id && styles.payerChipActive]} onPress={() => setPayerMemberId(m.id)} activeOpacity={0.7} accessibilityRole="radio" accessibilityState={{ selected: effectivePayerId === m.id }} accessibilityLabel={`Paid by ${m.label}`}>
+                        <Text style={[styles.payerChipText, effectivePayerId === m.id && styles.payerChipTextActive]}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -1024,7 +1458,7 @@ export default function AddExpenseScreen() {
                       <View key={m.id} style={styles.customSplitRow}>
                         <Text style={styles.customSplitName} numberOfLines={1}>{m.display_name}</Text>
                         <View style={styles.customSplitInput}>
-                          <AmountInput value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
+                          <AmountInput currency={expenseCurrency} value={payerAmounts[m.id] ?? ""} onChangeText={(v) => setPayerAmounts((prev) => ({ ...prev, [m.id]: v }))} accessibilityLabel={`Amount paid by ${m.display_name}`} />
                         </View>
                       </View>
                     ))}
@@ -1036,7 +1470,7 @@ export default function AddExpenseScreen() {
                         </View>
                       ) : (
                         <Text style={[styles.splitSumText, styles.splitSumTextError]}>
-                          {payerRemaining > 0 ? `₱${(payerRemaining / 100).toFixed(2)} remaining` : `₱${(Math.abs(payerRemaining) / 100).toFixed(2)} over`}
+                          {payerRemaining > 0 ? `${money(payerRemaining)} remaining` : `${money(Math.abs(payerRemaining))} over`}
                         </Text>
                       )}
                     </View>
@@ -1044,14 +1478,22 @@ export default function AddExpenseScreen() {
                 )}
               </View>
 
-              <AppButton title="Review" onPress={handleDetailedReview} disabled={!itemName.trim() || !amount} />
             </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <CurrencyPicker
+        visible={currencyPickerOpen}
+        selected={expenseCurrency}
+        suggested={[groupCurrency]}
+        onSelect={(code) => setChosenCurrency(code)}
+        onClose={() => setCurrencyPickerOpen(false)}
+      />
+
       {showSmartSplit && (
         <SmartSplitSheet
+          currency={expenseCurrency}
           itemName={itemName}
           amountCents={amountCents}
           memberNames={[...selectedMembers].map((id) => members.find((m) => m.id === id)?.display_name ?? id)}
@@ -1062,12 +1504,12 @@ export default function AddExpenseScreen() {
             void smartSplit.suggest({ itemName, amountCents, memberNames, context });
           }}
           onApply={(result) => {
-            const newShares: Record<string, string> = {};
-            for (const s of result.suggestions) {
-              const member = members.find((m) => m.display_name === s.member_name);
-              if (member) newShares[member.id] = String(s.share_cents / 100);
+            const applied = applySmartSplit(result.suggestions, members);
+            setCustomShares(applied.shares);
+            setSplitMode("custom");
+            if (applied.unmatched.length > 0) {
+              toast.info(`Could not match ${applied.unmatched.join(", ")} to a member — check the custom amounts.`);
             }
-            setCustomShares(newShares);
             setShowSmartSplit(false);
             smartSplit.clear();
           }}
@@ -1083,18 +1525,27 @@ const styles = StyleSheet.create({
   content: { padding: spacing.base, paddingBottom: spacing["2xl"], gap: spacing.base },
   form: { gap: spacing.md, marginTop: spacing.base },
 
-  smartBanner: {
-    backgroundColor: colors.primaryLight + "80",
+  headerSave: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primary },
+  headerSaveDisabled: { color: colors.gray400 },
+  assistRow: { flexDirection: "row", gap: spacing.sm },
+  assistBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    minHeight: 44,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.primary + "30",
-    padding: spacing.base,
-    marginBottom: spacing.md,
+    borderColor: colors.primaryBorderSoft,
+    backgroundColor: colors.primaryTint,
   },
-  smartBannerHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  smartBannerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.gray900 },
-  smartBannerSub: { fontSize: fontSize.sm, color: colors.gray600, marginTop: 4, lineHeight: 18 },
-  smartBannerExample: { fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  assistText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  backToForm: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, alignSelf: "flex-start" },
+  backToFormText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  moreRow: { gap: spacing.xs, alignItems: "flex-start" },
+  moreLink: { minHeight: 44, justifyContent: "center" },
+  moreLinkText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primaryDark },
 
   splitHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   splitHeaderHint: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
@@ -1116,7 +1567,7 @@ const styles = StyleSheet.create({
     borderColor: colors.gray300,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   splitName: { flex: 1, minWidth: 0, fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.gray900 },
@@ -1163,16 +1614,6 @@ const styles = StyleSheet.create({
   splitSumText: { fontSize: fontSize.sm, color: colors.success, fontWeight: fontWeight.semibold },
   splitSumTextError: { color: colors.danger },
 
-  confirmCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.sm, marginBottom: spacing.base },
-  confirmTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.gray400, textTransform: "uppercase", letterSpacing: 0.8 },
-  confirmName: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.gray900, marginTop: spacing.xs },
-  confirmAmount: { fontSize: 32, fontWeight: fontWeight.bold, color: colors.primary, marginBottom: spacing.sm },
-  confirmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.border },
-  confirmLabel: { fontSize: fontSize.sm, color: colors.gray500, flex: 1 },
-  confirmValue: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray800, flex: 2, textAlign: "right" },
-  confirmActions: { flexDirection: "row", gap: spacing.md },
-  backBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  backBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.gray700 },
 
   lineItemsContainer: { gap: spacing.sm },
   lineItemCard: { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm },
@@ -1192,7 +1633,7 @@ const styles = StyleSheet.create({
   chatHistory: { minHeight: 120, gap: spacing.sm },
   chatHint: { fontSize: fontSize.sm, color: colors.gray400, fontStyle: "italic", textAlign: "center", paddingVertical: spacing.xl },
   chatBubble: { borderRadius: borderRadius.md, padding: spacing.md, maxWidth: "85%" },
-  chatUser: { backgroundColor: colors.primary, alignSelf: "flex-end" },
+  chatUser: { backgroundColor: colors.primaryFill, alignSelf: "flex-end" },
   chatAssistant: { backgroundColor: colors.gray100, alignSelf: "flex-start" },
   chatText: { fontSize: fontSize.sm, color: colors.gray800, lineHeight: 20 },
   chatTextUser: { color: colors.white },
@@ -1204,7 +1645,7 @@ const styles = StyleSheet.create({
 
   chatInputRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-end" },
   chatTextInput: { flex: 1 },
-  sendBtn: { width: 48, height: 48, backgroundColor: colors.primary, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 48, height: 48, backgroundColor: colors.primaryFill, borderRadius: borderRadius.md, alignItems: "center", justifyContent: "center" },
   sendBtnText: { color: colors.white, fontSize: fontSize.xl, fontWeight: fontWeight.bold },
   dateBtn: {
     flexDirection: "row",

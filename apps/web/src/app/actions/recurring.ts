@@ -3,14 +3,17 @@
 import { createSettleUpDb } from "@/lib/supabase/settleup";
 import { assertAuth, AuthError } from "@/lib/supabase/guards";
 import { logServerError } from "@/lib/log";
-import type { ApiResponse } from "@template/shared";
+import { currencyCodeSchema } from "@template/shared";
+import type { ApiResponse, CurrencyCode } from "@template/shared";
 import { z } from "zod";
 
 const createSchema = z
   .object({
     group_id: z.string().uuid(),
     item_name: z.string().trim().min(1).max(120),
-    amount_cents: z.number().int().positive().max(100_000_000),
+    amount_cents: z.number().int().positive().max(100_000_000_000),
+    /** The currency of the expense being repeated. */
+    currency_code: currencyCodeSchema,
     category_id: z.string().uuid().nullable().optional(),
     payer_member_id: z.string().uuid(),
     participant_member_ids: z.array(z.string().uuid()).min(1),
@@ -39,6 +42,7 @@ export type RecurringExpense = {
   group_id: string;
   item_name: string;
   amount_cents: number;
+  currency_code: CurrencyCode;
   category_id: string | null;
   payer_member_id: string;
   participant_member_ids: string[];
@@ -46,6 +50,8 @@ export type RecurringExpense = {
   next_run_at: string;
   active: boolean;
   payers: { member_id: string; paid_cents: number }[] | null;
+  /** Null once the creator closed their account: only admins manage it then. */
+  created_by_user_id: string | null;
 };
 
 export async function listRecurringExpenses(groupId: string): Promise<ApiResponse<RecurringExpense[]>> {
@@ -58,7 +64,7 @@ export async function listRecurringExpenses(groupId: string): Promise<ApiRespons
     const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
-      .select("id, group_id, item_name, amount_cents, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers")
+      .select("id, group_id, item_name, amount_cents, currency_code, category_id, payer_member_id, participant_member_ids, cadence, next_run_at, active, payers, created_by_user_id")
       .eq("group_id", parsed.data)
       .order("created_at", { ascending: true });
 
@@ -98,6 +104,7 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
         group_id: parsed.data.group_id,
         item_name: parsed.data.item_name,
         amount_cents: parsed.data.amount_cents,
+        currency_code: parsed.data.currency_code,
         category_id: parsed.data.category_id ?? null,
         payer_member_id: parsed.data.payers?.[0]?.member_id ?? parsed.data.payer_member_id,
         participant_member_ids: parsed.data.participant_member_ids,
@@ -119,6 +126,24 @@ export async function createRecurringExpense(input: unknown): Promise<ApiRespons
   }
 }
 
+const RECURRING_FORBIDDEN = "Only the person who set this up or a group admin can change it.";
+
+const RECURRING_GONE = "This recurring expense no longer exists.";
+
+/**
+ * Why an update or delete touched no row: RLS hides rows you may not change,
+ * and the row may simply be gone. Deleting something already gone is fine.
+ */
+async function zeroRowsReason(
+  supabase: Awaited<ReturnType<typeof createSettleUpDb>>,
+  id: string,
+  action: "update" | "delete",
+): Promise<string | null> {
+  const { data } = await supabase.schema("settleup").from("recurring_expenses").select("id").eq("id", id).maybeSingle();
+  if (data) return RECURRING_FORBIDDEN;
+  return action === "delete" ? null : RECURRING_GONE;
+}
+
 export async function setRecurringExpenseActive(id: string, active: boolean): Promise<ApiResponse<void>> {
   try {
     const parsed = idSchema.safeParse(id);
@@ -126,13 +151,17 @@ export async function setRecurringExpenseActive(id: string, active: boolean): Pr
 
     await assertAuth();
     const supabase = await createSettleUpDb();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
       .update({ active })
-      .eq("id", parsed.data);
+      .eq("id", parsed.data)
+      .select("id");
 
     if (error) return { data: null, error: "Failed to update recurring expense." };
+    if (!data || data.length === 0) {
+      return { data: null, error: (await zeroRowsReason(supabase, parsed.data, "update")) ?? RECURRING_GONE };
+    }
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };
@@ -147,13 +176,19 @@ export async function deleteRecurringExpense(id: string): Promise<ApiResponse<vo
 
     await assertAuth();
     const supabase = await createSettleUpDb();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .schema("settleup")
       .from("recurring_expenses")
       .delete()
-      .eq("id", parsed.data);
+      .eq("id", parsed.data)
+      .select("id");
 
     if (error) return { data: null, error: "Failed to delete recurring expense." };
+    if (!data || data.length === 0) {
+      // Already gone counts as deleted.
+      const reason = await zeroRowsReason(supabase, parsed.data, "delete");
+      if (reason) return { data: null, error: reason };
+    }
     return { data: undefined, error: null };
   } catch (e) {
     if (e instanceof AuthError) return { data: null, error: e.message };

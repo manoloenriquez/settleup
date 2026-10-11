@@ -9,7 +9,7 @@ import { useWebOutbox } from "@/components/OutboxProvider";
 import { usePendingPaymentResolutions } from "@/hooks/useOutboxPending";
 import { confirmPayment, rejectPayment } from "@/app/actions/friend-payments";
 import type { PendingPayment } from "@/app/actions/friend-payments";
-import { formatCents } from "@template/shared";
+import { formatCurrency } from "@/lib/currency";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Check, X, Clock } from "lucide-react";
@@ -23,7 +23,13 @@ type Props = {
   isAdminOrOwner: boolean;
 };
 
-export function PendingPayments({ groupId, pending, members, currentUserId, isAdminOrOwner }: Props): React.ReactElement | null {
+export function PendingPayments({
+  groupId,
+  pending,
+  members,
+  currentUserId,
+  isAdminOrOwner,
+}: Props): React.ReactElement | null {
   const [isPending, startTransition] = useTransition();
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -40,27 +46,39 @@ export function PendingPayments({ groupId, pending, members, currentUserId, isAd
     return isAdminOrOwner || toMember?.user_id === currentUserId;
   }
 
-  function handleResolve(payment: PendingPayment, action: "confirm" | "reject"): void {
+  async function handleResolve(
+    payment: PendingPayment,
+    action: "confirm" | "reject",
+  ): Promise<void> {
     if (!online) {
-      void enqueue({
-        id: crypto.randomUUID(),
-        kind: action === "confirm" ? "payment.confirm" : "payment.reject",
-        entityId: payment.id,
-        groupId,
-        payload: {},
-        createdAt: new Date().toISOString(),
-        summary: {
-          title: action === "confirm" ? "Confirm payment" : "Reject payment",
-          amountCents: payment.amount_cents,
-        },
-      });
+      try {
+        await enqueue({
+          id: crypto.randomUUID(),
+          kind: action === "confirm" ? "payment.confirm" : "payment.reject",
+          entityId: payment.id,
+          groupId,
+          // Display only: lets Pending Changes show the amount in its currency.
+          payload: { currency_code: payment.currency_code },
+          createdAt: new Date().toISOString(),
+          summary: {
+            title: action === "confirm" ? "Confirm payment" : "Reject payment",
+            amountCents: payment.amount_cents,
+          },
+        });
+      } catch {
+        toast.error(
+          "Could not save on this device. Your changes are still here; please try again.",
+        );
+        return;
+      }
       toast.info("Saved offline — will sync when you're back online");
       return;
     }
 
     setResolvingId(payment.id);
     startTransition(async () => {
-      const result = action === "confirm" ? await confirmPayment(payment.id) : await rejectPayment(payment.id);
+      const result =
+        action === "confirm" ? await confirmPayment(payment.id) : await rejectPayment(payment.id);
       if (result.error) {
         toast.error(result.error);
       } else {
@@ -85,15 +103,22 @@ export function PendingPayments({ groupId, pending, members, currentUserId, isAd
           const to = memberMap.get(payment.to_member_id);
           const resolvable = canResolve(payment);
           return (
-            <div key={payment.id} className="rounded-xl bg-white border border-amber-100 p-3 flex items-center gap-3">
+            <div
+              key={payment.id}
+              className="rounded-xl bg-white border border-amber-100 p-3 flex items-center gap-3"
+            >
               <Avatar name={from?.display_name ?? "?"} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-slate-700">
-                  <span className="font-semibold">{from?.display_name ?? "Unknown"}</span> says they paid{" "}
-                  <span className="font-semibold">{to?.display_name ?? "Unknown"}</span>{" "}
-                  <span className="font-bold text-slate-900">{formatCents(payment.amount_cents)}</span>
+                  <span className="font-semibold">{from?.display_name ?? "Unknown"}</span> says they
+                  paid <span className="font-semibold">{to?.display_name ?? "Unknown"}</span>{" "}
+                  <span className="font-bold text-slate-900">
+                    {formatCurrency(payment.amount_cents, payment.currency_code ?? "PHP")}
+                  </span>
                 </p>
-                {payment.note && <p className="text-xs text-slate-500 mt-0.5 truncate">“{payment.note}”</p>}
+                {payment.note && (
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">“{payment.note}”</p>
+                )}
               </div>
               {queuedResolutions.has(payment.id) ? (
                 <span className="shrink-0 text-xs font-semibold text-amber-700">
