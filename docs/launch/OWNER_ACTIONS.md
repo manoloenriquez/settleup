@@ -31,6 +31,13 @@ applying, no live expense had mismatched shares or payers.
 `supabase/tests/member_history.sql` passed live inside `BEGIN … ROLLBACK`, with
 no leftovers. The security advisor does not flag the new function.
 
+## 1b. ✅ Done 2026-10-11: `20261009140000_preview_group_invite.sql` (same-name join warning)
+
+Applied live at the owner's request (recorded as `20261011082528 preview_group_invite`).
+`supabase/tests/preview_group_invite.sql` passed live inside `BEGIN … ROLLBACK`.
+Anonymous callers can't execute it. The advisor's "authenticated can execute a SECURITY DEFINER
+function" note is intentional, the same as for the other settleup RPCs.
+
 ## 2. Apply the analytics migrations (together, in this order)
 
 Never apply `product_events` alone: by itself it would count every app's sign-ups on the shared

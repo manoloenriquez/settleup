@@ -92,7 +92,7 @@ Acceptance criteria met: F1 ≤ 4 taps/≤ 4 screens (4/4); F2 repeat ≤ 5 taps
 
 | Item | Status |
 |---|---|
-| U27 duplicate people on join: warning before joining, per-person Invite in settings | Done. Migration `20261009140000_preview_group_invite.sql` must be applied live before the next web deploy; the apps fall back if it's missing |
+| U27 duplicate people on join: warning before joining, per-person Invite in settings | Done. Migration `20261009140000_preview_group_invite.sql` applied live on 11 Oct 2026 and tested there (rolled back) |
 | Assistant: settle up in full, Edit on previews, personal edit/delete with Undo | Done |
 | Group Settings split into People / Sharing / Group | Done (mobile; web settings unchanged) |
 

@@ -211,6 +211,8 @@ The three open issues, done in that order:
   **Join as a New Member**. Someone who's already a member just has the
   group opened.
 - **Older databases:** if the function isn't there yet, the apps join as before.
+  It was applied to the live project on 11 October 2026, and its SQL suite passed
+  there in a rolled-back transaction.
 - **Inviting people:** Group Settings rows for people not on Talli yet have an
   **Invite** button that shares their personal link (which keeps their
   expenses with them). "Cancel Invitation Link" is in the row's menu. The
