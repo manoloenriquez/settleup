@@ -276,7 +276,8 @@ Run against the live project inside BEGIN…ROLLBACK (Supabase MCP
 `account_closure`, `launch_security`, `push_delivery`, `product_events`,
 `group_journey`, `payment_qr_storage`, `recurring_permissions`,
 `member_history` (a member who is part of expenses or payments can't be deleted),
-`preview_group_invite` (same-name check before joining with a code; no member list).
+`preview_group_invite` (same-name check before joining with a code; no member list),
+`personal_budgets` (own row only, CAS saves, malformed documents refused, closure and auth deletion remove the row).
 
 
 `supabase/tests/*.sql` are transactional (`BEGIN … ROLLBACK`) and assert with `ASSERT`/`RAISE`. CI runs them against a local Supabase with every migration applied (`db-tests` job in `.github/workflows/ci.yml`). Locally:
@@ -332,6 +333,26 @@ Files: `launch_security.sql` (invitations, guest reports, resolution authorizati
   tokens; no user search), `friendships` (one ledger per pair). Removing a
   friend, leaving the ledger or closing an account ends the friendship but
   keeps the ledger as a normal group.
+
+## Personal budgets (migration `20261012100000`, local only until applied live)
+
+- `settleup.personal_budgets(user_id pk → auth.users, doc jsonb, created_at,
+  updated_at)`: one budget document per account (settings versions and the
+  person's notes; never computed totals). RLS: select own row; no direct
+  writes.
+- `save_personal_budget(p_doc jsonb, p_base_updated_at timestamptz)` (definer,
+  `search_path=''`, authenticated): refuses closed accounts and documents that
+  fail `budget_document_valid` (shape, size ≤ 256 KB); compare-and-swap on
+  `updated_at` — a stale or missing base returns `{status:'conflict', doc,
+  updated_at}` and the app merges (packages/shared/src/budget/merge.ts).
+- A trigger on `closed_accounts` deletes the row; `ON DELETE CASCADE` covers
+  auth deletion.
+- The app treats a missing table/function (`PGRST202`/`PGRST205`/`42883`/
+  `42P01`) as "budget backup not available yet" and keeps the budget on the
+  device; every other error is a sync error with retry.
+- Group shares for budgets are read directly (`expense_participants` joined to
+  `expenses` and `expense_categories`, filtered to the user's member ids)
+  under existing RLS; no RPC.
 
 ## Regenerating Types After Schema Changes
 
