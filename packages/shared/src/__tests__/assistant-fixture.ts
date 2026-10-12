@@ -1,3 +1,4 @@
+import { createBudgetDocument, defaultBudgetConfig, type BudgetDocument, type SpendSource } from "../budget";
 import type { AssistantSnapshot, SnapshotExpense, SnapshotGroup } from "../assistant/types";
 
 // A signed-in user ("Paolo") with four ledgers. Ids sort in the order written
@@ -163,8 +164,27 @@ const tokyo: SnapshotGroup = {
   balances: [{ currency: "JPY", net: [{ memberId: ME_TOKYO, amountMinor: 3000 }, { memberId: SARAH_TOKYO, amountMinor: -3000 }] }],
 };
 
+/**
+ * A budget set up on 1 October 2026: ₱60,000 a month, ₱7,000 a week (Monday
+ * weeks). Today (Thursday 8 October) is in the week of 5–11 October. The
+ * coffee on 3 October left ₱3,820 of the first short week (1–4 Oct, ₱4,000)
+ * unspent, so this week has ₱10,820.
+ */
+export const fixtureBudget: BudgetDocument = createBudgetDocument({
+  id: "f0000000-0000-4000-8000-000000000001",
+  config: { ...defaultBudgetConfig("PHP"), monthlyLimitMinor: 6_000_000, weeklyTargetMinor: 700_000 },
+  startDate: "2026-10-01",
+  meta: { planId: "f0000000-0000-4000-8000-000000000002", now: "2026-10-01T08:00:00.000Z", source: "setup", summary: "Set up" },
+});
+
+export const fixtureBudgetSources: SpendSource[] = [
+  { ref: "personal:00000000-0000-4000-8000-00000000c0ff", kind: "personal", description: "Coffee", amountMinor: 18000, currency: "PHP", category: "food-drinks", date: "2026-10-03" },
+  { ref: "group:00000000-0000-4000-8000-0000000d1e00", kind: "group", description: "Dinner", amountMinor: 83334, currency: "PHP", category: "food-drinks", date: "2026-10-06", groupName: "Bali Trip", totalMinor: 250000 },
+];
+
 export function fixtureSnapshot(overrides: Partial<AssistantSnapshot> = {}): AssistantSnapshot {
   return {
+    budget: { doc: fixtureBudget, sources: fixtureBudgetSources },
     today: "2026-10-08",
     isGuest: false,
     online: true,

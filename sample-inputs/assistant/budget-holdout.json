@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "notes": "Budget paraphrases written before any model or prompt change for budgets, and never tuned against. Same fixture as budget.json.",
+  "cases": [
+    { "id": "bh-01", "category": "budget", "lang": "en", "turns": [{ "text": "What's my spending money for today?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-02", "category": "budget", "lang": "en", "turns": [{ "text": "Is 3,000 too much to spend on shoes this week?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-03", "category": "budget", "lang": "en", "turns": [{ "text": "Bump up my weekly allowance to 9000", "intent": "budget", "expect": { "kind": "propose", "action": { "type": "budget_change" } } }] },
+    { "id": "bh-04", "category": "budget", "lang": "en", "turns": [{ "text": "Lower my monthly limit by 5k", "intent": "budget", "expect": { "kind": "propose", "action": { "type": "budget_change" } } }] },
+    { "id": "bh-05", "category": "budget", "lang": "en", "turns": [{ "text": "Why do I have more to spend this week?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-06", "category": "budget", "lang": "en", "turns": [{ "text": "Where did all my money go?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-07", "category": "budget", "lang": "en", "turns": [{ "text": "Will I make it to the end of the month?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-08", "category": "budget", "lang": "en", "turns": [{ "text": "I blew my budget on Saturday, how do I fix it?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-09", "category": "budget", "lang": "en", "turns": [{ "text": "Going to Cebu next week, set aside 10k for it", "intent": "budget", "expect": { "kind": "propose", "action": { "type": "budget_plan", "amountMinor": 1000000 } } }] },
+    { "id": "bh-10", "category": "budget", "lang": "en", "turns": [{ "text": "Create a budget for me, 45,000 a month", "intent": "budget", "expect": { "kind": "propose", "action": { "type": "budget_change" } } }] },
+    { "id": "bh-11", "category": "budget", "lang": "en", "turns": [{ "text": "How much is left in my weekly budget?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-12", "category": "budget", "lang": "en", "turns": [{ "text": "Can I buy a 2k jacket today?", "intent": "budget", "expect": { "kind": "answer" } }] },
+    { "id": "bh-13", "category": "budget", "lang": "tl", "turns": [{ "text": "Gusto ko mag-budget ng 50k kada buwan", "intent": "budget", "expect": { "kind": "propose", "action": { "type": "budget_change" } } }] },
+    { "id": "bh-14", "category": "budget", "lang": "en", "turns": [{ "text": "Spread my overspending over two weeks", "intent": "budget", "expect": { "kind": "answer" } }] }
+  ]
+}

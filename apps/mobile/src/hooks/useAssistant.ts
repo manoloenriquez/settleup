@@ -21,12 +21,16 @@ import {
   type CurrencyCode,
   type LoadRequest,
   type PendingTurn,
+  versionAt,
 } from "@template/shared";
 import { isCurrencyCode } from "@template/shared";
 import { useAuth } from "@/context/AuthContext";
 import { useOutbox } from "@/context/OutboxContext";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
 import { usePreferences } from "@/context/PreferencesContext";
+import { useBudgetStore } from "@/context/BudgetContext";
+import { useBudget } from "@/hooks/useBudget";
+import { useBudgetActions } from "@/hooks/useBudgetActions";
 import { localTodayISO } from "@/lib/dates";
 import { buildSnapshot, loadGroupData, refreshBalances } from "@/lib/assistant/snapshot";
 import { interpretMessage } from "@/lib/assistant/interpret";
@@ -86,6 +90,9 @@ export function useAssistant() {
   const { enqueue, entries: outboxEntries } = useOutbox();
   const ledger = usePersonalLedger();
   const { preferences } = usePreferences();
+  const budgetView = useBudget();
+  const budgetStore = useBudgetStore();
+  const budgetActions = useBudgetActions();
   const userId = session?.user.id ?? null;
   const storeKey = assistantStoreKey(userId);
 
@@ -146,8 +153,16 @@ export function useAssistant() {
         today: localTodayISO(),
         fullExpenses: fullExpenses.current,
         pendingWrites: outboxEntries.length,
+        budget:
+          budgetStore.status === "ready" && !budgetView.loading
+            ? {
+                doc: budgetStore.doc,
+                sources: budgetView.sources,
+                ...(budgetView.state.status === "active" && budgetView.state.warnings.some((w) => w.kind === "shares_incomplete") ? { sharesComplete: false } : {}),
+              }
+            : null,
       }),
-    [qc, userId, myName, preferences.defaultCurrency, ledger.expenses, outboxEntries.length],
+    [qc, userId, myName, preferences.defaultCurrency, ledger.expenses, outboxEntries.length, budgetStore.status, budgetStore.doc, budgetView.sources, budgetView.state, budgetView.loading],
   );
 
   const executorDeps: ExecutorDeps = {
@@ -161,6 +176,11 @@ export function useAssistant() {
       remove: ledger.remove,
       restore: ledger.restore,
       get: (id) => ledger.expenses.find((e) => e.id === id),
+    },
+    budget: {
+      actions: budgetActions,
+      current: () => budgetStore.doc,
+      configOn: (date) => (budgetStore.doc && !budgetStore.doc.deletedAt ? versionAt(budgetStore.doc, date ?? localTodayISO()).config : null),
     },
   };
 
@@ -298,7 +318,7 @@ export function useAssistant() {
     },
     // executorDeps is rebuilt each render from stable pieces.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messages, snapshot, qc, enqueue, userId, myName, ledger.add, ledger.update, ledger.remove, ledger.restore, ledger.expenses],
+    [messages, snapshot, qc, enqueue, userId, myName, ledger.add, ledger.update, ledger.remove, ledger.restore, ledger.expenses, budgetStore.doc, budgetActions],
   );
 
   const cancel = useCallback((messageId: string) => {
@@ -322,7 +342,7 @@ export function useAssistant() {
       setMessages((prev) => [...prev, { id: Crypto.randomUUID(), role: "assistant", text: result.message, at: new Date().toISOString(), result }]);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messages, qc, enqueue, userId, ledger.remove, ledger.restore, ledger.update, ledger.expenses],
+    [messages, qc, enqueue, userId, ledger.remove, ledger.restore, ledger.update, ledger.expenses, budgetStore.doc, budgetActions],
   );
 
   const clear = useCallback(async () => {

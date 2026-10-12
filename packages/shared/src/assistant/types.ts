@@ -1,6 +1,7 @@
 import type { CurrencyCode } from "../utils/currency";
 import type { CategorySlug } from "../utils/category";
 import type { SplitMode, SplitShare } from "../utils/split-resolve";
+import type { BudgetConfig, BudgetDocument, SpendSource } from "../budget/types";
 
 // ---------------------------------------------------------------------------
 // What the assistant knows (a snapshot built from the app's own cached
@@ -72,8 +73,17 @@ export type SnapshotPersonalExpense = {
   updatedAt: string;
 };
 
+/** The person's budget and the spending it counts (personal + own group shares). */
+export type AssistantBudget = {
+  doc: BudgetDocument | null;
+  sources: SpendSource[];
+  sharesComplete?: boolean;
+};
+
 export type AssistantSnapshot = {
   today: string;
+  /** Absent in older callers; null when the budget store isn't loaded. */
+  budget?: AssistantBudget | null;
   isGuest: boolean;
   online: boolean;
   myName: string | null;
@@ -163,7 +173,19 @@ export type ProposalAction =
   | { type: "create_group"; name: string; currency: CurrencyCode; memberNames: string[] }
   | { type: "add_members"; groupId: string; names: string[] }
   | { type: "remove_member"; groupId: string; memberId: string }
-  | { type: "rename_group"; groupId: string; name: string };
+  | { type: "rename_group"; groupId: string; name: string }
+  /** Budget writes carry the document revision they were computed from (checked at Confirm). */
+  | { type: "budget_setup"; config: BudgetConfig; startDate: string; revision: string }
+  | { type: "budget_change"; config: BudgetConfig; summary: string; effectiveFrom: string | null; revision: string }
+  | {
+      type: "budget_plan";
+      name: string;
+      amountMinor: number;
+      from: string;
+      to: string;
+      coversAllSpending: boolean;
+      revision: string;
+    };
 
 export type Proposal = {
   /** Stable per proposal; also the idempotency key for creates. */
@@ -196,6 +218,10 @@ export type AssistantHints = {
   firstShareMemberId?: string;
   direction?: "they_paid_me" | "i_paid_them";
   personal?: boolean;
+  /** Budget: which figure "my budget" meant. */
+  budgetField?: "monthly" | "weekly" | "daily";
+  /** Budget recovery choice: 1 = all next week, 2–4 = spread over that many weeks. */
+  recoveryWeeks?: number;
 };
 
 export type ClarifyChoice = { label: string; hints: AssistantHints };
@@ -215,4 +241,6 @@ export type AssistantRoute =
   | { screen: "account" }
   | { screen: "sign_in" }
   | { screen: "new_group" }
-  | { screen: "add_friend" };
+  | { screen: "add_friend" }
+  | { screen: "budget" }
+  | { screen: "budget_setup" };
