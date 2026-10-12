@@ -282,8 +282,10 @@ One new action `budget` with slots `budgetIntent` (status, afford, explain,
 savings, forecast, breakdown, setup, change, recover, plan), `budgetField`
 (monthly, weekly, daily, category), `changeKind` (set, increase, decrease),
 `percent`; existing `amount`, `dateMention`, `description`/`searchText`
-(category words) reused. Added to the TS schema and the Swift @Generable; the
-rules interpreter matches budget vocabulary **before** its expense catch-all.
+(category words) reused. Added to the TS schema; the rules interpreter
+matches budget vocabulary **before** its expense catch-all. (Also adding them
+to the Swift @Generable was measured and reverted: it cost two holdout
+questions and fixed no budget case — `docs/ai/AI_BENCHMARK_RESULTS.md`.)
 
 | Brief's tool | Intent | Kind |
 |---|---|---|

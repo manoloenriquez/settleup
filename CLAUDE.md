@@ -13,6 +13,7 @@ This file is authoritative context for Claude Code. Follow these rules strictly.
 - `docs/brain/06-personal-and-guest.md` — guest mode, personal expenses, device stores, sync and guest → account import
 - `docs/audit/2026-10-product-audit.md` — product/UX/architecture audit, findings and phased plan
 - `docs/ai/ASSISTANT_DESIGN.md`, `docs/ai/AI_BENCHMARK_RESULTS.md` — Talli Assistant design and measured AI quality
+- `docs/budgeting/IMPLEMENTATION_PLAN.md`, `docs/budgeting/VALIDATION.md` — adaptive budget: engine math, attribution, sync, UX, Assistant; test evidence
 - `docs/launch/` — launch readiness tracker, gap register, owner actions, release report
 - `docs/launch-readiness.md` — launch status and evidence; `docs/launch-implementation-plan.md` — remaining work and scope decisions
 
