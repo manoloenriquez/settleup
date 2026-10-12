@@ -3,6 +3,7 @@ import { accountOutboxKey, parseOutboxState } from "@template/shared";
 import { queryCacheProjectPrefix } from "@/lib/queryClient";
 import { accountPersonalKey, accountPersonalPrefix } from "@/lib/personal/storage";
 import { assistantAccountPrefix, assistantStoreKey } from "@/lib/assistant/storage";
+import { accountBudgetKey, accountBudgetPrefix, isSyncedBudgetStore } from "@/lib/budget/storage";
 
 const OUTBOX_PREFIX = "tabkind:outbox:v2:";
 
@@ -22,6 +23,7 @@ export function inactiveAccountKeys(
   queryPrefix: string,
   personal?: { prefix: string; currentKey: string | null; isSynced: (key: string) => boolean },
   assistant?: { prefix: string; currentKey: string | null },
+  budget?: { prefix: string; currentKey: string | null; isSynced: (key: string) => boolean },
 ): string[] {
   const outboxPrefix = `${OUTBOX_PREFIX}${encodeURIComponent(project)}:`;
   const currentQuery = currentOwnerId ? `${queryPrefix}${encodeURIComponent(currentOwnerId)}` : null;
@@ -33,6 +35,8 @@ export function inactiveAccountKeys(
     if (personal && key.startsWith(personal.prefix)) return key !== personal.currentKey && personal.isSynced(key);
     // Another account's assistant conversation: never needed by anyone else.
     if (assistant && key.startsWith(assistant.prefix)) return key !== assistant.currentKey;
+    // An account's budget: removable once the server has it.
+    if (budget && key.startsWith(budget.prefix)) return key !== budget.currentKey && budget.isSynced(key);
     return false;
   });
 }
@@ -72,7 +76,10 @@ export async function purgeInactiveAccountData(currentOwnerId: string | null): P
   const project = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
   const keys = await AsyncStorage.getAllKeys();
   const personalPrefix = accountPersonalPrefix();
-  const readKeys = keys.filter((key) => key.startsWith(OUTBOX_PREFIX) || key.startsWith(personalPrefix));
+  const budgetPrefix = accountBudgetPrefix();
+  const readKeys = keys.filter(
+    (key) => key.startsWith(OUTBOX_PREFIX) || key.startsWith(personalPrefix) || key.startsWith(budgetPrefix),
+  );
   const values = new Map(await AsyncStorage.multiGet(readKeys));
   const doomed = inactiveAccountKeys(
     keys,
@@ -86,6 +93,11 @@ export async function purgeInactiveAccountData(currentOwnerId: string | null): P
       isSynced: (key) => isFullySyncedLedger(values.get(key) ?? null),
     },
     { prefix: assistantAccountPrefix(), currentKey: currentOwnerId ? assistantStoreKey(currentOwnerId) : null },
+    {
+      prefix: budgetPrefix,
+      currentKey: currentOwnerId ? accountBudgetKey(currentOwnerId) : null,
+      isSynced: (key) => isSyncedBudgetStore(values.get(key) ?? null),
+    },
   );
   if (doomed.length > 0) await AsyncStorage.multiRemove(doomed);
 }

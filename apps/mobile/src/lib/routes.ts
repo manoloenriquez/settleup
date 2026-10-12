@@ -2,6 +2,10 @@
 export const ROUTES = {
   home: "/(protected)/(tabs)/home",
   spending: "/(protected)/(tabs)/spending",
+  budget: "/(protected)/(tabs)/spending/budget",
+  budgetSetup: "/(protected)/(tabs)/spending/budget-setup",
+  budgetHistory: "/(protected)/(tabs)/spending/budget-history",
+  budgetPlan: "/(protected)/(tabs)/spending/budget-plan",
   shared: "/(protected)/(tabs)/shared",
   account: "/(protected)/(tabs)/account",
   assistant: "/(protected)/(tabs)/assistant",

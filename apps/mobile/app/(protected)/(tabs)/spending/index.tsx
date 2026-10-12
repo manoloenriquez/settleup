@@ -10,6 +10,9 @@ import { usePreferences } from "@/context/PreferencesContext";
 import { useAddMenu } from "@/hooks/useAddMenu";
 import { largeTitleOptions } from "@/lib/navigation";
 import { monthLabel } from "@/lib/dates";
+import { ROUTES } from "@/lib/routes";
+import { BudgetSummaryCard } from "@/components/budget/BudgetSummaryCard";
+import { useBudget } from "@/hooks/useBudget";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 
 export default function SpendingScreen() {
@@ -18,6 +21,7 @@ export default function SpendingScreen() {
   const { preferences } = usePreferences();
   const { openAddMenu, addExpense } = useAddMenu();
   const [query, setQuery] = useState("");
+  const budget = useBudget();
 
   const sections = useMemo(
     () =>
@@ -48,7 +52,21 @@ export default function SpendingScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled
-        ListHeaderComponent={status === "error" && error ? <ErrorBanner message={error} onRetry={reload} /> : null}
+        ListHeaderComponent={
+          <>
+            {status === "error" && error ? <ErrorBanner message={error} onRetry={reload} /> : null}
+            {!query && (
+              <View style={styles.budget}>
+                <BudgetSummaryCard
+                  state={budget.state}
+                  loading={budget.loading}
+                  onOpen={() => router.push(ROUTES.budget)}
+                  onSetUp={() => router.push(ROUTES.budgetSetup)}
+                />
+              </View>
+            )}
+          </>
+        }
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader} accessibilityRole="header">
             <Text style={styles.sectionTitle}>{monthLabel(section.month)}</Text>
@@ -87,6 +105,7 @@ export default function SpendingScreen() {
 const styles = StyleSheet.create({
   list: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: spacing["3xl"] },
+  budget: { paddingHorizontal: spacing.base, paddingTop: spacing.sm },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

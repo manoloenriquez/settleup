@@ -149,8 +149,15 @@ export function previewChange(
   config: BudgetConfig,
   sources: readonly SpendSource[],
   today: ISODate,
+  effectiveFrom?: ISODate,
 ): BudgetPreview {
-  const changed = withConfigChange(doc, config, today, { planId: PREVIEW_IDS.plan, now: PREVIEW_NOW, source: "manual", summary: "Preview" });
+  const changed = withConfigChange(doc, config, today, {
+    planId: PREVIEW_IDS.plan,
+    now: PREVIEW_NOW,
+    source: "manual",
+    summary: "Preview",
+    ...(effectiveFrom ? { effectiveFrom } : {}),
+  });
   return previewFrom(computeBudget({ doc: changed, today, sources }));
 }
 

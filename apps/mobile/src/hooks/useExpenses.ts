@@ -117,6 +117,7 @@ export function useExpenseMutationInvalidations(groupId: string) {
     void qc.invalidateQueries({ queryKey: ["activity", groupId] });
     void qc.invalidateQueries({ queryKey: ["dashboard"] });
     void qc.invalidateQueries({ queryKey: ["groups"] });
+    void qc.invalidateQueries({ queryKey: ["budgetShares"] });
   };
 }
 

@@ -72,6 +72,24 @@ export function changeEffectiveFrom(doc: BudgetDocument, today: ISODate): ISODat
   return maxDate(segmentContaining(doc, today).start, start);
 }
 
+/** Short fingerprint of a document's content: a preview made from one revision can't be applied to another. */
+export function budgetRevision(doc: BudgetDocument | null): string {
+  if (!doc) return "none";
+  const text = [
+    doc.id,
+    doc.deletedAt ?? "",
+    doc.startDate,
+    ...doc.plans.map((p) => p.id).sort(),
+    ...doc.annotations.map((a) => `${a.id}:${a.deletedAt ?? ""}`).sort(),
+  ].join("|");
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${doc.plans.length}.${doc.annotations.length}.${hash.toString(36)}`;
+}
+
 /** A budget's currency is fixed when it is created. */
 export function budgetCurrency(doc: BudgetDocument): CurrencyCode {
   const first = [...doc.plans].sort((a, b) => (newer(a, b) ? 1 : -1))[0];
@@ -83,7 +101,14 @@ export function liveAnnotations(doc: BudgetDocument): BudgetAnnotation[] {
   return doc.annotations.filter((a) => a.deletedAt === null);
 }
 
-export type PlanMeta = { planId: string; now: string; source: BudgetPlanVersion["source"]; summary: string };
+export type PlanMeta = {
+  planId: string;
+  now: string;
+  source: BudgetPlanVersion["source"];
+  summary: string;
+  /** A later start than this week (e.g. next month's first day); never earlier. */
+  effectiveFrom?: ISODate;
+};
 
 export function createBudgetDocument(params: {
   id: string;
@@ -118,7 +143,8 @@ export function withConfigChange(doc: BudgetDocument, config: BudgetConfig, toda
   if (parsed.currency !== budgetCurrency(doc)) {
     throw new Error("A budget keeps its currency. Turn it off and set up a new one to change it.");
   }
-  const effectiveFrom = changeEffectiveFrom(doc, today);
+  const earliest = changeEffectiveFrom(doc, today);
+  const effectiveFrom = meta.effectiveFrom && meta.effectiveFrom > earliest ? meta.effectiveFrom : earliest;
   return budgetDocumentSchema.parse({
     ...doc,
     plans: [

@@ -56,7 +56,8 @@ import {
 import { parseGroupPrefill } from "@/lib/assistant/prefill";
 import { CategoryPicker } from "@/components/groups/CategoryPicker";
 import { SmartSplitSheet } from "@/components/groups/SmartSplitSheet";
-import { equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, isUnusuallyLarge, parseAmountInput, type CurrencyCode } from "@template/shared";
+import { useBudgetFeedback } from "@/hooks/useBudget";
+import { budgetCategory, equalSplit, percentSplit, sharesSplit, inferReceiptCategory, amountToInput, currencyPrecision, formatAmount, isUnusuallyLarge, parseAmountInput, type CurrencyCode } from "@template/shared";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics";
 import { colors, fontSize, fontWeight, spacing, borderRadius } from "@/theme";
@@ -145,6 +146,7 @@ export default function AddExpenseScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const toast = useToast();
+  const budgetFeedback = useBudgetFeedback();
 
   const membersQ = useMembers(groupId);
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
@@ -538,13 +540,41 @@ export default function AddExpenseScreen() {
     run();
   }
 
+  /** The signed-in person's share of what is being saved (0 when they aren't in it). */
+  function myShareOf(amountCents: number): number {
+    // Itemized shares come from the line items; the toast skips the budget line rather than guess.
+    if (mode === "itemized" || !myMember || !selectedMembers.has(myMember.id)) return 0;
+    if (splitMode === "equal") {
+      const ids = [...selectedMembers];
+      return equalSplit(amountCents, ids.length)[ids.indexOf(myMember.id)] ?? 0;
+    }
+    return resolveCustomSplits(amountCents)?.find((s) => s.memberId === myMember.id)?.shareCents ?? 0;
+  }
+
   /** After any save: forget the draft, remember the group, offer Undo, go back. */
   function afterSaved(expenseId: string | null): void {
     clearPersistedDraft();
     void rememberLastGroup(session?.user.id ?? "", groupId);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const share = myShareOf(parseMoney(amount) ?? 0);
+    const budgetLine =
+      share > 0
+        ? budgetFeedback({
+            ref: `group:${expenseId ?? "new"}`,
+            source: {
+              ref: `group:${expenseId ?? "new"}`,
+              kind: "group",
+              description: itemName.trim(),
+              amountMinor: share,
+              currency: expenseCurrency,
+              category: budgetCategory(null, null, itemName),
+              date: expenseDate,
+            },
+          })
+        : null;
+    const added = budgetLine ? `Expense added · ${budgetLine}` : "Expense added";
     if (expenseId) {
-      toast.withAction("Expense added", {
+      toast.withAction(added, {
         label: "Undo",
         onPress: () => {
           // Same path as deleting from the list: online it deletes the row,
@@ -557,7 +587,7 @@ export default function AddExpenseScreen() {
         },
       });
     } else {
-      toast.success("Expense added");
+      toast.success(added);
     }
     router.back();
   }

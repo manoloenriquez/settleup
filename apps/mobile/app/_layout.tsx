@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { OutboxProvider } from "@/context/OutboxContext";
 import { PreferencesProvider, usePreferences } from "@/context/PreferencesContext";
 import { PersonalLedgerProvider } from "@/context/PersonalLedgerContext";
+import { BudgetProvider } from "@/context/BudgetContext";
 import { GuestImportPrompt } from "@/components/GuestImportPrompt";
 import { ToastProvider } from "@/components/ui/Toast";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
@@ -296,6 +297,7 @@ function RootLayout() {
           <AuthProvider>
             <PreferencesProvider>
               <PersonalLedgerProvider>
+                <BudgetProvider>
                 <ToastProvider>
                   <OutboxProvider>
                     <StatusBar style="auto" />
@@ -307,6 +309,7 @@ function RootLayout() {
                     <RootStack />
                   </OutboxProvider>
                 </ToastProvider>
+                </BudgetProvider>
               </PersonalLedgerProvider>
             </PreferencesProvider>
           </AuthProvider>

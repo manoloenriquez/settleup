@@ -9,6 +9,8 @@ import { HeaderAddButton } from "@/components/HeaderAddButton";
 import { ExpenseRow } from "@/components/personal/ExpenseRow";
 import { MonthSummaryCard } from "@/components/personal/MonthSummaryCard";
 import { SharedBalances } from "@/components/home/SharedBalances";
+import { BudgetSummaryCard } from "@/components/budget/BudgetSummaryCard";
+import { useBudget } from "@/hooks/useBudget";
 import { useAuth } from "@/context/AuthContext";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
 import { usePreferences } from "@/context/PreferencesContext";
@@ -34,6 +36,7 @@ export default function HomeScreen() {
   const { data: groups } = useGroups();
   const sharesFirst = !!session && (groups ?? []).length > 0;
   const { preferences } = usePreferences();
+  const budget = useBudget();
   const { openAddMenu, addExpense, scanReceipt } = useAddMenu();
   const promptAccount = useAccountPrompt();
   const [refreshing, setRefreshing] = useState(false);
@@ -98,6 +101,10 @@ export default function HomeScreen() {
         )}
 
         {sharesFirst && <SharedBalances />}
+
+        {budget.state.status !== "off" && (
+          <BudgetSummaryCard state={budget.state} loading={budget.loading} onOpen={() => router.push(ROUTES.budget)} />
+        )}
 
         <MonthSummaryCard summary={summary} />
 

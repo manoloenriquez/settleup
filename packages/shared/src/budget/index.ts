@@ -13,3 +13,4 @@ export * from "./attribute";
 export * from "./engine";
 export * from "./merge";
 export * from "./insights";
+export * from "./copy";

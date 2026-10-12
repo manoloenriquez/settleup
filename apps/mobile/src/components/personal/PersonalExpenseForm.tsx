@@ -21,6 +21,7 @@ import {
   inferCategorySlug,
   isUnusuallyLarge,
   parseAmountInput,
+  personalToSource,
   validatePersonalExpenseInput,
   type CategorySlug,
   type CurrencyCode,
@@ -33,6 +34,7 @@ import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { CategoryChips } from "@/components/personal/CategoryChips";
 import { ReceiptScanner } from "@/components/groups/ReceiptScanner";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
+import { useBudgetFeedback } from "@/hooks/useBudget";
 import { usePreferences } from "@/context/PreferencesContext";
 import { useReceiptScan } from "@/hooks/useReceiptScan";
 import { useAiAvailability } from "@/hooks/useAiAvailability";
@@ -60,6 +62,7 @@ export function PersonalExpenseForm({ expense, initialAssist = "none", prefill }
   const navigation = useNavigation();
   const toast = useToast();
   const ledger = usePersonalLedger();
+  const budgetFeedback = useBudgetFeedback();
   const { preferences } = usePreferences();
   const ai = useAiAvailability();
   const receiptScan = useReceiptScan();
@@ -181,10 +184,28 @@ export function PersonalExpenseForm({ expense, initialAssist = "none", prefill }
     savingRef.current = true;
     setSaving(true);
     try {
-      if (expense) await ledger.update(expense.id, input);
-      else await ledger.add(input);
+      let savedId: string;
+      if (expense) {
+        await ledger.update(expense.id, input);
+        savedId = expense.id;
+      } else {
+        savedId = await ledger.add(input);
+      }
+      const budgetLine = budgetFeedback({
+        ref: `personal:${savedId}`,
+        source: personalToSource({
+          id: savedId,
+          description: input.description,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          category: input.category,
+          date: input.date,
+          deletedAt: null,
+        }),
+      });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.success(editing ? "Expense updated" : `Saved ${formatAmount(input.amountMinor, input.currency)}`);
+      const saved = editing ? "Expense updated" : `Saved ${formatAmount(input.amountMinor, input.currency)}`;
+      toast.success(budgetLine ? `${saved} · ${budgetLine}` : saved);
       router.back();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "The expense couldn’t be saved. Try again.");
