@@ -85,7 +85,7 @@ export type OutboxEntry = {
    */
   entityId: string;
   groupId: string;
-  /** The exact RPC/table input to replay, as built by the settleup builders. */
+  /** The exact RPC/table input to replay, as built by the group (settleup schema) builders. */
   payload: OutboxJson;
   status: OutboxEntryStatus;
   /** True once transmission starts. Missing in old queues means the outcome may be unknown. */

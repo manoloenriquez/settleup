@@ -50,7 +50,7 @@ export const updatePasswordSchema = z
   });
 
 // ---------------------------------------------------------------------------
-// SettleUp schemas
+// Talli schemas
 // ---------------------------------------------------------------------------
 
 export const createGroupSchema = z.object({

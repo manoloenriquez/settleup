@@ -45,7 +45,7 @@ Auth guards in Server Actions:
 - `assertAuth()` — throws `AuthError` (caught by Next.js), used in actions
 - `requireAuth()` — redirects to sign-in, used in page layouts
 
-## SettleUp Data Flow
+## Talli Data Flow
 
 ```
 Expense Creation:

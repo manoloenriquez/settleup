@@ -1,5 +1,9 @@
 # SettleUp — Rebrand & UI/UX Audit
 
+> **Superseded.** This April 2026 record covers the *Prototype → SettleUp* rename.
+> The product is now **Talli**; the current brand inventory, what was renamed and
+> what deliberately keeps a legacy name is in [`docs/brand/REBRAND.md`](brand/REBRAND.md).
+
 Date: 2026-04-06
 
 ---

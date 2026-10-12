@@ -127,7 +127,7 @@ Validate MIME type + file size in the Server Action before uploading.
 
 ## Schema Reference
 
-All SettleUp tables live in the **`settleup` schema**. Query with `.schema("settleup").from(...)`.
+All Talli tables live in the **`settleup` schema** (the name predates the Talli brand and is kept: renaming a schema would break every RPC, policy, client and migration). Query with `.schema("settleup").from(...)`.
 
 ### `settleup.groups`
 | Column           | Type          | Notes                                    |

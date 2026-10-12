@@ -1,4 +1,4 @@
-# SettleUp Design System
+# Talli Design System
 
 Applies to both **web** (Next.js + Tailwind v4) and **mobile** (Expo + React Native StyleSheet).
 

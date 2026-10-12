@@ -1,4 +1,6 @@
-# Render Blueprint for the SettleUp API (apps/api): account closure only; AI runs on-device.
+# Render Blueprint for the Talli API (apps/api): account closure only; AI runs on-device.
+# The service keeps its original name (settleup-api): renaming it here would make
+# Render create a second service instead of updating the existing one.
 # Alternative to Railway — the same Dockerfile is used. Use the "starter" (paid)
 # plan so the service does not spin down (free tier cold-starts ~30-60s).
 services:

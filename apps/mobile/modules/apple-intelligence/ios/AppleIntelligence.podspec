@@ -3,8 +3,8 @@ Pod::Spec.new do |s|
   s.version        = '1.0.0'
   s.summary        = 'On-device receipt, expense and insight intelligence via Apple FoundationModels and Vision'
   s.description    = 'Local Expo module. Everything runs on-device: Vision OCR, FoundationModels guided generation. No network access.'
-  s.author         = 'SettleUp'
-  s.homepage       = 'https://github.com/settleup'
+  s.author         = 'Talli'
+  s.homepage       = 'https://github.com/manoloenriquez/settleup'
   s.license        = { type: 'MIT' }
   s.platforms      = { :ios => '27.0' }
   s.swift_version  = '5.9'

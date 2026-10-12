@@ -1,6 +1,6 @@
 # 04 — Offline Architecture
 
-How SettleUp stays usable without a connection, on both the web PWA and the
+How Talli stays usable without a connection, on both the web PWA and the
 Expo mobile app. Reads come from local caches; a small set of high-value
 writes queue locally and sync automatically when connectivity returns.
 
