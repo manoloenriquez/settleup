@@ -73,6 +73,7 @@ xcodebuild -exportArchive -archivePath build/Talli.xcarchive \
 | 4 | 1.0.0 | 2026-10-01 | Signed-in journey fixes, QR cleanup, recurring permissions, light-only appearance, Dynamic Type. Archived; uploaded by the owner. |
 | 5 | 1.0.0 | 2026-10-01 | Dark mode, single Save on New Expense, invite links back to Shared, remove QR, recurring controls by permission, large-text fixes. Update path from build 3 checked. Uploaded 2026-10-01. |
 | 6 | 1.0.0 | 2026-10-08 (uploaded by Claude via `xcodebuild -exportArchive`; upgrade from build 5 checked) | Talli Assistant; offline currency fix (P0); edit date and %/shares/exact on mobile; receipt quantities; background-tab idle fix. |
+| 7 | 1.0.0 | 2026-10-12 (uploaded by Claude from `main` at ad4e8d1 + build bump; upgrade from build 6 checked) | UX pass: one-screen onboarding, faster group expenses (header Save + Undo, last-group shortcut), "Who's in?" on new groups, your-balance-first screens, tappable expense rows, same-name join warning and per-person invites, Settings tabs, Assistant settle-in-full / Edit / personal edit-delete, trust fixes (member history guard, receipt amounts, payment details). |
 
 ## What to Test (build 6)
 
@@ -80,6 +81,26 @@ xcodebuild -exportArchive -archivePath build/Talli.xcarchive \
 - Edit a group expense: change its date; switch the split to %, Shares or Exact.
 - Add an expense in USD or JPY **offline**, reconnect: it must keep its currency (build 5 stored it as pesos).
 - On an iPhone without Apple Intelligence: the Assistant still handles "I paid 300 for coffee" and "Who owes me?".
+
+## What to Test (build 7)
+
+UX pass: fewer steps in the core flows (`docs/ux-validation-report.md`).
+
+- **First launch:** one screen, then **Get Started**. Add an expense without an account.
+- **Group expense:**
+  - Open the add form: the amount is focused and Save is at the top right.
+  - Saving shows "Expense added · Undo".
+  - The + menu offers "Split with {your last group}".
+- **New group:** type people in "Who's in?" (e.g. "Carla, Dina"). They should be in the group straight away.
+- **Group screen:**
+  - It says what *you* owe or are owed, with **Settle Up** right there.
+  - Tap an expense row to edit it; the row says who paid and your part.
+- **Joining with a code:** if the group already lists someone with your name who isn't on Talli, you're warned first. In Group Settings › People, **Invite** shares that person's own link.
+- **Assistant:**
+  - "Settle up with <someone> in <group>" (no amount).
+  - **Edit** on a preview opens the form.
+  - "Change the coffee to 220" and "Delete the coffee" work, even without an account.
+- Removing a member who's part of expenses is refused with an explanation.
 
 ## Follow-ups that don't block TestFlight
 
