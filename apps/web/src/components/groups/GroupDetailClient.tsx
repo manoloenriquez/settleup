@@ -219,6 +219,12 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
   }
 
   const readOnly = group.owner_user_id === null;
+  // A friend ledger always has exactly the two friends (the database refuses a
+  // third member), so it offers no add-member or invite controls.
+  const friendLedger = group.kind === "direct";
+  // An admin can turn the group link off (on any device); then it is dead and
+  // must not be offered. Older cached rows lack the field: treat as on.
+  const linkOn = group.share_enabled !== false;
   const isOwner = group.owner_user_id === currentUserId;
   const currentMember = members.find((m) => m.user_id === currentUserId);
   const isAdminOrOwner = !readOnly && (isOwner || currentMember?.role === "admin");
@@ -268,14 +274,18 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       href: `/groups/${groupId}/settings`,
       icon: setupChecklistIcons.claim,
     },
-    {
-      label: "Copy group balance link",
-      complete: linkCopied,
-      onCopied: markLinkCopied,
-      copyText: `${origin}/g/${group.share_token}`,
-      copyLabel: "Copy balance link",
-      icon: setupChecklistIcons.share,
-    },
+    ...(linkOn
+      ? [
+          {
+            label: "Copy group balance link",
+            complete: linkCopied,
+            onCopied: markLinkCopied,
+            copyText: `${origin}/g/${group.share_token}`,
+            copyLabel: "Copy balance link",
+            icon: setupChecklistIcons.share,
+          },
+        ]
+      : []),
     {
       label: "Add first expense",
       complete: totalExpenseCount > 0,
@@ -307,10 +317,15 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
         onShowExpenseDialogChange={setShowExpenseDialog}
       />
 
-      {!readOnly && <GroupSetupChecklist groupId={groupId} items={setupItems} />}
+      {!readOnly && !friendLedger && <GroupSetupChecklist groupId={groupId} items={setupItems} />}
 
       {/* Member avatars */}
-      <MemberAvatarRow groupId={groupId} members={members} currentUserId={currentUserId} />
+      <MemberAvatarRow
+        groupId={groupId}
+        members={members}
+        currentUserId={currentUserId}
+        canAdd={!readOnly && !friendLedger}
+      />
 
       {/* Group balance card */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -381,17 +396,28 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
           <Share2 size={14} className="text-slate-400 shrink-0" />
-          <p className="text-xs text-slate-400 truncate font-mono">
-            {origin}/g/{group.share_token}
-          </p>
+          {linkOn ? (
+            <p className="text-xs text-slate-400 truncate font-mono">
+              {origin}/g/{group.share_token}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">
+              Shared link is off.{" "}
+              <Link href={`/groups/${groupId}/settings`} className="font-medium text-brand-600 hover:text-brand-800">
+                Link settings
+              </Link>
+            </p>
+          )}
         </div>
         <div className="flex gap-2 shrink-0">
           {isDev && <SeedButton />}
-          <CopyButton
-            text={`${origin}/g/${group.share_token}`}
-            label="Copy balance link"
-            onCopied={markLinkCopied}
-          />
+          {linkOn && (
+            <CopyButton
+              text={`${origin}/g/${group.share_token}`}
+              label="Copy balance link"
+              onCopied={markLinkCopied}
+            />
+          )}
         </div>
       </div>
 
@@ -452,7 +478,7 @@ export function GroupDetailClient({ groupId, isDev }: Props): React.ReactElement
               creditorProfiles={creditorProfiles}
             />
             <div className="border-t border-slate-100 pt-4">
-              {!readOnly && <AddMemberForm groupId={groupId} />}
+              {!readOnly && !friendLedger && <AddMemberForm groupId={groupId} />}
             </div>
             <div className="border-t border-slate-100 pt-4">
               <ActivityTimeline activities={activities} />

@@ -7,6 +7,7 @@ import { ROUTES } from "@template/shared";
 import { cachedProfile } from "@/lib/supabase/queries";
 import { signOut } from "@/app/actions/auth";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
+import { ProfileNameForm } from "@/components/account/ProfileNameForm";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -21,6 +22,13 @@ export default async function AccountPage(): Promise<React.ReactElement> {
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
       <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Account</h1>
       <p className="mt-1 text-sm text-slate-500">Manage your settings and data.</p>
+
+      <section className="mt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Profile</h2>
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <ProfileNameForm initialName={profile.full_name} />
+        </div>
+      </section>
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Settings</h2>

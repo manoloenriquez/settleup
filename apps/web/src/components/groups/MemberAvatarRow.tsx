@@ -11,6 +11,8 @@ type Props = {
   groupId: string;
   members: GroupMember[];
   currentUserId: string;
+  /** False for read-only groups and friend ledgers (always exactly two people). */
+  canAdd?: boolean;
 };
 
 function firstName(name: string): string {
@@ -21,7 +23,7 @@ function firstName(name: string): string {
  * Horizontal row of member avatars with a trailing dashed "+ Add" circle,
  * per the mockup's group-details header.
  */
-export function MemberAvatarRow({ groupId, members, currentUserId }: Props): React.ReactElement {
+export function MemberAvatarRow({ groupId, members, currentUserId, canAdd = true }: Props): React.ReactElement {
   const [showAdd, setShowAdd] = useState(false);
 
   return (
@@ -41,21 +43,25 @@ export function MemberAvatarRow({ groupId, members, currentUserId }: Props): Rea
           );
         })}
 
-        <button
-          type="button"
-          onClick={() => setShowAdd(true)}
-          className="flex w-14 shrink-0 flex-col items-center gap-1.5"
-        >
-          <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 transition-colors hover:border-brand-400 hover:text-brand-600">
-            <Plus size={20} />
-          </span>
-          <span className="text-xs font-medium text-slate-500">Add</span>
-        </button>
+        {canAdd && (
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="flex w-14 shrink-0 flex-col items-center gap-1.5"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 transition-colors hover:border-brand-400 hover:text-brand-600">
+              <Plus size={20} />
+            </span>
+            <span className="text-xs font-medium text-slate-500">Add</span>
+          </button>
+        )}
       </div>
 
-      <ContentDialog open={showAdd} onClose={() => setShowAdd(false)} title="Add members">
-        <AddMemberForm groupId={groupId} />
-      </ContentDialog>
+      {canAdd && (
+        <ContentDialog open={showAdd} onClose={() => setShowAdd(false)} title="Add members">
+          <AddMemberForm groupId={groupId} />
+        </ContentDialog>
+      )}
     </>
   );
 }

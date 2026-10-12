@@ -11,9 +11,11 @@ type Props = {
   groupId: string;
   groupName: string;
   shareToken: string;
+  /** The printable summary is the shared page, so it needs the link on. */
+  shareEnabled?: boolean;
 };
 
-export function ExportSection({ groupId, groupName, shareToken }: Props): React.ReactElement {
+export function ExportSection({ groupId, groupName, shareToken, shareEnabled = true }: Props): React.ReactElement {
   const [isPending, startTransition] = useTransition();
 
   function handleDownload(): void {
@@ -42,17 +44,21 @@ export function ExportSection({ groupId, groupName, shareToken }: Props): React.
         Export
       </h2>
       <p className="text-sm text-slate-500 mb-4">
-        Download the full expense and payment history, or print the group summary.
+        {shareEnabled
+          ? "Download the full expense and payment history, or print the group summary."
+          : "Download the full expense and payment history. Turn on the shared link to print the group summary."}
       </p>
       <div className="flex gap-2">
         <Button onClick={handleDownload} isLoading={isPending} leftIcon={Download}>
           Download CSV
         </Button>
-        <a href={`/g/${shareToken}`} target="_blank" rel="noopener noreferrer">
-          <Button variant="secondary" leftIcon={Printer}>
-            Print summary
-          </Button>
-        </a>
+        {shareEnabled && (
+          <a href={`/g/${shareToken}`} target="_blank" rel="noopener noreferrer">
+            <Button variant="secondary" leftIcon={Printer}>
+              Print summary
+            </Button>
+          </a>
+        )}
       </div>
     </section>
   );

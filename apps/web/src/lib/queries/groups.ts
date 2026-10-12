@@ -12,7 +12,15 @@ import { getMyCurrencies } from "@/lib/queries/currency";
 /** The slice of the group row the detail view needs. */
 export type GroupRow = Pick<
   Group,
-  "id" | "name" | "share_token" | "owner_user_id" | "budget_cents" | "default_currency_code" | "budget_currency_code"
+  | "id"
+  | "name"
+  | "share_token"
+  | "owner_user_id"
+  | "budget_cents"
+  | "default_currency_code"
+  | "budget_currency_code"
+  | "kind"
+  | "share_enabled"
 >;
 
 /** Missing or inaccessible (RLS) group resolves to null, not an error. */
@@ -20,7 +28,7 @@ export async function getGroupRow(groupId: string): Promise<ApiResponse<GroupRow
   const { data, error } = await supabase
     .schema("settleup")
     .from("groups")
-    .select("id, name, share_token, owner_user_id, budget_cents, default_currency_code, budget_currency_code")
+    .select("id, name, share_token, owner_user_id, budget_cents, default_currency_code, budget_currency_code, kind, share_enabled")
     .eq("id", groupId)
     .maybeSingle();
 
@@ -36,6 +44,11 @@ export async function getGroupRow(groupId: string): Promise<ApiResponse<GroupRow
 export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[]>> {
   const currencies = await getMyCurrencies();
   if (currencies.error !== null) return { data: null, error: currencies.error };
+  // The stats RPC doesn't say which rows are friend ledgers (two-person
+  // groups made by accepting a friend invite); RLS limits this to mine.
+  const direct = await supabase.schema("settleup").from("groups").select("id").eq("kind", "direct");
+  if (direct.error) return { data: null, error: "Failed to load groups." };
+  const directIds = new Set((direct.data ?? []).map((g) => g.id));
   const results = await Promise.all(
     currencies.data.map(async (currency: CurrencyCode) => {
       const { data, error } = await supabase
@@ -50,7 +63,10 @@ export async function listGroupsWithStats(): Promise<ApiResponse<GroupWithStats[
     if (result.error !== null) return { data: null, error: result.error };
     rows.push({ currency, rows: result.data ?? [] });
   }
-  return { data: groupRowsInDefaultCurrency(rows), error: null };
+  return {
+    data: groupRowsInDefaultCurrency(rows).map((g) => ({ ...g, kind: directIds.has(g.id) ? "direct" : "shared" })),
+    error: null,
+  };
 }
 
 export async function listArchivedGroups(): Promise<ApiResponse<Group[]>> {

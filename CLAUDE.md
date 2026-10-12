@@ -14,6 +14,8 @@ This file is authoritative context for Claude Code. Follow these rules strictly.
 - `docs/audit/2026-10-product-audit.md` — product/UX/architecture audit, findings and phased plan
 - `docs/ai/ASSISTANT_DESIGN.md`, `docs/ai/AI_BENCHMARK_RESULTS.md` — Talli Assistant design and measured AI quality
 - `docs/budgeting/IMPLEMENTATION_PLAN.md`, `docs/budgeting/VALIDATION.md` — adaptive budget: engine math, attribution, sync, UX, Assistant; test evidence
+- `docs/parity/PARITY_AUDIT.md` — mobile ↔ web feature matrix, ranked web ports, roadmap
+- `docs/brand/REBRAND.md` — Talli brand inventory; legacy `settleup`/`tabkind` identifiers kept on purpose (read before renaming anything stored or deployed)
 - `docs/launch/` — launch readiness tracker, gap register, owner actions, release report
 - `docs/launch-readiness.md` — launch status and evidence; `docs/launch-implementation-plan.md` — remaining work and scope decisions
 

@@ -17,6 +17,10 @@ export function GroupsClient(): React.ReactElement {
   const pendingGroups = usePendingGroups();
 
   const groups = groupsQ.data;
+  // Friend ledgers (two-person groups from a friend invite) get their own list,
+  // as on the iPhone app's Shared tab.
+  const plainGroups = groups?.filter((g) => g.kind !== "direct");
+  const friendLedgers = groups?.filter((g) => g.kind === "direct") ?? [];
   const error = groupsQ.isError ? groupsQ.error.message : null;
 
   return (
@@ -83,8 +87,17 @@ export function GroupsClient(): React.ReactElement {
         </Card>
       )}
 
-      {groups && groups.length > 0 && (
-        <GroupList groups={groups} />
+      {plainGroups && plainGroups.length > 0 && (
+        <GroupList groups={plainGroups} />
+      )}
+
+      {friendLedgers.length > 0 && (
+        <section aria-labelledby="friends-heading" className="flex flex-col gap-3">
+          <h2 id="friends-heading" className="text-base font-semibold text-slate-700">
+            Friends
+          </h2>
+          <GroupList groups={friendLedgers} showControls={false} />
+        </section>
       )}
 
       <ArchivedGroupsSection groups={archivedQ.data ?? []} />

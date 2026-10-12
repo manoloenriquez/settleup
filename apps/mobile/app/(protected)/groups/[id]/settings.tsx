@@ -622,7 +622,9 @@ export default function GroupSettingsScreen() {
                           ...(isOwner && m.role !== "owner" && m.user_id
                             ? [{ label: "Make Owner", run: () => confirmTransferOwnership(m.id, m.display_name) }]
                             : []),
-                          ...(isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id
+                          // Not in a friend ledger: removing one friend would orphan the
+                          // friendship; Remove Friend on the Friends list ends it properly.
+                          ...(isAdminOrOwner && m.role !== "owner" && m.user_id !== user?.id && !isDirect
                             ? [
                                 {
                                   label: "Remove from Group",
