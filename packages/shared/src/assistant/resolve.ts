@@ -5,7 +5,8 @@ import { resolveDateMention } from "../utils/date-mention";
 import { inferSplitMode, resolveSplit, type SplitMode, type SplitShare } from "../utils/split-resolve";
 import { sharesSplit } from "../utils/split";
 import type { AssistantCommand } from "./command";
-import { dateOf, interpretWithRules } from "./rules";
+import { budgetDateOf, dateOf, interpretWithRules } from "./rules";
+import { resolveBudget } from "./budget";
 import {
   balanceOverview,
   balanceWithPerson,
@@ -1571,6 +1572,8 @@ function resolveCommandInner(input: ResolveInput): AssistantPlan | LoadRequest {
           : { kind: "navigate", text: "Opening your payment details.", route: { screen: "payment_details" } };
       }
       return { kind: "navigate", text: "Opening Account.", route: { screen: "account" } };
+    case "budget":
+      return resolveBudget({ command, text: input.text, snapshot: input.snapshot, hints: ctx.hints, newId: input.newId });
     case "help":
       return { kind: "answer", text: HELP_TEXT };
     default:
@@ -1606,7 +1609,7 @@ export type { ProposalAction };
 
 export type PendingTurn = { command: AssistantCommand; text: string };
 
-const CONTINUABLE = new Set<AssistantCommand["action"]>(["add_expense", "edit_expense", "record_payment", "create_group", "add_member", "rename_group"]);
+const CONTINUABLE = new Set<AssistantCommand["action"]>(["budget", "add_expense", "edit_expense", "record_payment", "create_group", "add_member", "rename_group"]);
 
 export function mergeFollowUp(
   pending: PendingTurn | null,
@@ -1621,7 +1624,12 @@ export function mergeFollowUp(
     (command.action === "unsupported" ||
       command.action === pending.command.action ||
       (command.action === "edit_expense" && refersBack && pending.command.action !== "edit_expense") ||
-      (command.action === "add_expense" && !command.description && pending.command.action === "add_expense"));
+      (command.action === "add_expense" && !command.description && pending.command.action === "add_expense") ||
+      // "How much?" after a budget question: a bare amount or date answers it.
+      (pending.command.action === "budget" &&
+        (command.action === "add_expense" || command.action === "budget") &&
+        !command.payerName &&
+        command.participantNames.length === 0));
   if (!fill) return { command, text, merged: false };
   const merged: AssistantCommand = { ...pending.command };
   const tokens = numberTokens(text);
@@ -1630,6 +1638,7 @@ export function mergeFollowUp(
     merged.amount = tokens[0]!.value;
   }
   if (command.dateMention) merged.dateMention = command.dateMention;
+  else if (pending.command.action === "budget" && budgetDateOf(text)) merged.dateMention = budgetDateOf(text);
   if (command.currency) merged.currency = command.currency;
   if (command.groupName) merged.groupName = command.groupName;
   if (command.participantNames.length) merged.participantNames = command.participantNames;

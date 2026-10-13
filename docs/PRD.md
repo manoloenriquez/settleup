@@ -1,9 +1,9 @@
-# SettleUp Product Requirements Document
+# Talli Product Requirements Document
 
 **Document status:** Draft for product review  
 **Product stage:** Private beta to public beta  
 **Last updated:** 1 September 2026  
-**Working product name:** SettleUp (launch name requires clearance; see Open Decisions)  
+**Product name:** Talli (formerly SettleUp, then briefly Tabkind; renamed to Talli on 1 October 2026 — see Open Decisions §17.1)  
 **Primary market:** Philippines  
 **Platforms:** Responsive web/PWA, iOS, and Android
 
@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-SettleUp is a group expense and settlement app designed around how friends,
+Talli is a group expense and settlement app designed around how friends,
 households, and travel groups in the Philippines actually share costs. An
 organizer can record expenses, calculate accurate balances, and share a
 personal link with each participant. Participants do not need an account to
@@ -20,7 +20,7 @@ they have paid.
 
 The product removes two recurring sources of friction:
 
-1. **Capturing shared spending is tedious.** SettleUp supports quick entry,
+1. **Capturing shared spending is tedious.** Talli supports quick entry,
    detailed and itemized expenses, receipt scanning, and natural-language
    drafts.
 2. **Collecting repayment is socially awkward.** Personal links, clear debt
@@ -74,7 +74,7 @@ Unless changed through product review, this PRD assumes:
   use secure public links without an account.
 - The public beta is free. Pricing and entitlements are not part of this
   release.
-- Money moves outside SettleUp. The app records and confirms payments but does
+- Money moves outside Talli. The app records and confirms payments but does
   not custody funds or claim that a bank or wallet transfer succeeded.
 - AI produces editable drafts only. A user always reviews and confirms before
   any expense is stored.
@@ -107,7 +107,7 @@ message or receipt photo.
 
 ### 3.2 Opportunity
 
-SettleUp can own the space between expense tracking and local settlement:
+Talli can own the space between expense tracking and local settlement:
 maintain a trustworthy group ledger, minimize participant onboarding, and make
 GCash or bank repayment the obvious next action.
 
@@ -548,7 +548,7 @@ consent requirements.
 
 ### 13.1 P0: required before public beta
 
-- Resolve whether the product can launch under the SettleUp name.
+- ~~Resolve whether the product can launch under the SettleUp name.~~ Resolved: the product is Talli. The App Store listing still needs a distinct name (e.g. "Talli: Split Bills") and a trademark check (`docs/launch-readiness.md`).
 - Complete production configuration for authentication, public URLs, storage,
   email redirects, mobile builds, error monitoring, and approved AI paths.
 - Add product analytics for the minimum event taxonomy and establish baselines.
@@ -672,8 +672,8 @@ written exception is accepted by the product owner.
 
 The following choices materially change launch scope and require owner approval:
 
-1. **Launch name:** Can SettleUp be cleared, or should the app be renamed before
-   store submission and public indexing?
+1. **Launch name:** *Resolved — renamed to Talli.* Open: the store listing name
+   ("Talli" alone is taken by unrelated apps) and the trademark check.
 2. **Beta access:** Is the next release invite-only, open public beta, or a
    staged rollout that keeps a waitlist for unapproved users?
 3. **Market promise:** Should launch messaging explicitly commit to a

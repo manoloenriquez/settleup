@@ -87,6 +87,8 @@ apps/mobile Assistant screen
 | create group (+ members without accounts) | write | `useCreateGroup` + `useAddMembersBatch` | online only | — |
 | add / remove member, rename group | write, consequential | members/groups hooks (owner/admin) | online only | — |
 | open share link / payment details / settings | navigation | router | — | — |
+| budget: what's safe today, can I afford X, why did it change, savings, forecast, where the money went | read | budget engine on the device (`packages/shared/src/budget`) | yes | — |
+| budget: set up, change a limit/allowance (amount or %), recovery pacing, plan a trip or purchase | write | `BudgetContext` (same path as Budget settings), revision checked at Confirm | yes (device-first) | restore previous settings / remove the plan / turn off |
 
 **Settling in full.** When the person asks to settle and states no amount
 ("settle up with Mia", "mark my payment to Mia as settled", "I paid Mia
@@ -102,6 +104,14 @@ preview's values, validated again on arrival
 (`apps/mobile/src/lib/assistant/prefill.ts`). The preview is marked "Opened in
 the form". Only the form's own Save writes, and a suggestion replaces any
 saved group draft.
+
+**Budgets.** One `budget` action with `budgetIntent`, `budgetField`,
+`changeKind`, `percent` and `count` slots. The rules interpreter checks budget
+vocabulary before anything else (a number in "Can I afford to spend 4k?" must
+never become an expense). Answers come from the engine; amounts must be in
+the user's words. Fixed costs, exchange rates, daily weights and month-end
+policy are not set by chat: the Assistant points to Budget settings. Design:
+`docs/budgeting/IMPLEMENTATION_PLAN.md` §7.
 
 Friends are two-person direct groups (`direct_group_id`), so friend expenses
 and "John owes me 300" are group expenses in that ledger.

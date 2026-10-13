@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -41,6 +41,15 @@ export default function AssistantScreen() {
   const ai = useAiAvailability();
   const scan = useReceiptScan();
   const [draft, setDraft] = useState("");
+  // Other screens can start a conversation ("Set Up with Assistant"): the text is put in the box, not sent.
+  const { prompt } = useLocalSearchParams<{ prompt?: string }>();
+  const usedPrompt = useRef<string | null>(null);
+  useEffect(() => {
+    if (prompt && usedPrompt.current !== prompt) {
+      usedPrompt.current = prompt;
+      setDraft(prompt);
+    }
+  }, [prompt]);
   const [receipt, setReceipt] = useState<AssistantReceipt | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -116,6 +125,12 @@ export default function AssistantScreen() {
         return;
       case "add_friend":
         router.push(ROUTES.addFriend);
+        return;
+      case "budget":
+        router.push(ROUTES.budget);
+        return;
+      case "budget_setup":
+        router.push(ROUTES.budgetSetup);
         return;
     }
   }

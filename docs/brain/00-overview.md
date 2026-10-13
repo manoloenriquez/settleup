@@ -2,7 +2,7 @@
 
 ## What is this?
 
-**SettleUp** — a group expense splitting app. Track shared expenses, calculate who owes whom, share payment info via public links, and use on-device Apple Intelligence (iPhone, iOS 27) to read receipts, understand typed expenses and suggest splits.
+**Talli** (formerly SettleUp) — personal spending, adaptive budgets and group expense splitting. Track shared expenses, calculate who owes whom, share payment info via public links, and use on-device Apple Intelligence (iPhone, iOS 27) to read receipts, understand typed expenses and suggest splits.
 
 ## Tech Stack
 

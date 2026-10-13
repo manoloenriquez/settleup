@@ -35,7 +35,7 @@ export type RequireFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 export type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T;
 
 // ---------------------------------------------------------------------------
-// SettleUp domain types
+// Talli domain types
 // ---------------------------------------------------------------------------
 
 export type SimplifiedDebt = {
@@ -202,6 +202,8 @@ export type GroupWithStats = {
   /** Currency new expenses start in; the group may also hold others. */
   default_currency_code?: CurrencyCode;
   budget_currency_code?: CurrencyCode;
+  /** "direct" = a friend's two-person ledger; absent when the source doesn't say. */
+  kind?: "shared" | "direct";
   // Computed (in default_currency_code)
   member_count: number;
   pending_count: number;

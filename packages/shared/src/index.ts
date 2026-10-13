@@ -5,3 +5,4 @@ export * from "./utils";
 export * from "./offline";
 export * from "./analytics";
 export * from "./assistant";
+export * from "./budget";

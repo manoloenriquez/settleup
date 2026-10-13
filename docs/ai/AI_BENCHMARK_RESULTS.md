@@ -189,6 +189,50 @@ pnpm --filter @template/assistant-eval eval -- --hybrid --set holdout2
 Use `--rules` (no model needed) or no flag (model only), and `--save out.json` to keep per-turn
 results.
 
+## Budgets (12 October 2026)
+
+Two new sets on the same fixture, which now carries a budget (₱60,000 a
+month, ₱7,000 a week from 1 Oct; this week has ₱10,820 with ₱833.34 spent):
+`budget.json` (17 conversations, the brief's phrasings; development) and
+`budget-holdout.json` (14 paraphrases written before any model or prompt
+change and never tuned against). All runs on the Mac's system model,
+greedy sampling.
+
+| Set | Mode | Task success | Incorrect write previews | Model consulted |
+|---|---|---|---|---|
+| dev (`cases`) | rules | 102/102 | 0 | — |
+| holdout | rules | 30/38 | 1 | — |
+| holdout2 | rules | 25/39 | 2 | — |
+| budget | rules | 19/19 | 0 | — |
+| budget-holdout | rules | 10/14 | 1 | — |
+| dev (`cases`) | hybrid | 100/102 | 0 | 4 turns |
+| holdout2 | hybrid | 28/39 | 2 | 10 turns |
+| budget | hybrid | 19/19 | 0 | 0 turns |
+| budget-holdout | hybrid | 11/14 | 1 | 2 turns |
+
+The rules interpreter now checks budget vocabulary first; the rules-only
+scores on the existing sets are unchanged from 9 October (dev 102/102,
+holdout 30/38, holdout2 25/39), so nothing was taken from expenses,
+payments or questions.
+
+**Model schema experiment (reverted).** Adding a `budget` action and its
+five slots to the on-device model's `@Generable` command, with one
+instruction sentence, gave: dev 100/102 (same), holdout2 27/39 (two balance
+questions — "how much is Mark supposed to pay me", "Am I owed anything?" —
+started failing, one group request started passing), budget-holdout 11/14
+in hybrid (same) and 5/14 with the model alone. It fixed no budget case and
+cost existing ones, so the model's schema was left unchanged: budget
+messages are understood by the rules interpreter only, and an unrecognised
+budget message gets the model's ordinary reading (usually a clarifying
+question). Budget answers and previews are computed by
+`packages/shared/src/budget` in every mode.
+
+The remaining budget-holdout misses: "Is 3,000 too much to spend on shoes
+this week?" becomes an expense preview (still needs Confirm; the rules don't
+know "too much to spend"), "Gusto ko mag-budget ng 50k kada buwan" asks
+what ₱50,000 was for, and "Spread my overspending over two weeks" asks which
+group. They are left unfixed so the set stays honest.
+
 ## Other AI capabilities (brief §5C)
 
 | Capability | Today | AI needed? |

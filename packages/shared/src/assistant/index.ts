@@ -6,3 +6,4 @@ export * from "./resolve";
 export * from "./rules";
 export * from "./context";
 export * from "./revalidate";
+export * from "./budget";

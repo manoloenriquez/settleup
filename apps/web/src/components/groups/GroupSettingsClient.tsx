@@ -15,6 +15,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { MemberInvitationControls } from "./MemberInvitationControls";
+import { SharedLinkSection } from "./SharedLinkSection";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { addMember, deleteMember, renameMember } from "@/app/actions/members";
@@ -30,7 +31,11 @@ import {
   deleteExpenseCategory,
   updateExpenseCategory,
 } from "@/app/actions/categories";
-import { promoteMember, regenerateInviteCode, rotateShareToken } from "@/app/actions/collaboration";
+import {
+  promoteMember,
+  regenerateInviteCode,
+  rotateShareToken,
+} from "@/app/actions/collaboration";
 import type { ExpenseCategory, GroupMember } from "@template/supabase";
 import { DEFAULT_CATEGORY_COLOR } from "@template/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,6 +49,10 @@ type GroupRow = {
   owner_user_id: string | null;
   invite_code: string;
   share_token: string;
+  /** "direct" = a friend's two-person ledger. */
+  kind?: string;
+  /** False once an admin turned the group link off (on any device). */
+  share_enabled?: boolean;
 };
 
 interface Props {
@@ -91,6 +100,11 @@ export function GroupSettingsClient({
   const [groupName, setGroupName] = useState(group.name);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [transferTarget, setTransferTarget] = useState<GroupMember | null>(null);
+  // A friend ledger is always exactly the two friends: the database refuses a
+  // third member, and removing one would orphan the friendship (Remove Friend
+  // in the app ends it properly). Mirrors the iPhone app's settings.
+  const friendLedger = group.kind === "direct";
+  const myMember = members.find((m) => m.user_id === currentUserId && !m.departed_at) ?? null;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const inviteLink = `${origin}/join?code=${inviteCode}`;
@@ -510,59 +524,61 @@ export function GroupSettingsClient({
       </section>
 
       {/* Invite section (all members can see; regenerate restricted to owner/admin) */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-700 mb-4">Invite to collaborate</h2>
+      {!friendLedger && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-700 mb-4">Invite to collaborate</h2>
 
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-xs text-slate-500 mb-1">Invite Code</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800">
-                {inviteCode}
-              </code>
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={Copy}
-                onClick={() => copyToClipboard(inviteCode, "Invite code")}
-              >
-                Copy code
-              </Button>
-              {isAdminOrOwner && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Invite Code</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800">
+                  {inviteCode}
+                </code>
                 <Button
                   variant="secondary"
                   size="sm"
-                  leftIcon={RefreshCw}
-                  isLoading={isPending}
-                  onClick={handleRegenerateInvite}
-                  title="Regenerate invite code (invalidates the old one)"
+                  leftIcon={Copy}
+                  onClick={() => copyToClipboard(inviteCode, "Invite code")}
                 >
-                  Rotate
+                  Copy code
                 </Button>
-              )}
+                {isAdminOrOwner && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={RefreshCw}
+                    isLoading={isPending}
+                    onClick={handleRegenerateInvite}
+                    title="Regenerate invite code (invalidates the old one)"
+                  >
+                    Rotate
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <p className="text-xs text-slate-500 mb-1">Invite Link</p>
-            <div className="flex items-center gap-2">
-              <input
-                readOnly
-                value={inviteLink}
-                className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600 truncate"
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={Copy}
-                onClick={() => copyToClipboard(inviteLink, "Invite link")}
-              >
-                Copy link
-              </Button>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Invite Link</p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={inviteLink}
+                  className="flex-1 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600 truncate"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={Copy}
+                  onClick={() => copyToClipboard(inviteLink, "Invite link")}
+                >
+                  Copy link
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Member list */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -579,10 +595,10 @@ export function GroupSettingsClient({
             const roleLabel = isOwnerMember
               ? "Owner"
               : isAdminMember
-                ? "Admin"
-                : member.user_id
-                  ? "Member"
-                  : "Not on Talli yet";
+              ? "Admin"
+              : member.user_id
+              ? "Member"
+              : "Not on Talli yet";
             return (
               <li
                 key={member.id}
@@ -632,9 +648,10 @@ export function GroupSettingsClient({
                         <p className="text-xs text-slate-400">
                           {member.departed_at ? "Departed" : roleLabel}
                         </p>
-                        {isAdminOrOwner && !member.user_id && !member.departed_at && (
-                          <MemberInvitationControls memberId={member.id} />
-                        )}
+                        {isAdminOrOwner &&
+                          !member.user_id &&
+                          !member.departed_at &&
+                          !friendLedger && <MemberInvitationControls memberId={member.id} />}
                       </>
                     )}
                   </div>
@@ -691,7 +708,7 @@ export function GroupSettingsClient({
                             Make owner
                           </Button>
                         )}
-                        {canManageMember && (
+                        {canManageMember && !friendLedger && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -713,8 +730,15 @@ export function GroupSettingsClient({
           })}
         </ul>
 
+        {friendLedger && (
+          <p className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-500">
+            This is a friend ledger: it&apos;s always just the two of you. To end it, remove the
+            friend in the Talli app.
+          </p>
+        )}
+
         {/* Add member form (owner/admin) */}
-        {isAdminOrOwner && (
+        {isAdminOrOwner && !friendLedger && (
           <form
             onSubmit={handleAddMember}
             className="flex gap-2 mt-4 pt-4 border-t border-slate-100"
@@ -876,6 +900,14 @@ export function GroupSettingsClient({
         )}
       </section>
 
+      <SharedLinkSection
+        groupId={group.id}
+        shareEnabled={group.share_enabled ?? true}
+        shareToken={group.share_token}
+        canManage={isAdminOrOwner && group.owner_user_id !== null}
+        myHidden={myMember ? myMember.hide_payment_details : null}
+      />
+
       {/* Payment details */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-base font-semibold text-slate-700 mb-2">Payment Details</h2>
@@ -891,7 +923,7 @@ export function GroupSettingsClient({
       </section>
 
       {/* Leave group (non-owners only) */}
-      {!isOwner && (
+      {!isOwner && !friendLedger && (
         <section className="rounded-2xl border border-orange-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-orange-700 mb-2">Leave Group</h2>
           <p className="text-sm text-slate-500 mb-4">
@@ -922,7 +954,7 @@ export function GroupSettingsClient({
       {children}
 
       {/* Danger zone (owner only), always last */}
-      {isOwner && (
+      {isOwner && !friendLedger && (
         <section className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-red-700 mb-4">Danger Zone</h2>
 
@@ -981,7 +1013,9 @@ export function GroupSettingsClient({
         open={transferTarget !== null}
         onClose={() => setTransferTarget(null)}
         title="Transfer ownership"
-        description={`Transfer ownership to ${transferTarget?.display_name ?? ""}? You will become a regular member and lose owner privileges.`}
+        description={`Transfer ownership to ${
+          transferTarget?.display_name ?? ""
+        }? You will become a regular member and lose owner privileges.`}
         confirmLabel="Transfer ownership"
         confirmVariant="danger"
         onConfirm={confirmTransferOwnership}

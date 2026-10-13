@@ -120,11 +120,129 @@ function groupOf(text: string): string | null {
   return m?.[1]?.trim() ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Budget. Matched before everything else: "Can I afford to spend 4k this
+// weekend?" has a number in it, and must never become an expense.
+// ---------------------------------------------------------------------------
+
+const BUDGET_DATE =
+  /\b(today|tonight|this weekend|next weekend|weekend|this week|next week|this month|next month|ngayon|ngayong linggo|ngayong buwan)\b/i;
+
+/** Budget date phrases ("this weekend", "next month") or the usual expense dates. */
+export function budgetDateOf(text: string): string | null {
+  const m = BUDGET_DATE.exec(text);
+  if (m) {
+    const phrase = m[1]!.toLowerCase();
+    return phrase === "weekend" ? "this weekend" : phrase === "ngayon" ? "today" : phrase === "ngayong linggo" ? "this week" : phrase === "ngayong buwan" ? "this month" : phrase;
+  }
+  return dateOf(text);
+}
+
+function budgetFieldOf(text: string): AssistantCommand["budgetField"] {
+  if (/\b(weekly|a week|per week|each week|this week'?s|week'?s)\b/i.test(text)) return "weekly";
+  if (/\b(daily|a day|per day|each day)\b/i.test(text)) return "daily";
+  if (/\b(monthly|a month|per month|each month|month'?s)\b/i.test(text)) return "monthly";
+  if (/\b(dining|food|eating out|restaurants?|coffee|groceries|grocery|transport|transportation|commute|grab|taxi|gas|shopping|clothes|travel|lodging|hotels?|entertainment|activities|fun|bills|fees|subscriptions|supplies|other)\b/i.test(text)) return "category";
+  return "none";
+}
+
+function percentOf(text: string): number {
+  const m = /(\d{1,2}(?:\.\d+)?)\s?(?:%|percent)/i.exec(text);
+  return m ? Number(m[1]) : 0;
+}
+
+function categoryWordOf(text: string): string | null {
+  return /\b(dining|food|eating out|restaurants?|coffee|groceries|grocery|transport|transportation|commute|grab|taxi|gas|shopping|clothes|travel|lodging|hotels?|entertainment|activities|fun|bills|fees|subscriptions|supplies)\b/i.exec(text)?.[1]?.toLowerCase() ?? null;
+}
+
+function firstAmount(text: string): number {
+  const cleaned = text.replace(/(\d{1,2}(?:\.\d+)?)\s?(?:%|percent)/gi, " ").replace(/\b\d+\s+weeks?\b/gi, " ");
+  return numberTokens(cleaned).find((t) => t.value > 0)?.value ?? 0;
+}
+
+export function budgetCommand(text: string): AssistantCommand | null {
+  const lower = text.toLowerCase();
+  const budgetWord = /\b(budget|allowance|spending limit|monthly limit|weekly limit|limit|badyet)\b/i.test(text);
+  const base = {
+    action: "budget",
+    amount: firstAmount(text),
+    percent: percentOf(text),
+    dateMention: budgetDateOf(text),
+    budgetField: budgetFieldOf(text),
+    description: categoryWordOf(text),
+  };
+
+  // Setting one up: "I want to allocate 60k monthly for spending. Help me create a budget."
+  if (
+    /\b(create|set ?up|make|start|build|plan)\b[^.?!]*\bbudget\b/i.test(text) ||
+    /\b(allocate|budget)\b[^.?!]*\b(monthly|a month|per month|every month)\b/i.test(text) ||
+    /\bhelp me budget\b/i.test(text)
+  ) {
+    if (!/\b(increase|raise|decrease|reduce|lower|cut|change)\b/i.test(text) || /\b(create|set ?up|make|start)\b/i.test(text)) {
+      return cmd({ ...base, budgetIntent: "setup", budgetField: "monthly" });
+    }
+  }
+  // Affordability: "Can I afford to spend 4k this weekend?", "Is it ok to buy a 3k jacket?"
+  if (/\b(can i|could i|should i|is it ok(?:ay)? (?:to|if i)|am i able to)\s+(afford|spend|buy|get|splurge)\b/i.test(text) || /\bafford\b/i.test(text) || /\bkaya ko\b.*\b(gastos|bumili|gumastos)\b/i.test(text)) {
+    return cmd({ ...base, budgetIntent: "afford", budgetField: /\bmonth/i.test(text) ? "monthly" : "none" });
+  }
+  // Recovery: "I overspent this week. Help me recover."
+  if (/\b(overspent|over ?spent|went over|over (?:my )?budget|over my allowance)\b/i.test(text) || /\b(recover|catch up|get back on track)\b/i.test(text)) {
+    return cmd({ ...base, budgetIntent: "recover", count: /\b(\d)\s+weeks?\b/i.exec(text) ? Number(/\b(\d)\s+weeks?\b/i.exec(text)![1]) : 0 });
+  }
+  // Explanation: "Why did my weekly allowance decrease?"
+  if (/\bwhy\b/i.test(text) && (budgetWord || /\b(less|lower|smaller|more|higher|bigger) to spend\b/i.test(text))) {
+    return cmd({ ...base, budgetIntent: "explain" });
+  }
+  // Savings: "How much have I saved by underspending?"
+  if (/\b(saved|underspen\w*|under budget|left over|leftover)\b/i.test(text) && /\b(how much|what|have i|did i)\b/i.test(text)) {
+    return cmd({ ...base, budgetIntent: "savings" });
+  }
+  // Where the money went: "Show me where most of my money went this month."
+  if (/\bwhere\b[^?]*\bmoney\b[^?]*\b(go|went|going)\b/i.test(text) || /\b(breakdown|break down)\b/i.test(text) || /\bwhat did i spend (?:the )?most on\b/i.test(text)) {
+    return cmd({ ...base, budgetIntent: "breakdown" });
+  }
+  // Forecast: "Will I stay within my budget this month?", "Am I on track?"
+  if (/\b(on track|forecast|projected|stay (?:with)?in|end (?:up|the month)|will i (?:go|be) over|make it to the end)\b/i.test(text)) {
+    return cmd({ ...base, budgetIntent: "forecast" });
+  }
+  // Planning ahead: "I have a vacation next week. Adjust my budget."
+  if (/\b(vacation|holiday|trip|travel(?:ling)?|bakasyon)\b/i.test(text) && (budgetWord || /\b(adjust|plan|set aside|save for)\b/i.test(text))) {
+    const name = /\b(vacation|holiday|trip|bakasyon)\b/i.exec(text)?.[1] ?? "Trip";
+    return cmd({ ...base, budgetIntent: "plan", description: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(), budgetField: "none" });
+  }
+  if (/\b(set aside|save up for|put aside)\b/i.test(text)) {
+    const what = /\b(?:for|para sa)\s+(?:a |an |the |my )?([\p{L}' ]{2,30}?)(?=\s+(?:next|this|on|in|by)\b|[.!?]|$)/iu.exec(text)?.[1]?.trim();
+    return cmd({ ...base, budgetIntent: "plan", description: what ? what.charAt(0).toUpperCase() + what.slice(1) : null, budgetField: "none" });
+  }
+  // Changes: "Increase my dining budget by 1k", "Set my weekly budget to 8k", "Help me reduce my spending by 15% next month"
+  const change = /\b(increase|raise|bump up|bump|add|up|decrease|reduce|lower|cut|trim|set|change|make)\b/i.exec(text)?.[1]?.toLowerCase();
+  if (change && (budgetWord || /\b(my )?spending\b/i.test(text) && /\b(reduce|cut|lower|decrease|trim)\b/i.test(text))) {
+    const verb = /^(increase|raise|bump|bump up|add|up)$/.test(change) ? "increase" : /^(decrease|reduce|lower|cut|trim)$/.test(change) ? "decrease" : "set";
+    // "to 8k" states the new value; "by 1k" (or a percentage) states the change.
+    const statesValue = /\bto\s+(?:₱|php|\$)?\s?\d/i.test(text) && !/\bby\s+(?:₱|php|\$)?\s?\d/i.test(text);
+    return cmd({ ...base, budgetIntent: "change", changeKind: statesValue ? "set" : verb });
+  }
+  // Status: "How much can I safely spend today?", "What's left in my budget?"
+  if (
+    /\b(safe(?:ly)?(?: to)? spend|can i (?:still )?spend|left to spend|left in my budget|left this (?:week|month)|have i got left|do i have left|what'?s left|how much (?:is )?left|remaining budget|budget left|my budget|my allowance|magkano pa)\b/i.test(lower) ||
+    (budgetWord && /\b(how|what|show|status)\b/i.test(text))
+  ) {
+    return cmd({ ...base, budgetIntent: "status" });
+  }
+  if (budgetWord && /\?$/.test(text.trim())) return cmd({ ...base, budgetIntent: "status" });
+  return null;
+}
+
 export function interpretWithRules(input: string): AssistantCommand {
   const text = input.trim();
   const lower = text.toLowerCase();
   const date = dateOf(text);
   const group = groupOf(text);
+
+  // "Help me create a budget" is a budget request, not a request for help.
+  const budget = budgetCommand(text);
+  if (budget) return budget;
 
   if (/^(help|tulong|what can you do|ano kaya mo)/i.test(lower)) return cmd({ action: "help" });
 

@@ -23,7 +23,7 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
   const [{ data: group }, { data: members }, { data: categories }, recurringResult] = await Promise.all([
     db
       .from("groups")
-      .select("id, name, owner_user_id, invite_code, share_token, budget_cents, default_currency_code, budget_currency_code")
+      .select("id, name, owner_user_id, invite_code, share_token, budget_cents, default_currency_code, budget_currency_code, kind, share_enabled")
       .eq("id", groupId)
       .single(),
     db
@@ -71,13 +71,16 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
         isAdminOrOwner={isAdminOrOwner}
         currentUserId={user.id}
       >
-        <BudgetSection
-          key={budgetCurrency}
-          groupId={groupId}
-          budgetCents={group.budget_cents}
-          currency={budgetCurrency}
-          canEdit={isAdminOrOwner}
-        />
+        {/* Friend ledgers have no group budget (as in the iPhone app). */}
+        {group.kind !== "direct" && (
+          <BudgetSection
+            key={budgetCurrency}
+            groupId={groupId}
+            budgetCents={group.budget_cents}
+            currency={budgetCurrency}
+            canEdit={isAdminOrOwner}
+          />
+        )}
 
         <RecurringExpensesSection
           recurring={recurringResult.data ?? []}
@@ -86,7 +89,12 @@ export default async function GroupSettingsPage({ params }: Props): Promise<Reac
           isAdminOrOwner={isAdminOrOwner}
         />
 
-        <ExportSection groupId={groupId} groupName={group.name} shareToken={group.share_token} />
+        <ExportSection
+          groupId={groupId}
+          groupName={group.name}
+          shareToken={group.share_token}
+          shareEnabled={group.share_enabled}
+        />
       </GroupSettingsClient>
     </div>
   );

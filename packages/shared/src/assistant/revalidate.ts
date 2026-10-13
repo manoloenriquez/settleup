@@ -1,6 +1,7 @@
 import type { AssistantSnapshot, Proposal, SnapshotGroup } from "./types";
 import { pairwiseBalance } from "./queries";
 import { formatAmount } from "../utils/amount";
+import { revalidateBudget } from "./budget";
 
 // ---------------------------------------------------------------------------
 // Confirm-time check. A preview can sit on screen while data changes (another
@@ -25,6 +26,8 @@ function isAdmin(g: SnapshotGroup): boolean {
 export function revalidateProposal(proposal: Proposal, snapshot: AssistantSnapshot): string | null {
   const a = proposal.action;
   if (a.type === "add_personal_expense") return null;
+  // Budgets live on this phone (guest or account): the preview must match the budget as it is now.
+  if (a.type === "budget_setup" || a.type === "budget_change" || a.type === "budget_plan") return revalidateBudget(a.revision, snapshot);
   if (a.type === "edit_personal_expense" || a.type === "delete_personal_expense") {
     // Personal expenses live on this phone: check the current copy, guest or not.
     const current = snapshot.personal.find((e) => e.id === a.expenseId);

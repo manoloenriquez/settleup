@@ -31,6 +31,7 @@ import { currencyName } from "@template/shared";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { usePreferences } from "@/context/PreferencesContext";
 import { usePersonalLedger } from "@/context/PersonalLedgerContext";
+import { useBudgetStore } from "@/context/BudgetContext";
 import { largeTitleOptions } from "@/lib/navigation";
 import { ROUTES } from "@/lib/routes";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
@@ -123,7 +124,9 @@ function AccountScreen() {
   const { pending: outboxPending } = usePendingCounts();
   const { drain } = useOutbox();
   const personal = usePersonalLedger();
-  const pending = outboxPending + personal.pendingCount;
+  const budget = useBudgetStore();
+  // An unsent budget change counts as one waiting change; it stays on this phone either way.
+  const pending = outboxPending + personal.pendingCount + (budget.pending ? 1 : 0);
 
   const userId = session?.user.id;
   useEffect(() => {

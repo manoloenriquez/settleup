@@ -79,10 +79,22 @@ other device adopts the deletion (`kept_server`).
   accounts' query caches, empty outboxes and fully synced personal stores.
   Anything unsynced or unreadable stays until its owner signs in again.
 
+## Budget (October 2026)
+
+The adaptive budget is personal data too and follows the same rules: one
+document per owner on the device (`talli:budget:v1:guest` or the account's
+key), every change saved before it shows, signed-in documents synced to
+`settleup.personal_budgets` with compare-and-swap and a three-way merge (no
+device clocks). Guests get the whole feature. On sign-in the guest prompt also
+offers the guest budget when the account has none; the guest copy is removed
+only once the server holds that same document. Figures are always recomputed
+from the document + personal expenses + the user's own group shares
+(`packages/shared/src/budget`). Design and math: `docs/budgeting/IMPLEMENTATION_PLAN.md`.
+
 ## Tests
 
 - `packages/shared/src/__tests__/personal-ledger.test.ts`, `personal-sync.test.ts`,
-  `amount.test.ts`
+  `amount.test.ts`, `budget.test.ts`, `assistant-budget.test.ts`
 - `apps/mobile/src/lib/__tests__/account-data.test.ts`, `personal-drafts.test.ts`
 - `supabase/tests/personal_expenses.sql` (ownership, replay, deletion rule,
   undo, validation, anon, closure)

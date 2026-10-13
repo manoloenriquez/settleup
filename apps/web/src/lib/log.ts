@@ -7,5 +7,5 @@
  * real error in server logs / the log aggregator so failures are diagnosable.
  */
 export function logServerError(context: string, error: unknown): void {
-  console.error(`[settleup] ${context}:`, error);
+  console.error(`[talli] ${context}:`, error);
 }

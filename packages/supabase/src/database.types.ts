@@ -725,6 +725,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      personal_budgets: {
+        Row: {
+          user_id: string;
+          doc: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          doc: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          doc?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       personal_expenses: {
         Row: {
           id: string;
@@ -1096,6 +1117,10 @@ export type Database = {
       };
       upsert_personal_expenses: {
         Args: { p_rows: Json };
+        Returns: Json;
+      };
+      save_personal_budget: {
+        Args: { p_doc: Json; p_base_updated_at: string | null };
         Returns: Json;
       };
       update_expense: {

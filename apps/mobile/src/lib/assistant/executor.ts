@@ -1,6 +1,7 @@
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
-import type { PersonalExpense, PersonalExpenseInput, Proposal } from "@template/shared";
+import { budgetRevision, type BudgetConfig, type BudgetDocument, type PersonalExpense, type PersonalExpenseInput, type Proposal } from "@template/shared";
+import type { BudgetActions } from "@/hooks/useBudgetActions";
 import { errorClassFor, participantBucket } from "@template/shared/analytics";
 import { track } from "@/lib/analytics";
 import { supabase } from "@/lib/supabase";
@@ -36,7 +37,11 @@ export type UndoAction =
       input: PersonalExpenseInput;
       /** What the assistant wrote; undo only if the expense still looks like this. */
       written: { description: string; amountMinor: number; date: string };
-    };
+    }
+  /** Budget undos apply only if nothing changed the budget since (same revision). */
+  | { type: "budget_turn_off"; revision: string }
+  | { type: "budget_restore"; config: BudgetConfig; effectiveFrom: string | null; revision: string }
+  | { type: "budget_remove_note"; id: string; revision: string };
 
 export type ExecutionResult = {
   status: ExecutionStatus;
@@ -58,6 +63,13 @@ export type ExecutorDeps = {
     restore: (id: string) => Promise<void>;
     /** The current stored record (not a snapshot copy). */
     get: (id: string) => PersonalExpense | undefined;
+  };
+  budget?: {
+    actions: BudgetActions;
+    /** The stored document right now (not a snapshot copy). */
+    current: () => BudgetDocument | null;
+    /** Settings in force on a date (today when null), for undoing a change. */
+    configOn: (date: string | null) => BudgetConfig | null;
   };
 };
 
@@ -254,6 +266,35 @@ export async function executeProposal(proposal: Proposal, deps: ExecutorDeps): P
         void deps.qc.invalidateQueries({ queryKey: ["dashboard"] });
         return { status: "saved", message: "Removed from the group.", groupId: a.groupId };
       }
+      case "budget_setup": {
+        if (!deps.budget) return { status: "failed", message: "Your budget isn't available right now." };
+        const doc = await deps.budget.actions.setUp(a.config, { startDate: a.startDate, source: "assistant", summary: "Set up with the Assistant" });
+        return { status: "saved", message: "Budget set up. It's on the Spending tab.", undo: { type: "budget_turn_off", revision: budgetRevision(doc) } };
+      }
+      case "budget_change": {
+        if (!deps.budget) return { status: "failed", message: "Your budget isn't available right now." };
+        // The settings the change replaced: those in force on the day it takes effect.
+        const before = deps.budget.configOn(a.effectiveFrom);
+        const doc = await deps.budget.actions.changeSettings(a.config, a.summary, "assistant", a.effectiveFrom ?? undefined);
+        return {
+          status: "saved",
+          message: "Budget updated.",
+          ...(before ? { undo: { type: "budget_restore" as const, config: before, effectiveFrom: a.effectiveFrom, revision: budgetRevision(doc) } } : {}),
+        };
+      }
+      case "budget_plan": {
+        if (!deps.budget) return { status: "failed", message: "Your budget isn't available right now." };
+        const { doc, id } = await deps.budget.actions.addNote({
+          kind: "planned",
+          name: a.name,
+          amountMinor: a.amountMinor,
+          from: a.from,
+          to: a.to,
+          coversAllSpending: a.coversAllSpending,
+          category: null,
+        });
+        return { status: "saved", message: `Set aside for ${a.name}.`, undo: { type: "budget_remove_note", id, revision: budgetRevision(doc) } };
+      }
       case "rename_group": {
         if (!online) return { status: "failed", message: "Renaming a group needs a connection." };
         const res = await renameGroup(a.groupId, a.name);
@@ -269,6 +310,17 @@ export async function executeProposal(proposal: Proposal, deps: ExecutorDeps): P
 
 /** Reverses an assistant write where a safe inverse exists. */
 export async function undoAction(undo: UndoAction, deps: ExecutorDeps): Promise<ExecutionResult> {
+  if (undo.type === "budget_turn_off" || undo.type === "budget_restore" || undo.type === "budget_remove_note") {
+    const budget = deps.budget;
+    if (!budget) return { status: "failed", message: "Your budget isn't available right now." };
+    if (budgetRevision(budget.current()) !== undo.revision) {
+      return { status: "failed", message: "Your budget changed after that, so I left it as it is." };
+    }
+    if (undo.type === "budget_turn_off") await budget.actions.turnOff();
+    else if (undo.type === "budget_restore") await budget.actions.changeSettings(undo.config, "Undo (Assistant)", "undo", undo.effectiveFrom ?? undefined);
+    else await budget.actions.removeNote(undo.id);
+    return { status: "saved", message: "Undone." };
+  }
   if (undo.type === "remove_personal_expense") {
     await deps.personal.remove(undo.id);
     return { status: "saved", message: "Undone." };

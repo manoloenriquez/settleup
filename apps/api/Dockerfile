@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-# Production image for the SettleUp AI API (apps/api) — a long-running Hono server.
+# Production image for the Talli API (apps/api) — a long-running Hono server.
 #
 # IMPORTANT: build context MUST be the monorepo ROOT (this is a pnpm workspace and
 # the API depends on @template/ai and @template/shared via workspace links):
-#   docker build -f apps/api/Dockerfile -t settleup-api .
+#   docker build -f apps/api/Dockerfile -t talli-api .
 #
 # The repo uses node-linker=hoisted (.npmrc), so node_modules is a single flat
 # tree at /app/node_modules — there are no per-package node_modules dirs to copy.

@@ -7,7 +7,13 @@ import { z } from "zod";
 // after this point is deterministic code (resolve.ts).
 //
 // Must stay in sync with `AssistantCommand` in
-// apps/mobile/modules/apple-intelligence/ios/Core/AssistantIntelligence.swift.
+// apps/mobile/modules/apple-intelligence/ios/Core/AssistantIntelligence.swift,
+// except the `budget` action and its slots (budgetIntent, budgetField,
+// changeKind, percent, count): only the rules interpreter produces them.
+// Adding them to the on-device model's schema was measured (October 2026,
+// docs/ai/AI_BENCHMARK_RESULTS.md) and cost two holdout balance questions
+// while fixing no budget case, so the model's schema is unchanged and the
+// Zod defaults fill these fields for its commands.
 // ---------------------------------------------------------------------------
 
 export const ASSISTANT_ACTIONS = [
@@ -24,6 +30,7 @@ export const ASSISTANT_ACTIONS = [
   "query_spending",
   "share_group",
   "open_settings",
+  "budget",
   "help",
   "unsupported",
 ] as const;
@@ -41,6 +48,28 @@ export const ASSISTANT_QUERY_KINDS = [
 export type AssistantQueryKind = (typeof ASSISTANT_QUERY_KINDS)[number];
 
 export const ASSISTANT_SPLIT_MODES = ["unspecified", "equal", "percent", "shares", "fixed"] as const;
+
+/** What a `budget` message is about. */
+export const ASSISTANT_BUDGET_INTENTS = [
+  "none",
+  "status",
+  "afford",
+  "explain",
+  "savings",
+  "forecast",
+  "breakdown",
+  "setup",
+  "change",
+  "recover",
+  "plan",
+] as const;
+export type AssistantBudgetIntent = (typeof ASSISTANT_BUDGET_INTENTS)[number];
+
+/** Which budget figure a change is about. */
+export const ASSISTANT_BUDGET_FIELDS = ["none", "monthly", "weekly", "daily", "category"] as const;
+export type AssistantBudgetField = (typeof ASSISTANT_BUDGET_FIELDS)[number];
+
+export const ASSISTANT_CHANGE_KINDS = ["none", "set", "increase", "decrease"] as const;
 
 /** Who paid whom, for payments and "X owes me" statements. */
 export const ASSISTANT_DIRECTIONS = ["none", "they_paid_me", "i_paid_them", "they_owe_me", "i_owe_them"] as const;
@@ -90,6 +119,16 @@ export const assistantCommandSchema = z.object({
   queryKind: z.enum(ASSISTANT_QUERY_KINDS).catch("none").default("none"),
   /** Free-text search for query_expenses ("grab", "coffee"). */
   searchText: optionalText,
+  /** budget: what the message is about. */
+  budgetIntent: z.enum(ASSISTANT_BUDGET_INTENTS).catch("none").default("none"),
+  /** budget changes: which figure. */
+  budgetField: z.enum(ASSISTANT_BUDGET_FIELDS).catch("none").default("none"),
+  /** budget changes: set to, increase by or decrease by `amount` (or `percent`). */
+  changeKind: z.enum(ASSISTANT_CHANGE_KINDS).catch("none").default("none"),
+  /** A percentage the user stated ("15%"); 0 = none. */
+  percent: z.number().finite().min(0).max(100).catch(0).default(0),
+  /** A count the user stated ("over 3 weeks"); 0 = none. */
+  count: z.number().int().min(0).max(52).catch(0).default(0),
   /** Short friendly sentence; shown only for help/unsupported. */
   reply: optionalText,
 });

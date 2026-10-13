@@ -17,9 +17,11 @@ const SORT_LABELS: Record<SortOption, string> = {
 
 type Props = {
   groups: GroupWithStats[];
+  /** Search and sort; off for the short friends list below the groups. */
+  showControls?: boolean;
 };
 
-export function GroupList({ groups }: Props): React.ReactElement {
+export function GroupList({ groups, showControls = true }: Props): React.ReactElement {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOption>("recent");
 
@@ -48,6 +50,7 @@ export function GroupList({ groups }: Props): React.ReactElement {
 
   return (
     <div className="flex flex-col gap-4">
+      {showControls && (
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -71,6 +74,7 @@ export function GroupList({ groups }: Props): React.ReactElement {
           ))}
         </Select>
       </div>
+      )}
 
       {filtered.length === 0 && search && (
         <p className="text-sm text-slate-500 text-center py-6">

@@ -1,4 +1,4 @@
-// Derives the cross-platform SettleUp icon set from the generated master artwork.
+// Derives the cross-platform Talli icon set from the generated master artwork.
 // Run with: pnpm --filter @template/web gen:icons
 // Outputs are committed so app and web builds do not depend on this step.
 import { mkdir, readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ import sharp from "sharp";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..", "..");
-const MASTER_PATH = join(REPO_ROOT, "assets", "brand", "settleup-icon-master.png");
+const MASTER_PATH = join(REPO_ROOT, "assets", "brand", "talli-icon-master.png");
 const WEB_PUBLIC_DIR = join(REPO_ROOT, "apps", "web", "public");
 const WEB_ICONS_DIR = join(WEB_PUBLIC_DIR, "icons");
 const WEB_OG_DIR = join(WEB_PUBLIC_DIR, "og");
@@ -109,7 +109,7 @@ async function generateSocialPreview() {
     <g transform="translate(88 82)">
       <rect width="48" height="48" rx="14" fill="url(#accent)"/>
       <path d="M13 15h12l5 5-9 9 4 4 10-10" fill="none" stroke="#f8fafc" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="64" y="35" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="700" fill="#0f172a">SettleUp</text>
+      <text x="64" y="35" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="700" fill="#0f172a">Talli</text>
     </g>
 
     <text x="88" y="246" font-family="Inter, Arial, sans-serif" font-size="68" font-weight="750" letter-spacing="-2.6" fill="#0f172a">Split it fair.</text>
@@ -125,7 +125,7 @@ async function generateSocialPreview() {
     <rect x="830" y="126" width="302" height="302" rx="78" fill="#ffffff" filter="url(#shadow)"/>
     <image x="858" y="154" width="246" height="246" href="data:image/png;base64,${embeddedMaster}" clip-path="url(#icon-clip)" preserveAspectRatio="xMidYMid slice"/>
   </svg>`);
-  const outputPath = join(WEB_OG_DIR, "settleup-social.png");
+  const outputPath = join(WEB_OG_DIR, "talli-social.png");
   await sharp(preview).flatten({ background: "#ffffff" }).png().toFile(outputPath);
   logOutput(outputPath);
 }
@@ -155,7 +155,7 @@ async function main() {
     generateSocialPreview(),
   ]);
 
-  console.log("\nDone. Generated SettleUp assets for web and mobile.");
+  console.log("\nDone. Generated Talli assets for web and mobile.");
 }
 
 main().catch((error) => {

@@ -39,6 +39,8 @@ type Deps = {
   fullExpenses: Map<string, ExpenseWithDetails[]>;
   /** Outbox entries not yet synced. */
   pendingWrites: number;
+  /** The budget document and the spending it counts. */
+  budget: AssistantSnapshot["budget"];
 };
 
 async function cached<T>(qc: QueryClient, online: boolean, queryKey: readonly unknown[], fetcher: () => Promise<T>): Promise<T | null> {
@@ -84,6 +86,7 @@ export async function buildSnapshot(deps: Deps): Promise<AssistantSnapshot> {
     defaultCurrency: deps.defaultCurrency,
     groups: [],
     pendingWrites: deps.pendingWrites,
+    budget: deps.budget,
     personal: deps.personal
       .filter((e) => !e.deletedAt)
       .map((e) => ({ id: e.id, description: e.description, amountMinor: e.amountMinor, currency: e.currency, date: e.date, category: e.category, updatedAt: e.updatedAt })),

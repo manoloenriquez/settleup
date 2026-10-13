@@ -25,6 +25,7 @@ export function useGroupRealtime(groupId: string | undefined): void {
         void qc.invalidateQueries({ queryKey: ["pending-payments", groupId] });
         void qc.invalidateQueries({ queryKey: ["dashboard"] });
         void qc.invalidateQueries({ queryKey: ["groups"] });
+        void qc.invalidateQueries({ queryKey: ["budgetShares"] });
       }, 400);
     };
 

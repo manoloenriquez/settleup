@@ -1,6 +1,6 @@
 # Private Beta Release Checklist
 
-Use this before inviting trusted friends to use SettleUp on a real trip or group hangout.
+Use this before inviting trusted friends to use Talli on a real trip or group hangout.
 
 ## Database
 

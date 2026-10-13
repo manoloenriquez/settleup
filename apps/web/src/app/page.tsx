@@ -109,7 +109,7 @@ export default function LandingPage(): React.ReactElement {
               {
                 num: "02",
                 title: "Log expenses as they happen",
-                desc: "Add what was spent and who paid. Split equally, by custom amounts, or let AI parse a receipt and suggest the split for you.",
+                desc: "Add what was spent and who paid. Split equally, by custom amounts, or scan a receipt to fill in the items.",
               },
               {
                 num: "03",
@@ -149,13 +149,13 @@ export default function LandingPage(): React.ReactElement {
             {[
               {
                 icon: Scan,
-                title: "AI receipt scanning",
-                desc: "Snap a photo of any receipt. AI extracts line items, amounts, and suggests how to split.",
+                title: "Receipt scanning",
+                desc: "Snap a photo of a receipt and Talli fills in the items and amounts. On iPhone, Apple Intelligence reads it on the device.",
               },
               {
                 icon: Zap,
-                title: "Smart splits",
-                desc: "Describe an expense in plain language and let AI figure out who owes what.",
+                title: "Plain-language entry",
+                desc: "Type \u201cDinner 2400 split Ana and Ben\u201d and Talli fills in the expense for you to check.",
               },
               {
                 icon: Users,
@@ -170,7 +170,7 @@ export default function LandingPage(): React.ReactElement {
               {
                 icon: Shield,
                 title: "Payment profiles",
-                desc: "Save your GCash or bank details once. They show up automatically when friends view their balance.",
+                desc: "Save your GCash or bank details once and choose whether friends see them when they view their balance.",
               },
               {
                 icon: Zap,

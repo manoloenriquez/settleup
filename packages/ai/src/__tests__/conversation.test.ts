@@ -22,6 +22,16 @@ describe("parseConversation", () => {
     expect(result.data?.draft?.participant_names).toContain("Yao");
   });
 
+  it("parses the landing-page example 'Dinner 2400 split Ana and Ben'", async () => {
+    const result = await parseConversation({
+      messages: [{ role: "user", content: "Dinner 2400 split Ana and Ben" }],
+      member_names: ["Ana", "Ben", "Carla"],
+    });
+    expect(result.data?.draft?.item_name).toBe("Dinner");
+    expect(result.data?.draft?.amount_cents).toBe(240000);
+    expect(result.data?.draft?.participant_names).toEqual(["Ana", "Ben"]);
+  });
+
   it("falls back to all members when no split keyword is provided", async () => {
     const result = await parseConversation({
       messages: [{ role: "user", content: "Lunch 500" }],

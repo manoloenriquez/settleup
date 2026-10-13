@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isSyncedBudgetStore } from "@/lib/budget/storage";
 import { accountOutboxKey } from "@template/shared";
 import { inactiveAccountKeys, isEmptyOutbox, isFullySyncedLedger } from "../account-data";
 
@@ -89,5 +90,26 @@ describe("personal stores", () => {
     expect(isFullySyncedLedger(JSON.stringify({ version: 1, expenses: [{ sync: "local" }] }))).toBe(false);
     expect(isFullySyncedLedger("{")).toBe(false);
     expect(isFullySyncedLedger(null)).toBe(true);
+  });
+});
+
+describe("budget stores", () => {
+  const prefix = "talli:budget:v1:account:p:";
+  const keys = [`${prefix}alice`, `${prefix}bob`, `${prefix}carol`, "talli:budget:v1:guest"];
+  it("removes other accounts' synced budgets only, never the guest's or the current one", () => {
+    const synced = new Set([`${prefix}bob`, `${prefix}alice`]);
+    const result = inactiveAccountKeys(keys, project, "alice", () => false, queryPrefix, undefined, undefined, {
+      prefix,
+      currentKey: `${prefix}alice`,
+      isSynced: (key) => synced.has(key),
+    });
+    expect(result).toEqual([`${prefix}bob`]);
+  });
+
+  it("keeps a budget that hasn't reached the server", () => {
+    expect(isSyncedBudgetStore(JSON.stringify({ version: 1, sync: "synced" }))).toBe(true);
+    expect(isSyncedBudgetStore(JSON.stringify({ version: 1, sync: "pending" }))).toBe(false);
+    expect(isSyncedBudgetStore(JSON.stringify({ version: 1, sync: "local" }))).toBe(false);
+    expect(isSyncedBudgetStore("{")).toBe(false);
   });
 });

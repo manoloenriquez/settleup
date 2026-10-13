@@ -54,7 +54,7 @@ type OutboxContextValue = {
 const OutboxContext = createContext<OutboxContextValue | null>(null);
 
 function invalidationKeysFor(groupIds: Set<string>): (string | undefined)[][] {
-  const keys: (string | undefined)[][] = [["dashboard"], ["groups"]];
+  const keys: (string | undefined)[][] = [["dashboard"], ["groups"], ["budgetShares"]];
   for (const groupId of groupIds) {
     keys.push(
       ["expenses", groupId],

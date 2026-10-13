@@ -1,40 +1,34 @@
-# SettleUp
+# Talli
 
-Group expense tracker — split bills with friends, no login required for friends.
+Track what you spend and split shared costs fairly — on iPhone and on the web.
 **Next.js 15 · Expo 54 · Supabase · Turborepo · pnpm**
 
----
-
-## Features
-
-- Create expense groups and add members
-- Add expenses (form or natural-language chat input)
-- Equal split with correct remainder distribution
-- Token-based shareable friend links — friends see their balance without logging in (`/p/<token>`)
-- GCash + bank payment profile with QR image upload
-- Mark paid / undo last payment
-- Groupchat-ready copy message format
-- Mobile app (Expo) with group list, balances, and expense entry
+> Talli was previously developed as *SettleUp* (and briefly *Tabkind*). Some
+> internal identifiers keep the old name on purpose — the Postgres schema
+> `settleup`, storage keys, URL schemes, the EAS slug. See
+> [`docs/brand/REBRAND.md`](./docs/brand/REBRAND.md) before renaming anything.
 
 ---
 
-## SettleUp — Setup Notes
+## What it does
 
-### Apply the migration
+| | iPhone app (`apps/mobile`) | Web app (`apps/web`) |
+|---|---|---|
+| Personal spending and adaptive budget | Yes, also without an account | Not yet |
+| Groups, friends, splits, balances, settle up | Yes (signed in) | Groups yes; friends can be accepted, not created |
+| Shareable balance links for people without Talli | Creates them | Hosts them (`/g`, `/p`, `/f`) |
+| Payment details (GCash, bank, QR), opt-in on links | Yes | Yes |
+| Talli Assistant, receipt reading | On-device Apple Intelligence (iOS 27) | Receipt OCR and keyword entry; no cloud AI |
+| Offline changes | Outbox | Outbox + installable PWA |
 
-```bash
-pnpm supabase start
-pnpm supabase db push       # or: pnpm supabase db reset
-```
+The full feature-by-feature comparison and roadmap is in
+[`docs/parity/PARITY_AUDIT.md`](./docs/parity/PARITY_AUDIT.md).
 
-### Regenerate TypeScript types (after any schema change)
+Share links (`/p/<token>`, `/g/<token>`) are served by `SECURITY DEFINER` RPCs
+callable with the anon key; payment details appear on them only when their owner
+opts in.
 
-```bash
-pnpm supabase gen types typescript --local \
-  > packages/supabase/src/database.types.ts
-```
-
-### Run tests
+### Run the tests
 
 ```bash
 pnpm --filter @template/shared test
@@ -44,48 +38,8 @@ pnpm test
 
 ### Dev seed data
 
-Sign in to the web app, navigate to any group, and click **Load Demo Data** (visible in `development` only). Creates a demo group "Barkada Trip 2025" with 7 members and 3 expenses.
-
-### Friend links
-
-Every group member gets a unique Base62 share token (22 chars for newly created members). Their personal link is:
-
-```
-https://<your-domain>/p/<share_token>
-```
-
-No authentication required — served by the `get_friend_view` Postgres RPC (SECURITY DEFINER, callable with anon key).
-
-### Copy message format
-
-```
-FINAL AMOUNTS TO PAY (TO [PAYER_NAME])
-[Name 1] — ₱x,xxx.xx
-[Name 2] — ₱x,xxx.xx
-TOTAL: ₱xx,xxx.xx
-```
-
-Individual:
-```
-Hi [Name]! You owe ₱x,xxx.xx for [Group Name].
-Pay via GCash: [number] ([name])
-Or bank: [bank] [acct]
-Link: /p/[token]
-```
-
----
-
-## Next Improvements
-
-- OCR expense parsing (photo of receipt → auto-fill)
-- Unequal splits (custom amounts or percentages)
-- Share-link rate limiting and token rotation UX
-- Payment reminders (push notifications / SMS)
-- Analytics dashboard (total spent per member, per category)
-- Share token rotation (invalidate old links)
-- Group invite codes for co-owners
-
----
+Sign in to the web app, open any group, and click **Load Demo Data** (development
+only).
 
 ---
 
@@ -196,8 +150,9 @@ pnpm supabase gen types typescript --local \
 ```
 .
 ├── apps/
-│   ├── web/               Next.js 15 (App Router)
-│   └── mobile/            Expo 54 (React Native)
+│   ├── web/               Next.js 15 (App Router), installable PWA
+│   ├── mobile/            Expo 54 (React Native), iOS 27
+│   └── api/               Hono server: account deletion only
 ├── packages/
 │   ├── ui/                Shared web UI components
 │   ├── shared/            Types, Zod schemas, constants
@@ -206,7 +161,7 @@ pnpm supabase gen types typescript --local \
 │   ├── config.toml        Local stack configuration
 │   ├── seed.sql           Dev seed data
 │   └── migrations/        SQL migration files
-└── docs/brain/            Architecture decision records
+└── docs/                  brain/ (architecture), parity/, brand/, budgeting/, ai/, launch/
 ```
 
 ---
@@ -218,7 +173,6 @@ pnpm supabase gen types typescript --local \
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...        # from `supabase start` output
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...   # from `supabase start` output
-SUPABASE_SERVICE_ROLE_KEY=...       # server-only — never expose to client
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -230,7 +184,8 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
 > `NEXT_PUBLIC_` and `EXPO_PUBLIC_` vars are bundled into the client.
-> Keep secrets (service role key) server-side only.
+> Never put the service-role key in the web or mobile app; the only allowed use
+> is the account-deletion route in `apps/api`.
 
 ---
 

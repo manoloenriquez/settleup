@@ -136,6 +136,91 @@ export async function rotateShareToken(
   }
 }
 
+const groupLinkResultSchema = z.object({
+  share_enabled: z.boolean(),
+  share_token: z.string().nullable().optional(),
+});
+
+export type GroupLinkState = { shareEnabled: boolean; shareToken: string | null };
+
+/** Turning the group link off kills it; turning it on issues a brand-new one. Admins only. */
+export async function setGroupLinkEnabled(
+  groupId: string,
+  enabled: boolean,
+): Promise<ApiResponse<GroupLinkState>> {
+  try {
+    const parsed = z.object({ groupId: groupIdSchema, enabled: z.boolean() }).safeParse({ groupId, enabled });
+    if (!parsed.success) return { data: null, error: "Invalid group ID." };
+
+    await assertAuth();
+    const supabase = await createSettleUpDb();
+    const { data, error } = await supabase
+      .schema("settleup")
+      .rpc("set_group_share_enabled", { p_group_id: parsed.data.groupId, p_enabled: parsed.data.enabled });
+    if (error) {
+      return {
+        data: null,
+        error: error.code === "42501" ? "Only group admins can change the shared link." : "Couldn't change the link. Try again.",
+      };
+    }
+    const result = groupLinkResultSchema.safeParse(data);
+    if (!result.success) return { data: null, error: "The link setting could not be read." };
+    return { data: { shareEnabled: result.data.share_enabled, shareToken: result.data.share_token ?? null }, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+/** A new group link; the previous one stops working at once. Admins only. */
+export async function regenerateGroupLink(groupId: string): Promise<ApiResponse<GroupLinkState>> {
+  try {
+    const parsed = groupIdSchema.safeParse(groupId);
+    if (!parsed.success) return { data: null, error: "Invalid group ID." };
+
+    await assertAuth();
+    const supabase = await createSettleUpDb();
+    const { data, error } = await supabase
+      .schema("settleup")
+      .rpc("rotate_group_share_token", { p_group_id: parsed.data });
+    if (error) {
+      return {
+        data: null,
+        error: error.code === "42501" ? "Only group admins can change the shared link." : "Couldn't make a new link. Try again.",
+      };
+    }
+    const result = groupLinkResultSchema.safeParse(data);
+    if (!result.success) return { data: null, error: "The new link could not be read." };
+    return { data: { shareEnabled: result.data.share_enabled, shareToken: result.data.share_token ?? null }, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
+/** Hide (or show again) my own payment details on this group's shared pages. */
+export async function setHideMyPaymentDetails(
+  groupId: string,
+  hidden: boolean,
+): Promise<ApiResponse<{ hidden: boolean }>> {
+  try {
+    const parsed = z.object({ groupId: groupIdSchema, hidden: z.boolean() }).safeParse({ groupId, hidden });
+    if (!parsed.success) return { data: null, error: "Invalid group ID." };
+
+    await assertAuth();
+    const supabase = await createSettleUpDb();
+    const { error } = await supabase
+      .schema("settleup")
+      .rpc("set_hide_payment_details", { p_group_id: parsed.data.groupId, p_hidden: parsed.data.hidden });
+
+    if (error) return { data: null, error: "Couldn't update this setting. Try again." };
+    return { data: { hidden: parsed.data.hidden }, error: null };
+  } catch (e) {
+    if (e instanceof AuthError) return { data: null, error: e.message };
+    return { data: null, error: "Something went wrong." };
+  }
+}
+
 export async function regenerateInviteCode(
   groupId: string,
 ): Promise<ApiResponse<{ invite_code: string }>> {
