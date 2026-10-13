@@ -38,7 +38,12 @@ Applied live at the owner's request (recorded as `20261011082528 preview_group_i
 Anonymous callers can't execute it. The advisor's "authenticated can execute a SECURITY DEFINER
 function" note is intentional, the same as for the other settleup RPCs.
 
-## 2. Apply the analytics migrations (together, in this order)
+## 2. Apply the analytics migrations (together, in this order) — DONE 2026-10-13
+
+Applied live at the owner's request, in order, together with `20261012100000_personal_budgets`
+(recorded as `settleup_product_events`, `settleup_product_events_talli_accounts_only`,
+`settleup_group_settled_per_currency`, `settleup_personal_budgets`). `product_events.sql` and
+`personal_budgets.sql` passed live inside `BEGIN … ROLLBACK`; no fixture rows remain. Kept for reference:
 
 Never apply `product_events` alone: by itself it would count every app's sign-ups on the shared
 `auth.users` as Talli accounts until the second migration removes that trigger.

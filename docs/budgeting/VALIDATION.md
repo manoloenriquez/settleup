@@ -94,11 +94,9 @@ reviews were its general review rather than the financial focus asked for.
 
 ## Limitations
 
-- **Live database:** migration `20261012100000_personal_budgets.sql` is applied
-  only on the local stack. Until the owner applies it to the live project,
-  signed-in budgets stay on the device ("Backup to your account isn't
-  available yet") — nothing is lost, and group shares already work (they use
-  existing tables).
+- **Live database:** migration `20261012100000_personal_budgets.sql` was applied
+  live on 13 October 2026 (`settleup_personal_budgets`); `personal_budgets.sql`
+  passed live inside a rolled-back transaction. Signed-in budgets now back up.
 - **Web:** no budgeting UI (the web app has no personal expenses).
 - **Leaving a group:** its shares stop counting (RLS hides them), which can
   change past figures.

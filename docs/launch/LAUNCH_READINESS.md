@@ -38,7 +38,7 @@ Owner steps are in `OWNER_ACTIONS.md`; findings in `PRODUCT_GAP_REGISTER.md`; th
 | R13 | Universal links and friend links in production | P1 | BLOCKED | Production web is stale (G-03) | Owner | Deploy (O1) |
 | R14 | Crash reporting | P1 | BLOCKED | DSN-gated code exists | Owner | Sentry DSN (O4) |
 | R15 | Push notifications | P2 | BLOCKED | DB side live, `push_delivery.sql` passes | Owner | Function deploy (O3) |
-| R16 | First-party analytics isolated to Talli | P2 | BLOCKED | `product_events.sql` passes locally/CI | Owner | Apply migrations (O2) |
+| R16 | First-party analytics isolated to Talli | P2 | PASS | Applied live 2026-10-13; `product_events.sql` passed live (rolled back), locally and in CI | Claude | — |
 
 ## AI
 

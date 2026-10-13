@@ -334,7 +334,7 @@ Files: `launch_security.sql` (invitations, guest reports, resolution authorizati
   friend, leaving the ledger or closing an account ends the friendship but
   keeps the ledger as a normal group.
 
-## Personal budgets (migration `20261012100000`, local only until applied live)
+## Personal budgets (migration `20261012100000`, applied live 2026-10-13)
 
 - `settleup.personal_budgets(user_id pk → auth.users, doc jsonb, created_at,
   updated_at)`: one budget document per account (settings versions and the

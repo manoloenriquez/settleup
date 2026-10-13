@@ -96,7 +96,7 @@ Class: **Both** = must have on both · **Web+** = recommended for web ·
 |---|---|---|---|---|
 | Daily / weekly / monthly figures, monthly ceiling, adaptive weekly rollover (full or smoothed), overspend recovery, month boundaries, set-asides, history | Complete (engine `packages/shared/src/budget`, 107 tests; screens under `(tabs)/spending/budget*`) | Missing | §4 C1 — the engine is already platform-neutral; web needs screens, the personal ledger and the same `personal_budgets` sync | P1 |
 | AI budget help | Assistant (rules) | Missing | With C5 | P2 |
-| Sync of budgets | CAS RPC `save_personal_budget` — **migration applied locally only** | — | Owner applies `20261012100000_personal_budgets` live | Owner |
+| Sync of budgets | CAS RPC `save_personal_budget` (applied live 2026-10-13) | — | Reuse on web with C1 | — |
 
 Planned-only items: none of the brief's budgeting features is "planned but
 missing"; the remaining limitations are listed in `docs/budgeting/VALIDATION.md`.
@@ -160,8 +160,7 @@ web feasibility, complexity, shared-code reuse, privacy, maintenance.
 
 ### P0 — none open
 No remaining defect corrupts data or blocks a core group task on either
-platform after §3. (The live-database budget migration is an owner action, not
-a code gap.)
+platform after §3.
 
 ### C1 · Personal spending and budget on web — **P1**
 - **Problem:** half of Talli (personal ledger, adaptive budget) doesn't exist on
@@ -173,7 +172,7 @@ a code gap.)
   table; setup with the same preview.
 - **Why now:** most frequent personal action; engine, schemas, merge and sync
   contract are already shared and tested.
-- **Dependencies:** owner applies `20261012100000_personal_budgets` live;
+- **Dependencies:** `20261012100000_personal_budgets` (applied live 2026-10-13);
   `personal_expenses` RPCs exist. Decide signed-in-only first (C6 later).
 - **Effort:** L (2–3 weeks). **Risk:** medium (sync conflicts — reuse the
   three-way merge and CAS exactly as mobile does; don't fork it).
@@ -287,7 +286,6 @@ Do not share UI components between React Native and web.
 
 ## 8. Owner decisions and actions
 
-- Apply `20261012100000_personal_budgets` to the live project (before C1).
 - Apple Services ID for web sign-in (C2).
 - Supabase auth: add `talli://auth/callback`; confirm email templates say Talli.
 - App Store listing name and trademark check.
